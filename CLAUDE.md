@@ -7,6 +7,16 @@ Personal project. Currently empty — no source code, tech stack, or build tooli
 - **Spec-driven development via OpenSpec** (`openspec/`, schema `spec-driven`). Start new work with `/opsx:propose "<idea>"` (or `/opsx:explore` to think it through first), implement with `/opsx:apply`, close with `/opsx:archive`. Current specs live in `openspec/specs/`, in-flight changes in `openspec/changes/`.
 - Project-level constraints for OpenSpec artifacts go in `openspec/config.yaml` (`context:` / `rules:`).
 
+## Claude memory
+
+Auto-memory lives **in-repo** at `.claude/memory/` (committed). Per machine, `.claude/settings.local.json` (gitignored) must contain:
+
+```json
+{ "autoMemoryDirectory": "<absolute-repo-path>/.claude/memory" }
+```
+
+A canary MEMORY.md sits at the default global location — if its line ever appears in loaded memories, the redirect is not applied; fix the local setting before writing memories.
+
 ## Code navigation
 
 - The repo is indexed in codebase-memory-mcp as project `D-source-jakubbohm-RevolutReader`. Prefer its graph tools (`search_graph`, `trace_path`, `get_code_snippet`) for code exploration; re-run `index_repository` after significant changes.

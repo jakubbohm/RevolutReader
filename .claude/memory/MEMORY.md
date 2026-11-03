@@ -1,0 +1,1 @@
+- [Memory lives in-repo](memory-in-repo.md) — auto-memory redirected to .claude/memory via settings.local.json; canary at the global default location
