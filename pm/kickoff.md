@@ -1,199 +1,199 @@
-# RevolutReader — Kickoff projektu
+# RevolutReader — Project Kickoff
 
-> **K čemu tento dokument slouží:** výchozí zadání projektu. Na jeho základě další session vytvoří `pm/roadmap.md` a `pm/progress.md`, kterými se bude řídit celý vývoj. Dokument popisuje **co** a **proč**. **Jak** se rozhodne až v jednotlivých krocích roadmapy.
+> **Purpose of this document:** the initial brief for the project. Based on it, a follow-up session creates `pm/roadmap.md` and `pm/progress.md`, which will drive all development. The document describes **what** and **why**. **How** is decided later, in the individual roadmap steps.
 >
-> **Značení:** **Rozhodnuto** = platí. **Předpoklad** = výchozí volba, kterou je třeba potvrdit. **Otevřené** = rozhodne se později (viz [kap. 10](#10-otevřené-otázky)).
+> **Legend:** **Decided** = settled. **Assumption** = default choice that needs to be confirmed. **Open** = to be decided later (see [ch. 10](#10-open-questions)).
 >
-> Datum: 2026-11-03 (aktualizováno 2026-11-04)
+> Date: 2026-11-03 (updated 2026-11-04)
 
 ---
 
-## 1. Kontext
+## 1. Context
 
-Dcera je v zahraničí a s mým svolením platí mojí kartou k jednomu konkrétnímu účtu u Revolutu. Potřebuje vidět, kolik na účtu zbývá a jaké platby proběhly.
+My daughter is abroad and, with my permission, pays with my card linked to one specific Revolut account. She needs to see how much money is left in the account and which payments have gone through.
 
-Původní plán byl, že si nainstaluje aplikaci Revolut a přihlásí se do ní mým účtem. To ale nevyšlo: aplikace vyžaduje ověření obličejem a dcera to zkoušela až v zahraničí, kde nejsem s ní.
+The original plan was for her to install the Revolut app and sign in with my account. That didn't work: the app requires face verification, and she only tried it once she was abroad, where I'm not with her.
 
-## 2. Cíl
+## 2. Goal
 
-Jednoduchá webová aplikace (PWA), ve které dcera uvidí **zůstatek a transakce** na tomto jednom účtu, **pouze pro čtení**, a dostane **push notifikaci**, když se na účtu něco změní.
+A simple web application (PWA) in which my daughter can see the **balance and transactions** of this one account, **read-only**, and receives a **push notification** when something changes in the account.
 
-- **Doba provozu:** cca 2 měsíce.
-- **Hlavní priorita je rychlost dodání.** Aplikace je záměrně minimální a nemá nic navíc.
-- **Proč PWA:** kvůli push notifikacím a instalaci na mobil.
+- **Operating period:** approx. 2 months.
+- **The main priority is speed of delivery.** The application is intentionally minimal, with nothing extra.
+- **Why a PWA:** for push notifications and installation on a phone.
 
-## 3. Rozsah
+## 3. Scope
 
-**V rozsahu**
+**In scope**
 
-- 3 use casy: **Přihlášení**, **Detail účtu** a **Push notifikace o změnách na účtu**.
-- Malý pevný okruh předem povolených uživatelů: já, dcera a testovací účty.
-- 1 účet u Revolutu, napojený přes Enable Banking.
+- 3 use cases: **Sign-in**, **Account detail**, and **Push notifications about account changes**.
+- A small fixed set of pre-approved users: me, my daughter, and test accounts.
+- 1 Revolut account, connected via Enable Banking.
 
-**Mimo rozsah**
+**Out of scope**
 
-- Jakékoli zápisové operace (platby, převody, správa karty).
-- Registrace nových uživatelů a přihlášení kohokoli mimo předem povolené účty.
-- Přihlášení jinými než Microsoft účty (např. Apple).
-- Další účty nebo banky.
-- Cokoli nad rámec tří výše uvedených use casů.
+- Any write operations (payments, transfers, card management).
+- Registration of new users and sign-in by anyone other than the pre-approved accounts.
+- Sign-in with anything other than Microsoft accounts (e.g., Apple).
+- Other accounts or banks.
+- Anything beyond the three use cases above.
 
-## 4. Uživatelé a přístup
+## 4. Users and access
 
-| Uživatel | Role | Typ účtu |
+| User | Role | Account type |
 |---|---|---|
-| Já (vlastník) | jednorázové nastavení, zároveň běžný uživatel | Microsoft account |
-| Dcera | hlavní uživatelka, jen čtení | Microsoft account |
-| Testovací účty | ověřování během vývoje | Microsoft account |
+| Me (owner) | one-time setup, also a regular user | Microsoft account |
+| Daughter | main user, read-only | Microsoft account |
+| Test accounts | verification during development | Microsoft account |
 
-- Přihlášení přes **Microsoft Entra ID** osobním Microsoft accountem.
-- Povolené účty jsou **určené předem**. Mechanismus je otevřený: buď whitelist e-mailových adres v repozitáři, nebo pozvánky v Entra ID (viz [otázka 1](#10-otevřené-otázky)).
-- Dcera dostane odkaz, přihlásí se a může aplikaci rovnou používat. Na její straně nejsou žádné další kroky (registrace, čekání na schválení).
-- Kdokoli jiný je odmítnut. Aplikace zobrazuje bankovní data, takže přístup musí být striktně omezen na povolené účty.
+- Sign-in via **Microsoft Entra ID** with a personal Microsoft account.
+- Allowed accounts are **defined in advance**. The mechanism is open: either an allowlist of email addresses in the repository, or invitations in Entra ID (see [question 1](#10-open-questions)).
+- My daughter gets a link, signs in, and can use the application right away. No further steps are required on her side (registration, waiting for approval).
+- Anyone else is rejected. The application displays bank data, so access must be strictly limited to the allowed accounts.
 
-## 5. Use casy
+## 5. Use cases
 
-### UC1 — Přihlášení
+### UC1 — Sign-in
 
-- Nepřihlášený uživatel se přihlásí svým Microsoft účtem.
-- Projde pouze předem povolený účet.
-- Po přihlášení se zobrazí Detail účtu.
+- A signed-out user signs in with their Microsoft account.
+- Only a pre-approved account gets through.
+- After sign-in, the Account detail is shown.
 
-### UC2 — Detail účtu
+### UC2 — Account detail
 
-- **Záhlaví:** aktuální zůstatek účtu.
-- **Pod ním:** scrollovatelný seznam transakcí.
-- Data se načítají z Revolutu přes Enable Banking. Backend slouží jako proxy.
+- **Header:** current account balance.
+- **Below it:** a scrollable list of transactions.
+- Data is loaded from Revolut via Enable Banking. The backend acts as a proxy.
 
-### UC3 — Push notifikace o změnách na účtu
+### UC3 — Push notifications about account changes
 
-- Uživatel v aplikaci povolí notifikace.
-- Backend pravidelně (např. 1× za hodinu) zjistí stav účtu.
-- Pokud se od poslední kontroly něco změnilo, pošle push notifikaci uživatelům, kteří notifikace povolili.
+- The user enables notifications in the app.
+- The backend periodically (e.g., once an hour) checks the account state.
+- If anything has changed since the last check, it sends a push notification to the users who have enabled notifications.
 
-## 6. Architektura
+## 6. Architecture
 
 ```
-PWA (React) ──── přihlášení ────▶ Entra ID
+PWA (React) ──── sign-in ────▶ Entra ID
   │       ▲
   │ HTTPS │ Web Push
-  │ token │ (přes push službu prohlížeče)
+  │ token │ (via the browser's push service)
   ▼       │
 Backend (.NET 11) ────▶ Enable Banking API ────▶ Revolut
-  ├─ API: zůstatek, transakce
-  ├─ job (např. 1× za hodinu): kontrola změn → push notifikace
-  ├──▶ Cosmos DB   (poslední známý stav účtu, odběry notifikací)
+  ├─ API: balance, transactions
+  ├─ job (e.g., once an hour): check for changes → push notification
+  ├──▶ Cosmos DB   (last known account state, notification subscriptions)
   └──▶ Key Vault   (secrets)
 ```
 
-- **Backend má dvě části:**
-  - **API pro čtení:** 1–2 endpointy (zůstatek, transakce), které předávají data z Enable Banking.
-  - **Job pro notifikace:** pravidelně načte stav účtu, porovná ho s posledním uloženým a při změně odešle Web Push.
-- **Jen čtení:** vůči bance backend volá výhradně čtecí operace.
-- **Napojení Enable Banking na můj Revolut účet** provedu jednou ručně.
-- **Databáze:** kvůli notifikacím je potřeba jednoduché úložiště, Cosmos DB ve free tieru. Předběžně v ní bude poslední známý stav účtu (pro detekci změn) a odběry push notifikací.
-- **Secrets** jsou výhradně v Azure Key Vault, nikdy v repozitáři. Patří sem např. přístup k Enable Banking a privátní VAPID klíč pro Web Push.
-- **Konfigurace** je běžně v repozitáři (appsettings). Pokud by bylo potřeba ji měnit za běhu, použije se Azure App Configuration. **Key Vault je jen pro secrets.**
-- **Nasazení:** jeden Docker kontejner na Azure App Service.
+- **The backend has two parts:**
+  - **Read API:** 1–2 endpoints (balance, transactions) that pass through data from Enable Banking.
+  - **Notification job:** periodically loads the account state, compares it with the last stored one, and sends a Web Push on change.
+- **Read-only:** the backend calls only read operations against the bank.
+- **Connecting Enable Banking to my Revolut account** is something I do once, manually.
+- **Database:** notifications require simple storage, so Cosmos DB on the free tier. Tentatively it will hold the last known account state (for change detection) and the push notification subscriptions.
+- **Secrets** live exclusively in Azure Key Vault, never in the repository. This includes, e.g., access to Enable Banking and the private VAPID key for Web Push.
+- **Configuration** normally lives in the repository (appsettings). If it ever needs to change at runtime, Azure App Configuration is used. **Key Vault is for secrets only.**
+- **Deployment:** a single Docker container on Azure App Service.
 
-## 7. Technologie
+## 7. Technology
 
-| Oblast | Volba | Stav |
+| Area | Choice | Status |
 |---|---|---|
-| Frontend | React + Vite + TypeScript, PWA, Tailwind CSS, Radix Primitives | Rozhodnuto |
-| Backend | .NET 11 (ASP.NET Core) | Rozhodnuto |
-| Bankovní konektivita | [Enable Banking](https://enablebanking.com/) API → Revolut | Rozhodnuto |
-| Autentizace | Microsoft Entra ID, předem povolené Microsoft accounty | Rozhodnuto; mechanismus povolení otevřený |
-| Notifikace | Web Push (PWA) | Rozhodnuto |
-| Secrets | Azure Key Vault (výhradně secrets) | Rozhodnuto |
-| Konfigurace | appsettings v repozitáři; dynamická konfigurace jen v případě potřeby přes Azure App Configuration | Rozhodnuto |
-| Databáze | Cosmos DB (free tier), potřeba vyplývá z notifikací | Předpoklad |
-| Hosting | Azure App Service (Web App for Containers), Docker | Rozhodnuto |
-| Lokální vývoj | .NET Aspire | Rozhodnuto |
-| Repozitář a CI/CD | GitHub, deploy na Azure přes GitHub Actions | Rozhodnuto |
-| Testy | TDD + BDD; Testcontainers tam, kde je potřeba (s databází pravděpodobně ano) | Rozhodnuto / Předpoklad |
+| Frontend | React + Vite + TypeScript, PWA, Tailwind CSS, Radix Primitives | Decided |
+| Backend | .NET 11 (ASP.NET Core) | Decided |
+| Bank connectivity | [Enable Banking](https://enablebanking.com/) API → Revolut | Decided |
+| Authentication | Microsoft Entra ID, pre-approved Microsoft accounts | Decided; allowlisting mechanism open |
+| Notifications | Web Push (PWA) | Decided |
+| Secrets | Azure Key Vault (secrets only) | Decided |
+| Configuration | appsettings in the repository; dynamic configuration only if needed, via Azure App Configuration | Decided |
+| Database | Cosmos DB (free tier), needed because of notifications | Assumption |
+| Hosting | Azure App Service (Web App for Containers), Docker | Decided |
+| Local development | .NET Aspire | Decided |
+| Repository and CI/CD | GitHub, deployment to Azure via GitHub Actions | Decided |
+| Tests | TDD + BDD; Testcontainers where needed (likely for the database) | Decided / Assumption |
 
-## 8. Způsob vývoje
+## 8. Development approach
 
-- **Spec-driven development** přes OpenSpec, kombinovaný s **test-driven** a **behavior-driven development**.
-- Vývoj probíhá po **OpenSpec změnách**. Každá je dimenzovaná tak, aby ji **jedna session zvládla celou**, od návrhu přes implementaci po archivaci.
-- **Jazyky:** UI česky; kód anglicky; specifikace a commity anglicky.
-- Pravidla (styl kódu, workflow, konvence pro TDD a BDD) vzniknou ve [Fázi 0](#93-fáze-0--knowledge-base-a-best-practices) jako knowledge base projektu, ještě před prvním řádkem kódu.
+- **Spec-driven development** via OpenSpec, combined with **test-driven** and **behavior-driven development**.
+- Development proceeds in **OpenSpec changes**. Each is sized so that **one session can complete it entirely**, from proposal through implementation to archiving.
+- **Languages:** the app UI is in Czech. Everything else is in English: code, specifications, commits and project documents. I may write prompts to Claude in Czech; Claude's output is always in English (see `CLAUDE.md`).
+- The rules (code style, workflow, TDD and BDD conventions) will be created in [Phase 0](#93-phase-0--knowledge-base-and-best-practices) as the project's knowledge base, before the first line of code.
 
-## 9. Podklady pro roadmapu
+## 9. Input for the roadmap
 
-### 9.1 Výstupy
+### 9.1 Outputs
 
-- **`pm/roadmap.md`:** seznam kroků (manuálních i vývojových), jejich pořadí a závislosti. Kroky **nejsou detailně specifikované**. Mají jen každé další session dát jasno, co je jejím úkolem.
-- **`pm/progress.md`:** průběžný stav jednotlivých kroků.
+- **`pm/roadmap.md`:** a list of steps (manual and development), their order and dependencies. Steps are **not specified in detail**. They only need to give each subsequent session a clear picture of its task.
+- **`pm/progress.md`:** the ongoing status of the individual steps.
 
-### 9.2 Typy kroků
+### 9.2 Step types
 
-- **Manuální kroky** dělám já. Claude mě jimi provede krok za krokem a řekne mi, **co, kde a jak** nastavit.
-- **Vývojové kroky:** každý odpovídá jedné OpenSpec změně.
+- **Manual steps** are done by me. Claude guides me through them step by step and tells me **what, where and how** to set up.
+- **Development steps:** each corresponds to one OpenSpec change.
 
-### 9.3 Fáze 0 — Knowledge base a best practices
+### 9.3 Phase 0 — Knowledge base and best practices
 
-První úkol pro agenta, ještě před jakýmkoli kódem.
+The first task for the agent, before any code.
 
-- **Cíl:** sepsat knowledge base a best practices projektu: styl kódu, workflow, TDD, BDD apod.
-- **Agent nerozhoduje za mě.** Vyzve mě k rozhodnutím, předloží mi možnosti a nechá se mnou řídit.
-- **Zdroje, na které agenta nasměruji:**
-  - jiný můj projekt, kde už mám velkou část best practices / „software factory“ sepsanou (cestu dodám),
-  - konkrétní Claude session, ve které jsem řešil TDD a BDD a ze které chci převzít znalosti (odkaz dodám).
+- **Goal:** write the project's knowledge base and best practices: code style, workflow, TDD, BDD, etc.
+- **The agent does not decide for me.** It prompts me for decisions, presents options, and lets me steer.
+- **Sources I will point the agent to:**
+  - another project of mine, where a large part of the best practices / "software factory" is already written down (I will provide the path),
+  - a specific Claude session in which I worked on TDD and BDD and from which I want to carry over knowledge (I will provide the link).
 
-### 9.4 Manuální kroky (předběžně)
+### 9.4 Manual steps (preliminary)
 
-| Oblast | Co je potřeba |
+| Area | What is needed |
 |---|---|
-| Enable Banking | založení účtu, registrace aplikace, jednorázové propojení s mým Revolut účtem |
-| Azure | prvotní nastavení prostředků (App Service, Key Vault, Cosmos DB aj.), uložení secrets |
-| Entra ID | registrace aplikace, povolení účtů (dcera, testovací účty) podle zvoleného mechanismu |
-| GitHub | vytvoření repozitáře na GitHubu, propojení GitHub Actions s Azure |
-| Předání | poslání odkazu dceři, ověření, že se přihlásí, vidí data a dostává notifikace |
+| Enable Banking | create an account, register the application, one-time connection to my Revolut account |
+| Azure | initial setup of resources (App Service, Key Vault, Cosmos DB, etc.), storing secrets |
+| Entra ID | register the application, allow accounts (daughter, test accounts) according to the chosen mechanism |
+| GitHub | create the repository on GitHub, connect GitHub Actions to Azure |
+| Handover | send the link to my daughter, verify that she can sign in, sees the data and receives notifications |
 
-### 9.5 OpenSpec změny (předběžně)
+### 9.5 OpenSpec changes (preliminary)
 
-Platí pravidlo: **nejdřív základy projektu, potom konkrétní use casy a endpointy.**
+Rule: **project foundations first, then specific use cases and endpoints.**
 
-1. **Backend: založení projektu.** Solution, Aspire, testovací infrastruktura.
-2. **Frontend: založení projektu.** Vite + React + TypeScript, Tailwind, Radix, PWA, testovací infrastruktura.
-3. **Adaptér pro Enable Banking.**
-4. **API:** endpointy pro zůstatek a transakce, včetně autorizace.
-5. **Frontend:** přihlášení a detail účtu.
-6. **Nasazení:** Docker image a GitHub Actions → Azure. *(Doplněno: vyplývá z požadavku na deploy přes GitHub Actions. Může být i součástí základů.)*
-7. **Push notifikace.** Na backendu periodická kontrola účtu, detekce změn, uložení stavu a odběrů (Cosmos DB) a odesílání Web Push. Na frontendu povolení notifikací a jejich příjem v service workeru. *(Pravděpodobně rozdělit na backend a frontend.)*
+1. **Backend: project setup.** Solution, Aspire, test infrastructure.
+2. **Frontend: project setup.** Vite + React + TypeScript, Tailwind, Radix, PWA, test infrastructure.
+3. **Enable Banking adapter.**
+4. **API:** endpoints for balance and transactions, including authorization.
+5. **Frontend:** sign-in and account detail.
+6. **Deployment:** Docker image and GitHub Actions → Azure. *(Added: follows from the requirement to deploy via GitHub Actions. Could also be part of the foundations.)*
+7. **Push notifications.** On the backend: periodic account check, change detection, storing the state and subscriptions (Cosmos DB), and sending Web Push. On the frontend: enabling notifications and receiving them in the service worker. *(Probably split into backend and frontend.)*
 
-Session tvořící roadmapu může změny dělit nebo slučovat tak, aby každá odpovídala jedné session.
+The session creating the roadmap may split or merge changes so that each one fits a single session.
 
-**Doporučení k pořadí:** notifikace až po nasazení základní verze (zůstatek a transakce), aby dcera viděla data co nejdřív.
+**Recommended order:** notifications only after the basic version (balance and transactions) is deployed, so that my daughter sees the data as soon as possible.
 
-**Závislosti na manuálních krocích:**
+**Dependencies on manual steps:**
 
-- Adaptér lze vyvíjet proti mockům, ale ověření proti skutečnému API vyžaduje hotové nastavení Enable Banking.
-- Přihlášení vyžaduje registraci aplikace v Entra ID.
-- Nasazení vyžaduje nastavení Azure a propojení s GitHubem.
-- Notifikace vyžadují databázi a VAPID klíče uložené v Key Vaultu.
+- The adapter can be developed against mocks, but verification against the real API requires the Enable Banking setup to be complete.
+- Sign-in requires the application registration in Entra ID.
+- Deployment requires the Azure setup and the connection to GitHub.
+- Notifications require the database and the VAPID keys stored in Key Vault.
 
-### 9.6 Ukončení provozu *(návrh, doplněno)*
+### 9.6 Decommissioning *(proposal, added)*
 
-Po skončení dvouměsíčního období:
+After the two-month period ends:
 
-- zrušit souhlas (consent) v Enable Banking,
-- odebrat přístup povoleným účtům,
-- smazat prostředky v Azure, včetně databáze s uloženými daty účtu.
+- revoke the consent in Enable Banking,
+- remove access for the allowed accounts,
+- delete the Azure resources, including the database with the stored account data.
 
-## 10. Otevřené otázky
+## 10. Open questions
 
-Rozhodnou se ve Fázi 0 nebo v příslušné OpenSpec změně.
+To be decided in Phase 0 or in the relevant OpenSpec change.
 
-1. **Mechanismus povolení účtů:** whitelist e-mailových adres v repozitáři, nebo pozvánky (hosté) v Entra ID. Pozvánky byly původně zavrženy nejspíš kvůli tehdy zvažovanému přihlašování Apple účtem, od kterého se ustoupilo, takže jsou znovu ve hře. U whitelistu počítat s tím, že e-mailové adresy uvidí každý, kdo vidí do repozitáře.
-2. **Tok autentizace:** SPA s MSAL a bearer tokenem, nebo BFF s cookie.
-3. **Hostování frontendu:** předpokládá se jeden kontejner, ve kterém backend servíruje build frontendu. Potvrdit.
-4. **Hosting jobu, registry a náklady:** hodinový job uvnitř App Service vyžaduje zapnuté Always On, které ve Free tarifu není. Alternativou je např. Azure Functions s časovým triggerem. Dále GitHub Container Registry, nebo Azure Container Registry, a tarif App Service.
-5. **Enable Banking** *(riziko)*: platnost souhlasu (vydrží celé 2 měsíce, nebo bude nutné ho obnovit?) a cenový plán pro osobní použití. Ověřit.
-6. **Limity dotazů na banku** *(riziko, může ovlivnit návrh notifikací)*: PSD2 omezuje počet dotazů bez přítomnosti majitele účtu (typicky 4× denně), zatímco hodinová kontrola znamená 24 dotazů denně. Ověřit, jak to platí přes Enable Banking pro Revolut, a podle toho upravit frekvenci kontrol nebo práci s uloženými daty (cache).
-7. **Transakce:** kolik historie zobrazit, stránkování nebo nekonečný scroll, jaké údaje u transakce ukázat (datum, částka, protistrana, popis…).
-8. **Obsah notifikací:** co přesně je „změna“ (nová transakce, změna zůstatku), co notifikace obsahuje (částky a obchodníci budou vidět i na zamčené obrazovce) a komu se posílá.
-9. **Push na iOS** *(riziko)*: pokud má dcera iPhone, Web Push funguje jen u PWA přidané na plochu (iOS 16.4+). Ověřit, jaký telefon dcera má.
-10. **Rozsah PWA:** stačí instalace na mobil a notifikace, nebo je potřeba i offline režim?
+1. **Account allowlisting mechanism:** an allowlist of email addresses in the repository, or invitations (guests) in Entra ID. Invitations were originally rejected, most likely because of the Apple sign-in that was being considered at the time and has since been dropped, so they are back on the table. With an allowlist, keep in mind that the email addresses are visible to anyone who can see the repository.
+2. **Authentication flow:** SPA with MSAL and a bearer token, or BFF with a cookie.
+3. **Frontend hosting:** the assumption is a single container in which the backend serves the frontend build. To be confirmed.
+4. **Job hosting, registry and costs:** an hourly job inside App Service requires Always On, which is not available on the Free tier. An alternative is, e.g., Azure Functions with a timer trigger. Also open: GitHub Container Registry or Azure Container Registry, and the App Service tier.
+5. **Enable Banking** *(risk)*: consent validity (will it last the full 2 months, or will it need to be renewed?) and the pricing plan for personal use. To be verified.
+6. **Bank request limits** *(risk, may affect the notification design)*: PSD2 limits the number of requests made without the account holder present (typically 4 per day), whereas an hourly check means 24 requests per day. Verify how this applies to Revolut via Enable Banking, and adjust the check frequency or the handling of stored data (cache) accordingly.
+7. **Transactions:** how much history to show, pagination or infinite scroll, which details to show for a transaction (date, amount, counterparty, description…).
+8. **Notification content:** what exactly counts as a "change" (new transaction, balance change), what the notification contains (amounts and merchants will be visible on the lock screen too), and who it is sent to.
+9. **Push on iOS** *(risk)*: if my daughter has an iPhone, Web Push only works for a PWA added to the home screen (iOS 16.4+). Verify which phone she has.
+10. **PWA scope:** are installation on a phone and notifications enough, or is an offline mode also needed?
