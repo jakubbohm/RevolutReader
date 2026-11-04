@@ -1,1 +1,3 @@
 - [Memory lives in-repo](memory-in-repo.md) — auto-memory redirected to .claude/memory via settings.local.json; canary at the global default location
+- [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next
+- [Factory gets the full version](factory-gets-full-version.md) — project simplifications are exceptions; software-factory entries keep the full approach as default

@@ -1,0 +1,15 @@
+{
+  "balances": [
+    {
+      "name": "Interim available balance",
+      "balance_amount": {
+        "currency": "CZK",
+        "amount": "1234.50"
+      },
+      "balance_type": "ITAV",
+      "last_change_date_time": null,
+      "reference_date": null,
+      "last_committed_transaction": null
+    }
+  ]
+}

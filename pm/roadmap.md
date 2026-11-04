@@ -14,8 +14,8 @@
 - **Step types:**
   - **Phase 0:** knowledge base and architecture decisions, no product code. The agent presents options; the user decides.
   - **Manual:** only what cannot be automated ([docs/conventions/workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure)): access to the Azure subscription, the Entra application registration, the identity GitHub Actions deploys with, shared resources and access to them, and secret values only a human can produce. Everything else in Azure is Bicep, deployed by CD inside the OpenSpec changes. The user does the manual work; Claude guides them step by step and says what to set up, where and how. Commands for the user are PowerShell 7. Non-secret identifiers (resource names, client IDs, URLs) are recorded in the repository. Secrets go only to Key Vault, never into the repository; until Key Vault exists, they stay on the user's machine. Scripts and evidence go in `spikes/<topic>/` ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)).
-  - **Documentation:** a guide Claude writes from what the repository records; the user reviews it. No product code.
-  - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/opsx:apply`, `/opsx:archive`), using TDD and BDD as defined in the knowledge base. Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
+  - **Documentation:** a document Claude writes or restructures from what the repository records; the user reviews it. No product code.
+  - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/tdd-apply`, `/opsx:archive`), test-first as defined in [docs/conventions/testing.md](../docs/conventions/testing.md). Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
 - **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file.
 - **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
@@ -26,28 +26,29 @@
 |---|---|---|---|---|---|
 | 1 | M1 | Manual | Enable Banking setup and verification of risks 5 and 6 | — (runs alongside F0-1) | verifies Q5, Q6 |
 | 2 | F0-1 | Phase 0 | Knowledge base and best practices | — | — |
-| 3 | F0-2 | Phase 0 | Architecture decisions | F0-1; M1 findings (recommended) | decides Q1, Q2, Q3, Q4; verifies Q9 |
-| 4 | M2 | Manual | GitHub repository | — | — |
-| 5 | C1 | OpenSpec | `cNNN-add-backend-foundation` | F0-1, F0-2 | — |
-| 6 | C2 | OpenSpec | `cNNN-add-ci-pipeline` | C1, M2 | — |
-| 7 | C3 | OpenSpec | `cNNN-add-frontend-foundation` | C1, C2 | decides Q10 |
-| 8 | M3 | Manual | Azure prerequisites for v1 | F0-2, M1, M2 | — |
-| 9 | C4 | OpenSpec | `cNNN-add-deployment-pipeline` | C3, M3 | — |
-| 10 | M4 | Manual | Entra ID | F0-2 | — |
-| 11 | C5 | OpenSpec | `cNNN-add-enable-banking-adapter` | C1, M1 | — |
-| 12 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
-| 13 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
+| 3 | D2 | Documentation | Split the software-factory file | F0-1 | — |
+| 4 | F0-2 | Phase 0 | Architecture decisions | F0-1; M1 findings (recommended) | decides Q1, Q2, Q3, Q4; verifies Q9 |
+| 5 | M2 | Manual | GitHub repository | — | — |
+| 6 | C1 | OpenSpec | `cNNN-add-backend-foundation` | F0-1, F0-2, M2 | — |
+| 7 | C2 | OpenSpec | `cNNN-add-ci-pipeline` | C1, M2 | — |
+| 8 | C3 | OpenSpec | `cNNN-add-frontend-foundation` | C1, C2 | decides Q10 |
+| 9 | M3 | Manual | Azure prerequisites for v1 | F0-2, M1, M2 | — |
+| 10 | C4 | OpenSpec | `cNNN-add-deployment-pipeline` | C3, M3 | — |
+| 11 | M4 | Manual | Entra ID | F0-2 | — |
+| 12 | C5 | OpenSpec | `cNNN-add-enable-banking-adapter` | C1, M1 | — |
+| 13 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
+| 14 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
 | ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7 deployed via C4 | |
-| 14 | M5 | Manual | Handover v1 | v1 | — |
-| 15 | M6 | Manual | Azure prerequisites for notifications | M3, F0-2 | — |
-| 16 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6, M6 | — |
-| 17 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8, M6; findings on Q5, Q6 | decides Q8 (and job hosting from Q4 if F0-2 deferred it) |
+| 15 | M5 | Manual | Handover v1 | v1 | — |
+| 16 | M6 | Manual | Azure prerequisites for notifications | M3, F0-2 | — |
+| 17 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6, M6 | — |
+| 18 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8, M6; findings on Q5, Q6 | decides Q8 (and job hosting from Q4 if F0-2 deferred it) |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 18 | M7 | Manual | Handover v2 | v2 | — |
+| 19 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 19 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 20 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| 20 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 21 | M8 | Manual | Decommissioning | end of operation; D1 | — |
 
 **Two tracks.** Manual steps (M1–M4, M6) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 (v1) → C8 → C9 (v2).
 
@@ -106,6 +107,18 @@
 - **Outputs:** the knowledge base in the repository: `docs/conventions/` (conventions), `docs/adr/` (decisions), `docs/software-factory.md` (lessons for the software factory); `openspec/config.yaml` with `context` and `rules` that reflect it; `CLAUDE.md` pointing to the knowledge base. The TDD/BDD part (`docs/conventions/testing.md`) runs in a separate session.
 - **Open questions:** none from ch. 10.
 
+### D2 — Split the software-factory file
+
+- **Type:** Documentation
+- **Goal:** Split `docs/software-factory.md` into two files with different purposes:
+  - **lessons for the software factory:** what gets transferred to the factory's catalog (today DoseUp's `docs/software-factory.md`, later the factory's own repository);
+  - **this project's divergences from the software factory:** where and why RevolutReader deliberately does it differently (project-only exceptions such as R-12). It stays with the project and is not transferred.
+- **Depends on:** F0-1, so the split covers all its entries.
+- **Inputs:** `docs/software-factory.md` (entries R-1 onwards); [workflow.md § 10](../docs/conventions/workflow.md#10-software-factory). The user decides where each entry goes. One entry can feed both files: its reusable lesson into the first, the project's exception into the second.
+- **Outputs:** the two files, each stating its purpose and entry format; the handover procedure transferring only the lessons file and naming its target (DoseUp now, the factory's own repository later); every reference updated (`CLAUDE.md`, workflow.md §§ 1, 10 and its status line, this roadmap's F0-1 and M8).
+- **Open questions:** —
+- **Notes:** short. Until it is done, new entries keep going into `docs/software-factory.md`.
+
 ### F0-2 — Architecture decisions
 
 - **Type:** Phase 0
@@ -121,19 +134,19 @@
 - **Goal:** Create the GitHub repository and push the existing history, so that CI can run.
 - **Depends on:** —
 - **Inputs:** kickoff ch. 7; `CLAUDE.md`; [workflow.md § 3](../docs/conventions/workflow.md#3-git).
-- **Outputs:** GitHub repository (the user chooses its visibility, keeping Q1 in mind: an allowlist in the repository would expose email addresses); `origin` remote set; `main` pushed; squash merge as the only merge method and branches deleted on merge. From then on, PRs always.
+- **Outputs:** GitHub repository (the user chooses its visibility, keeping Q1 in mind: an allowlist in the repository would expose email addresses); `origin` remote set; `main` pushed; squash merge as the only merge method, with the default squash commit message including the branch's commit list (so the step-tagged commits of [workflow.md § 3](../docs/conventions/workflow.md#3-git) survive on `main`; check the setting's current name), and branches deleted on merge. From then on, PRs always.
 - **Open questions:** —
-- **Notes:** short; can be done at the start of another session.
+- **Notes:** short; can be done at the start of another session. Must be done before C1, so the first change already has a PR.
 
 ### C1 — `cNNN-add-backend-foundation`
 
 - **Type:** OpenSpec change
-- **Goal:** Set up the backend: .NET 11 solution, ASP.NET Core API project with FastEndpoints, Aspire AppHost and ServiceDefaults, unit and BDD test projects as defined in the knowledge base, and the build conventions (`Directory.Build.props`, `Directory.Packages.props`, `global.json`, `BannedSymbols.txt` — [docs/conventions/README.md](../docs/conventions/README.md)). It ends with a running, empty API and passing tests.
-- **Depends on:** F0-1, F0-2
+- **Goal:** Set up the backend: .NET 11 solution, ASP.NET Core API project with FastEndpoints, Aspire AppHost and ServiceDefaults, the build conventions (`Directory.Build.props`, `Directory.Packages.props`, `global.json`, `BannedSymbols.txt` — [docs/conventions/README.md](../docs/conventions/README.md)), and the test foundation from [docs/conventions/testing.md](../docs/conventions/testing.md): the three test projects (§ Where tests live), the in-process acceptance harness with one walking-skeleton scenario green end to end (§ Acceptance tests), and the traceability test with the .NET attribute and `tests/manual-scenarios.md` (§ Every scenario has exactly one test). It ends with a running, empty API and passing tests.
+- **Depends on:** F0-1, F0-2, M2
 - **Inputs:** kickoff ch. 6, 7, 8; the knowledge base; F0-2 decisions (Q3 affects the structure).
-- **Outputs:** archived change; solution in `src/` and `tests/`; `CLAUDE.md` with build, test and run commands.
+- **Outputs:** archived change; solution in `src/` and `tests/`; `CLAUDE.md` with build, test and run commands, including the commands `/tdd-apply` needs (one group's tests, one change's acceptance tests, the traceability test, the full suite).
 - **Open questions:** —
-- **Notes:** before fixing the Result shape, verify whether C# union types ship in .NET 11 GA ([README.md § Backend code](../docs/conventions/README.md#backend-code)).
+- **Notes:** before fixing the Result shape, verify whether C# union types ship in .NET 11 GA ([README.md § Backend code](../docs/conventions/README.md#backend-code)). The first change through `/tdd-apply`: run it with `review=all`, measure the cost of one app copy per test, and confirm that the implementer's hook fires (accept the workspace trust prompt first). Verify that FastEndpoints works with TUnit.AspNetCore (FastEndpoints' own testing package is believed to be xUnit-based).
 
 ### C2 — `cNNN-add-ci-pipeline`
 
@@ -147,7 +160,7 @@
 ### C3 — `cNNN-add-frontend-foundation`
 
 - **Type:** OpenSpec change
-- **Goal:** Set up the frontend: Vite + React + TypeScript, Tailwind CSS, Radix Primitives behind the app's own components, ESLint + Prettier, the generated API client (openapi-typescript + openapi-fetch), PWA basics (manifest, service worker, installability) and test infrastructure. Integrate it into Aspire and serve it from the backend if Q3 says so. Add the frontend build, checks and tests to CI.
+- **Goal:** Set up the frontend: Vite + React + TypeScript, Tailwind CSS, Radix Primitives behind the app's own components, ESLint + Prettier, the generated API client (openapi-typescript + openapi-fetch), PWA basics (manifest, service worker, installability) and test infrastructure (Vitest, with the `scenario(...)` helper and the traceability test reading it — [testing.md § Every scenario has exactly one test](../docs/conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check)). Integrate it into Aspire and serve it from the backend if Q3 says so. Add the frontend build, checks and tests to CI.
 - **Depends on:** C1, C2
 - **Inputs:** kickoff ch. 2, 6, 7, 10 (Q10); the knowledge base; F0-2 decisions (Q2, Q3, Q9).
 - **Outputs:** archived change; a running PWA shell with the basis for the Czech UI; CI covering the frontend.
@@ -184,9 +197,9 @@
 ### C5 — `cNNN-add-enable-banking-adapter`
 
 - **Type:** OpenSpec change
-- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. It is developed against mocks and verified once against the real API.
+- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. Its tests run against the local fake bank server with responses copied from Enable Banking's Mock ASPSP; it is checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API. Local development reads the Mock ASPSP, never the real account ([testing.md § Fake bank](../docs/conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
 - **Depends on:** C1, M1
-- **Inputs:** kickoff ch. 6; ADR-0001-bank-data-access and the M1 identifiers; Enable Banking API documentation; the knowledge base.
+- **Inputs:** kickoff ch. 6; ADR-0001-bank-data-access and the M1 identifiers; Enable Banking API documentation; the knowledge base; [spikes/enable-banking-mock/](../spikes/enable-banking-mock/README.md) (sandbox application, captured responses). Run `/tdd-apply` with `review=all`.
 - **Outputs:** archived change; the adapter with tests, including handling of expired consent and rate-limit responses.
 - **Open questions:** — (applies the findings on Q5, Q6)
 

@@ -30,8 +30,25 @@ context: |
   c001-add-backend-foundation); NNN is the next number across openspec/changes/ and the
   archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first rule.
 
+  Testing (docs/conventions/testing.md): TUnit + Shouldly. Every scenario is an executable
+  specification with exactly one claim: an API acceptance test by default, a frontend test for
+  rules only the browser shows, or a row in tests/manual-scenarios.md for device-only
+  behaviour; a traceability test fails the build when a scenario has no claim.
+  - tests/RevolutReader.AcceptanceTests: Scenarios/ (test cases, domain language only — they
+    are the spec), Dsl/ (defaults, unique names per test), Drivers/ (the only layer that knows
+    HTTP, the fake bank, sign-in tokens, the clock), Traceability/. The app runs inside the
+    test process, one copy per test; Enable Banking is a WireMock.Net fake server.
+  - tests/RevolutReader.UnitTests: rules of domain types and handlers, no I/O, hand-written
+    in-memory fakes of ports, no mocking framework; paths mirror src/.
+  - tests/RevolutReader.IntegrationTests: port contract tests (the in-memory fake and the real
+    adapter against the same tests) and adapter edge cases (Wiring/).
+  - Implementation is test-first through /tdd-apply: a test-writer subagent writes failing tests,
+    an implementer subagent makes them pass and never edits tests.
+
 rules:
   proposal:
+    - "Start with '## TL;DR' (max ~8 lines, written for a human skimming on a phone): what changes and why, what is explicitly out of scope, the riskiest assumption, and a bullet list of the scenario names added, modified and removed per capability"
+    - Write the TL;DR last and keep it consistent with the rest of the artifact; update it whenever the artifact changes
     - Confirm the change id is cNNN-verb-topic with the next free NNN (check openspec/changes/ and the archive for the highest NNN)
     - Create the change's branch before drafting any artifact — once GitHub exists (M2) `git fetch origin` then `git switch -c <type>/<change-id> origin/main`; before M2 `git switch -c <type>/<change-id> main` — where <type> is the Conventional Commit type the eventual PR title will carry; never draft a change on main
     - Cite the use case (UC1–UC3, kickoff ch. 5), the roadmap step id (e.g. C6) and every open question (Q1–Q10) the change applies or decides
@@ -40,7 +57,20 @@ rules:
     - The app is read-only toward the bank — no requirement may introduce a write operation against Enable Banking
     - A response requirement lists exactly the fields the UI shows; every other Enable Banking field stays out of the contract
     - Error scenarios specify ProblemDetails with the status from the case → status table in docs/conventions/README.md
+    - Every scenario must be verifiable through a public channel (API, UI or a notification). Describe observable outcomes only, never implementation details
+    - One behaviour per scenario. GIVEN states preconditions as domain facts, not data-setup steps
+    - Use concrete example values where they matter (amounts, dates, states) so the scenario maps 1:1 to a test; made-up values only, never real account data
+    - Edge cases a user can observe are scenarios; internal invariants are not, they live only in unit tests
+    - "Scenario names must read on their own as a checklist (e.g. 'Balance shown in CZK when the bank answers'), unique within the capability, because the human reviews the list of names first"
+    - Keep each scenario to 3–6 lines; if it needs more, it is probably two behaviours
   design:
+    - "Start with '## TL;DR' (max ~10 lines): the key decisions with one-line reasons; new or changed public interfaces, one line each (name + purpose, no signatures); integration points (other components, external systems such as Enable Banking, schema changes). Point out anything that is hard to reverse"
+    - Write the TL;DR last and keep it consistent with the rest of the artifact; update it whenever the artifact changes
+    - Include a "Public API sketch" section with the signatures of new or changed domain types, handlers, endpoints and acceptance DSL methods. Tests are written against this sketch before any implementation exists
+    - Include a "Rule ownership" table that maps each rule from the specs to the component that enforces it
+    - State the error model for every new operation (a Result value for expected failures, an exception only for bugs and infrastructure failures — docs/conventions/README.md)
+    - Include a "Ports and contracts" section for every new or changed port (repository, external API client, push sender) stating its behavioural contract (not-found behaviour, ordering, concurrency, idempotency, failure modes), the infrastructure the real adapter uses, and whether unit tests use an in-memory fake of it
+    - For each scenario, state how it is verified when it is not an API acceptance test (a frontend test, or manual at handover) and why
     - Record cross-cutting decisions as an ADR in docs/adr/ and reference it; pm/progress.md gets only the one-line outcome and the link (docs/conventions/workflow.md § 2)
     - Changes touching the API contract plan the TS client regeneration explicitly
     - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
@@ -48,10 +78,25 @@ rules:
     - The account detail change (C7) references its Claude Design mockup (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory.md entry
   tasks:
-    - Slice tasks to complete in one sitting (~2 h max), each ending with build and tests green
+    - "Group 1 is '## 1. [acceptance] Acceptance tests' with one task per new or changed scenario, phrased 'Acceptance: <capability> / <scenario name>', suffixed ' (frontend)' or ' (manual)' when design.md says it is verified at that level"
+    - "Then one group per component that carries rules, headed '## N. [unit] <Component>'. Each task is one behaviour, phrased like a test name (e.g. 'Balance read is rejected when the bank session has expired')"
+    - "For every new or changed port contract with an in-memory fake, add '## N. [integration] <Port>' after the unit groups. Each task is one contract behaviour, phrased like a test name"
+    - "Plumbing without rules (endpoints, mapping, DI, migrations, driver methods, adapter edge-case tests) goes into '## N. [wiring] <Area>' groups. No unit tests there; acceptance tests cover it"
+    - "The last group is '## N. [close] Acceptance green': all acceptance tests of this change pass, then the close-out tasks"
+    - "A change with more than 3 scenarios is sliced per scenario: group 1 still holds all acceptance tests, then each scenario gets its own [unit], [integration] and [wiring] groups and a '[close] <scenario name>' group, headed with the slice (e.g. '## 4. [unit] Slice 2 — Balance mapping'); the final '[close] Acceptance green' runs them all"
+    - Never create separate "write tests" tasks. A test is part of every behaviour task, not a deliverable of its own
+    - Slice tasks to complete in one sitting (~2 h max), each ending with the build and all tests green, except the change's own acceptance tests, which stay red until their [close] group
     - 'Changes touching the API contract include an explicit "regenerate TS client" task (FastEndpoints OpenAPI export → openapi.json → openapi-typescript types, both committed; CI only checks drift, never generates). A change modifying an existing contract also updates every TS consumer in the same change'
     - 'Changes touching the AppHost resource graph or Azure topology include an explicit "update infra Bicep + .bicepparam" task'
     - 'A change introducing a setting declares it in appsettings.json (secrets as "<secret>") and binds it to an options class validated on start (docs/conventions/configuration.md)'
     - A change needing a hand-provisioned secret includes a guided manual task for putting it into Key Vault and lists it in docs/conventions/configuration.md § Hand-provisioned secrets
     - A task adding an anonymous endpoint also adds it to the anonymous-endpoint allowlist
-    - The last tasks update pm/progress.md and, if build, test or run commands changed, CLAUDE.md
+    - The last tasks (in the [close] group) update pm/progress.md and, if build, test or run commands changed, CLAUDE.md
+
+operations:
+  apply:
+    guidance:
+      - Implement this change only through the /tdd-apply skill (docs/conventions/testing.md § Test-first workflow). Never write tests or production code directly in the apply session.
+  archive:
+    guidance:
+      - "Before archiving: the traceability test passes (every scenario of the change's delta specs is claimed exactly once) and all acceptance tests of the change pass. If not, stop and report instead of archiving."

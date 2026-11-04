@@ -37,7 +37,7 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 ## Local development and tests
 
 - Local secrets live **only** in the AppHost's user-secrets as Aspire parameters — never in per-service or per-test-project secret files.
-- How the test harness gets its configuration, and whether any test needs a real secret (e.g., the Enable Banking sandbox): [testing.md](testing.md), decided in the TDD/BDD session.
+- How the test harness gets its configuration: [testing.md](testing.md). No automated test needs a real secret. Local development reads Enable Banking's Mock ASPSP through the sandbox application, whose key and session are local secrets like any other ([testing.md § Fake bank](testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
 
 ## Frontend
 

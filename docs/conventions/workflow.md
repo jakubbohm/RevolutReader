@@ -32,8 +32,21 @@
 - **Trunk-based:** short-lived branches, typically one per OpenSpec change. Branch name `<type>/<change-id-or-topic>`, where `<type>` is the Conventional Commit type of the eventual PR title.
 - **PRs always, even solo,** so every CI check runs. **Squash merge only;** the PR title is a Conventional Commit, linted in CI. A branch is never continued after its PR merges (with squash, git cannot see that it was merged).
 - No automated releases or changelog.
-- **Before the GitHub repository exists (M2) there are no PRs:** commit directly to `main` with Conventional Commit messages. From M2 on, the rules above apply.
-- Claude commits or pushes only when the user asks.
+- **Before the GitHub repository exists (M2) there are no PRs:** commit directly to `main` with Conventional Commit messages. From M2 on, the rules above apply. M2 comes before the first OpenSpec change (C1), so every change gets a PR.
+- **Claude commits or pushes only when the user asks,** with one standing exception (the user, 2026-11-04): during `/tdd-apply` the orchestrator commits on the change branch at every handoff below. It never pushes, never commits on `main` and never opens a PR.
+- **Commits inside a change are tagged with the workflow step:** `<type>(cNNN): [<step>] <summary>`, e.g. `test(c005): [red] Balance mapping`. The type says what the commit contains, the scope is the change number, the tag says the step. Squash merge collapses them on `main`; M2 sets the squash commit message to include the branch's commit list, so the trail survives there too.
+
+  | Step | Commit | Type | Committed by |
+  |---|---|---|---|
+  | `[plan]` | change artifacts created or changed (propose, new, continue, ff; a spec or design fix after a dispute) | `docs` | Claude, when the user approves the artifacts |
+  | `[accept]` | the change's acceptance tests, failing | `test` | orchestrator, after the user's review |
+  | `[red]` | one group's failing tests by the test-writer (also its fixes after a dispute) | `test` | orchestrator |
+  | `[green]` | the implementer made that group pass | `feat` / `fix` | orchestrator |
+  | `[wire]` | plumbing: endpoints, DI, drivers, adapter edge-case tests | `feat` | orchestrator |
+  | `[close]` | all acceptance tests of the change pass; close-out docs | `feat` / `test` | orchestrator |
+  | `[archive]` | delta specs merged, change moved to the archive | `docs` | Claude, when the user approves the archive |
+
+  A commit at every handoff between the test-writer and the implementer is what lets the orchestrator check that a green step changed no tests ([testing.md § Test-first workflow](testing.md#test-first-workflow)).
 - **In-repo memory (`.claude/memory/`) is versioned:** memory edits are part of the task's commit and branch, never left uncommitted.
 
 ## 4. CI/CD
@@ -60,11 +73,12 @@
 - **Change ids: `cNNN-verb-topic`** (e.g., `c001-add-backend-foundation`). NNN is the next number across `openspec/changes/` and the archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first name rule. Change names in the roadmap are proposals; the number is assigned when the change is created.
 - **Each change starts on its own branch** off the freshest `main`, created before any artifact is drafted (proposal rule in `openspec/config.yaml`).
 - **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the roadmap step (e.g., C6) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
-- **Tasks finish in one sitting** (~2 h at most), each ending with build and tests green.
+- **Apply is test-first through `/tdd-apply <change>`,** not `/opsx:apply` ([testing.md § Test-first workflow](testing.md#test-first-workflow)); `openspec/config.yaml` shapes `tasks.md` into the task groups it expects.
+- **Tasks finish in one sitting** (~2 h at most), each ending with the build and all tests green, **except the change's own acceptance tests:** they are written first and stay red until the change's `[close]` group.
 - **Explicit tasks:** "regenerate TS client" when the API contract changes ([README.md § API contract](README.md#api-contract)); "update Bicep + `.bicepparam`" when the AppHost resource graph or Azure topology changes; declaring every new setting in `appsettings.json` ([configuration.md](configuration.md)); a guided manual task for every hand-provisioned secret.
 - Cross-cutting decisions made inside a change become ADRs.
 - The last tasks of a change update `pm/progress.md`, and `CLAUDE.md` if build, test or run commands changed.
-- How TDD and BDD shape specs and tasks: [testing.md](testing.md).
+- How TDD and BDD shape specs, design and tasks, and the owner's reading routine after propose: [testing.md](testing.md).
 
 ## 7. Spikes
 

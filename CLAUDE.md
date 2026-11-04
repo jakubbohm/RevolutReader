@@ -38,8 +38,8 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 
 ## Workflow
 
-- **Spec-driven development via OpenSpec** (`openspec/`, schema `spec-driven`). Behavior changes start with `/opsx:propose "<idea>"` (or `/opsx:explore` to think first), are implemented with `/opsx:apply` and closed with `/opsx:archive`; trivial non-behavioral fixes may be direct. Change ids `cNNN-verb-topic`; project rules for artifacts live in `openspec/config.yaml`.
-- **Git:** trunk-based, one branch per change, PRs always, squash merge, Conventional Commit PR titles. Until the GitHub repository exists (M2), commit directly to `main` with Conventional Commit messages. Commit or push only when the user asks. Details: [workflow.md § 3](docs/conventions/workflow.md#3-git).
+- **Spec-driven development via OpenSpec** (`openspec/`, schema `spec-driven`). Behavior changes start with `/opsx:propose "<idea>"` (or `/opsx:explore` to think first), are implemented test-first with `/tdd-apply <change>` (never `/opsx:apply` directly — [testing.md § Test-first workflow](docs/conventions/testing.md#test-first-workflow)) and closed with `/opsx:archive`; trivial non-behavioral fixes may be direct. Change ids `cNNN-verb-topic`; project rules for artifacts live in `openspec/config.yaml`.
+- **Git:** trunk-based, one branch per change, PRs always, squash merge, Conventional Commit PR titles. Until the GitHub repository exists (M2), commit directly to `main` with Conventional Commit messages. Commit or push only when the user asks; the one standing exception is `/tdd-apply`, which commits on the change branch at every handoff with step-tagged messages. Details: [workflow.md § 3](docs/conventions/workflow.md#3-git).
 - **Spikes and verification scripts** go in `spikes/<topic>/` with a README and evidence, never with secrets or bank data ([workflow.md § 7](docs/conventions/workflow.md#7-spikes)).
 - **Run the app** (once the AppHost exists) through the aspire skills — `aspire start` / `aspire stop` — never `dotnet run` on the AppHost.
 

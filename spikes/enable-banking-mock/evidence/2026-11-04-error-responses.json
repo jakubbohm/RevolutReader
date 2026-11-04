@@ -1,0 +1,39 @@
+{
+  "note": "Real Enable Banking error responses from the sandbox application (Mock ASPSP), 2026-11-04. Account UIDs not included.",
+  "GET transactions?date_from=2030-01-01": {
+    "http": 422,
+    "body": {
+      "code": 422,
+      "message": "date_from can not be in the future",
+      "error": "DATE_FROM_IN_FUTURE",
+      "detail": null
+    }
+  },
+  "GET transactions?continuation_key=bogus": {
+    "http": 422,
+    "body": {
+      "code": 422,
+      "message": "continuation_key parameter is invalid",
+      "error": "WRONG_REQUEST_PARAMETERS",
+      "detail": null
+    }
+  },
+  "GET /accounts/<unknown uid>/balances": {
+    "http": 404,
+    "body": {
+      "code": 404,
+      "message": "No account found matching provided id",
+      "error": "ACCOUNT_DOES_NOT_EXIST",
+      "detail": null
+    }
+  },
+  "GET balances with Psu-Ip-Address: not-an-ip": {
+    "http": 422,
+    "body": {
+      "code": 422,
+      "message": "Provided PSU header contains invalid value",
+      "error": "PSU_HEADER_INVALID",
+      "detail": "PSU header psu-ip-address has invalid format. It should be valid IPv4 or IPv6 address."
+    }
+  }
+}

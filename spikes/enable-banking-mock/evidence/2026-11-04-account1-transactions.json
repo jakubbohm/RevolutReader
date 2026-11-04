@@ -1,0 +1,45 @@
+{
+  "http": 200,
+  "body": {
+    "transactions": [
+      {
+        "entry_reference": "rr-test-book-1",
+        "merchant_category_code": null,
+        "transaction_amount": {
+          "currency": "CZK",
+          "amount": "149.90"
+        },
+        "creditor": {
+          "name": "Test Shop",
+          "postal_address": null,
+          "organisation_id": null,
+          "private_id": null,
+          "contact_details": null
+        },
+        "creditor_account": null,
+        "creditor_agent": null,
+        "debtor": null,
+        "debtor_account": null,
+        "debtor_agent": null,
+        "bank_transaction_code": null,
+        "credit_debit_indicator": "DBIT",
+        "status": "BOOK",
+        "booking_date": "2026-11-03",
+        "value_date": "2026-11-03",
+        "transaction_date": null,
+        "balance_after_transaction": null,
+        "reference_number": null,
+        "reference_number_schema": null,
+        "remittance_information": [
+          "Test purchase"
+        ],
+        "debtor_account_additional_identification": null,
+        "creditor_account_additional_identification": null,
+        "exchange_rate": null,
+        "note": null,
+        "transaction_id": null
+      }
+    ],
+    "continuation_key": null
+  }
+}

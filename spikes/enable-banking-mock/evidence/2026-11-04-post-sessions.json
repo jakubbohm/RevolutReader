@@ -1,0 +1,37 @@
+{
+  "session_id": "<redacted>",
+  "accounts": [
+    {
+      "account_id": null,
+      "all_account_ids": [],
+      "account_servicer": null,
+      "name": "RevolutReader Test",
+      "details": null,
+      "usage": "PRIV",
+      "cash_account_type": "CACC",
+      "product": null,
+      "currency": "CZK",
+      "psu_status": null,
+      "credit_limit": null,
+      "legal_age": null,
+      "postal_address": null,
+      "uid": "<redacted>",
+      "identification_hash": "WwpbCiJhc3BzcF9uYW1lIgpdLApbCiJhc3BzcF9jb3VudHJ5IgpdLApbCiJhY2NvdW50IiwKInJlc291cmNlX2lkIgpdCl0=.gI21o0IrlhhXkStIKE38oI6YmoZPPh/XdXtGtfD/hRQ=",
+      "identification_hashes": [
+        "WwpbCiJhc3BzcF9uYW1lIgpdLApbCiJhc3BzcF9jb3VudHJ5IgpdLApbCiJhY2NvdW50IiwKInJlc291cmNlX2lkIgpdCl0=.gI21o0IrlhhXkStIKE38oI6YmoZPPh/XdXtGtfD/hRQ=",
+        "WwpbCiJhc3BzcF9uYW1lIgpdLApbCiJhc3BzcF9jb3VudHJ5IgpdLApbCiJhY2NvdW50IiwKIm5hbWUiCl0KXQ==.PTFpYXmXHA+8z4WXxmFrgp5c5ZcoU60jAI+Qtb+xwfk="
+      ]
+    }
+  ],
+  "aspsp": {
+    "name": "Mock ASPSP",
+    "country": "LT"
+  },
+  "psu_type": "personal",
+  "access": {
+    "accounts": null,
+    "balances": true,
+    "transactions": true,
+    "valid_until": "2026-11-14T21:17:36.376117Z"
+  }
+}
