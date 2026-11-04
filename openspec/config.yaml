@@ -1,32 +1,57 @@
 schema: spec-driven
 
-# Project context (optional)
-# Add only constraints that should guide OpenSpec artifacts and workflows.
-# Include constraints an agent cannot infer by reading the code.
-# Keep general project documentation and discoverable codebase facts out.
-# Example:
-#   context: |
-#     Designs and tasks must cover Windows, macOS, and Linux
-#     Write all artifacts in Spanish
+context: |
+  RevolutReader — a read-only PWA in which the owner's daughter sees the balance and
+  transactions of one Revolut account (via Enable Banking) and gets a push notification
+  when it changes. Operating period ~2 months; speed of delivery is the top priority.
+  Users: a few pre-approved Microsoft accounts. App UI text is Czech; everything else
+  (code, specs, docs) is English.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always state what is out of scope
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Read before drafting any artifact:
+  - pm/kickoff.md (goals, scope, UC1–UC3, open questions Q1–Q10) · pm/roadmap.md (the
+    step this change implements) · pm/progress.md (status, outcomes of open questions)
+  - docs/adr/ (decisions, e.g. ADR-0001-bank-data-access) · docs/conventions/ (source of
+    truth for conventions: README.md, configuration.md, workflow.md, testing.md)
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  Stack (kickoff ch. 7): .NET 11 (ASP.NET Core + FastEndpoints) · .NET Aspire for local
+  development · React + Vite + TypeScript PWA · Tailwind CSS · Radix Primitives (behind
+  owned components) · openapi-typescript + openapi-fetch (generated TS contract client) ·
+  Enable Banking API → Revolut (read-only) · Microsoft Entra ID · Web Push · Cosmos DB
+  (free tier, shared account) · Azure Key Vault (secrets only) · Azure App Service (one
+  container) · Bicep + Azure Deployment Stacks · GitHub Actions.
+
+  Backend code (docs/conventions/README.md): expected failures are Result values, translated
+  into ProblemDetails only at the endpoint; thin FastEndpoints endpoints inject framework-free
+  handlers, no mediator; read endpoints return only the fields the UI shows; endpoints require
+  sign-in by default; never log balances, amounts, counterparties or transaction texts; bank
+  calls follow ADR-0001-bank-data-access (PSU headers only on user-triggered reads).
+
+  Change naming (docs/conventions/workflow.md § 6): cNNN-verb-topic (e.g.
+  c001-add-backend-foundation); NNN is the next number across openspec/changes/ and the
+  archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first rule.
+
+rules:
+  proposal:
+    - Confirm the change id is cNNN-verb-topic with the next free NNN (check openspec/changes/ and the archive for the highest NNN)
+    - Create the change's branch before drafting any artifact — once GitHub exists (M2) `git fetch origin` then `git switch -c <type>/<change-id> origin/main`; before M2 `git switch -c <type>/<change-id> main` — where <type> is the Conventional Commit type the eventual PR title will carry; never draft a change on main
+    - Cite the use case (UC1–UC3, kickoff ch. 5), the roadmap step id (e.g. C6) and every open question (Q1–Q10) the change applies or decides
+    - Include a Non-goals section
+  specs:
+    - The app is read-only toward the bank — no requirement may introduce a write operation against Enable Banking
+    - A response requirement lists exactly the fields the UI shows; every other Enable Banking field stays out of the contract
+    - Error scenarios specify ProblemDetails with the status from the case → status table in docs/conventions/README.md
+  design:
+    - Record cross-cutting decisions as an ADR in docs/adr/ and reference it; pm/progress.md gets only the one-line outcome and the link (docs/conventions/workflow.md § 2)
+    - Changes touching the API contract plan the TS client regeneration explicitly
+    - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
+    - Changes calling the bank respect ADR-0001-bank-data-access § Decision
+    - The account detail change (C7) references its Claude Design mockup (docs/conventions/workflow.md § 8)
+    - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory.md entry
+  tasks:
+    - Slice tasks to complete in one sitting (~2 h max), each ending with build and tests green
+    - 'Changes touching the API contract include an explicit "regenerate TS client" task (FastEndpoints OpenAPI export → openapi.json → openapi-typescript types, both committed; CI only checks drift, never generates). A change modifying an existing contract also updates every TS consumer in the same change'
+    - 'Changes touching the AppHost resource graph or Azure topology include an explicit "update infra Bicep + .bicepparam" task'
+    - 'A change introducing a setting declares it in appsettings.json (secrets as "<secret>") and binds it to an options class validated on start (docs/conventions/configuration.md)'
+    - A change needing a hand-provisioned secret includes a guided manual task for putting it into Key Vault and lists it in docs/conventions/configuration.md § Hand-provisioned secrets
+    - A task adding an anonymous endpoint also adds it to the anonymous-endpoint allowlist
+    - The last tasks update pm/progress.md and, if build, test or run commands changed, CLAUDE.md
