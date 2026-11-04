@@ -3,7 +3,10 @@
     "allow": [
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
-      "Bash(openspec:*)"
+      "Bash(openspec:*)",
+      "ClaudeInChromeDomain(enablebanking.com)",
+      "ClaudeInChromeDomain(tilisy-sandbox.enablebanking.com)",
+      "ClaudeInChromeDomain(localhost)"
     ]
   }
 }
