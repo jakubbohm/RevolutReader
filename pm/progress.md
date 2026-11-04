@@ -14,9 +14,9 @@
 
 | ID | Step | Status | OpenSpec change | Date | Notes |
 |---|---|---|---|---|---|
-| M1 | Enable Banking setup and verification of risks 5 and 6 | in progress | — | 2026-11-04 | Research done; findings and the user's decision on Q5, Q6 recorded in [ADR-0001-bank-data-access](../docs/adr/0001-bank-data-access.md) (outcomes below). Deviation from roadmap ch. 3, item 3: the user decided not to contact Enable Banking support. Next: Enable Banking account, application, Revolut values via `GET /aspsps`, account linking (scripts in `spikes/enable-banking/`) |
+| M1 | Enable Banking setup and verification of risks 5 and 6 | done | — | 2026-11-04 | Research done; findings and the user's decision on Q5, Q6 recorded in [ADR-0001-bank-data-access](../docs/adr/0001-bank-data-access.md) (outcomes below). Deviation from roadmap ch. 3, item 3: the user decided not to contact Enable Banking support. Done: Enable Banking account, production application, Revolut account linked in the Control Panel (link expires 2026-12-04 → M9), Revolut values read via `GET /aspsps` (180 days; no required PSU headers). Decided: settled transactions kept from 2026-08-09 (ADR-0001 § Decision, item 6). API session authorised (valid until 2027-05-03) and history downloaded (116 settled transactions). Control Panel link still active next to the session (→ M9 needed). Smoke test passed: 6 balance reads with the owner's PSU headers, all HTTP 200 ([spikes/enable-banking/](../spikes/enable-banking/README.md), step 6). Expiring approvals and how to restore them: [docs/operations/expiring-approvals.md](../docs/operations/expiring-approvals.md). Closed by the user. Follow-ups: M9 by 2026-12-03; C5 confirms whether Revolut returns pending transactions and that the `ITAV` balance matches the Revolut app |
 | F0-1 | Knowledge base and best practices | in progress | — | 2026-11-04 | Knowledge base written from a review of 40 DoseUp decisions (`D:\source\jakubbohm\DoseUp`): `docs/conventions/`, `docs/adr/`, `docs/software-factory.md`, `.claude/rules/`, `openspec/config.yaml`, `CLAUDE.md`. Remaining: the TDD/BDD part (`docs/conventions/testing.md`) in a separate session |
-| F0-2 | Architecture decisions | todo | — | — | |
+| F0-2 | Architecture decisions | todo | — | — | Input from M1: a database is needed already in v1 ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 6) |
 | M2 | GitHub repository | todo | — | — | |
 | C1 | `cNNN-add-backend-foundation` | todo | — | — | |
 | C2 | `cNNN-add-ci-pipeline` | todo | — | — | |
@@ -33,6 +33,8 @@
 | C9 | `cNNN-add-account-change-notifications` (UC3, part 2) | todo | — | — | |
 | M7 | Handover v2 | todo | — | — | |
 | C10 | `cNNN-add-consent-renewal` (conditional) | todo | — | — | Needed only if the Q5 findings require it |
+| M9 | Renew the Enable Banking account link (conditional, dated) | todo | — | — | **Needed. Deadline 2026-12-03** (the link expires 2026-12-04), then every 30 days. M1: the link stayed active next to the API session, so whether API access depends on it is unknown. How: [docs/operations/expiring-approvals.md § 1](../docs/operations/expiring-approvals.md#1-enable-banking-account-link) |
+| D1 | Reinstatement guide | todo | — | — | |
 | M8 | Decommissioning | todo | — | — | |
 
 ### Milestones
@@ -85,29 +87,30 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
 ### Q5 — Enable Banking consent validity and pricing *(risk)*
 
 - **Step:** M1
-- **Status:** verified (Revolut's exact value in Enable Banking to be confirmed via `GET /aspsps` during setup)
-- **Outcome:** Revolut gives EU providers 180 days of consent — enough for the ~2-month operation with ~4 months to spare; Enable Banking is free for personal use of linked accounts registered by the account holder.
+- **Status:** verified
+- **Outcome:** Revolut gives EU providers 180 days of consent (Enable Banking's maximum for Revolut; the API session authorised in M1 runs until 2027-05-03), enough for the operation (at least until the end of 2026). But the Control Panel account link that activates restricted mode lasts only 30 days (expires 2026-12-04). Enable Banking is free for personal use of linked accounts registered by the account holder.
 - **Record:** [ADR-0001-bank-data-access § Context — Consent validity and pricing](../docs/adr/0001-bank-data-access.md#consent-validity-and-pricing-q5)
 - **Date:** 2026-11-04
-- **Impact on the roadmap:** C10 most likely not needed (confirm from the actual `valid_until` after linking). The timing of the linking does not matter. C5 handles `EXPIRED_SESSION` and `REVOKED_SESSION`; the fallback is repeating the M1 linking (needs the account holder for SCA).
+- **Impact on the roadmap:** C10 is not needed (the API session runs until 2027-05-03), but stays in the roadmap at the user's request (2026-11-04). M9 is needed: renew the account link by 2026-12-03 (it stayed active next to the API session, so dependence is unknown). Every expiring approval and how to restore it: [docs/operations/expiring-approvals.md](../docs/operations/expiring-approvals.md). C5 handles `EXPIRED_SESSION` and `REVOKED_SESSION`; the fallback is repeating the M1 linking (needs the account holder for SCA).
 
 ### Q6 — Bank request limits *(risk)*
 
 - **Step:** M1
 - **Status:** verified; decided by the user
-- **Outcome:** without the account holder present, Revolut allows 4 requests a day per account, endpoint and consent. Decision: user-triggered reads are live and forward the signed-in user's real PSU headers; the background job runs 4 times a day without them; a database holds the downloaded transactions and the time of the daughter's last view; a notification only for changes since that view.
+- **Outcome:** without the account holder present, Revolut allows 4 requests a day per account, endpoint and consent; with the owner's PSU headers, 6 balance reads in a row all succeeded (M1 smoke test). Decision: user-triggered reads are live and forward the signed-in user's real PSU headers; the background job runs 4 times a day without them; a database holds the downloaded transactions and the time of the daughter's last view; a notification only for changes since that view.
 - **Record:** [ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision) (findings in § Context — Request limits)
 - **Date:** 2026-11-04
 - **Impact on the roadmap:**
   - C5: forward PSU headers from the incoming request; take the required headers from `GET /aspsps`; handle 429, expired and revoked sessions.
-  - C7: live reads, no cache needed for UC2. Whether v1 already stores fetched data (e.g., as a fallback when a live read fails) is decided in F0-2.
+  - C7: stored settled transactions plus a live read of the balance and the recent window (Decision, item 6), including the import of the M1 history file. C7 may need splitting, with the transaction store first (roadmap C7 notes): agree with the user when C7 is planned.
   - C9: 4 runs a day from 06:00; notify only on changes since the daughter's last view. The time zone of the start time and whether the last view is tracked per user are decided there (Q8).
-  - F0-2 / M3 / M6: no change forced. The job is needed only for v2, so job hosting can still be deferred to C9, and Cosmos DB stays in M6 unless F0-2 moves it to v1.
+  - F0-2 / M3: a database is needed already in v1 (Decision, item 6). F0-2 picks the storage; M3 prepares access to the shared Cosmos DB account if that is the choice. The job is needed only for v2, so job hosting can still be deferred to C9.
 
 ### Q7 — Transactions
 
 - **Step:** C7
 - **Status:** open
+- **Input (from M1, 2026-11-04):** history from 2026-08-09, kept for the whole operation; settled transactions stored, pending ones read live ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 6).
 - **Outcome:** —
 - **Record:** —
 - **Date:** —
@@ -152,3 +155,5 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
 | 2026-11-04 | C7 starts with one Claude Design mockup of the account screen | F0-1 ([workflow.md § 8](../docs/conventions/workflow.md#8-design)) |
 | 2026-11-04 | Decisions on open questions go into ADRs; `pm/progress.md` keeps one-line outcomes and links. Q5/Q6 details moved to ADR-0001-bank-data-access | F0-1 ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)) |
 | 2026-11-04 | Smaller additions: C1 creates the build conventions and checks C# union support; C2 lints PR titles; C3 adds ESLint/Prettier, the Radix import rule and the generated API client; M2 sets squash-only merges with branch deletion; M8 hands the software-factory deposit over to DoseUp | F0-1: follow from the adopted conventions |
+| 2026-11-04 | Added M9 "Renew the Enable Banking account link" (manual, conditional, deadline 2026-12-03, then every 30 days). Operating period: at least until the end of 2026 | M1: the Control Panel link is valid for only 30 days, with no option for longer; the user asked for the renewal step |
+| 2026-11-04 | Added D1 "Reinstatement guide" (new step type: Documentation) before M8; M8 now depends on D1. Every step that creates, renews or changes an approval, a secret or a hand-made setting updates `docs/operations/expiring-approvals.md` (roadmap § 1). C10 stays although M1 found it not needed. M8 exports no stored transactions: a reinstated app downloads the history right after its new approval | M1: the user expects to reactivate the app after decommissioning and wants guidance for when every secret, approval and resource is gone |

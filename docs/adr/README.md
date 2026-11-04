@@ -4,7 +4,7 @@ One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, number
 
 | ADR | Title | Status | Date |
 |---|---|---|---|
-| [0001](0001-bank-data-access.md) | Bank data access — consent, request limits and PSU headers | Accepted | 2026-11-04 |
+| [0001](0001-bank-data-access.md) | Bank data access — consent, request limits, PSU headers and transaction history | Accepted | 2026-11-04 |
 
 ## Template
 

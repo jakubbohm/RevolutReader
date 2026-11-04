@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-04 (F0-1 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-04 (F0-1, M1 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -14,9 +14,10 @@
 - **Step types:**
   - **Phase 0:** knowledge base and architecture decisions, no product code. The agent presents options; the user decides.
   - **Manual:** only what cannot be automated ([docs/conventions/workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure)): access to the Azure subscription, the Entra application registration, the identity GitHub Actions deploys with, shared resources and access to them, and secret values only a human can produce. Everything else in Azure is Bicep, deployed by CD inside the OpenSpec changes. The user does the manual work; Claude guides them step by step and says what to set up, where and how. Commands for the user are PowerShell 7. Non-secret identifiers (resource names, client IDs, URLs) are recorded in the repository. Secrets go only to Key Vault, never into the repository; until Key Vault exists, they stay on the user's machine. Scripts and evidence go in `spikes/<topic>/` ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)).
+  - **Documentation:** a guide Claude writes from what the repository records; the user reviews it. No product code.
   - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/opsx:apply`, `/opsx:archive`), using TDD and BDD as defined in the knowledge base. Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
-- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed.
+- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file.
 - **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
 
 ## 2. Overview
@@ -44,7 +45,9 @@
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
 | 18 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
-| 19 | M8 | Manual | Decommissioning | end of operation | — |
+| — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
+| 19 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 20 | M8 | Manual | Decommissioning | end of operation; D1 | — |
 
 **Two tracks.** Manual steps (M1–M4, M6) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 (v1) → C8 → C9 (v2).
 
@@ -73,6 +76,7 @@
 | C7 | live reads from the bank or a cache | **blocking** |
 | C9 | check frequency and the use of stored state | **blocking** |
 | C10 | whether the step is needed and its deadline | **blocking** |
+| M9 | whether the account link must be renewed, and by when | **blocking** |
 | M8 | what has to be revoked | — |
 
 **During development:** keep requests to the real account to a minimum. Develop against mocks or the Enable Banking sandbox and use the real API only for final verification.
@@ -264,12 +268,38 @@
 - **Outputs:** archived change. If the step is not needed, mark it `done` with the note "Not needed" and the reason.
 - **Open questions:** —
 
+### M9 — Renew the Enable Banking account link (conditional, dated)
+
+- **Type:** Manual, only if needed; dated rather than ordered.
+- **Goal:** Keep bank access until the end of operation (at least the end of 2026). The account link in the Enable Banking Control Panel, which activates restricted mode, is valid for only 30 days, and the Control Panel offers no longer period. The first link expires on 2026-12-04. Renew it by linking the account again in the Control Panel ("Link accounts", then approve in the Revolut app) before it expires. Repeat every 30 days while operation continues.
+- **Depends on:** M1. **Deadline:** 2026-12-03, one day before the first link expires; then before each new expiry.
+- **Inputs:** the link's expiry date and the M1 finding on whether API access depends on the link (`spikes/enable-banking/README.md`, ADR-0001-bank-data-access § Context); how to renew: [`docs/operations/expiring-approvals.md` § 1](../docs/operations/expiring-approvals.md#1-enable-banking-account-link).
+- **Outputs:** the new expiry date recorded in `spikes/enable-banking/README.md`; the API access still working. If M1 shows that API access does not depend on the link, mark the step `done` with the note "Not needed" and the reason.
+- **Open questions:** —
+- **Notes:** needs the account holder for SCA in the Revolut app, about 5 minutes. No code. If renewing breaks the API session, repeat the M1 API authorisation (step 5 of the spike).
+
+### D1 — Reinstatement guide
+
+- **Type:** Documentation
+- **Goal:** A guide to bring the app back from the repository after decommissioning, assuming every secret, approval and Azure resource is gone. Reactivation later is likely. The guide gives, in order and with PowerShell 7 commands:
+  - the accounts needed: Enable Banking Control Panel, Revolut, Azure subscription, GitHub, Microsoft accounts for sign-in;
+  - the Enable Banking application, the account link and the API session (spike scripts);
+  - the Azure prerequisites, the Entra registration, the deploy identity and the deployment through CD;
+  - the secrets in Key Vault, the VAPID keys and the push subscriptions;
+  - the allowed users;
+  - the history import and the checks that the app works.
+- **Depends on:** M7 (C10 if it was done), so that everything that exists is covered.
+- **Inputs:** [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md), kept current by every step (section 1); ADRs; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); [configuration.md § Hand-provisioned secrets](../docs/conventions/configuration.md#hand-provisioned-secrets); the identifiers recorded in M1, M3, M4 and M6; the spike READMEs; the Bicep templates.
+- **Outputs:** `docs/operations/reinstatement.md`, reviewed by the user as a walk-through; no actual rebuild.
+- **Open questions:** —
+- **Notes:** M8 does not export the stored transactions (the user, 2026-11-04). A reinstated app downloads the history in the 5 minutes after its new API approval, as in M1, with `create-session.ps1 -HistoryStart <first day>`. It gets only as far back as Revolut then serves.
+
 ### M8 — Decommissioning
 
 - **Type:** Manual
 - **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including stored account data; remove this project's data and access in the shared resources; delete the identity GitHub Actions deploys with; remove access for the allowed accounts. Then hand the software-factory deposit over to DoseUp.
-- **Depends on:** end of operation (approx. 2 months)
-- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3, M4 and M6; `docs/software-factory.md` § Handover.
+- **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1.
+- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3, M4 and M6; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); `docs/software-factory.md` § Handover.
 - **Outputs:** everything revoked and deleted; the software-factory entries handed over to DoseUp; `pm/progress.md` closed.
 - **Open questions:** —
 
@@ -281,7 +311,7 @@
 | 2 | Authentication flow | F0-2 | M4, C3, C6 |
 | 3 | Frontend hosting (one container) | F0-2 | C1, C3, C4 |
 | 4 | Job hosting, registry, costs | F0-2 (job hosting may move to C9) | M3, M6, C4, C9 |
-| 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M8 |
+| 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M9, M8 |
 | 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C7, C9 |
 | 7 | Transactions (history, paging, details) | C7 | — |
 | 8 | Notification content | C9 | — |

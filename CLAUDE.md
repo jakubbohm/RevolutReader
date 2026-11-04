@@ -9,6 +9,7 @@ A read-only PWA in which the owner's daughter sees the balance and transactions 
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
 - [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes), testing.md. `.claude/rules/` and the tooling mirror them.
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
+- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); later the reinstatement guide (D1).
 
 Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory.md](docs/software-factory.md) collects lessons for the user's future software factory — add an entry whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; it is handed over to DoseUp at the end of the project.
 

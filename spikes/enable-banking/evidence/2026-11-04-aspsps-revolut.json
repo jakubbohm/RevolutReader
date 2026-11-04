@@ -1,0 +1,703 @@
+{
+  "source": "GET https://api.enablebanking.com/aspsps (no filters)",
+  "retrieved": "2026-11-04T15:24:19Z",
+  "note": "Public ASPSP metadata, entries whose name matches \"Revolut\". No account data.",
+  "entries": [
+    {
+      "name": "Revolut",
+      "country": "AT",
+      "logo": "https://enablebanking.com/brands/AT/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "BE",
+      "logo": "https://enablebanking.com/brands/BE/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "BG",
+      "logo": "https://enablebanking.com/brands/BG/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "CY",
+      "logo": "https://enablebanking.com/brands/CY/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "DE",
+      "logo": "https://enablebanking.com/brands/DE/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "DK",
+      "logo": "https://enablebanking.com/brands/DK/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "EE",
+      "logo": "https://enablebanking.com/brands/EE/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "ES",
+      "logo": "https://enablebanking.com/brands/ES/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "FI",
+      "logo": "https://enablebanking.com/brands/FI/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "FR",
+      "logo": "https://enablebanking.com/brands/FR/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "GR",
+      "logo": "https://enablebanking.com/brands/GR/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "HR",
+      "logo": "https://enablebanking.com/brands/HR/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "HU",
+      "logo": "https://enablebanking.com/brands/HU/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "IE",
+      "logo": "https://enablebanking.com/brands/IE/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "IS",
+      "logo": "https://enablebanking.com/brands/IS/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "IT",
+      "logo": "https://enablebanking.com/brands/IT/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "LI",
+      "logo": "https://enablebanking.com/brands/LI/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "LT",
+      "logo": "https://enablebanking.com/brands/LT/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "LU",
+      "logo": "https://enablebanking.com/brands/LU/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "LV",
+      "logo": "https://enablebanking.com/brands/LV/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "MT",
+      "logo": "https://enablebanking.com/brands/MT/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "NL",
+      "logo": "https://enablebanking.com/brands/NL/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "NO",
+      "logo": "https://enablebanking.com/brands/NO/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "PL",
+      "logo": "https://enablebanking.com/brands/PL/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "PT",
+      "logo": "https://enablebanking.com/brands/PT/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "RO",
+      "logo": "https://enablebanking.com/brands/RO/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "SE",
+      "logo": "https://enablebanking.com/brands/SE/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "SI",
+      "logo": "https://enablebanking.com/brands/SI/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    },
+    {
+      "name": "Revolut",
+      "country": "SK",
+      "logo": "https://enablebanking.com/brands/SK/Revolut/",
+      "psu_types": [
+        "personal",
+        "business"
+      ],
+      "auth_methods": [
+        {
+          "psu_type": "personal",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        },
+        {
+          "psu_type": "business",
+          "approach": "REDIRECT",
+          "hidden_method": false
+        }
+      ],
+      "maximum_consent_validity": 15552000,
+      "beta": false,
+      "bic": "REVOLT21"
+    }
+  ]
+}

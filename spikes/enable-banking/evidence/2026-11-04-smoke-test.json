@@ -1,0 +1,50 @@
+{
+  "note": "Redacted: status codes, error codes, balance types and counts only. PSU header values are not recorded.",
+  "run_utc": "2026-11-04T19:17:23Z",
+  "psu_headers_sent": [
+    "Psu-Ip-Address",
+    "Psu-User-Agent"
+  ],
+  "balance_reads": [
+    {
+      "read": 1,
+      "http": 200,
+      "error": "-"
+    },
+    {
+      "read": 2,
+      "http": 200,
+      "error": "-"
+    },
+    {
+      "read": 3,
+      "http": 200,
+      "error": "-"
+    },
+    {
+      "read": 4,
+      "http": 200,
+      "error": "-"
+    },
+    {
+      "read": 5,
+      "http": 200,
+      "error": "-"
+    },
+    {
+      "read": 6,
+      "http": 200,
+      "error": "-"
+    }
+  ],
+  "balance_types": [
+    "ITAV (Available balance calculated in the course of the business day)"
+  ],
+  "transactions_date_from": "2026-10-28",
+  "transactions_http": 200,
+  "transactions_error": "-",
+  "transactions_count": 23,
+  "transactions_by_status": {
+    "BOOK": 23
+  }
+}

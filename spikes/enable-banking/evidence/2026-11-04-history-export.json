@@ -1,0 +1,44 @@
+{
+  "note": "Redacted: counts and field names only. The transactions themselves stay in secrets/.",
+  "exported_utc": "2026-11-04T19:05:19Z",
+  "date_from": "2026-08-08",
+  "accounts": [
+    {
+      "account": 1,
+      "pages": 3,
+      "transactions": 116,
+      "by_status": {
+        "BOOK": 116
+      },
+      "booked_without_entry_reference": 0,
+      "booked_duplicate_entry_refs": 0,
+      "pending_with_entry_reference": 0,
+      "transaction_fields": [
+        "balance_after_transaction",
+        "bank_transaction_code",
+        "booking_date",
+        "credit_debit_indicator",
+        "creditor",
+        "creditor_account",
+        "creditor_account_additional_identification",
+        "creditor_agent",
+        "debtor",
+        "debtor_account",
+        "debtor_account_additional_identification",
+        "debtor_agent",
+        "entry_reference",
+        "exchange_rate",
+        "merchant_category_code",
+        "note",
+        "reference_number",
+        "reference_number_schema",
+        "remittance_information",
+        "status",
+        "transaction_amount",
+        "transaction_date",
+        "transaction_id",
+        "value_date"
+      ]
+    }
+  ]
+}

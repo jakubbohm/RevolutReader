@@ -1,0 +1,38 @@
+{
+  "note": "Redacted: no session ID, account identifiers, names, balances or transactions.",
+  "created_utc": "2026-11-04T19:05:19Z",
+  "valid_until_requested": "2027-05-03T18:03:33.713377+00:00",
+  "valid_until_granted": "2027-05-03T18:03:33.713377Z",
+  "post_auth_http": 200,
+  "post_sessions_http": 200,
+  "session_status": "AUTHORIZED",
+  "application_active": true,
+  "accounts_count": 1,
+  "accounts_with_uid": 1,
+  "history_downloaded": true,
+  "session_fields": [
+    "access",
+    "accounts",
+    "aspsp",
+    "psu_type",
+    "session_id"
+  ],
+  "account_fields": [
+    "account_id",
+    "account_servicer",
+    "all_account_ids",
+    "cash_account_type",
+    "credit_limit",
+    "currency",
+    "details",
+    "identification_hash",
+    "identification_hashes",
+    "legal_age",
+    "name",
+    "postal_address",
+    "product",
+    "psu_status",
+    "uid",
+    "usage"
+  ]
+}

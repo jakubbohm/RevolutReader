@@ -11,6 +11,7 @@
 | Decisions with lasting effect | `docs/adr/` |
 | How: conventions | `docs/conventions/` |
 | Exactly what the system does | `openspec/specs/` (after a change is archived) |
+| Keeping it running and bringing it back: expiring approvals and how to restore them, the reinstatement guide (roadmap D1) | `docs/operations/` |
 | Evidence from experiments and verifications | `spikes/<topic>/` |
 | Lessons for the future software factory | `docs/software-factory.md` |
 
