@@ -1,0 +1,88 @@
+# RevolutReader — Divergences from the Software Factory
+
+**Status:** project documentation, kept for the whole project and after it · not part of the handover package ([creating-handover-package.md](creating-handover-package.md))
+
+Where RevolutReader knowingly runs a cut-down version of what the software factory recommends for a real, long-lived project: the full version in [lessons.md](lessons.md) or in DoseUp's catalog (`D:\source\jakubbohm\DoseUp\docs\software-factory.md`). Each entry says what RevolutReader does instead, why, what it gives up, and when it would switch back.
+
+Read it whenever the project's constraints change: it lives longer than planned, gets more screens or users, or is brought back after decommissioning (roadmap D1). Every entry whose *Switch back when* now holds is a candidate for a change.
+
+## What goes in
+
+- A decision gets an entry here when RevolutReader runs less than the full version. If the decision also teaches the factory something, it gets a lesson in [lessons.md](lessons.md) under the same id.
+- Add the entry in the same change or session that makes the decision. The decision itself lives in its convention or ADR; an entry here links to it and never replaces it.
+
+## Entry format
+
+```markdown
+**R-<n> · <what RevolutReader does differently, in a few words>**
+Full version: <what the factory recommends> (<link to the lesson, or DoseUp F-<x>>).
+Here (<link to the convention / ADR>, <date>): **<what RevolutReader does>** — <why: the constraint that allows it>.
+Given up: <what it costs>.
+*Switch back when:* <the condition, concrete for this project>.
+```
+
+- Ids are shared with [lessons.md](lessons.md) ([§ Entry format](lessons.md#entry-format) there): never reused or renumbered; a new entry in either file takes the next free number.
+
+---
+
+## Entries
+
+**R-1 · Speed of delivery comes before architecture**
+Full version: architectural quality is the highest priority ([lessons.md R-1](lessons.md), DoseUp F-42).
+Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option.
+Given up: shortcuts a longer-lived system would pay for later; R-12, R-14 and R-19 follow from this one.
+*Switch back when:* the app has to outlive its first purpose (operation well beyond the planned period), or someone else will maintain it.
+
+**R-3 · No automated releases or changelog**
+Full version: an automated changelog, semver tags and GitHub Releases ([lessons.md R-3](lessons.md), DoseUp F-32).
+Here ([docs/conventions/workflow.md § 3](../conventions/workflow.md#3-git), 2026-11-04): **none** — PRs, squash merge and Conventional Commit titles stay; nobody consumes versions of a single-environment app.
+Given up: no readable version history; the deployed version is known only by its commit SHA.
+*Switch back when:* something consumes versions: a second environment, or clients of the API outside this app.
+
+**R-4 · No feature flags**
+Full version: a flag library, every flag shipped with a removal task ([lessons.md R-4](lessons.md), DoseUp F-33).
+Here ([docs/conventions/configuration.md § Not adopted](../conventions/configuration.md#not-adopted), 2026-11-04): **none** — every change is sized to finish in one session, so nothing merges half-done.
+Given up: work cannot be merged switched off and turned on later; a release cannot be decoupled from its deployment.
+*Switch back when:* a change spans several merges, or a release has to wait for a date or a person (e.g. a handover to the daughter).
+
+**R-6 · Plan and status in repository files, not a tracker**
+Full version: GitHub issues, milestones and a project board, with open decisions as issues ([lessons.md R-6](lessons.md), DoseUp F-77, F-79, F-80).
+Here ([docs/conventions/workflow.md § 9](../conventions/workflow.md#9-project-management), 2026-11-04): **`pm/roadmap.md` and `pm/progress.md`**, decisions in ADRs — a fixed plan of about 20 steps, one session each.
+Given up: no board view, and no links between work items and commits or PRs.
+*Switch back when:* the backlog outgrows the fixed plan, or a second contributor joins.
+
+**R-7 · One design mockup, for the account screen only**
+Full version: a Claude Design mockup and handoff for every UI-heavy change ([lessons.md R-7](lessons.md), DoseUp F-41).
+Here ([docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design), 2026-11-04): **one mockup, for the account detail screen (C7)** — the only real screen; the sign-in and other small UI are built directly.
+Given up: the sign-in and the small UI get no design review before they are built.
+*Switch back when:* the app gets more screens.
+
+**R-8 · The signed-in user's PSU headers are sent without asking the provider**
+Full version: when losing bank access would be costly, ask the provider first whether someone other than the account holder counts as present, or stay within the unattended quota with stored data ([lessons.md R-8](lessons.md)).
+Here ([ADR-0001-bank-data-access § Decision](../adr/0001-bank-data-access.md#decision), 2026-11-04): **live reads forward the signed-in user's real PSU headers; Enable Banking is not asked** — in the owner's view the daughter reads on the account holder's behalf, and the owner prefers accepting the risk to asking.
+Given up: no confirmation that this is allowed; Enable Banking may cut off the application (ADR-0001-bank-data-access, accepted risk).
+*Switch back when:* the app runs well beyond its planned period or losing access becomes costly, or Enable Banking's terms explicitly exclude acting on the account holder's behalf.
+
+**R-12 · Acceptance tests run the app inside the test process**
+Full version: the real running app, started by the orchestrator (Aspire testing harness) ([lessons.md R-12](lessons.md), DoseUp F-26).
+Here ([docs/conventions/testing.md § Acceptance-test harness](../conventions/testing.md#acceptance-test-harness-the-app-runs-inside-the-test-process), 2026-11-04): **in-process (TUnit.AspNetCore)** — the tests must control the bank, the clock and the sign-in key; in-process each is a one-line swap and no test needs a real secret. The app is a single API process.
+Given up: the Aspire wiring and the hosting configuration are not under test; running locally and the first deployment cover them.
+*Switch back when:* the app gets a second process (e.g. F0-2 or C9 moves the background job out of the API into a separate service, Q4), or a wiring bug reaches production.
+
+**R-13 · No CI check against the provider's hosted mock bank**
+Full version: once the system lives long enough for the provider's API to drift, an opt-in CI contract job against the hosted Mock ASPSP, with a stored sandbox session and key as low-risk CI secrets and data set up once ([lessons.md R-13](lessons.md)).
+Here ([docs/conventions/testing.md § Fake bank](../conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client), 2026-11-04): **automated tests use only the local fake server; the real client is checked against the hosted mock on demand** — over about two months, drift in Enable Banking's API is unlikely.
+Given up: a change in Enable Banking's API shows up only when someone runs the on-demand check, or in production.
+*Switch back when:* the app runs well beyond its planned period, or an Enable Banking API change breaks it.
+
+**R-14 · No mutation, architecture or browser end-to-end tests**
+Full version: DoseUp's set — architecture tests (ArchUnitNET) enforcing the written dependency rules; browser end-to-end tests (Playwright) with a smoke subset on PRs and the full suite nightly; mutation testing nightly, never a PR gate ([lessons.md R-14](lessons.md), DoseUp F-27, F-28, F-29).
+Here ([docs/conventions/testing.md § Defaults](../conventions/testing.md#defaults), 2026-11-04): **none of the three** — little domain logic, one API project with few layers, one screen, and Stryker.NET's TUnit support still in preview; the test-first close step runs mutation testing only if it is configured.
+Given up: nothing checks automatically whether the tests would catch a broken implementation; structural rules are guarded only by banned-API analyzers and one ordinary test; no browser tests at all (R-19).
+*Switch back when:* mutation testing — the rules get dense, or Stryker.NET's TUnit support leaves preview (preview as of 2026-11-04); architecture tests — the backend grows into several projects or a structural rule needs enforcing; browser tests — more screens or a longer life, starting with the cheapest step: one Playwright smoke test against the deployed app.
+
+**R-19 · Each UI scenario is verified at one level, with no browser tests**
+Full version: one test per scenario, run through an API driver or a browser driver (Playwright) against the real running app ([lessons.md R-19](lessons.md), option (c)).
+Here ([docs/conventions/testing.md § Every scenario has exactly one test](../conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check), 2026-11-04): **one level per scenario** — an API acceptance test by default, a frontend component test for rules only the browser shows, manual at handover for device-only behaviour. The full version would need browsers in CI, the app on a real port, the built frontend served and a test sign-in: too much for one screen and two months.
+Given up: no automated proof that the frontend, the API and the sign-in work together in a browser; local runs, post-deployment checks and the handovers cover it.
+*Switch back when:* the app gets more screens or a longer life, or an integration break between the frontend and the API actually happens.

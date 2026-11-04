@@ -1,6 +1,6 @@
 # RevolutReader — Testing conventions
 
-**Status:** decided in F0-1 (2026-11-04), one decision at a time with the user · **Sources:** the user's Claude session on TDD and BDD (2026-10-22) and the kit it produced; DoseUp's `docs/conventions/testing.md` and `docs/adr/0003-testing-stack.md`; [spikes/enable-banking-mock/](../../spikes/enable-banking-mock/README.md) · **Mirror:** `.claude/rules/testing.md` · Where RevolutReader simplifies, the full version is kept for the software factory: [software-factory.md](../software-factory.md) R-12 to R-21.
+**Status:** decided in F0-1 (2026-11-04), one decision at a time with the user · **Sources:** the user's Claude session on TDD and BDD (2026-10-22) and the kit it produced; DoseUp's `docs/conventions/testing.md` and `docs/adr/0003-testing-stack.md`; [spikes/enable-banking-mock/](../../spikes/enable-banking-mock/README.md) · **Mirror:** `.claude/rules/testing.md` · Where RevolutReader simplifies, the full version is kept for the software factory: [software-factory/lessons.md](../software-factory/lessons.md) R-12 to R-21; the project's side: [divergences.md](../software-factory/divergences.md).
 
 Already fixed elsewhere:
 
@@ -124,7 +124,7 @@ tests/
 - **The check fails when:** a scenario has no claim; a scenario is claimed twice; a claim names a scenario that does not exist (renamed or removed); two scenarios in one capability share a name.
 - **It checks existence, not results.** While a change is being implemented, its new acceptance tests exist and fail ([workflow.md § 6](workflow.md#6-openspec)).
 - **When it arrives:** C1 builds the check with the .NET attribute and the manual list; C3 adds reading the frontend tags.
-- No browser end-to-end tests: frontend rules are tested on components, device rules by hand ([software-factory.md R-19](../software-factory.md) has the trade-off and the full version).
+- No browser end-to-end tests: frontend rules are tested on components, device rules by hand (trade-off: [software-factory/divergences.md R-19](../software-factory/divergences.md); full version: [lessons.md R-19](../software-factory/lessons.md)).
 
 ## Acceptance-test harness: the app runs inside the test process
 
@@ -132,7 +132,7 @@ tests/
 - **One app copy per test,** because the app is configured for exactly one bank account, and tests sharing an app would fight over what the bank returns. C1 measures the cost; fallback: one copy per test class, with that class's tests run one after another.
 - **Not covered:** the Aspire wiring and the hosting configuration. Running the app locally (`aspire start`) and the first deployment (C4) cover them.
 - **No test needs a real secret:** the harness generates throwaway keys at runtime.
-- This is a project-only exception to DoseUp's harness, which starts the real running app: [software-factory.md R-12](../software-factory.md).
+- This is a project-only exception to DoseUp's harness, which starts the real running app: [software-factory/divergences.md R-12](../software-factory/divergences.md).
 
 ## Fake bank: a local fake server in front of our real Enable Banking client
 
@@ -147,7 +147,7 @@ Evidence: [spikes/enable-banking-mock/](../../spikes/enable-banking-mock/README.
   - local development: the app on the owner's machine reads the mock, never the real account. A session needs the owner's approval with the Control Panel login, once per up to 180 days.
 - **No CI job against the mock:** it would need the sandbox key and session as CI secrets and a human approval to start, and every test would share one data set.
 - **No in-memory fake of the bank client** unless a unit test genuinely needs one.
-- How this relates to the software factory: [software-factory.md R-13](../software-factory.md).
+- How this relates to the software factory: [software-factory/lessons.md R-13](../software-factory/lessons.md); what the project gives up: [divergences.md R-13](../software-factory/divergences.md).
 
 ## Test sign-in: fake the signature, never the security code
 
@@ -175,7 +175,7 @@ Same as DoseUp (its software-factory entry F-68), so no software-factory entry h
 - **Fake only what you don't own** (as DoseUp): the bank, the sign-in signature and the clock. Everything else is real, including the database in a test container.
 - **Isolation by construction** (as DoseUp): one app copy per test and unique names from the DSL; no cleanup between tests.
 - **Zero automatic re-runs** (as DoseUp): a flaky test is fixed or deleted.
-- **Not adopted** ([software-factory.md R-14](../software-factory.md)): mutation testing (the close step runs Stryker.NET only if it is configured); architecture tests (ArchUnitNET), until a structural rule needs enforcing; browser end-to-end tests (Playwright). The cheapest later addition would be one Playwright smoke test against the deployed app.
+- **Not adopted** ([software-factory/divergences.md R-14](../software-factory/divergences.md)): mutation testing (the close step runs Stryker.NET only if it is configured); architecture tests (ArchUnitNET), until a structural rule needs enforcing; browser end-to-end tests (Playwright). The cheapest later addition would be one Playwright smoke test against the deployed app.
 
 ## Decided later
 

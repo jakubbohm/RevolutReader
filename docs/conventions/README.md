@@ -1,6 +1,6 @@
 # RevolutReader — Engineering conventions
 
-**Status:** living document, docs-first · **Last updated:** 2026-11-04 · **Origin:** decided in F0-1 from a review of the DoseUp conventions; where this project deliberately differs, see [docs/software-factory.md](../software-factory.md).
+**Status:** living document, docs-first · **Last updated:** 2026-11-04 · **Origin:** decided in F0-1 from a review of the DoseUp conventions; where this project deliberately differs, see [docs/software-factory/divergences.md](../software-factory/divergences.md).
 
 This directory is the **source of truth for conventions**. A convention is written here first, then mirrored into enforcement (`.editorconfig`, analyzers, CI) and into `.claude/rules/` so Claude follows it while writing code. If a tool cannot express a rule, the doc is still authoritative. Changing a convention means one change that updates the doc **and** its enforcement together.
 

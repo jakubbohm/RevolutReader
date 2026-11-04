@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-04 (F0-1, M1 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-04 (F0-1, M1, D2 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -17,7 +17,7 @@
   - **Documentation:** a document Claude writes or restructures from what the repository records; the user reviews it. No product code.
   - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/tdd-apply`, `/opsx:archive`), test-first as defined in [docs/conventions/testing.md](../docs/conventions/testing.md). Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
-- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file.
+- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
 - **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
 
 ## 2. Overview
@@ -104,7 +104,7 @@
 - **Goal:** Write the project's knowledge base: code style (.NET, TypeScript/React), workflow (branches, commits, how OpenSpec is used), TDD and BDD conventions, test strategy. The agent proposes options based on the sources and the user decides.
 - **Depends on:** —
 - **Inputs:** kickoff ch. 7, 8, 9.3; the user's other project (the user gives the path at the start of the session); the Claude session about TDD and BDD (the user gives the link; if it cannot be read directly, ask for an export); `openspec/config.yaml`.
-- **Outputs:** the knowledge base in the repository: `docs/conventions/` (conventions), `docs/adr/` (decisions), `docs/software-factory.md` (lessons for the software factory); `openspec/config.yaml` with `context` and `rules` that reflect it; `CLAUDE.md` pointing to the knowledge base. The TDD/BDD part (`docs/conventions/testing.md`) runs in a separate session.
+- **Outputs:** the knowledge base in the repository: `docs/conventions/` (conventions), `docs/adr/` (decisions), `docs/software-factory.md` (lessons for the software factory; split by D2 into `docs/software-factory/`); `openspec/config.yaml` with `context` and `rules` that reflect it; `CLAUDE.md` pointing to the knowledge base. The TDD/BDD part (`docs/conventions/testing.md`) runs in a separate session.
 - **Open questions:** none from ch. 10.
 
 ### D2 — Split the software-factory file
@@ -112,12 +112,13 @@
 - **Type:** Documentation
 - **Goal:** Split `docs/software-factory.md` into two files with different purposes:
   - **lessons for the software factory:** what gets transferred to the factory's catalog (today DoseUp's `docs/software-factory.md`, later the factory's own repository);
-  - **this project's divergences from the software factory:** where and why RevolutReader deliberately does it differently (project-only exceptions such as R-12). It stays with the project and is not transferred.
+  - **this project's divergences from the software factory:** where and why RevolutReader deliberately does it differently (project-only exceptions such as R-12). It stays with the project and is not transferred;
+  - **the handover package:** what goes to the factory at the end of the project and how the package is built.
 - **Depends on:** F0-1, so the split covers all its entries.
 - **Inputs:** `docs/software-factory.md` (entries R-1 onwards); [workflow.md § 10](../docs/conventions/workflow.md#10-software-factory). The user decides where each entry goes. One entry can feed both files: its reusable lesson into the first, the project's exception into the second.
-- **Outputs:** the two files, each stating its purpose and entry format; the handover procedure transferring only the lessons file and naming its target (DoseUp now, the factory's own repository later); every reference updated (`CLAUDE.md`, workflow.md §§ 1, 10 and its status line, this roadmap's F0-1 and M8).
+- **Outputs:** in `docs/software-factory/`: `lessons.md` and `divergences.md`, each stating its purpose and entry format; `creating-handover-package.md` with the inventory of reusable artifacts (kept current by every step, section 1) and how to build the handover package at the end of the project, naming its target (DoseUp now, the factory's own repository later). The package carries the lessons and the listed artifacts, not `divergences.md`. Every reference updated (`CLAUDE.md`, workflow.md §§ 1, 10 and its status line, the other conventions, `openspec/config.yaml`, this roadmap's F0-1 and M8).
 - **Open questions:** —
-- **Notes:** short. Until it is done, new entries keep going into `docs/software-factory.md`.
+- **Notes:** short. The handover is a process, not a file copy (the user, 2026-11-04): the package includes the artifacts themselves, e.g. the test-first workflow's testing.md, `tdd-apply` skill, agents and hook.
 
 ### F0-2 — Architecture decisions
 
@@ -310,10 +311,10 @@
 ### M8 — Decommissioning
 
 - **Type:** Manual
-- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including stored account data; remove this project's data and access in the shared resources; delete the identity GitHub Actions deploys with; remove access for the allowed accounts. Then hand the software-factory deposit over to DoseUp.
+- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including stored account data; remove this project's data and access in the shared resources; delete the identity GitHub Actions deploys with; remove access for the allowed accounts. Then build the software-factory handover package and hand it over to DoseUp.
 - **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1.
-- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3, M4 and M6; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); `docs/software-factory.md` § Handover.
-- **Outputs:** everything revoked and deleted; the software-factory entries handed over to DoseUp; `pm/progress.md` closed.
+- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3, M4 and M6; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
+- **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over to DoseUp; `pm/progress.md` closed.
 - **Open questions:** —
 
 ## 5. Open questions overview

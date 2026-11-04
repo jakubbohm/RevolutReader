@@ -55,4 +55,4 @@ Secrets that only a human can produce are put into Key Vault by hand, guided by 
 ## Not adopted
 
 - **Azure App Configuration:** only if a real need for runtime-changing configuration appears (kickoff ch. 6).
-- **Feature flags:** none (docs/software-factory.md R-4).
+- **Feature flags:** none ([docs/software-factory/divergences.md R-4](../software-factory/divergences.md)).

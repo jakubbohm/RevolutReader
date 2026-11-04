@@ -11,7 +11,7 @@ A read-only PWA in which the owner's daughter sees the balance and transactions 
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
 - [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); later the reinstatement guide (D1).
 
-Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory.md](docs/software-factory.md) collects lessons for the user's future software factory — add an entry whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; it is handed over to DoseUp at the end of the project.
+Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory/](docs/software-factory/) is what goes to the user's future software factory ([workflow.md § 10](docs/conventions/workflow.md#10-software-factory)): add a lesson whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; a divergence when the project runs a cut-down version; an inventory line when a step creates or substantially changes a reusable artifact. A handover package is built from it at the end of the project.
 
 ## Working rules
 

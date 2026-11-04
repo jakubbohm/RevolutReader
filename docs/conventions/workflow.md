@@ -1,6 +1,6 @@
 # RevolutReader — Workflow
 
-**Status:** decided in F0-1 (2026-11-04), from a review of the DoseUp workflow; where this project deliberately differs, see [docs/software-factory.md](../software-factory.md).
+**Status:** decided in F0-1 (2026-11-04), from a review of the DoseUp workflow; where this project deliberately differs, see [docs/software-factory/divergences.md](../software-factory/divergences.md).
 
 ## 1. Where knowledge lives
 
@@ -13,7 +13,7 @@
 | Exactly what the system does | `openspec/specs/` (after a change is archived) |
 | Keeping it running and bringing it back: expiring approvals and how to restore them, the reinstatement guide (roadmap D1) | `docs/operations/` |
 | Evidence from experiments and verifications | `spikes/<topic>/` |
-| Lessons for the future software factory | `docs/software-factory.md` |
+| Lessons for the future software factory, this project's divergences from it, and the handover package | `docs/software-factory/` (§ 10) |
 
 - **Each fact has one home;** everything else links to it, never copies it.
 - **CLAUDE.md stays thin:** working rules and pointers, no bulk content.
@@ -24,7 +24,7 @@
 - **A decision with lasting, cross-cutting effect is an ADR** in `docs/adr/` (template in [docs/adr/README.md](../adr/README.md)): architecture, external services and their terms, data handling, anything later steps must respect. The research findings a decision rests on go into the ADR's Context, with sources and the date they were verified.
 - **`pm/progress.md` keeps only the trail:** per open question, its status, a one-line outcome, the link to the ADR section, the date, and the impact on roadmap steps. The details live only in the ADR.
 - A decision local to one change lives in that change's `design.md`; a convention lives in `docs/conventions/`.
-- **Reversing a decision:** a new ADR that supersedes the old one (the old one is marked *Superseded by …*, never deleted), plus a software-factory entry (§ 10).
+- **Reversing a decision:** a new ADR that supersedes the old one (the old one is marked *Superseded by …*, never deleted), plus a software-factory lesson (§ 10).
 - The user makes every decision; Claude proposes (CLAUDE.md § Working rules).
 
 ## 3. Git
@@ -100,5 +100,9 @@
 
 ## 10. Software factory
 
-- `docs/software-factory.md` collects, for the user's future software factory, only decisions where this project **diverges** from DoseUp, **reverses** one of its own decisions, or answers a question DoseUp never faced (**new**).
-- Add the entry in the same change or session that makes the decision. The entry format and the handover to DoseUp at the end of the project (M8) are described in that file.
+`docs/software-factory/` holds what this project gives the user's future software factory, and where it does less than the factory recommends:
+
+- [`lessons.md`](../software-factory/lessons.md): only decisions where this project **diverges** from DoseUp, **reverses** one of its own decisions, or answers a question DoseUp never faced (**new**). The full version, the one that fits a real, long-lived project, is always the default.
+- [`divergences.md`](../software-factory/divergences.md): where this project runs a cut-down version of that full version, what it gives up and when it would switch back. It stays with the project.
+- [`creating-handover-package.md`](../software-factory/creating-handover-package.md): the inventory of reusable artifacts, and how to build the handover package at the end of the project (M8).
+- Add the lesson, and the divergence if there is one, in the same change or session that makes the decision. A step that creates or substantially changes a reusable artifact updates the inventory. Entry formats are in the files.
