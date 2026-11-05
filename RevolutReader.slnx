@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RevolutReader.Api/RevolutReader.Api.csproj" />
+    <Project Path="src/RevolutReader.AppHost/RevolutReader.AppHost.csproj" />
+    <Project Path="src/RevolutReader.ServiceDefaults/RevolutReader.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RevolutReader.AcceptanceTests/RevolutReader.AcceptanceTests.csproj" />
+    <Project Path="tests/RevolutReader.IntegrationTests/RevolutReader.IntegrationTests.csproj" />
+    <Project Path="tests/RevolutReader.UnitTests/RevolutReader.UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -291,6 +291,13 @@ dotnet_analyzer_diagnostic.category-Roslynator.severity = none
 # single-statement bodies, composing with csharp_prefer_braces = when_multiline.
 dotnet_diagnostic.RCS1002.severity = warning
 
+# The build is the format gate (conventions § Formatting). Without an explicit severity these
+# stay silent in the build even under AnalysisLevel latest-all (verified in c001's setup,
+# 2026-11-05): layout (IDE0055), no var (IDE0008), file-scoped namespaces (IDE0161).
+dotnet_diagnostic.IDE0055.severity = warning
+dotnet_diagnostic.IDE0008.severity = warning
+dotnet_diagnostic.IDE0161.severity = warning
+
 # The reference config intends this as a suggestion (fluent builder chains discard return values
 # by design); AnalysisLevel latest-all would otherwise promote it to a build-breaking warning.
 dotnet_diagnostic.IDE0058.severity = suggestion

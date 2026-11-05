@@ -1,0 +1,5 @@
+P:System.DateTime.Now;Inject TimeProvider (docs/conventions/README.md § C# style beyond tooling)
+P:System.DateTime.UtcNow;Inject TimeProvider (docs/conventions/README.md § C# style beyond tooling)
+P:System.DateTime.Today;Inject TimeProvider (docs/conventions/README.md § C# style beyond tooling)
+P:System.DateTimeOffset.Now;Inject TimeProvider (docs/conventions/README.md § C# style beyond tooling)
+P:System.DateTimeOffset.UtcNow;Inject TimeProvider (docs/conventions/README.md § C# style beyond tooling)
