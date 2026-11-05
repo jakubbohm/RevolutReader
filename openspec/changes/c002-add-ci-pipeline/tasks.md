@@ -65,16 +65,16 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
 
 A step that does not behave as written stops the group, and Claude reports it.
 
-- [ ] 4.1 Push the branch and open this change's PR (title `ci: add CI pipeline (C2)`). Verify: `gh pr checks` shows `build-and-test` and `pr-title` passing on the Linux runner. A Linux failure is fixed within this change (design.md § Risks).
-- [ ] 4.2 Apply the ruleset with the page's create command and record its id in the page. Read it back with `gh api repos/jakubbohm/RevolutReader/rules/branches/main` and compare it with the file. Verify: the read-back shows the four rules, both checks reported by app 15368, strict on, and no bypass actors.
-- [ ] 4.3 Probe step 1: create the branch `test/c002-probe` off this change's branch, add one deliberately failing test, and open a PR to `main` with a valid title.
+- [x] 4.1 Push the branch and open this change's PR (title `ci: add CI pipeline (C2)`). Verify: `gh pr checks` shows `build-and-test` and `pr-title` passing on the Linux runner. A Linux failure is fixed within this change (design.md § Risks).
+- [x] 4.2 Apply the ruleset with the page's create command and record its id in the page. Read it back with `gh api repos/jakubbohm/RevolutReader/rules/branches/main` and compare it with the file. Verify: the read-back shows the four rules, both checks reported by app 15368, strict on, and no bypass actors.
+- [x] 4.3 Probe step 1: create the branch `test/c002-probe` off this change's branch, add one deliberately failing test, and open a PR to `main` with a valid title.
   - Verify, once both checks have finished: `build-and-test` fails, `pr-title` passes and `gh pr view --json mergeStateStatus` reads `BLOCKED`.
   - Only then try `gh pr merge --squash`; GitHub must refuse it.
-- [ ] 4.4 Probe step 2: remove the failing test and change the title to an invalid one. Verify: `build-and-test` passes, `pr-title` fails, the state reads `BLOCKED` and the merge attempt is refused.
-- [ ] 4.5 Probe step 3: restore a valid title. Verify: both checks pass and the state reads `CLEAN`. Do not merge.
-- [ ] 4.6 Close the probe without merging and delete its branch, locally and on GitHub. Verify: `gh pr view <n> --json state` reads `CLOSED`, and `git ls-remote --heads origin test/c002-probe` prints nothing.
-- [ ] 4.7 Record the proof in `docs/operations/main-ruleset.md § Checks`: the probe PR's link, the date, and for each step the check results, the merge state and GitHub's refusal message. Verify: all three steps are there.
-- [ ] 4.8 Record the merge gate:
+- [x] 4.4 Probe step 2: remove the failing test and change the title to an invalid one. Verify: `build-and-test` passes, `pr-title` fails, the state reads `BLOCKED` and the merge attempt is refused.
+- [x] 4.5 Probe step 3: restore a valid title. Verify: both checks pass and the state reads `CLEAN`. Do not merge.
+- [x] 4.6 Close the probe without merging and delete its branch, locally and on GitHub. Verify: `gh pr view <n> --json state` reads `CLOSED`, and `git ls-remote --heads origin test/c002-probe` prints nothing.
+- [x] 4.7 Record the proof in `docs/operations/main-ruleset.md § Checks`: the probe PR's link, the date, and for each step the check results, the merge state and GitHub's refusal message. Verify: all three steps are there.
+- [x] 4.8 Record the merge gate:
   - `docs/software-factory/lessons.md` R-36 *(New)*: how to build and prove a merge gate on a solo public repository (D3 to D6).
   - Inventory lines for `.github/workflows/ci.yml`, `.github/workflows/pr-title.yml` and `docs/operations/main-ruleset.json` with its page.
 

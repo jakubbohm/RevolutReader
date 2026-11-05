@@ -9,7 +9,7 @@
 | What | Value |
 |---|---|
 | Repository | `jakubbohm/RevolutReader` |
-| Ruleset | name `main`, id *(recorded when it is created)*; applies to the default branch |
+| Ruleset | name `main`, id `26623567` (created 2026-11-05); applies to the default branch |
 | Required checks | `build-and-test` ([ci.yml](../../.github/workflows/ci.yml)) and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368) |
 
 ## What it enforces, and why
@@ -59,7 +59,23 @@ gh api "repos/$repo/rulesets/$id" --jq '{name, enforcement, conditions, bypass_a
 gh pr view <number> --repo $repo --json mergeStateStatus,statusCheckRollup
 ```
 
-If the stored ruleset differs from the file, someone edited it on the settings page: decide which one is right, fix the file or re-apply it.
+If the stored ruleset differs from the file, someone edited it on the settings page: decide which one is right, then fix the file or re-apply it.
+
+On creation, GitHub filled in two `pull_request` parameters the first version of the file did not set; the file now carries them as stored. `require_extra_approval_for_unattributed_changes: true` asks for one more approval on a PR that Copilot opens without a human, and only when approvals are required, so with 0 approvals it has no effect ([REST API: rules](https://docs.github.com/en/rest/repos/rules), checked 2026-11-05). `required_reviewers: []` adds no reviewers.
+
+### Proof (C2, 2026-11-05)
+
+**First run on Linux:** on [#5](https://github.com/jakubbohm/RevolutReader/pull/5), the C2 PR itself, `build-and-test` passed in 38 s. `setup-dotnet` installed exactly the SDK `global.json` pins (11.0.100-rc.3.26522.148); the build had 0 warnings, and all 17 tests passed. `pr-title` passed.
+
+**Probe:** [#6](https://github.com/jakubbohm/RevolutReader/pull/6), branched off #5 and closed without merging. At each step Claude read the merge state with `gh pr view --json mergeStateStatus`. While it read `BLOCKED`, Claude tried `gh pr merge --squash` with the owner's admin login.
+
+| Step | Head commit | `build-and-test` | `pr-title` | Merge state | Merge attempt |
+|---|---|---|---|---|---|
+| 1. A deliberately failing test, valid title | `aaa3baf` | fail (18 tests, 1 failed) | pass | `BLOCKED` | refused: "the base branch policy prohibits the merge" |
+| 2. Test removed, title `probe the merge gate` | `2caa6cd` | pass | fail: "The PR title is not a Conventional Commit." | `BLOCKED` | refused, same message |
+| 3. Title `test: probe the merge gate (C2)` | `2caa6cd` | pass | pass | `CLEAN` | not tried; closed |
+
+For the owner's login, the read-back of the ruleset reports `current_user_can_bypass: "never"`. A merge with `gh pr merge --admin` was not tried: had the rule been wrong, it would have put the probe on `main`.
 
 ## Escape hatch
 
