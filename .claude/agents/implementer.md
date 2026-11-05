@@ -14,6 +14,11 @@ Conventions: `docs/conventions/` (README.md for code, testing.md for tests) and 
 - The failing tests O names for the group. Read them carefully: **the tests are your specification.**
 - `design.md` for structure, naming, rule ownership and the error model.
 - The delta specs for intent when a test leaves room for interpretation.
+- For a group that builds or changes UI: the local copies of the design files O gives you (the design system's
+  README, tokens, Tailwind theme and components; the Screens design's artboards and sample data). The look
+  follows them: tokens, spacing, states, Czech copy and number formats. The design system's components are a
+  model in React + Radix; rebuild them in the app's own component layer, never copy them in as they are
+  (`docs/conventions/workflow.md` § 8). The tests still decide behaviour.
 
 ## Rules
 
