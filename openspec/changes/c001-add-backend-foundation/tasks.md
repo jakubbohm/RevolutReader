@@ -4,12 +4,12 @@ Before this list: the setup commit from design.md § Bootstrap (tools, generated
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation: acceptance harness. `ApiFactory`, `AcceptanceTest` with one app copy per test in environment `Production`, HTTP drivers created from the test's own copy (design.md D6). Verify: the solution builds and the scenario tests below run against it, failing in their driver stubs
-- [ ] 1.2 Foundation: traceability check. `[Scenario]` attribute; required scenarios from the main specs plus active deltas applied per requirement, archive ignored; claims from attributes and `tests/manual-scenarios.md`; every problem listed at once (design.md D7). Verify: its self-tests from D7 pass, and the repository check passes with both scenarios below claimed
-- [ ] 1.3 Foundation: `tests/manual-scenarios.md` with the table header (capability, scenario, why manual, handover step, date last checked) and no rows. Verify: the traceability check reads it without error
-- [ ] 1.4 Foundation: anonymous-endpoint check in `Conventions/`, allowlist `GET /health` (design.md D8). Verify: "only allowlisted endpoints answer without sign-in" passes, and "every allowlisted endpoint exists" fails at runtime until 2.1
-- [ ] 1.5 Acceptance: service-health / Health check answers while the app runs
-- [ ] 1.6 Acceptance: api-errors / Unknown API address answers with a problem description
+- [x] 1.1 Foundation: acceptance harness. `ApiFactory`, `AcceptanceTest` with one app copy per test in environment `Production`, HTTP drivers created from the test's own copy (design.md D6). Verify: the solution builds and the scenario tests below run against it, failing in their driver stubs
+- [x] 1.2 Foundation: traceability check. `[Scenario]` attribute; required scenarios from the main specs plus active deltas applied per requirement, archive ignored; claims from attributes and `tests/manual-scenarios.md`; every problem listed at once (design.md D7). Verify: its self-tests from D7 pass, and the repository check passes with both scenarios below claimed
+- [x] 1.3 Foundation: `tests/manual-scenarios.md` with the table header (capability, scenario, why manual, handover step, date last checked) and no rows. Verify: the traceability check reads it without error
+- [x] 1.4 Foundation: anonymous-endpoint check in `Conventions/`, allowlist `GET /health` (design.md D8). Verify: "only allowlisted endpoints answer without sign-in" passes, and "every allowlisted endpoint exists" fails at runtime until 2.1
+- [x] 1.5 Acceptance: service-health / Health check answers while the app runs
+- [x] 1.6 Acceptance: api-errors / Unknown API address answers with a problem description
 
 ## 2. [wiring] Health check
 
