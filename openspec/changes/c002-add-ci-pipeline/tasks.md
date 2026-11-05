@@ -82,8 +82,8 @@ A step that does not behave as written stops the group, and Claude reports it.
 
 ## 5. Close
 
-- [ ] 5.1 Final check: `dotnet build` and `dotnet test` pass locally, `openspec validate c002-add-ci-pipeline` passes, and the PR's checks pass with its state `CLEAN`. Verify: the commands' output.
-- [ ] 5.2 `pm/progress.md`, C2's notes: what was done, the probe PR's link and any deviations. The status `done`, the date and the archive link come with the archive commit, after the user confirms that C2 is done. Verify: the notes are there.
+- [x] 5.1 Final check: `dotnet build` and `dotnet test` pass locally, `openspec validate c002-add-ci-pipeline` passes, and the PR's checks pass with its state `CLEAN`. Verify: the commands' output.
+- [x] 5.2 `pm/progress.md`, C2's notes: what was done, the probe PR's link and any deviations. The status `done`, the date and the archive link come with the archive commit, after the user confirms that C2 is done. Verify: the notes are there.
 
 ## Workflow follow-up
 
