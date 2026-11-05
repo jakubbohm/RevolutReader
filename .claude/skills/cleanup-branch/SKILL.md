@@ -21,7 +21,8 @@ every refusal exits without changing anything.
 
 ```sh
 cleanup_branch() {
-  refuse() { printf 'NOT-THIS-SCENARIO: %s\n' "$1"; exit 0; }
+  # "$*" on purpose: Claude Code replaces a dollar sign followed by a digit in a skill with the skill's arguments.
+  refuse() { printf 'NOT-THIS-SCENARIO: %s\n' "$*"; exit 0; }
 
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || refuse "not inside a git worktree"

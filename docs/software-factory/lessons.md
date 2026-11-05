@@ -339,3 +339,11 @@ RevolutReader ([workflow.md § 4](../conventions/workflow.md#4-cicd), [docs/oper
 - Gotcha: GitHub fills in rule parameters the file did not set (here `require_extra_approval_for_unattributed_changes`). Read the ruleset back and sync the file, or every later comparison shows a false difference.
 
 *Generalizes:* a merge gate is only as strong as its weakest path. That means no bypass while the AI holds the admin login, checks pinned to the app that must report them, and a probe that has to fail, as with build gates (R-31) and hooks (R-33). Reverses toward an approval requirement, and possibly an admin bypass, once a second person can review.
+
+**R-37 · Can a skill carry a shell script that the AI runs verbatim?** *(New — relates to DoseUp's cleanup-branch skill)*
+Options: the script inline in the skill's text · the script as a file next to the skill, run by path.
+RevolutReader ([.claude/skills/cleanup-branch/](../../.claude/skills/cleanup-branch/SKILL.md), 2026-11-05): **inline, with no dollar sign followed by a digit anywhere in the script: the refusal function prints `"$*"` instead of `"$1"`.**
+- Claude Code replaces `$0`, `$1`, … in a skill's text with the arguments the skill was invoked with, 0-based and inside code blocks too; a placeholder with no matching argument stays as it is (the skills documentation, checked 2026-11-05). `$ARGUMENTS` and names declared in the skill's `arguments` frontmatter are replaced as well; `\$1` escapes one.
+- DoseUp's skill printed its refusal reason with `"$1"`. A bare `/cleanup-branch` worked, which is why the bug went unnoticed, but `/cleanup-branch the PR is merged` turned every refusal into "NOT-THIS-SCENARIO: PR". DoseUp's copy still has it (checked 2026-11-05).
+
+*Generalizes:* keep a script embedded in a skill free of a dollar sign followed by a digit (use `"$*"`, `"$@"` or named variables), or ship it as a file next to the skill, and test the skill invoked with several words of arguments. Reverses only if the skill tool stops substituting arguments.
