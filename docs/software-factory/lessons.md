@@ -297,3 +297,13 @@ RevolutReader ([workflow.md § 6](../conventions/workflow.md#6-openspec), c002 d
 - The made-up capability was rejected. The spec folder would then hold repository rules instead of app behaviour, and the traceability check would track them forever.
 
 *Generalizes:* keep tooling changes inside the planning workflow (review before building, a record, an archive), but do not force them through the test-first loop: there is no failing test to write first. Prove their effect live instead, the way build gates are proven by a probe (R-31). Reverses for the parts of the tooling that carry logic of their own (e.g. a script with rules): those get tests like any code.
+
+**R-35 · Does PR CI run security scanning (code scanning, dependency review)?** *(Divergence — relates to DoseUp F-30)*
+Options: CodeQL and dependency review, both as blocking PR checks · only one of them · neither, relying on GitHub's secret scanning and push protection.
+DoseUp: both, blocking (F-30, ADR-0004-delivery-and-process). Its workflow so far only builds and tests (checked 2026-11-05).
+RevolutReader ([workflow.md § 4](../conventions/workflow.md#4-cicd), c002 design.md D7, 2026-11-05): **neither.** The app lives about two months, with one developer and few packages.
+- Dependency review needs GitHub's dependency graph. On 2026-11-05 the graph listed no package file of this repository. The versions live centrally in `Directory.Packages.props`, which GitHub's page on supported ecosystems does not mention, so the check would pass without checking anything.
+- CodeQL would add minutes to every PR, and every check must block. Whether it already understands C# 15 was not checked.
+
+What the project gives up: [divergences.md R-35](divergences.md).
+*Generalizes:* a security gate is worth its minutes only if it actually sees the code and the packages. Before adopting dependency review, check that the dependency graph lists the project's manifests; central package management may hide them. Reverses for any long-lived project, or when packages or contributors grow.

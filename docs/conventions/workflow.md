@@ -57,7 +57,17 @@
 - **PR CI builds and tests only:** it publishes nothing and holds no deployment credentials.
 - **Artifacts are built once from the merge commit on `main`** (the container image, tagged with the commit SHA) and that exact artifact is deployed.
 - **One environment, production;** every merge to `main` deploys.
-- The concrete checks are added by C2 (build and tests), C3 (frontend) and C4 (deployment); test-related checks follow [testing.md](testing.md).
+- **CI runs on pull requests only** (the user, 2026-11-05): when a PR is opened or reopened, and on every new push to it. Nothing runs for a branch without a PR, and nothing runs on `main` after the merge.
+- **The checks every PR must pass.** The ruleset on `main` requires them, with the branch up to date and no bypass ([docs/operations/main-ruleset.md](../operations/main-ruleset.md)):
+
+  | Check | Workflow | What it does | Added by |
+  |---|---|---|---|
+  | `build-and-test` | [ci.yml](../../.github/workflows/ci.yml) | Builds the solution and runs all three test projects, the traceability check included. Analyzer and layout errors fail the build, so formatting needs no check of its own. | C2 |
+  | `pr-title` | [pr-title.yml](../../.github/workflows/pr-title.yml) | The PR title is a Conventional Commit (§ 3). | C2 |
+
+  C3 (frontend) and C4 (deployment) add theirs; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
+- **No path or branch filters on a required workflow:** a required check that never runs stays "pending" and blocks the merge. To skip work, use a job-level `if:` (a job skipped that way reports success).
+- **No security scanning** (CodeQL, dependency review), on purpose ([divergences.md R-35](../software-factory/divergences.md)).
 
 ## 5. Infrastructure
 

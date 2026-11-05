@@ -154,7 +154,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C2 — `cNNN-add-ci-pipeline`
 
 - **Type:** OpenSpec change
-- **Goal:** A GitHub Actions workflow that builds the solution and runs all tests on every push and pull request, and lints the PR title as a Conventional Commit. A rule on `main` (a ruleset) requires a pull request and makes every CI check required, so a failing check blocks the merge ([workflow.md § 4](../docs/conventions/workflow.md#4-cicd); possible on a free public repository). From then on, every change extends CI for what it adds, adds its new checks to the rule, and keeps it passing.
+- **Goal:** A GitHub Actions workflow that builds the solution and runs all tests on every pull request (when it is opened or reopened and on every new push to it), and lints the PR title as a Conventional Commit. A rule on `main` (a ruleset) requires a pull request and makes every CI check required, so a failing check blocks the merge ([workflow.md § 4](../docs/conventions/workflow.md#4-cicd); possible on a free public repository). From then on, every change extends CI for what it adds, adds its new checks to the rule, and keeps it passing.
 - **Depends on:** C1, M2
 - **Inputs:** the knowledge base (workflow); output of C1.
 - **Outputs:** archived change; CI passing on GitHub; the rule on `main` in place, checked by a PR whose CI fails and cannot be merged.

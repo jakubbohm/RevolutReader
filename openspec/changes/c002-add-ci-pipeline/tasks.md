@@ -16,13 +16,13 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
 
 ## 2. Workflows (D2, D3, D7, D8)
 
-- [ ] 2.1 `.github/workflows/ci.yml`:
+- [x] 2.1 `.github/workflows/ci.yml`:
   - The job `build-and-test` runs on `pull_request` (opened, synchronize, reopened), with no path or branch filters, on `ubuntu-latest`.
   - It has `permissions: contents: read` and `timeout-minutes: 15`.
   - One concurrency group per workflow and PR cancels the older run.
   - Steps: `actions/checkout@v7`; `actions/setup-dotnet@v6` with `global-json-file: global.json`; `dotnet build`; `dotnet test --no-build` as a separate step.
   - Verify locally: the same build and test commands pass from the repository root (`dotnet test` exits 0). The run on GitHub is checked in 4.1.
-- [ ] 2.2 `.github/workflows/pr-title.yml`:
+- [x] 2.2 `.github/workflows/pr-title.yml`:
   - The job `pr-title` runs on `pull_request` (opened, edited, synchronize, reopened), on `ubuntu-latest`, with no checkout.
   - It has `permissions: {}`, `timeout-minutes: 5` and the same concurrency rule.
   - The title reaches the script only through `env:`. A bash regular expression accepts `<type>(<scope>)!: <subject>` with D3's types, an optional non-empty scope, an optional `!` and a non-empty subject. On failure, the message shows the expected form and an example.
@@ -37,8 +37,8 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
   - security scanning is left out (link R-35).
 
   Verify: every new link resolves.
-- [ ] 2.4 `pm/roadmap.md` C2 goal: "on every pull request" instead of "on every push and pull request". The roadmap change log in `pm/progress.md` gets a row (D2, approved by the user 2026-11-05). Verify: the row has the log's three columns.
-- [ ] 2.5 `docs/software-factory/`: `lessons.md` R-35 *(Divergence, relates to DoseUp's ADR-0004 PR gate 6)*: security scanning on pull requests. `divergences.md` R-35: what is given up and when to switch back (D7). Verify: both entries follow their file's format and share the id.
+- [x] 2.4 `pm/roadmap.md` C2 goal: "on every pull request" instead of "on every push and pull request". The roadmap change log in `pm/progress.md` gets a row (D2, approved by the user 2026-11-05). Verify: the row has the log's three columns.
+- [x] 2.5 `docs/software-factory/`: `lessons.md` R-35 *(Divergence, relates to DoseUp's ADR-0004 PR gate 6)*: security scanning on pull requests. `divergences.md` R-35: what is given up and when to switch back (D7). Verify: both entries follow their file's format and share the id.
 
 ## 3. The ruleset (D4, D5)
 
