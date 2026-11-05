@@ -86,6 +86,7 @@ tests/
 - The API is the one web host. It will also serve the built frontend (C3, ADR-0002-frontend-hosting), so it is named after its role in the solution, not "Web".
 - Features live in folders named after the capability (`Health/`). Use-case folders arrive with the first handler.
 - `Conventions/` is new in the acceptance project, for structural checks that need the running app (D8). testing.md § Where tests live gets the line.
+- **Classes stay `public`.** CA1515 (make an executable's types internal) is off for `tests/**` and `src/RevolutReader.Api/**` in `.editorconfig` (the user, 2026-11-05, at the acceptance gate and in group 2): `internal` only trades it for CA1812 where TUnit or FastEndpoints create the class, and a public endpoint makes its handler and request/response types public too (a compiler rule). Exploring `internal` classes is roadmap step T1.
 - **Alternative rejected:** the Aspire starter template (`aspire-starter`) brings a Blazor or React frontend and a sample API that would all be deleted.
 
 ### D2 — Versions (verified on nuget.org, 2026-11-05)
