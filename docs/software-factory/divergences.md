@@ -51,8 +51,13 @@ Here ([docs/conventions/workflow.md § 9](../conventions/workflow.md#9-project-m
 Given up: no board view, and no links between work items and commits or PRs.
 *Switch back when:* the backlog outgrows the fixed plan, or a second contributor joins.
 
-**R-7 · Switched back (2026-11-05): every screen is designed before it is built**
-The cut-down version (one mockup, for the account screen only, 2026-11-04) was dropped before any UI existed: a design system and one Screens design now cover all UI ([docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design), [lessons.md R-7](lessons.md)). Kept so the id is not reused.
+**R-7 · The design system ships no CSS file of its tokens**
+Full version: the design system ships every file a canvas loads, a CSS file of its tokens included, so updating a canvas's copy carries every change ([lessons.md R-7](lessons.md)).
+Here ([docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design), 2026-11-05): **the Screens design keeps its own CSS copy of the tokens, and the update prompt asks it to bring that copy into line** — adding the file to the design system would take two more prompts, and one canvas with one update prompt per change covers it.
+Given up: a colour change reaches the screens only through that prompt; a plain "update" misses it.
+*Switch back when:* a second canvas uses the design system, or a colour change is ever missed on the screens.
+
+Earlier, this id recorded a cut-down that was switched back on 2026-11-05: one mockup, for the account screen only (2026-11-04), replaced before any UI existed by the design system and one Screens design.
 
 **R-8 · The signed-in user's PSU headers are sent without asking the provider**
 Full version: when losing bank access would be costly, ask the provider first whether someone other than the account holder counts as present, or stay within the unattended quota with stored data ([lessons.md R-8](lessons.md)).
