@@ -80,7 +80,7 @@ rules:
     - Changes touching the API contract plan the TS client regeneration explicitly
     - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
     - Changes calling the bank respect ADR-0001-bank-data-access § Decision
-    - The account detail change (C7) references its Claude Design mockup (docs/conventions/workflow.md § 8)
+    - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements, and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory/lessons.md entry, and a docs/software-factory/divergences.md entry when this project runs a cut-down version (docs/conventions/workflow.md § 10)
   tasks:
     - "A tooling-only change (skip_specs: true in .openspec.yaml, docs/conventions/workflow.md § 6) follows none of the [acceptance], [unit], [integration] and [wiring] rules below: its groups are named after its work ('## N. <Area>'), each task states how it is checked, each group lands its own docs, work with an effect outside the repository (GitHub, Azure) is proven live, and the last group is '## N. Close'"

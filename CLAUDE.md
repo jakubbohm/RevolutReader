@@ -27,7 +27,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 - [pm/roadmap.md](pm/roadmap.md) and [pm/progress.md](pm/progress.md) — the source of truth for driving development. **Every session reads both at the start, before doing anything else.**
 - [pm/kickoff.md](pm/kickoff.md) — the original brief: why, scope, UC1–UC3, open questions Q1–Q10.
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
-- [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes), testing.md. `.claude/rules/` and the tooling mirror them.
+- [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes, design), testing.md. `.claude/rules/` and the tooling mirror them.
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
 - [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4) and the ruleset on `main` (C2), with their identifiers; later the reinstatement guide (D1).
 
