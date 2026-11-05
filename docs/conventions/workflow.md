@@ -141,7 +141,7 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
   - text typed straight into an artboard, e.g. the app name on the sign-in, install and Home Screen boards;
   - `project/tarjeta-tokens.css` and `tarjeta-tokens-dark.css`, the canvas's own CSS copy of the tokens, which every artboard takes its colours from. The design system ships no CSS file of its tokens, so a changed colour would not reach the screens ([divergences.md R-7](../software-factory/divergences.md)).
 
-  So every design-system change ends with two prompts. The design-system session knows what really changed, including the owner's steering; the Screens design knows its own canvas.
+  So every design-system change ends with two prompts, and the list then goes to Claude Code. The design-system session knows what really changed, including the owner's steering; the Screens design knows its own canvas.
 
   1. In the design system, at the end of the change:
 
@@ -156,6 +156,8 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
      <paste the list>
      Then bring everything this canvas made itself into line with them: tarjeta-tokens.css, tarjeta-tokens-dark.css, and any text, colour or layout written directly in an artboard. Change nothing else, then list what you changed.
      ```
+
+  3. In Claude Code, once the design is finished: the same list, e.g. "The design system changed: <paste the list>. Apply it." Claude Code reads the current artifacts and compares them with the code, so it also catches a difference the list missed. When the code has nothing of it yet, there is nothing to do now: the step that builds the screen reads the design. A change to a screen alone skips steps 1 and 2: the owner tells Claude Code which artboards changed.
 - **One canvas, not one artifact per screen:** the screens share one design-system copy and one set of sample data, and one update refreshes them all. To change one screen, select its artboard and ask; the others stay as they are.
 - **Where a change starts:**
 
@@ -168,7 +170,7 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
   | A text, a behaviour or a bug fix with no visual change | — | as usual |
 
   Another Design artifact is made only for something that is not this app's UI.
-- **The owner edits the artifacts in Claude; Claude Code only reads them,** by the links above with its Artifact tool, signed in as the owner. Nothing is exported or downloaded. When the owner asks Claude Code for a visual change, Claude Code points to the design system first, so the code and later screen designs do not drift apart.
+- **The owner edits the artifacts in Claude; Claude Code only reads them,** by the links above with its Artifact tool, signed in as the owner. Nothing is exported or downloaded. When the owner asks Claude Code for a visual change, Claude Code points to the design system first, so the code and later screen designs do not drift apart, and walks the owner through the steps above, writing the prompt for the change itself.
 - **For the look, the design wins; for behaviour, the specs win.** A change translates the design into the repo's own Tailwind theme and components ([README.md § Frontend](README.md#frontend)). The design system's reference components are a model, never committed as they are. A genuinely new token or component is flagged in the change's design as a decision.
 
 ## 9. Project management

@@ -4,3 +4,4 @@
 - [Ask "done?" before committing](ask-done-before-commit.md) — at the end of a step, ask whether it is done so the status update goes into the same commit
 - [Git Bash rewrites /paths for az](git-bash-az-path-conversion.md) — use MSYS_NO_PATHCONV=1 for --scope /subscriptions/...
 - [Every az command names the subscription](az-always-explicit-subscription.md) — always --subscription 7811bd13-…; never the default (employer tenant), never --tenant alone, never az account set
+- [Remind the design workflow](remind-design-workflow.md) — on any visual change, walk the user through workflow.md § 8 step by step; they expect to forget it
