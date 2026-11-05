@@ -183,6 +183,7 @@ RevolutReader ([ADR-0003-sign-in](../adr/0003-sign-in.md), 2026-11-05): **BFF wi
 - Entra caps a single-page app's refresh token at 24 hours, so the browser-token option would run that redirect every day. The cookie runs it once.
 - The frontend loses its sign-in library, and no token is readable by JavaScript.
 - Costs: a client secret to keep and renew, and CSRF protection on cookie-authenticated writes.
+- **Reversal (timing, 2026-11-05):** the secret was first to be created with the app registration and kept in a file until the vault existed. It is now created in the change that first uses it, straight into the vault and the local secret store: no file on disk, and its lifetime starts when it is needed.
 
 *Generalizes:* when the frontend and the API share one origin, a BFF is the stronger default: tokens stay off the device and the session lifetime is the app's own. It matters most for installed PWAs on iOS, where every sign-in redirect is a risk. Reverses toward a token in the browser when the API serves other clients or sits on another origin, or when keeping a client credential is not possible. *(Entra and WebKit behaviour verified 2026-11-05.)*
 
@@ -198,6 +199,7 @@ RevolutReader ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md), 2
 - An ID-keyed allowlist was rejected because the ID is known only after a first, rejected sign-in, and the main user must not wait for approval.
 - Microsoft warns that the email claim is mutable and not for authorization. Accepting only the personal-accounts tenant removes the nOAuth case, where another directory asserts any email.
 - A customer directory adds a user flow, because it owns the accounts. It pays off only when users lack a common account provider (here, Apple sign-in was declined: a paid developer program, a secret renewed every 6 months, and "Hide My Email" defeating an email list).
+- **Gotchas found while registering (M4, 2026-11-05, [entra-id.md](../operations/entra-id.md)):** a personal-accounts-only registration allows at most two client secrets, no app roles, and requires access tokens v2. Expect Microsoft's consent screen once per person, labelled unverified unless the publisher is verified through the Microsoft Partner Network, so "no extra steps" likely means one Accept tap (to be confirmed on the real phone in C6). A `localhost` redirect URI matches any port, but its path must match exactly.
 
 What the project gives up: [divergences.md R-25](divergences.md).
 *Generalizes:* the full version keys membership on the stable account ID (`oid` plus tenant) in the app's own store; the email is used once, to match an invitation, and then the account is bound to its ID. Checking the email on every request is acceptable only when a single consumer provider issues every token and the user set is fixed and tiny. Before choosing guests, check the directory's security defaults: they turn "invite a guest" into "make the guest register MFA". The full version applies again as soon as accounts come from more than one directory or provider, or the users change or grow. *(Entra behaviour verified 2026-11-05.)*
@@ -236,7 +238,20 @@ RevolutReader ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-
 What the project gives up: [divergences.md R-27](divergences.md).
 *Generalizes:* on a free budget, prefer the host whose always-on upgrade is cheapest and whose free tier has no hard cutoff. Price the idle-billing rules before planning time-based scaling. For a few fixed runs a day on a sleeping host, an external clock calling the app keeps one deployable and one process. The endpoint must be idempotent because the clock retries, which is critical when each run spends a rate-limited quota. Persist cookie-encryption keys on any host that recreates containers. For many timers or per-entity schedules, DoseUp's queue alarms win. Reverses toward an always-on host with an in-app scheduler when the budget allows (the simplest), and toward a separate job process when the work is long or heavy. *(Prices and limits verified 2026-11-05.)*
 
-**R-28 · How does the first test-first change start in an empty repository?** *(New)*
+**R-28 · What identity does the deploy pipeline use, and how narrow can its rights be when the infrastructure code also grants roles?** *(New — relates to DoseUp F-53)*
+Options:
+- identity: a service principal with a stored secret · an Entra app registration with a federated credential · a user-assigned managed identity with a federated credential;
+- rights: Owner on the resource group · Contributor + User Access Administrator · Contributor + Role Based Access Control Administrator with a condition naming the assignable roles.
+
+DoseUp: GitHub → Azure via OIDC federated credentials; the identity type and its roles are not recorded in the catalog.
+RevolutReader ([docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md), 2026-11-05): **a user-assigned managed identity in the app's resource group, trusted only for the repository's `production` environment, which deploys from `main` only; Contributor plus Role Based Access Control Administrator limited by a condition to the four data roles the Bicep grants.**
+- A managed identity can never hold a password and disappears with the resource group; a deployment stack leaves it alone because it deletes only what it manages.
+- **Gotcha:** GitHub repositories created after 2026-07-15 send an immutable OIDC subject, `repo:OWNER@OWNER-ID/REPO@REPO-ID:…`. Most guides still show `repo:OWNER/REPO:…`, which no longer matches. Read the repository's own prefix from its OIDC customization API before creating the credential.
+- **Gotcha:** an identity whose rights end at the resource group cannot register resource providers, a subscription-level action, so a new subscription needs them registered by hand.
+
+*Generalizes:* give the pipeline a keyless identity whose lifetime matches the project's resources, and when the infrastructure code assigns roles, delegate role assignment with a condition naming exactly the roles it grants, never Owner. The cost is one manual step whenever a new role is needed. Reverses toward Owner on the group only for a throwaway sandbox. *(GitHub and Azure behaviour verified 2026-11-05.)*
+
+**R-29 · How does the first test-first change start in an empty repository?** *(New)*
 Options: let the test-writer and implementer create the solution inside the loop · a one-time setup commit outside the loop, then the loop · skip test-first for the first change.
 RevolutReader ([c001 design.md § Bootstrap](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), [workflow.md § 3](../conventions/workflow.md#3-git), 2026-11-05): **a one-time `[setup]` commit before the first `/tdd-apply`**. Tools and templates are updated, the projects are generated from the CLI templates and adapted to the conventions, and the commit has a green build and zero tests. The loop cannot start without it: the test-writer may add only method signatures to production code, and the implementer needs failing tests.
 - The zero-test baseline (exit code 8) is accepted once, for that first run only.
@@ -245,18 +260,18 @@ RevolutReader ([c001 design.md § Bootstrap](../../openspec/changes/archive/2026
 
 *Generalizes:* a test-first loop needs a green, empty starting point that is not behaviour. Create it once, outside the loop, under its own commit tag, and put the test infrastructure into the test-writer's first group. Reverses when the factory's project template already contains the test foundation: then the first change starts inside the loop.
 
-**R-29 · Should outgoing HTTP clients retry by default?** *(Divergence — relates to DoseUp's ServiceDefaults)*
+**R-30 · Should outgoing HTTP clients retry by default?** *(Divergence — relates to DoseUp's ServiceDefaults)*
 Options: keep the Aspire template's standard resilience handler on every `HttpClient` (it retries 408, 429 and 5xx) · keep it and opt out per client · remove it and opt in per client.
 DoseUp: keeps the template default (`AddStandardResilienceHandler` in ServiceDefaults; checked 2026-11-05).
 RevolutReader ([README.md § Backend code](../conventions/README.md#backend-code), [c001 design.md D5](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), 2026-11-05): **no default retries.** A client gets retries only when its own change decides a policy, and the bank client never retries: a retried 429 from Enable Banking would silently burn the 4 requests a day allowed without the account holder ([ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)).
 *Generalizes:* when an outside API counts requests (quotas, rate limits, a price per call), retries are a decision per client, never a template default. A forgotten opt-out is invisible, and every future client inherits retries nobody decided. Reverses to the template default when every downstream is your own idempotent service with no quota.
 
-**R-30 · Is "the build is the format gate" actually true?** *(New)*
+**R-31 · Is "the build is the format gate" actually true?** *(New)*
 Options: trust `AnalysisLevel latest-all` + `EnforceCodeStyleInBuild` · explicit severities in `.editorconfig` for the style rules that matter · a format check in CI only.
 RevolutReader (`.editorconfig`, [c001 design.md § Bootstrap](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), 2026-11-05): **explicit severities** for IDE0055 (layout), IDE0008 (no `var`) and IDE0161 (file-scoped namespaces). Without them these rules stayed silent in the build even under `latest-all`, although the conventions said the build was the gate. A probe file proved it, before and after (.NET 11 RC3 SDK). DoseUp's `.editorconfig` has no explicit severities for these three either (checked 2026-11-05; not probed whether its build gates them).
 *Generalizes:* an IDE style rule gates the build only with an explicit severity. Prove every gate with a probe file that must fail the build, instead of trusting the convention text. Does not reverse; it is a fact about the tooling, to re-check when the SDK changes.
 
-**R-31 · Can "secure by default" rely on the web framework's default?** *(New, with a Reversal — relates to DoseUp's FastEndpoints setup)*
+**R-32 · Can "secure by default" rely on the web framework's default?** *(New, with a Reversal — relates to DoseUp's FastEndpoints setup)*
 Options: trust the framework (FastEndpoints requires sign-in unless an endpoint says `AllowAnonymous`) · a test that compares the app's real endpoint list with an explicit allowlist · both.
 DoseUp: FastEndpoints 8.2.0. It probably exposes the same route as below: the route name is in its FastEndpoints.dll (checked 2026-11-05); not checked whether it is mapped.
 RevolutReader ([c001 design.md D2, D8](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), [README.md § Backend code](../conventions/README.md#backend-code), 2026-11-05): **both, and the test is what holds.** FastEndpoints up to 8.3.0, the latest stable release on 2026-11-05, maps `GET /_test_url_cache_` in every environment. The route needs no sign-in and lists every endpoint's type name and route. The anonymous-endpoint test caught it at the first endpoint.
@@ -264,11 +279,11 @@ RevolutReader ([c001 design.md D2, D8](../../openspec/changes/archive/2026-11-05
 
 *Generalizes:* a framework's "secure by default" covers only the endpoints the framework builds for you. Routes it adds by itself, minimal-API maps and health checks fall outside it. From the first endpoint, test the app's real endpoint list against an explicit allowlist. Does not reverse; the check is cheap. Also: a mature framework's next major version in beta can be the safer choice when the stable one has a security-relevant default.
 
-**R-32 · Where does a hook that restricts one AI subagent live, and how do you know it runs?** *(New)*
+**R-33 · Where does a hook that restricts one AI subagent live, and how do you know it runs?** *(New)*
 Options: in the subagent's own definition (frontmatter hooks, documented to run only while that subagent runs) · in the project settings, with the hook script checking the hook input's `agent_type` · no hook, only the orchestrator's diff check.
 RevolutReader ([testing.md § Test-first workflow](../conventions/testing.md#test-first-workflow), [.claude/settings.json](../../.claude/settings.json), 2026-11-05): **project settings, with the script restricting only `agent_type` `implementer`.**
 - C1's deliberate probe found that the hook declared in the implementer's frontmatter never ran (Claude Code 2.1.318, VS Code extension). The probe write went through, and a temporary log line in the script stayed empty, even with an absolute path and `onFailure: "block"`. Workspace trust was recorded as accepted. The cause was not found.
 - The same script registered in `.claude/settings.json` was picked up mid-session. It ran for the main session and for subagents, blocked the implementer's write to the test cases, and let its write to the drivers through.
 - Gotcha: a hook that fails with an exit code other than 2 lets the action through silently. So give the script an absolute path (`${CLAUDE_PROJECT_DIR}` in `args`) and set `onFailure: "block"`.
 
-*Generalizes:* prove every guard with a deliberate probe, as with build gates (R-30): a guard that never runs looks exactly like one that never had to block. Register the hook where a probe shows it runs, and do the scoping inside the script. Reverses to frontmatter hooks when a probe shows they run in the environment in use.
+*Generalizes:* prove every guard with a deliberate probe, as with build gates (R-31): a guard that never runs looks exactly like one that never had to block. Register the hook where a probe shows it runs, and do the scoping inside the script. Reverses to frontmatter hooks when a probe shows they run in the environment in use.

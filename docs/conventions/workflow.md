@@ -11,7 +11,7 @@
 | Decisions with lasting effect | `docs/adr/` |
 | How: conventions | `docs/conventions/` |
 | Exactly what the system does | `openspec/specs/` (after a change is archived) |
-| Keeping it running and bringing it back: expiring approvals and how to restore them, the reinstatement guide (roadmap D1) | `docs/operations/` |
+| Keeping it running and bringing it back: expiring approvals and how to restore them, the hand-made Azure and GitHub setup, the reinstatement guide (roadmap D1) | `docs/operations/` |
 | Evidence from experiments and verifications | `spikes/<topic>/` |
 | Lessons for the future software factory, this project's divergences from it, and the handover package | `docs/software-factory/` (§ 10) |
 
@@ -65,17 +65,19 @@
 - **Shared resources are referenced in Bicep as `existing`**, never managed by this project's stack, so the stack can never delete them. If a project ever needs its own child resource inside a shared one, verify how the stack treats such child resources before relying on it (undocumented as of 2026-11-05). F0-2 chose no shared resources for this app ([ADR-0005-data-storage](../adr/0005-data-storage.md)).
 - Environment-specific values live in `.bicepparam`. GitHub Actions signs in to Azure via OIDC (no stored credential); the app uses a managed identity with the narrowest built-in roles, assigned in Bicep.
 - **The Aspire AppHost models local orchestration only.** A change touching its resource graph includes an explicit "update Bicep" task.
-- **Decommissioning** (M8): delete the stack (removes every project-owned resource), then the manual parts — purging the deleted Key Vault, the resource group, the deploy identity, the Entra registration.
+- **Decommissioning** (M8): delete the stack (removes every project-owned resource), then the manual parts — purging the deleted Key Vault, the resource group (the deploy identity lives in it), the Entra registration.
 
 ### Resources (decided in F0-2, 2026-11-05)
 
-Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md).
+Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md). The hand-made part, with identifiers and commands: [docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md).
 
 | Resource | Who creates it | When |
 |---|---|---|
+| Resource providers the deploy identity cannot register (Key Vault, Logic Apps) | by hand | M3 |
 | Resource group (the stack's scope) | by hand | M3 |
-| Deploy identity: federated credential for GitHub Actions + roles on the resource group | by hand | M3 |
-| Entra app registration (personal Microsoft accounts only, web redirect URIs) + 12-month client secret | by hand | M4 |
+| Deploy identity: user-assigned managed identity in the resource group, federated credential for GitHub Actions, Contributor + role assignments limited to the app's data roles, on the resource group | by hand | M3 |
+| GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
+| Entra app registration (personal Microsoft accounts only, web redirect URIs; [entra-id.md](../operations/entra-id.md)) + 12-month client secret | by hand | M4; the secret in C6 |
 | Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
 | Public container package on ghcr.io (made public once) | CD pushes; by hand once | C4 |
 | Container Apps environment (Consumption) + container app (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress), with a managed identity and Key Vault-backed secrets | Bicep | C4 |

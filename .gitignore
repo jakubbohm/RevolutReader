@@ -165,6 +165,8 @@ $RECYCLE.BIN/
 .claude/settings.local.json
 # codebase-memory-mcp local graph artifacts
 .codebase-memory/
+# Claude Code worktrees (a second checkout for parallel sessions)
+.claude/worktrees/
 
 # =============================================================================
 # Secrets (docs/conventions/workflow.md § 7 — keys, tokens and bank data never get committed)
