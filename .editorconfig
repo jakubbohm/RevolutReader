@@ -323,3 +323,10 @@ dotnet_diagnostic.CA2007.severity = none
 # the TUnit.AspNetCore factory), and making them internal only trades CA1515 for CA1812 on the
 # types TUnit creates (verified in c001, 2026-11-05).
 dotnet_diagnostic.CA1515.severity = none
+
+[src/RevolutReader.Api/**.cs]
+# The API is an executable, so CA1515 asks for every type to be internal. FastEndpoints discovers
+# and creates the endpoints by reflection, so an internal endpoint only trades CA1515 for CA1812
+# (verified in c001, 2026-11-05 on HealthEndpoint). A public endpoint also makes its request and
+# response types and its injected handler public (inconsistent accessibility otherwise).
+dotnet_diagnostic.CA1515.severity = none

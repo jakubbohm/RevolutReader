@@ -8,8 +8,10 @@
        RC3, matching global.json; the move to GA is a follow-up PR. -->
 
   <ItemGroup Label="API">
-    <!-- 8.3.0 is built for net10.0 and runs on net11.0; 9.0 (net11.0) is still a beta. -->
-    <PackageVersion Include="FastEndpoints" Version="8.3.0" />
+    <!-- A beta on purpose (c001 design.md D2): 8.3.0 maps an anonymous GET /_test_url_cache_
+         listing every endpoint, in every environment. 9.0 maps it only when
+         FastEndpoints:ExposeTestUrlCache is true; never set it. -->
+    <PackageVersion Include="FastEndpoints" Version="9.0.0-beta.7" />
   </ItemGroup>
 
   <ItemGroup Label="ServiceDefaults">

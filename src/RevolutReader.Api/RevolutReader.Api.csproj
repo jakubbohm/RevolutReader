@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FastEndpoints" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RevolutReader.ServiceDefaults\RevolutReader.ServiceDefaults.csproj" />
   </ItemGroup>
 

@@ -13,9 +13,9 @@ Before this list: the setup commit from design.md § Bootstrap (tools, generated
 
 ## 2. [wiring] Health check
 
-- [ ] 2.1 FastEndpoints in the API (`AddFastEndpoints`, `UseFastEndpoints`) and `HealthEndpoint`: `GET /health`, `AllowAnonymous`, 200 `text/plain` `Healthy`, no dependencies (design.md D3); its allowlist entry is already in 1.4. Verify: both anonymous-endpoint tests pass
-- [ ] 2.2 `HealthDriver.GetHealth` replaces its stub: `GET /health`, answer mapped to `HealthAnswer`. Verify: the service-health scenario runs against the app and passes
-- [ ] 2.3 AppHost polls the check: `.WithHttpHealthCheck("/health")` on the `api` resource. Verify: `dotnet build` passes (the running check is 4.3)
+- [x] 2.1 FastEndpoints in the API (`AddFastEndpoints`, `UseFastEndpoints`) and `HealthEndpoint`: `GET /health`, `AllowAnonymous`, 200 `text/plain` `Healthy`, no dependencies (design.md D3); its allowlist entry is already in 1.4. Verify: both anonymous-endpoint tests pass
+- [x] 2.2 `HealthDriver.GetHealth` replaces its stub: `GET /health`, answer mapped to `HealthAnswer`. Verify: the service-health scenario runs against the app and passes
+- [x] 2.3 AppHost polls the check: `.WithHttpHealthCheck("/health")` on the `api` resource. Verify: `dotnet build` passes (the running check is 4.3)
 
 ## 3. [wiring] Problem descriptions
 
