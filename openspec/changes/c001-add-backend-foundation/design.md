@@ -3,7 +3,7 @@
 ## TL;DR
 
 - **Setup first, outside the TDD loop:** Claude updates the Aspire CLI and templates (13.6.4) and the TUnit templates (1.80.0), generates the projects from the templates, adapts them to the conventions, and commits a green build with no tests (`[setup]`). `/tdd-apply` starts from there (§ Bootstrap).
-- **Pinned versions (verified 2026-11-05):** .NET SDK 11.0.100-rc.3, FastEndpoints 8.3.0, Aspire 13.6.4, TUnit 1.80.0, Mvc.Testing 11.0.0-rc.3 (D2).
+- **Pinned versions (verified 2026-11-05):** .NET SDK 11.0.100-rc.3, FastEndpoints 9.0.0-beta.7 (8.3.0 maps an anonymous route nobody declared), Aspire 13.6.4, TUnit 1.80.0, Mvc.Testing 11.0.0-rc.3 (D2).
 - **Health check:** `GET /health` is a FastEndpoints endpoint, anonymous, with no dependencies and no handler. The template's health checks are removed (D3).
 - **Errors:** `AddProblemDetails` + `UseStatusCodePages` turn every body-less error into a problem description. The case → status table starts with 404 (D4).
 - **No default HTTP retries:** the template's resilience handler on every HttpClient is removed. **Hard to notice if reverted:** a retry on 429 would burn the bank's 4 unattended requests a day (D5).
@@ -93,7 +93,7 @@ tests/
 | Package | Version | Note |
 |---|---|---|
 | .NET SDK | 11.0.100-rc.3.26522.148 | GA expected 2026-11-10 (.NET Conf); move in a follow-up PR |
-| FastEndpoints | 8.3.0 (2026-08-20) | built for net10.0, runs on net11.0. 9.0.0-beta.7 (net11.0) rejected: a beta. Its 8.1 and 8.3 release notes warn of bugfix-only mode for lack of sponsors, irrelevant for ~2 months |
+| FastEndpoints | 9.0.0-beta.7 (2026-11-04) | MIT; targets net10.0 and net11.0 (net11.0 built on the RC3 packages, the SDK pinned here). **Chosen by the user on 2026-11-05 during group 2, reversing the first choice of 8.3.0** (the latest stable): 8.3.0 maps `GET /_test_url_cache_` in every environment, with no switch and no authorization metadata, and it lists every endpoint's type name and route to anonymous callers; the anonymous-endpoint check (D8) caught it. 9.0 makes the route opt-in (`FastEndpoints:ExposeTestUrlCache`, PR #1175, merged 2026-09-13); never set it. None of 9.0's breaking changes touches C1. The release notes still warn that the sponsorship goal is not met, irrelevant for ~2 months |
 | Aspire.AppHost.Sdk and Aspire hosting | 13.6.4 (2026-10-24) | |
 | Microsoft.Extensions.ServiceDiscovery | 10.11.0 | |
 | OpenTelemetry packages | as the 13.6.4 template sets them, moved to central versions | |
@@ -283,7 +283,7 @@ The driver owns HTTP: it checks the status, the content type `application/proble
 | The health check calls neither the bank nor storage | `HealthEndpoint` has no dependencies (by construction); scenario from C5 |
 | Every body-less error response is a problem description | `AddProblemDetails` + `UseStatusCodePages` in `Program.cs` |
 | An unknown address answers 404 | ASP.NET Core routing (no endpoint matched) |
-| Only allowlisted endpoints work without sign-in | FastEndpoints' default (sign-in required unless `AllowAnonymous`); `AnonymousEndpointsTests` |
+| Only allowlisted endpoints work without sign-in | FastEndpoints' default for its own endpoints (sign-in required unless `AllowAnonymous`); `AnonymousEndpointsTests` for everything else, including routes a framework maps by itself (it caught 8.3.0's `_test_url_cache_`, D2) |
 | Every scenario is claimed exactly once | `TraceabilityTests` |
 | No default retries on outgoing HTTP | ServiceDefaults (resilience handler removed) |
 | Time comes only from `TimeProvider` | `BannedSymbols.txt` + BannedApiAnalyzers (build error) |
@@ -314,13 +314,16 @@ Both scenarios are API acceptance tests (the default level). Nothing in C1 is ve
   - lesson R-28 *(New)*: how the first test-first change starts on an empty repository (bootstrap commit, the accepted zero-test baseline, the test foundation in the acceptance group, self-tests for the traceability check);
   - lesson R-29 *(Divergence from DoseUp)*: no default HTTP retries when an outside API counts requests;
   - lesson R-30 *(New)*: an IDE style rule gates the build only with an explicit severity in `.editorconfig`, even under `AnalysisLevel latest-all`. Prove the gate with a probe file instead of trusting the convention text. DoseUp's `.editorconfig` has the same missing severities (not verified there);
+  - lesson R-31 *(New; reverses D2's first choice)*: a framework can map an anonymous route by itself (FastEndpoints ≤ 8.3 maps `_test_url_cache_`, which lists every endpoint), so "secure by default" needs the anonymous-endpoint check over the real endpoint list, not trust in the framework; C1 moved to the FastEndpoints 9 beta for it. DoseUp (8.2.0) should check;
   - inventory lines for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files.
 
 ## Risks / Trade-offs
 
 - [TUnit.AspNetCore is built for .NET 10 and pulls Mvc.Testing 10] → Mvc.Testing pinned to 11.0.0-rc.3; fallback to Mvc.Testing directly (D6).
 - [Release candidate, not GA] → go-live licence since RC1; exact pin; the move to GA is a small follow-up PR.
-- [Packages built for net10.0 on net11.0 (FastEndpoints, Aspire, TUnit)] → DoseUp runs FastEndpoints 8.2.0 this way; the scenarios going green prove it here.
+- [Packages built for net10.0 on net11.0 (Aspire, TUnit)] → the scenarios going green prove it here.
+- [FastEndpoints 9.0.0-beta.7 is a beta, published the day before it was chosen] → pinned exactly; the user judges FastEndpoints mature enough (2026-11-05). The .NET 11 GA follow-up PR moves it too (to 9.0 stable if released by then), since its net11.0 build uses the RC3 packages.
+- [DoseUp runs FastEndpoints 8.2.0] → it likely exposes the same anonymous `_test_url_cache_` route (the name is in its FastEndpoints.dll; not checked whether it is mapped there). A software-factory lesson (§ Cross-cutting effects).
 - [The Aspire 13.6 CLI is machine-wide; DoseUp pins its packages at 13.4.6] → not verified that the new CLI still runs DoseUp's AppHost; check before working on DoseUp again.
 - [`aspire agent` may want to edit `CLAUDE.md` or add MCP configuration] → review its diff; keep only the skill updates without the user's approval.
 - [Roslynator 5.x may have dropped or renamed RCS1002] → stay on 4.16.1 if so.

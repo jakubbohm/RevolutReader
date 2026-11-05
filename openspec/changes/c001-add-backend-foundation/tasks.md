@@ -32,11 +32,11 @@ Before this list: the setup commit from design.md § Bootstrap (tools, generated
 - [ ] 4.6 docs/conventions/README.md § Backend code: Result shape (D9), case → status table with the 404 row, no default HTTP retries (D5); mirror the short form in `.claude/rules/backend-code.md`. Verify: both files state the same rules
 - [ ] 4.7 docs/conventions/testing.md: `Conventions/` in § Where tests live; the per-requirement delta rule and the ignored archive in § Every scenario has exactly one test; the `Production` environment in § Acceptance-test harness; test commands now in `CLAUDE.md` (§ Decided later). Mirror in `.claude/rules/testing.md`. Verify: no statement in the two files contradicts design.md D6–D8
 - [ ] 4.8 docs/conventions/workflow.md § 3: add the `[setup]` row (one-time, C1: the solution before the first `/tdd-apply`, type `build`, committed by Claude). Verify: the table lists it
-- [ ] 4.9 Software factory: lessons R-28 to R-30 in docs/software-factory/lessons.md (design.md § Cross-cutting effects); inventory lines in docs/software-factory/creating-handover-package.md for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files. Verify: every new entry links to its source
+- [ ] 4.9 Software factory: lessons R-28 to R-31 in docs/software-factory/lessons.md (design.md § Cross-cutting effects); inventory lines in docs/software-factory/creating-handover-package.md for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files. Verify: every new entry links to its source
 - [ ] 4.10 `pm/progress.md`: C1 row (status as the user decides, date, notes: measured cost, hook result, deviations). Verify: the row matches what was done
 
 ## Workflow follow-up
 
 - Review and merge the PR (squash; title `feat: add backend foundation (C1)`).
 - `/opsx:archive c001-add-backend-foundation` after the traceability check and all acceptance tests pass.
-- Follow-up PR: move to .NET 11 GA (SDK and the 11.0.0 packages) once it ships.
+- Follow-up PR: move to .NET 11 GA (SDK and the 11.0.0 packages) once it ships, and FastEndpoints with it (9.0 stable if released by then; design.md D2).
