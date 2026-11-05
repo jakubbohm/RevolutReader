@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -198,7 +198,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C5 — `cNNN-add-enable-banking-adapter`
 
 - **Type:** OpenSpec change
-- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. Its tests run against the local fake bank server with responses copied from Enable Banking's Mock ASPSP; it is checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API. Local development reads the Mock ASPSP, never the real account ([testing.md § Fake bank](../docs/conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
+- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. Its expected failures (expired or revoked consent, rate limit) are the first Result values, so C5 also builds the Result type (a C# 15 union, shape in [README.md § Backend code](../docs/conventions/README.md#backend-code)). Its tests run against the local fake bank server with responses copied from Enable Banking's Mock ASPSP; it is checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API. Local development reads the Mock ASPSP, never the real account ([testing.md § Fake bank](../docs/conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
 - **Depends on:** C1, M1
 - **Inputs:** kickoff ch. 6; ADR-0001-bank-data-access and the M1 identifiers; Enable Banking API documentation; the knowledge base; [spikes/enable-banking-mock/](../spikes/enable-banking-mock/README.md) (sandbox application, captured responses). Run `/tdd-apply` with `review=all`.
 - **Outputs:** archived change; the adapter with tests, including handling of expired consent and rate-limit responses.
