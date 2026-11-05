@@ -1,0 +1,42 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!-- Versions verified on nuget.org on 2026-11-05 (c001 design.md D2). The .NET 11 packages are
+       RC3, matching global.json; the move to GA is a follow-up PR. -->
+
+  <ItemGroup Label="API">
+    <!-- A beta on purpose (c001 design.md D2): 8.3.0 maps an anonymous GET /_test_url_cache_
+         listing every endpoint, in every environment. 9.0 maps it only when
+         FastEndpoints:ExposeTestUrlCache is true; never set it. -->
+    <PackageVersion Include="FastEndpoints" Version="9.0.0-beta.7" />
+  </ItemGroup>
+
+  <ItemGroup Label="ServiceDefaults">
+    <!-- No Microsoft.Extensions.Http.Resilience: outgoing HTTP calls get no default retries
+         (c001 design.md D5, ADR-0001-bank-data-access). -->
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.11.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <!-- Mvc.Testing is pinned directly: TUnit.AspNetCore is built up to net10.0 and would
+         otherwise pull 10.0.14 into the net11.0 test host. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.3.26522.148" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="TUnit" Version="1.80.0" />
+    <PackageVersion Include="TUnit.AspNetCore" Version="1.80.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tooling (repo-wide via Directory.Build.props)">
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
+  </ItemGroup>
+
+</Project>

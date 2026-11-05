@@ -60,7 +60,7 @@ A change is implemented with **`/tdd-apply <change> [review=acceptance|all|none]
 - **The orchestrator verifies, never trusts a report.**
   - After red: the build passes; every new test fails at runtime (a `NotImplementedException` stub or an assertion), never at compile time; every previously green test is still green.
   - After green: all tests pass except this change's acceptance tests still waiting for their wiring; the green step's diff touches no test file outside the implementer's folders (`Drivers/` in wiring and close, `IntegrationTests/Wiring/` in wiring). A violation is reverted and the implementer resumed.
-  - A hook on the implementer agent blocks test edits as a second layer; the diff check is the one to rely on. The first run (C1) confirms the hook fires.
+  - A hook blocks the implementer's test edits as a second layer; the diff check is the one to rely on. The hook ([`.claude/hooks/deny-test-edits.mjs`](../../.claude/hooks/deny-test-edits.mjs)) is registered in `.claude/settings.json`, so it runs for every session and subagent, and it blocks only the subagent whose `agent_type` is `implementer`. **C1's check (2026-11-05, Claude Code 2.1.318, VS Code extension):** declared in the implementer's frontmatter, the hook never ran, even with an absolute path and `onFailure: "block"` (a temporary log in the script stayed empty). Registered in the project settings, it ran and blocked the implementer's probe write to `Scenarios/`, let its write to `Drivers/` through, and let the main session's writes through. The implementer changed no disallowed file in C1, so the diff check had nothing to restore.
 - **Human gates.** Your reading routine after propose (below). The acceptance tests, always: there you review how the spec was translated. With `review=all`, also each group's unit tests. **Default `acceptance`; `all` for C1 and C5,** the first two changes using the workflow. Unresolved or repeated disputes always reach you.
 - **Disputes:** behaviour is decided by the delta spec, API shape by `design.md`, test quality by the test-writer. The orchestrator forwards only the claim, the failing test and the spec or design excerpt, never the implementation. A silent or ambiguous spec, or the same dispute a second time, goes to the user; the resolution lands in the spec or the design, not only in code.
 - **Commits at every handoff,** on the change branch, tagged by step ([workflow.md § 3](workflow.md#3-git)). Committing the test-writer's red tests before the implementer starts is what makes the diff check reliable.
@@ -96,7 +96,9 @@ tests/
 │  ├─ Scenarios/<capability>/         the test cases: domain language only, they are the spec
 │  ├─ Dsl/                            domain-language helpers: defaults, unique names per test
 │  ├─ Drivers/                        the only layer that knows HTTP: API calls, fake bank, sign-in tokens, clock
-│  └─ Traceability/                   the check that every scenario has exactly one test
+│  ├─ Traceability/                   the check that every scenario has exactly one test
+│  └─ Conventions/                    structural checks that need the running app: the anonymous-endpoint
+│                                     allowlist, the harness's environment
 ├─ RevolutReader.UnitTests/           domain rules, no I/O; paths mirror src/
 ├─ RevolutReader.IntegrationTests/    our adapters against their fakes: the Enable Banking client against the
 │                                     fake bank server; later the database (Testcontainers)
@@ -105,14 +107,14 @@ tests/
 
 - **One project per test layer, named after the layer** (as DoseUp). `dotnet test` runs everything; CI selects a layer by project, never by tags on tests.
 - **Mirroring is mechanical** (as DoseUp): a test file sits at its target's path with the project swapped (`src/.../Balance.cs` ↔ `tests/RevolutReader.UnitTests/.../BalanceTests.cs`). Acceptance tests mirror the specs instead: one file per capability, one test per scenario. Unit tests are named after their behaviour task.
-- **Who may edit what** (a hook on the implementer agent enforces it): the test-writer owns `tests/`; the implementer may edit only `RevolutReader.AcceptanceTests/Drivers/` in the wiring and close steps, and `RevolutReader.IntegrationTests/Wiring/`, where it writes adapter edge-case tests after the implementation.
+- **Who may edit what** (the orchestrator's diff check enforces it; a hook that blocks the implementer is the second layer, § Test-first workflow): the test-writer owns `tests/`; the implementer may edit only `RevolutReader.AcceptanceTests/Drivers/` in the wiring and close steps, and `RevolutReader.IntegrationTests/Wiring/`, where it writes adapter edge-case tests after the implementation.
 - **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front.
 - **Frontend tests live next to the frontend code** (Vitest); folder and naming are decided in C3.
 
 ## Every scenario has exactly one test: the traceability check
 
 - **One automated test** in `RevolutReader.AcceptanceTests/Traceability/` compares the scenarios in the specs with the tests that claim them. It runs with every `dotnet test`, so a missing test fails the build; the orchestrator runs the same test.
-- **Scenarios** are the `#### Scenario: <name>` headings in `openspec/specs/` and in the delta specs of active changes (added and modified requirements only).
+- **Scenarios** are the `#### Scenario: <name>` headings of the main specs (`openspec/specs/`) with each active change's delta applied **per requirement**, in change-id order: ADDED adds the requirement, MODIFIED replaces its scenarios, REMOVED drops them, RENAMED renames it and keeps them. `openspec/changes/archive/` is ignored. Reading every heading literally would count a modified requirement's scenarios twice and keep demanding a test for a removed one (C1, design.md D7).
 - **Each scenario is verified at exactly one level and claimed exactly once:**
 
   | Level | Claimed by | Example |
@@ -128,8 +130,8 @@ tests/
 
 ## Acceptance-test harness: the app runs inside the test process
 
-- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host). Before it starts, the test replaces only what it must control: the Enable Banking address, the sign-in signing key and the clock. Everything else is production code.
-- **One app copy per test,** because the app is configured for exactly one bank account, and tests sharing an app would fight over what the bank returns. C1 measures the cost; fallback: one copy per test class, with that class's tests run one after another.
+- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host), **in environment `Production`**, so it runs on the base `appsettings.json` (production truth) without Development-only behaviour; a test in `Conventions/` guards it. Before it starts, the test replaces only what it must control: the Enable Banking address, the sign-in signing key and the clock (none yet in C1). Everything else is production code. FastEndpoints runs inside this host (proven in C1).
+- **One app copy per test,** because the app is configured for exactly one bank account, and tests sharing an app would fight over what the bank returns. **Cost measured in C1 (2026-11-05, owner's machine, Debug build, .NET 11 RC3, TUnit 1.80.0):** the first app copy in a run costs about 0.25 s (start-up and warm-up), each further copy tens of milliseconds when the tests run in parallel; a scenario test with its HTTP call takes about 60 ms; the acceptance project's 17 tests (5 app copies) run in about 0.9 s. No fallback needed; if it ever is: one copy per test class, with that class's tests run one after another.
 - **Not covered:** the Aspire wiring and the hosting configuration. Running the app locally (`aspire start`) and the first deployment (C4) cover them.
 - **No test needs a real secret:** the harness generates throwaway keys at runtime.
 - This is a project-only exception to DoseUp's harness, which starts the real running app: [software-factory/divergences.md R-12](../software-factory/divergences.md).
@@ -181,4 +183,4 @@ Same as DoseUp (its software-factory entry F-68), so no software-factory entry h
 
 - **Database tests:** F0-2 chose Azure Table Storage ([ADR-0005-data-storage](../adr/0005-data-storage.md)). Database tests run against Azurite in a test container (`Testcontainers.Azurite`, with the image pinned explicitly). The change that first stores data (C7 or its first slice) sets them up.
 - **Fake push-notification service:** C8.
-- **Test commands** (one group's tests, one change's acceptance tests, the traceability check): C1 defines them and lists them in `CLAUDE.md` § Commands.
+- **Test commands:** decided in C1 and listed in [`CLAUDE.md` § Commands](../../CLAUDE.md#commands) (one group's tests, one change's acceptance tests, the traceability check, the full suite).

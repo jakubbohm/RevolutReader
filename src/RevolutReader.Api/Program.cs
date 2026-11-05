@@ -1,0 +1,16 @@
+using FastEndpoints;
+using RevolutReader.ServiceDefaults;
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+builder.AddServiceDefaults();
+builder.Services.AddProblemDetails();
+builder.Services.AddFastEndpoints();
+
+WebApplication app = builder.Build();
+
+// Every body-less error response (400–599) gets a problem description (RFC 9457), c001 design.md D4.
+app.UseStatusCodePages();
+app.UseFastEndpoints();
+
+app.Run();

@@ -250,3 +250,40 @@ RevolutReader ([docs/operations/azure-prerequisites.md](../operations/azure-prer
 - **Gotcha:** an identity whose rights end at the resource group cannot register resource providers, a subscription-level action, so a new subscription needs them registered by hand.
 
 *Generalizes:* give the pipeline a keyless identity whose lifetime matches the project's resources, and when the infrastructure code assigns roles, delegate role assignment with a condition naming exactly the roles it grants, never Owner. The cost is one manual step whenever a new role is needed. Reverses toward Owner on the group only for a throwaway sandbox. *(GitHub and Azure behaviour verified 2026-11-05.)*
+
+**R-29 · How does the first test-first change start in an empty repository?** *(New)*
+Options: let the test-writer and implementer create the solution inside the loop · a one-time setup commit outside the loop, then the loop · skip test-first for the first change.
+RevolutReader ([c001 design.md § Bootstrap](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), [workflow.md § 3](../conventions/workflow.md#3-git), 2026-11-05): **a one-time `[setup]` commit before the first `/tdd-apply`**. Tools and templates are updated, the projects are generated from the CLI templates and adapted to the conventions, and the commit has a green build and zero tests. The loop cannot start without it: the test-writer may add only method signatures to production code, and the implementer needs failing tests.
+- The zero-test baseline (exit code 8) is accepted once, for that first run only.
+- The test foundation is test code, so the test-writer writes it in the first acceptance group: the acceptance harness, the traceability check, the manual-scenario list and the anonymous-endpoint check. Its own tests pass from the start; only the scenarios stay red.
+- The traceability check gets self-tests on made-up specs, because a check that always passes looks the same as a working one.
+
+*Generalizes:* a test-first loop needs a green, empty starting point that is not behaviour. Create it once, outside the loop, under its own commit tag, and put the test infrastructure into the test-writer's first group. Reverses when the factory's project template already contains the test foundation: then the first change starts inside the loop.
+
+**R-30 · Should outgoing HTTP clients retry by default?** *(Divergence — relates to DoseUp's ServiceDefaults)*
+Options: keep the Aspire template's standard resilience handler on every `HttpClient` (it retries 408, 429 and 5xx) · keep it and opt out per client · remove it and opt in per client.
+DoseUp: keeps the template default (`AddStandardResilienceHandler` in ServiceDefaults; checked 2026-11-05).
+RevolutReader ([README.md § Backend code](../conventions/README.md#backend-code), [c001 design.md D5](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), 2026-11-05): **no default retries.** A client gets retries only when its own change decides a policy, and the bank client never retries: a retried 429 from Enable Banking would silently burn the 4 requests a day allowed without the account holder ([ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)).
+*Generalizes:* when an outside API counts requests (quotas, rate limits, a price per call), retries are a decision per client, never a template default. A forgotten opt-out is invisible, and every future client inherits retries nobody decided. Reverses to the template default when every downstream is your own idempotent service with no quota.
+
+**R-31 · Is "the build is the format gate" actually true?** *(New)*
+Options: trust `AnalysisLevel latest-all` + `EnforceCodeStyleInBuild` · explicit severities in `.editorconfig` for the style rules that matter · a format check in CI only.
+RevolutReader (`.editorconfig`, [c001 design.md § Bootstrap](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), 2026-11-05): **explicit severities** for IDE0055 (layout), IDE0008 (no `var`) and IDE0161 (file-scoped namespaces). Without them these rules stayed silent in the build even under `latest-all`, although the conventions said the build was the gate. A probe file proved it, before and after (.NET 11 RC3 SDK). DoseUp's `.editorconfig` has no explicit severities for these three either (checked 2026-11-05; not probed whether its build gates them).
+*Generalizes:* an IDE style rule gates the build only with an explicit severity. Prove every gate with a probe file that must fail the build, instead of trusting the convention text. Does not reverse; it is a fact about the tooling, to re-check when the SDK changes.
+
+**R-32 · Can "secure by default" rely on the web framework's default?** *(New, with a Reversal — relates to DoseUp's FastEndpoints setup)*
+Options: trust the framework (FastEndpoints requires sign-in unless an endpoint says `AllowAnonymous`) · a test that compares the app's real endpoint list with an explicit allowlist · both.
+DoseUp: FastEndpoints 8.2.0. It probably exposes the same route as below: the route name is in its FastEndpoints.dll (checked 2026-11-05); not checked whether it is mapped.
+RevolutReader ([c001 design.md D2, D8](../../openspec/changes/archive/2026-11-05-c001-add-backend-foundation/design.md), [README.md § Backend code](../conventions/README.md#backend-code), 2026-11-05): **both, and the test is what holds.** FastEndpoints up to 8.3.0, the latest stable release on 2026-11-05, maps `GET /_test_url_cache_` in every environment. The route needs no sign-in and lists every endpoint's type name and route. The anonymous-endpoint test caught it at the first endpoint.
+- **Reversal:** 8.3.0 was chosen in planning because it was stable, with "no betas" as the rule. The user switched to 9.0.0-beta.7 (published 2026-11-04, MIT), where the route is opt-in (`FastEndpoints:ExposeTestUrlCache`, never set), rather than keep 8.3.0 with a workaround.
+
+*Generalizes:* a framework's "secure by default" covers only the endpoints the framework builds for you. Routes it adds by itself, minimal-API maps and health checks fall outside it. From the first endpoint, test the app's real endpoint list against an explicit allowlist. Does not reverse; the check is cheap. Also: a mature framework's next major version in beta can be the safer choice when the stable one has a security-relevant default.
+
+**R-33 · Where does a hook that restricts one AI subagent live, and how do you know it runs?** *(New)*
+Options: in the subagent's own definition (frontmatter hooks, documented to run only while that subagent runs) · in the project settings, with the hook script checking the hook input's `agent_type` · no hook, only the orchestrator's diff check.
+RevolutReader ([testing.md § Test-first workflow](../conventions/testing.md#test-first-workflow), [.claude/settings.json](../../.claude/settings.json), 2026-11-05): **project settings, with the script restricting only `agent_type` `implementer`.**
+- C1's deliberate probe found that the hook declared in the implementer's frontmatter never ran (Claude Code 2.1.318, VS Code extension). The probe write went through, and a temporary log line in the script stayed empty, even with an absolute path and `onFailure: "block"`. Workspace trust was recorded as accepted. The cause was not found.
+- The same script registered in `.claude/settings.json` was picked up mid-session. It ran for the main session and for subagents, blocked the implementer's write to the test cases, and let its write to the drivers through.
+- Gotcha: a hook that fails with an exit code other than 2 lets the action through silently. So give the script an absolute path (`${CLAUDE_PROJECT_DIR}` in `args`) and set `onFailure: "block"`.
+
+*Generalizes:* prove every guard with a deliberate probe, as with build gates (R-31): a guard that never runs looks exactly like one that never had to block. Register the hook where a probe shows it runs, and do the scoping inside the script. Reverses to frontmatter hooks when a probe shows they run in the environment in use.

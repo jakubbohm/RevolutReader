@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, M4 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -16,6 +16,7 @@
   - **Manual:** only what cannot be automated ([docs/conventions/workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure)): access to the Azure subscription, the Entra application registration, the identity GitHub Actions deploys with, shared resources and access to them, and secret values only a human can produce. Everything else in Azure is Bicep, deployed by CD inside the OpenSpec changes. The user does the manual work; Claude guides them step by step and says what to set up, where and how. Commands for the user are PowerShell 7. Non-secret identifiers (resource names, client IDs, URLs) are recorded in the repository. Secrets go only to Key Vault, never into the repository; until Key Vault exists, they stay on the user's machine. Scripts and evidence go in `spikes/<topic>/` ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)).
   - **Documentation:** a document Claude writes or restructures from what the repository records; the user reviews it. No product code.
   - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/tdd-apply`, `/opsx:archive`), test-first as defined in [docs/conventions/testing.md](../docs/conventions/testing.md). Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
+  - **Tech debt (low priority):** knowledge building, or paying back a shortcut taken on purpose. Picked up only when no other step is waiting, and before M8, so its findings reach the software-factory handover. Findings go into a spike ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)); a code change that follows is a small PR (an OpenSpec change if it changes behaviour).
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
 - **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
 - **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
@@ -48,6 +49,7 @@
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
 | 19 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
 | 20 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
@@ -198,7 +200,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C5 — `cNNN-add-enable-banking-adapter`
 
 - **Type:** OpenSpec change
-- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. Its tests run against the local fake bank server with responses copied from Enable Banking's Mock ASPSP; it is checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API. Local development reads the Mock ASPSP, never the real account ([testing.md § Fake bank](../docs/conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
+- **Goal:** A backend adapter for the Enable Banking API that reads the balance and transactions of the linked account, read-only. Its expected failures (expired or revoked consent, rate limit) are the first Result values, so C5 also builds the Result type (a C# 15 union, shape in [README.md § Backend code](../docs/conventions/README.md#backend-code)). Its tests run against the local fake bank server with responses copied from Enable Banking's Mock ASPSP; it is checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API. Local development reads the Mock ASPSP, never the real account ([testing.md § Fake bank](../docs/conventions/testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
 - **Depends on:** C1, M1
 - **Inputs:** kickoff ch. 6; ADR-0001-bank-data-access and the M1 identifiers; Enable Banking API documentation; the knowledge base; [spikes/enable-banking-mock/](../spikes/enable-banking-mock/README.md) (sandbox application, captured responses). Run `/tdd-apply` with `review=all`.
 - **Outputs:** archived change; the adapter with tests, including handling of expired consent and rate-limit responses.
@@ -306,6 +308,16 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3 and M4; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
 - **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over to DoseUp; `pm/progress.md` closed.
 - **Open questions:** —
+
+### T1 — Explore making the API's FastEndpoints classes internal
+
+- **Type:** Tech debt (low priority)
+- **Goal:** Find out whether the API's classes can be `internal` instead of `public`: whether FastEndpoints 9 finds and runs `internal` endpoints, what that means for their handlers and request/response classes, and which analyzer rules then need narrow per-file exceptions (CA1812, "class is never created", for classes a framework creates) instead of the API-wide exception of CA1515 ("make classes internal") that C1 added. The same question for the test projects: TUnit already runs `internal` test classes, and only the acceptance tests' `ApiFactory` trips CA1812. Knowledge building for the software factory; a cleanup only if the answer is cheap.
+- **Depends on:** C1. Low priority: only when no other step is waiting; before M8.
+- **Inputs:** `.editorconfig` (the CA1515 exceptions for `tests/**` and `src/RevolutReader.Api/**` and their comments); c001's design.md D1 (archived with the change); DoseUp, which turns CA1515 off for the whole repository and keeps its endpoints, handlers and responses public.
+- **Outputs:** a spike in `spikes/fastendpoints-internal/` (README and evidence: which rules fire, whether FastEndpoints finds internal endpoints, what unit tests then need, e.g. `InternalsVisibleTo`); a software-factory lesson; if the user decides so, a small PR applying it.
+- **Open questions:** —
+- **Notes:** added in C1 (2026-11-05): the user kept both exceptions for speed and asked for this step.
 
 ## 5. Open questions overview
 

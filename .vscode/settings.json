@@ -6,5 +6,6 @@
   },
   "[markdown]": {
     "editor.formatOnSave": false
-  }
+  },
+  "dotnet.defaultSolution": "RevolutReader.slnx"
 }

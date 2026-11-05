@@ -291,6 +291,13 @@ dotnet_analyzer_diagnostic.category-Roslynator.severity = none
 # single-statement bodies, composing with csharp_prefer_braces = when_multiline.
 dotnet_diagnostic.RCS1002.severity = warning
 
+# The build is the format gate (conventions § Formatting). Without an explicit severity these
+# stay silent in the build even under AnalysisLevel latest-all (verified in c001's setup,
+# 2026-11-05): layout (IDE0055), no var (IDE0008), file-scoped namespaces (IDE0161).
+dotnet_diagnostic.IDE0055.severity = warning
+dotnet_diagnostic.IDE0008.severity = warning
+dotnet_diagnostic.IDE0161.severity = warning
+
 # The reference config intends this as a suggestion (fluent builder chains discard return values
 # by design); AnalysisLevel latest-all would otherwise promote it to a build-breaking warning.
 dotnet_diagnostic.IDE0058.severity = suggestion
@@ -307,3 +314,19 @@ dotnet_diagnostic.CA1707.severity = none
 # ASP.NET Core has no SynchronizationContext — ConfigureAwait(false) in application code
 # is inert ceremony that every endpoint/handler await would have to carry.
 dotnet_diagnostic.CA2007.severity = none
+
+#### Path-specific exemptions ####
+
+[tests/**.cs]
+# Test projects are executables (Microsoft.Testing.Platform), so CA1515 asks for every type to be
+# internal. Their types are entry points the test framework discovers and creates (test classes,
+# the TUnit.AspNetCore factory), and making them internal only trades CA1515 for CA1812 on the
+# types TUnit creates (verified in c001, 2026-11-05).
+dotnet_diagnostic.CA1515.severity = none
+
+[src/RevolutReader.Api/**.cs]
+# The API is an executable, so CA1515 asks for every type to be internal. FastEndpoints discovers
+# and creates the endpoints by reflection, so an internal endpoint only trades CA1515 for CA1812
+# (verified in c001, 2026-11-05 on HealthEndpoint). A public endpoint also makes its request and
+# response types and its injected handler public (inconsistent accessibility otherwise).
+dotnet_diagnostic.CA1515.severity = none
