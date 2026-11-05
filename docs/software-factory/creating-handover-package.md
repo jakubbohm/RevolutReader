@@ -14,7 +14,7 @@ Not included:
 
 - [divergences.md](divergences.md): it stays with the project.
 - Skills and commands installed by tools (OpenSpec, Aspire): the tools install them.
-- Artifacts that only repeat DoseUp's (e.g. `.claude/skills/cleanup-branch/`).
+- Artifacts that only repeat DoseUp's.
 
 ## Inventory
 
@@ -46,6 +46,7 @@ Keep it current: a step that creates or substantially changes a reusable artifac
 | Azure bootstrap | [docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md) | The one-time Azure and GitHub setup a deployment stack needs: providers, resource group, a keyless deploy identity with the narrowest roles, the GitHub environment; with commands and checks | R-28 |
 | Design | [docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design) | The design workflow: a design system before the first frontend code, one Screens canvas with its own copy of the design system, the change loop with its prompts (design system → its list of changes → the canvas → the same list to Claude Code), where each kind of change starts, Claude Code reading the artifacts by link | R-7 |
 | Design | [.claude/rules/design.md](../../.claude/rules/design.md) | The design workflow in the short form Claude loads in every session; it makes Claude walk the owner through the change loop whenever a visual change comes up | R-7 |
+| Branch cleanup | [.claude/skills/cleanup-branch/](../../.claude/skills/cleanup-branch/SKILL.md) | DoseUp's skill that deletes the local branch after a squash merge, fixed so its refusal reason survives being invoked with arguments | R-37 |
 | Project management | [pm/roadmap.md § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap), [pm/progress.md § How to update](../../pm/progress.md#how-to-update) | Plan and status in repository files: step types, one step per session, the decision trail | R-6 |
 | Software factory | This file | How the handover package is built | R-22 |
 
