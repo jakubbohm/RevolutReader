@@ -259,7 +259,7 @@ public async Task Unknown_API_address_answers_with_a_problem_description();
 // Traceability/
 public sealed record SpecScenario(string Capability, string Name);
 public sealed record ScenarioClaim(string Capability, string Name, string Source);
-public static class Traceability {
+public static class TraceabilityCheck {                           // not `Traceability`: the namespace has that name (CA1724)
   public static IReadOnlyList<SpecScenario> RequiredScenarios(IReadOnlyList<SpecFile> mainSpecs, IReadOnlyList<SpecFile> activeDeltas);
   public static IReadOnlyList<string> Problems(IReadOnlyList<SpecScenario> required, IReadOnlyList<ScenarioClaim> claims);
 }
