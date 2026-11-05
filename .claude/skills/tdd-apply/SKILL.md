@@ -40,6 +40,13 @@ Arguments: `$ARGUMENTS`
    **Write the agent IDs there as soon as you spawn each agent.** If your context is compacted,
    re-read this file before doing anything else.
 7. Create a task list mirroring the groups in `tasks.md`.
+8. If the change builds or changes UI, `design.md` names the design-system parts and Screens design artboards
+   it implements (`docs/conventions/workflow.md` § 8). T and I cannot open Claude artifacts, so read those
+   files yourself with the Artifact tool, by the links in § 8: the design system's `project/README.md`,
+   `project/tokens.json`, `project/tailwind/theme.css` and the named components' READMEs and source, and each
+   named artboard with the Screens design's `project/sample-data.js`. The tool saves them in this session's
+   scratchpad, never in the repository. Note the saved paths for the groups that build UI; after a new
+   session, read them again, because the scratchpad does not carry over.
 
 ## 1. Acceptance group (`[acceptance]`)
 
@@ -152,3 +159,5 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
   group, and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
 - Do not use `isolation: "worktree"` for T or I. They must share one working tree.
 - Never put real bank data or secrets into anything you send, commit or record.
+- Whenever you send I a group that builds or changes UI, include the saved paths of the design files that group
+  needs (§ 0 step 8), and tell I that the look follows them.
