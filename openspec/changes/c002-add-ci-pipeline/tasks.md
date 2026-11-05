@@ -30,7 +30,7 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
     - it accepts the titles of PRs #1 to #4 (`gh pr list --state merged`), `ci: add CI pipeline (C2)` and `feat(c002)!: drop x`;
     - it rejects `Add CI`, `feat:add`, `feature: add`, `feat(): add` and `feat: `;
     - for a title containing `$(…)` or backticks, it only matches the text and runs nothing.
-- [ ] 2.3 `docs/conventions/workflow.md § 4`:
+- [x] 2.3 `docs/conventions/workflow.md § 4`:
   - the concrete checks `build-and-test` and `pr-title`;
   - CI runs on pull requests only (D2);
   - a required workflow never gets path or branch filters (a skipped required check stays pending and blocks the merge);
@@ -42,7 +42,7 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
 
 ## 3. The ruleset (D4, D5)
 
-- [ ] 3.1 `docs/operations/main-ruleset.json`:
+- [x] 3.1 `docs/operations/main-ruleset.json`:
   - a name, `target: branch`, `enforcement: active`, the condition `~DEFAULT_BRANCH` and `bypass_actors: []`;
   - the rules:
     - `deletion` and `non_fast_forward`;
@@ -50,7 +50,7 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
     - `required_status_checks`: strict, with `build-and-test` and `pr-title`, each with `integration_id` 15368.
 
   Verify: the file parses (`node -e` with `JSON.parse`), and every rule in D4 maps to one entry.
-- [ ] 3.2 `docs/operations/main-ruleset.md`, in the shape of `azure-prerequisites.md`. It holds:
+- [x] 3.2 `docs/operations/main-ruleset.md`, in the shape of `azure-prerequisites.md`. It holds:
   - what the ruleset enforces and why (link D4);
   - its identifiers (the ruleset id, filled in by 4.2);
   - PowerShell 7 commands that create it, update it after the file changes, check it read-only and remove it;
@@ -59,7 +59,7 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
   - the rule that Claude never changes or switches it off without the user's explicit go.
 
   Verify: the commands are PowerShell 7 and read the file by its path from the repository root.
-- [ ] 3.3 `CLAUDE.md`: the rule that Claude never changes or switches off the ruleset on `main` without the user's explicit go, and the `docs/operations/` line names the ruleset. Verify: every new link resolves.
+- [x] 3.3 `CLAUDE.md`: the rule that Claude never changes or switches off the ruleset on `main` without the user's explicit go, and the `docs/operations/` line names the ruleset. Verify: every new link resolves.
 
 ## 4. Proof on GitHub (D6)
 
