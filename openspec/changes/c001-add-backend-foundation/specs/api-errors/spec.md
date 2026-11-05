@@ -7,7 +7,7 @@ Defines how the API answers when a request fails, so every client reads errors o
 ## ADDED Requirements
 
 ### Requirement: Error responses are problem descriptions
-Every error response of the API (status 400 to 599) SHALL be a problem description: content type `application/problem+json`, with a `status` equal to the response status and a `title` naming the case. A request for an address the API does not serve SHALL answer 404 Not Found.
+Every error response of the API (status 400 to 599) to a caller that accepts JSON SHALL be a problem description: content type `application/problem+json`, with a `status` equal to the response status and a `title` naming the case. Browsers and HTTP clients accept JSON by default; only a caller that rules JSON out gets a plain-text status line instead. A request for an address the API does not serve SHALL answer 404 Not Found.
 
 #### Scenario: Unknown API address answers with a problem description
 - **GIVEN** the app is running

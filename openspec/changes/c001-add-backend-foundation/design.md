@@ -5,7 +5,7 @@
 - **Setup first, outside the TDD loop:** Claude updates the Aspire CLI and templates (13.6.4) and the TUnit templates (1.80.0), generates the projects from the templates, adapts them to the conventions, and commits a green build with no tests (`[setup]`). `/tdd-apply` starts from there (§ Bootstrap).
 - **Pinned versions (verified 2026-11-05):** .NET SDK 11.0.100-rc.3, FastEndpoints 9.0.0-beta.7 (8.3.0 maps an anonymous route nobody declared), Aspire 13.6.4, TUnit 1.80.0, Mvc.Testing 11.0.0-rc.3 (D2).
 - **Health check:** `GET /health` is a FastEndpoints endpoint, anonymous, with no dependencies and no handler. The template's health checks are removed (D3).
-- **Errors:** `AddProblemDetails` + `UseStatusCodePages` turn every body-less error into a problem description. The case → status table starts with 404 (D4).
+- **Errors:** `AddProblemDetails` + `UseStatusCodePages` turn every body-less error into a problem description for every caller that accepts JSON (browsers and HTTP clients do by default). The case → status table starts with 404 (D4).
 - **No default HTTP retries:** the template's resilience handler on every HttpClient is removed. **Hard to notice if reverted:** a retry on 429 would burn the bank's 4 unattended requests a day (D5).
 - **Test setup:** one app copy per test (TUnit.AspNetCore), environment `Production`, nothing swapped yet (D6). The traceability check applies an active change's delta per requirement and ignores the archive (D7). The anonymous-endpoint check reads endpoint metadata (D8).
 - **New public interfaces:** `GET /health`; `HealthEndpoint`; `[Scenario]` attribute; acceptance base `AcceptanceTest`; DSL `Health`, `Api`; drivers `HealthDriver`, `ApiDriver`.
@@ -122,6 +122,7 @@ Not added in C1: Microsoft.Extensions.TimeProvider.Testing, WireMock.Net, Testco
 ### D4 — Problem descriptions for every body-less error
 
 - `builder.Services.AddProblemDetails()` + `app.UseStatusCodePages()`: any 400–599 response leaving the pipeline without a body gets an RFC 9457 body (`type`, `title`, `status`, `traceId`). An address with no endpoint produces 404 → `{ "title": "Not Found", "status": 404, … }`.
+- **Content negotiation (found in group 3, decided by the user 2026-11-05):** the problem-details writer writes only when the request accepts JSON. Measured against the built app in Production: no `Accept` header, `*/*`, `application/json` and a real browser's `text/html,…,*/*;q=0.8` all get `application/problem+json`; `Accept: text/html` alone gets `text/plain` `Status Code: 404; Not Found`. The requirement says so ("to a caller that accepts JSON"). Forcing JSON on a caller that rules it out was rejected: it goes against content negotiation, for a caller the app never has.
 - The case → status table in docs/conventions/README.md § Backend code starts with one row: *the API does not serve the address → 404 Not Found* (scenario: api-errors / Unknown API address answers with a problem description). Each later case adds its row in the change whose scenario produces it: 500 unhandled error (C5), 401/403 (C6), bank cases (C5).
 - **Interaction for C6:** with an authorization fallback policy, an anonymous request to an unknown `/api` address may get 401 before routing decides 404. C6 decides which answer is right and, if it changes this scenario, modifies the requirement.
 
@@ -293,7 +294,7 @@ The driver owns HTTP: it checks the status, the content type `application/proble
 ## Error model
 
 - `GET /health` has no expected failure. If the app cannot answer, the caller gets no answer or a platform error, which is what a probe needs to see.
-- An unknown address is not an operation of ours: routing finds no endpoint and the status-code-pages middleware writes the problem description.
+- An unknown address is not an operation of ours: routing finds no endpoint and the status-code-pages middleware writes the problem description (or, for a caller that accepts no JSON, a plain-text status line; D4).
 - No Result values in C1 (D9). Exceptions stay for bugs and infrastructure failures, as in docs/conventions/README.md.
 
 ## Ports and contracts
