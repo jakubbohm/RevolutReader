@@ -46,7 +46,9 @@ context: |
   - tests/RevolutReader.IntegrationTests: port contract tests (the in-memory fake and the real
     adapter against the same tests) and adapter edge cases (Wiring/).
   - Implementation is test-first through /tdd-apply: a test-writer subagent writes failing tests,
-    an implementer subagent makes them pass and never edits tests.
+    an implementer subagent makes them pass and never edits tests. Exception: a tooling-only
+    change (skip_specs in .openspec.yaml, e.g. CI) has nothing to test first and is applied
+    directly (docs/conventions/workflow.md § 6).
 
 rules:
   proposal:
@@ -81,6 +83,7 @@ rules:
     - The account detail change (C7) references its Claude Design mockup (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory/lessons.md entry, and a docs/software-factory/divergences.md entry when this project runs a cut-down version (docs/conventions/workflow.md § 10)
   tasks:
+    - "A tooling-only change (skip_specs: true in .openspec.yaml, docs/conventions/workflow.md § 6) follows none of the [acceptance], [unit], [integration] and [wiring] rules below: its groups are named after its work ('## N. <Area>'), each task states how it is checked, each group lands its own docs, work with an effect outside the repository (GitHub, Azure) is proven live, and the last group is '## N. Close'"
     - "Group 1 is '## 1. [acceptance] Acceptance tests' with one task per new or changed scenario, phrased 'Acceptance: <capability> / <scenario name>', suffixed ' (frontend)' or ' (manual)' when design.md says it is verified at that level"
     - "Then one group per component that carries rules, headed '## N. [unit] <Component>'. Each task is one behaviour, phrased like a test name (e.g. 'Balance read is rejected when the bank session has expired')"
     - "For every new or changed port contract with an in-memory fake, add '## N. [integration] <Port>' after the unit groups. Each task is one contract behaviour, phrased like a test name"
@@ -99,7 +102,8 @@ rules:
 operations:
   apply:
     guidance:
-      - Implement this change only through the /tdd-apply skill (docs/conventions/testing.md § Test-first workflow). Never write tests or production code directly in the apply session.
+      - "If the change's .openspec.yaml sets skip_specs: true, it is a tooling-only change (docs/conventions/workflow.md § 6): apply it directly in this session, task by task, checking each task as it states, and commit at the end of each task group with the [apply] tag (docs/conventions/workflow.md § 3)."
+      - Implement every other change only through the /tdd-apply skill (docs/conventions/testing.md § Test-first workflow). Never write tests or production code directly in the apply session.
   archive:
     guidance:
-      - "Before archiving: the traceability test passes (every scenario of the change's delta specs is claimed exactly once) and all acceptance tests of the change pass. If not, stop and report instead of archiving."
+      - "Before archiving: the traceability test passes (every scenario of the change's delta specs is claimed exactly once) and all acceptance tests of the change pass. If not, stop and report instead of archiving. A tooling-only change (skip_specs) has no acceptance tests; the traceability test must still pass."

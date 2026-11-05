@@ -4,15 +4,15 @@ A tooling-only change (`skip_specs: true`, design.md D1): applied directly with 
 
 ## 1. Process for tooling-only changes (D1)
 
-- [ ] 1.1 `openspec/config.yaml`:
+- [x] 1.1 `openspec/config.yaml`:
   - The apply guidance applies a change whose `.openspec.yaml` sets `skip_specs: true` directly, task by task, each task checked as it states, and keeps `/tdd-apply` for every other change.
   - The tasks rules give such a change groups named after its work instead of the `[acceptance]` to `[wiring]` groups; its last group closes it.
   - The context line on test-first implementation names the exception.
   - The archive guidance notes that such a change has no acceptance tests.
   - Verify: `openspec validate c002-add-ci-pipeline` passes, and `openspec instructions apply --change c002-add-ci-pipeline --json` shows the new guidance.
-- [ ] 1.2 The same exception, one sentence each, where the apply rule is written: `CLAUDE.md § Workflow`, `docs/conventions/testing.md § Test-first workflow` and `.claude/rules/testing.md`. `docs/conventions/workflow.md § 6` describes tooling-only changes: when `skip_specs` fits (a change to how the repository accepts code, not to what the app does), how such a change is applied, and that anything with an effect outside the repository is proven live (here: the probe). Verify: a search for `/tdd-apply` in those files finds no apply rule without the exception; every new link resolves.
-- [ ] 1.3 `docs/conventions/workflow.md § 3`: the tag table gets `[apply]`: a tooling-only change applied directly, one commit per task group, the type by content (`ci`, `docs`, `chore`), committed by Claude at the end of each group. The standing commit exception covers it: never pushing, never committing on `main`. Verify: the new row has the table's four columns.
-- [ ] 1.4 `docs/software-factory/lessons.md` R-34 *(New)*: how a step with no app behaviour goes through a spec-driven, test-first workflow. The options: a made-up capability with manual rows · a plain PR · a change with `skip_specs`, applied directly and proven live. In the inventory of `creating-handover-package.md`, the `openspec/config.yaml` and `workflow.md § 3` rows get R-34. Verify: the entry follows the format, and R-34 is the next free id across `lessons.md` and `divergences.md`.
+- [x] 1.2 The same exception, one sentence each, where the apply rule is written: `CLAUDE.md § Workflow`, `docs/conventions/testing.md § Test-first workflow` and `.claude/rules/testing.md`. `docs/conventions/workflow.md § 6` describes tooling-only changes: when `skip_specs` fits (a change to how the repository accepts code, not to what the app does), how such a change is applied, and that anything with an effect outside the repository is proven live (here: the probe). Verify: a search for `/tdd-apply` in those files finds no apply rule without the exception; every new link resolves.
+- [x] 1.3 `docs/conventions/workflow.md § 3`: the tag table gets `[apply]`: a tooling-only change applied directly, one commit per task group, the type by content (`ci`, `docs`, `chore`), committed by Claude at the end of each group. The standing commit exception covers it: never pushing, never committing on `main`. Verify: the new row has the table's four columns.
+- [x] 1.4 `docs/software-factory/lessons.md` R-34 *(New)*: how a step with no app behaviour goes through a spec-driven, test-first workflow. The options: a made-up capability with manual rows · a plain PR · a change with `skip_specs`, applied directly and proven live. In the inventory of `creating-handover-package.md`, the `openspec/config.yaml` and `workflow.md § 3` rows get R-34. Verify: the entry follows the format, and R-34 is the next free id across `lessons.md` and `divergences.md`.
 
 ## 2. Workflows (D2, D3, D7, D8)
 

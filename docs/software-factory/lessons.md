@@ -287,3 +287,13 @@ RevolutReader ([testing.md § Test-first workflow](../conventions/testing.md#tes
 - Gotcha: a hook that fails with an exit code other than 2 lets the action through silently. So give the script an absolute path (`${CLAUDE_PROJECT_DIR}` in `args`) and set `onFailure: "block"`.
 
 *Generalizes:* prove every guard with a deliberate probe, as with build gates (R-31): a guard that never runs looks exactly like one that never had to block. Register the hook where a probe shows it runs, and do the scoping inside the script. Reverses to frontmatter hooks when a probe shows they run in the environment in use.
+
+**R-34 · How does a change with no app behaviour go through a spec-driven, test-first workflow?** *(New)*
+Options: invent a capability for the repository's rules and claim its scenarios as manual checks · a plain PR outside the spec tool · a change that declares it has no specs, applied directly, with its effect proven live.
+RevolutReader ([workflow.md § 6](../conventions/workflow.md#6-openspec), c002 design.md D1, 2026-11-05): **a change with `skip_specs: true`** (OpenSpec's documented opt-out for tooling changes), first used for CI and the ruleset on `main`.
+- Proposal, design and tasks are reviewed before anything is built.
+- Claude applies the change directly with `/opsx:apply`, task by task, with one `[apply]` commit per task group. The task groups are named after the work instead of the test-first groups.
+- Whatever the change sets up outside the repository is proven live: for C2, a probe PR that breaks one check at a time and must be refused a merge.
+- The made-up capability was rejected. The spec folder would then hold repository rules instead of app behaviour, and the traceability check would track them forever.
+
+*Generalizes:* keep tooling changes inside the planning workflow (review before building, a record, an archive), but do not force them through the test-first loop: there is no failing test to write first. Prove their effect live instead, the way build gates are proven by a probe (R-31). Reverses for the parts of the tooling that carry logic of their own (e.g. a script with rules): those get tests like any code.

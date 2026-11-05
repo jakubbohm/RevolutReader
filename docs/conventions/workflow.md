@@ -33,7 +33,7 @@
 - **PRs always, even solo,** so every CI check runs. **Squash merge only;** the PR title is a Conventional Commit, linted in CI. A branch is never continued after its PR merges (with squash, git cannot see that it was merged).
 - No automated releases or changelog.
 - **The repository is public:** [github.com/jakubbohm/RevolutReader](https://github.com/jakubbohm/RevolutReader), created in M2 (2026-11-05), so non-public values never go into it ([configuration.md § Where each value lives](configuration.md#where-each-value-lives)). Settings: squash merge only (merge commits and rebase merging off), head branches deleted on merge, and the squash commit takes the PR title plus the branch's commit messages (UI: "Pull request title and commit details"; API: `squash_merge_commit_title=PR_TITLE`, `squash_merge_commit_message=COMMIT_MESSAGES`; verified 2026-11-05). The "Default" option is not enough: for a one-commit PR it takes the commit's title instead of the linted PR title. Until M2, commits went directly to `main`.
-- **Claude commits or pushes only when the user asks,** with one standing exception (the user, 2026-11-04): during `/tdd-apply` the orchestrator commits on the change branch at every handoff below. It never pushes, never commits on `main` and never opens a PR.
+- **Claude commits or pushes only when the user asks,** with two standing exceptions. During `/tdd-apply`, the orchestrator commits on the change branch at every handoff below (the user, 2026-11-04). During the direct apply of a tooling-only change (§ 6), Claude commits on the change branch at the end of each task group (the user, 2026-11-05). Neither pushes, commits on `main` or opens a PR.
 - **Commits inside a change are tagged with the workflow step:** `<type>(cNNN): [<step>] <summary>`, e.g. `test(c005): [red] Balance mapping`. The type says what the commit contains, the scope is the change number, the tag says the step. Squash merge collapses them on `main`; M2 sets the squash commit message to include the branch's commit list, so the trail survives there too.
 
   | Step | Commit | Type | Committed by |
@@ -45,6 +45,7 @@
   | `[green]` | the implementer made that group pass | `feat` / `fix` | orchestrator |
   | `[wire]` | plumbing: endpoints, DI, drivers, adapter edge-case tests | `feat` | orchestrator |
   | `[close]` | all acceptance tests of the change pass; close-out docs | `feat` / `test` | orchestrator |
+  | `[apply]` | one task group of a tooling-only change, applied directly (§ 6) | by content: `ci`, `docs`, `chore` | Claude, at the end of each group |
   | `[archive]` | delta specs merged, change moved to the archive | `docs` | Claude, when the user approves the archive |
 
   A commit at every handoff between the test-writer and the implementer is what lets the orchestrator check that a green step changed no tests ([testing.md § Test-first workflow](testing.md#test-first-workflow)).
@@ -94,6 +95,12 @@ No container registry, no Cosmos DB, nothing shared with other projects. Monitor
 - **Each change starts on its own branch** off the freshest `main`, created before any artifact is drafted (proposal rule in `openspec/config.yaml`).
 - **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the roadmap step (e.g., C6) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
 - **Apply is test-first through `/tdd-apply <change>`,** not `/opsx:apply` ([testing.md § Test-first workflow](testing.md#test-first-workflow)); `openspec/config.yaml` shapes `tasks.md` into the task groups it expects.
+- **Tooling-only changes** (the user, 2026-11-05; the first is C2, `c002-add-ci-pipeline` design.md D1) change how the repository accepts or ships code (CI, the ruleset on `main`, process files), not what the app does. A change that touches the app's behaviour is never tooling-only.
+  - It sets `skip_specs: true` in its `.openspec.yaml` and has no specs and no scenarios.
+  - Proposal, design and tasks are reviewed before anything is built, as for any change.
+  - It is applied directly with `/opsx:apply`, task by task, each task checked as it states, with an `[apply]` commit at the end of each group (§ 3).
+  - Its task groups are named after the work, and each group writes its own docs. Anything with an effect outside the repository (GitHub settings, Azure) is proven live, as C2's probe PR had to be refused a merge.
+  - It is archived as usual.
 - **Tasks finish in one sitting** (~2 h at most), each ending with the build and all tests green, **except the change's own acceptance tests:** they are written first and stay red until the change's `[close]` group.
 - **Explicit tasks:** "regenerate TS client" when the API contract changes ([README.md § API contract](README.md#api-contract)); "update Bicep + `.bicepparam`" when the AppHost resource graph or Azure topology changes; declaring every new setting in `appsettings.json` ([configuration.md](configuration.md)); a guided manual task for every hand-provisioned secret.
 - Cross-cutting decisions made inside a change become ADRs.
