@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger — see the change log in `pm/progress.md`)
 
 ---
 
@@ -248,11 +248,12 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
 
 - **Type:** OpenSpec change
-- **Goal:** A periodic job reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. The clock is a Logic App (Consumption) in Bicep that calls a protected, retry-safe endpoint in the app ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)); C9 decides how the Logic App authenticates, the time zone and the exact times.
-- **Depends on:** C5, C8; findings on Q5 and Q6 (blocking: they decide the check frequency).
-- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job and the outcomes in `pm/progress.md`.
-- **Outputs:** archived change; v2 complete and deployed.
+- **Goal:** When the Revolut app on my iPhone shows a notification, an iOS 27 Shortcuts automation on the phone calls a protected, retry-safe endpoint in the app. The endpoint reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. This replaces the 4 scheduled runs a day and the Logic App clock of [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md) ([issue #12](https://github.com/jakubbohm/RevolutReader/issues/12)). Reads triggered from the phone forward the phone's real PSU headers (my decision; I accept the risk). C9 decides how the Shortcut authenticates and whether a fallback check is kept for when the phone is off or offline.
+- **Depends on:** C5, C8; findings on Q5 and Q6; the phone test in issue #12 (blocking: it shows whether the automation runs on its own, also while the phone is locked).
+- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job and the outcomes in `pm/progress.md`.
+- **Outputs:** archived change; v2 complete and deployed. At the latest here, unless done after the phone test: ADR-0001 (Decision, item 3 and the PSU-header constraint) and ADR-0006 (the job's clock) amended, and the Logic App removed where it is listed (e.g. [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure)).
 - **Open questions:** decides Q8.
+- **Notes:** the phone test needs no server (issue #12, "Prerequisite"). Enable Banking has no webhooks for account data, and Revolut has no API and no emails for personal accounts, so the phone is the only near-real-time trigger found (issue #12, "Findings").
 
 ### ◆ Milestone v2 — push notifications
 
