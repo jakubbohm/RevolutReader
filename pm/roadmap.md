@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, M4 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -192,7 +192,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Goal:** Register the application in Entra ID and set up the allowed accounts (me, my daughter, test accounts) using the mechanism chosen in F0-2.
 - **Depends on:** F0-2. The production redirect URI needs the app's URL from C4; it can be added later.
 - **Inputs:** kickoff ch. 4; F0-2 decisions (Q1, Q2).
-- **Outputs:** application registration; allowed and test accounts; non-secret identifiers (tenant, client ID, redirect URIs) recorded; any secret stored in Key Vault.
+- **Outputs:** application registration; allowed and test accounts; non-secret identifiers (tenant, client ID, redirect URIs) recorded. No secret: C6 creates the client secret ([ADR-0003-sign-in § Decision](../docs/adr/0003-sign-in.md#decision), item 4).
 - **Open questions:** — (applies Q1, Q2)
 
 ### C5 — `cNNN-add-enable-banking-adapter`
@@ -207,7 +207,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C6 — `cNNN-add-user-login` (UC1)
 
 - **Type:** OpenSpec change
-- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user. Sign-in is the backend's login cookie ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)) checked against the email allowlist ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md)). The change also adds the app's storage account with a blob container for the cookie's Data Protection keys, so a wake from zero does not sign users out ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). It ends with the manual check of signing in from the Home Screen app on the owner's iPhone.
+- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user. Sign-in is the backend's login cookie ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)) checked against the email allowlist ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md)). The change also adds the app's storage account with a blob container for the cookie's Data Protection keys, so a wake from zero does not sign users out ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A guided task creates the 12-month client secret on the M4 app registration, straight into Key Vault and the AppHost's user-secrets, together with the allowlist. It ends with the manual check of signing in from the Home Screen app on the owner's iPhone.
 - **Depends on:** C3, M4
 - **Inputs:** kickoff ch. 4, 5 (UC1); F0-2 decisions (Q1, Q2); identifiers from M4.
 - **Outputs:** archived change; sign-in working locally and, after deployment, on Azure; BDD scenarios for allowed and rejected users.

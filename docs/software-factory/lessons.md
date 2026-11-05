@@ -183,6 +183,7 @@ RevolutReader ([ADR-0003-sign-in](../adr/0003-sign-in.md), 2026-11-05): **BFF wi
 - Entra caps a single-page app's refresh token at 24 hours, so the browser-token option would run that redirect every day. The cookie runs it once.
 - The frontend loses its sign-in library, and no token is readable by JavaScript.
 - Costs: a client secret to keep and renew, and CSRF protection on cookie-authenticated writes.
+- **Reversal (timing, 2026-11-05):** the secret was first to be created with the app registration and kept in a file until the vault existed. It is now created in the change that first uses it, straight into the vault and the local secret store: no file on disk, and its lifetime starts when it is needed.
 
 *Generalizes:* when the frontend and the API share one origin, a BFF is the stronger default: tokens stay off the device and the session lifetime is the app's own. It matters most for installed PWAs on iOS, where every sign-in redirect is a risk. Reverses toward a token in the browser when the API serves other clients or sits on another origin, or when keeping a client credential is not possible. *(Entra and WebKit behaviour verified 2026-11-05.)*
 
@@ -198,6 +199,7 @@ RevolutReader ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md), 2
 - An ID-keyed allowlist was rejected because the ID is known only after a first, rejected sign-in, and the main user must not wait for approval.
 - Microsoft warns that the email claim is mutable and not for authorization. Accepting only the personal-accounts tenant removes the nOAuth case, where another directory asserts any email.
 - A customer directory adds a user flow, because it owns the accounts. It pays off only when users lack a common account provider (here, Apple sign-in was declined: a paid developer program, a secret renewed every 6 months, and "Hide My Email" defeating an email list).
+- **Gotchas found while registering (M4, 2026-11-05, [entra-id.md](../operations/entra-id.md)):** a personal-accounts-only registration allows at most two client secrets, no app roles, and requires access tokens v2. Expect Microsoft's consent screen once per person, labelled unverified unless the publisher is verified through the Microsoft Partner Network, so "no extra steps" likely means one Accept tap (to be confirmed on the real phone in C6). A `localhost` redirect URI matches any port, but its path must match exactly.
 
 What the project gives up: [divergences.md R-25](divergences.md).
 *Generalizes:* the full version keys membership on the stable account ID (`oid` plus tenant) in the app's own store; the email is used once, to match an invitation, and then the account is bound to its ID. Checking the email on every request is acceptable only when a single consumer provider issues every token and the user set is fixed and tiny. Before choosing guests, check the directory's security defaults: they turn "invite a guest" into "make the guest register MFA". The full version applies again as soon as accounts come from more than one directory or provider, or the users change or grow. *(Entra behaviour verified 2026-11-05.)*
