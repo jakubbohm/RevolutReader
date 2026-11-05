@@ -287,3 +287,48 @@ RevolutReader ([testing.md § Test-first workflow](../conventions/testing.md#tes
 - Gotcha: a hook that fails with an exit code other than 2 lets the action through silently. So give the script an absolute path (`${CLAUDE_PROJECT_DIR}` in `args`) and set `onFailure: "block"`.
 
 *Generalizes:* prove every guard with a deliberate probe, as with build gates (R-31): a guard that never runs looks exactly like one that never had to block. Register the hook where a probe shows it runs, and do the scoping inside the script. Reverses to frontmatter hooks when a probe shows they run in the environment in use.
+
+**R-34 · How does a change with no app behaviour go through a spec-driven, test-first workflow?** *(New)*
+Options: invent a capability for the repository's rules and claim its scenarios as manual checks · a plain PR outside the spec tool · a change that declares it has no specs, applied directly, with its effect proven live.
+RevolutReader ([workflow.md § 6](../conventions/workflow.md#6-openspec), c002 design.md D1, 2026-11-05): **a change with `skip_specs: true`** (OpenSpec's documented opt-out for tooling changes), first used for CI and the ruleset on `main`.
+- Proposal, design and tasks are reviewed before anything is built.
+- Claude applies the change directly with `/opsx:apply`, task by task, with one `[apply]` commit per task group. The task groups are named after the work instead of the test-first groups.
+- Whatever the change sets up outside the repository is proven live: for C2, a probe PR that breaks one check at a time and must be refused a merge.
+- The made-up capability was rejected. The spec folder would then hold repository rules instead of app behaviour, and the traceability check would track them forever.
+
+*Generalizes:* keep tooling changes inside the planning workflow (review before building, a record, an archive), but do not force them through the test-first loop: there is no failing test to write first. Prove their effect live instead, the way build gates are proven by a probe (R-31). Reverses for the parts of the tooling that carry logic of their own (e.g. a script with rules): those get tests like any code.
+
+**R-35 · Does PR CI run security scanning (code scanning, dependency review)?** *(Divergence — relates to DoseUp F-30)*
+Options: CodeQL and dependency review, both as blocking PR checks · only one of them · neither, relying on GitHub's secret scanning and push protection.
+DoseUp: both, blocking (F-30, ADR-0004-delivery-and-process). Its workflow so far only builds and tests (checked 2026-11-05).
+RevolutReader ([workflow.md § 4](../conventions/workflow.md#4-cicd), c002 design.md D7, 2026-11-05): **neither.** The app lives about two months, with one developer and few packages.
+- Dependency review needs GitHub's dependency graph. On 2026-11-05 the graph listed no package file of this repository. The versions live centrally in `Directory.Packages.props`, which GitHub's page on supported ecosystems does not mention, so the check would pass without checking anything.
+- CodeQL would add minutes to every PR, and every check must block. Whether it already understands C# 15 was not checked.
+
+What the project gives up: [divergences.md R-35](divergences.md).
+*Generalizes:* a security gate is worth its minutes only if it actually sees the code and the packages. Before adopting dependency review, check that the dependency graph lists the project's manifests; central package management may hide them. Reverses for any long-lived project, or when packages or contributors grow.
+
+**R-36 · How do you make CI really block merges on a solo public repository, and prove it?** *(New — relates to DoseUp F-30)*
+Options:
+- branch protection, or a ruleset;
+- the PR title linted by a third-party action, or by a few lines of shell;
+- required checks named only, or pinned to the app that must report them;
+- "branch up to date before merging" on or off;
+- an admin bypass, or none;
+- the ruleset clicked together on the settings page, or kept as a file and applied by command;
+- trusting the settings page, or a probe PR.
+
+DoseUp: a ruleset that enforces squash-only merges (ADR-0004-delivery-and-process). Its title lint and required checks are not built yet (checked 2026-11-05).
+RevolutReader ([workflow.md § 4](../conventions/workflow.md#4-cicd), [docs/operations/main-ruleset.md](../operations/main-ruleset.md), c002 design.md D2–D6, 2026-11-05): **one ruleset, kept as a file, proven by a probe.**
+- CI runs on pull requests only (opened, reopened, every new push). A required workflow never has path or branch filters: a required check that never runs stays pending and blocks every merge.
+- The title check is a few lines of bash, with the title passed in as an environment variable, which is GitHub's mitigation for script injection. It also runs on `edited` and `synchronize`: a fixed title re-runs only this check, and every new commit carries its result.
+- The ruleset:
+  - a PR is required, with 0 approvals and squash merge only;
+  - both checks are required, each pinned to the GitHub Actions app (id 15368), and the branch must be up to date;
+  - no force-push and no deletion;
+  - no bypass for anyone. The AI works with the owner's admin login, so an admin bypass would be the AI's bypass too.
+- It is kept as JSON next to its runbook and applied with `gh api`. Later steps add their checks to the file.
+- A probe PR broke one check at a time. It was blocked and refused a merge twice, and read mergeable once both checks passed.
+- Gotcha: GitHub fills in rule parameters the file did not set (here `require_extra_approval_for_unattributed_changes`). Read the ruleset back and sync the file, or every later comparison shows a false difference.
+
+*Generalizes:* a merge gate is only as strong as its weakest path. That means no bypass while the AI holds the admin login, checks pinned to the app that must report them, and a probe that has to fail, as with build gates (R-31) and hooks (R-33). Reverses toward an approval requirement, and possibly an admin bypass, once a second person can review.

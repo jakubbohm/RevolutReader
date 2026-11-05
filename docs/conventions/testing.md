@@ -47,7 +47,7 @@ Farley's four layers (LMAX style), in plain C#. No Gherkin and no Reqnroll: Open
 
 ## Test-first workflow
 
-A change is implemented with **`/tdd-apply <change> [review=acceptance|all|none]`** instead of `/opsx:apply` ([`.claude/skills/tdd-apply/`](../../.claude/skills/tdd-apply/SKILL.md), agents in [`.claude/agents/`](../../.claude/agents/)).
+A change is implemented with **`/tdd-apply <change> [review=acceptance|all|none]`** instead of `/opsx:apply` ([`.claude/skills/tdd-apply/`](../../.claude/skills/tdd-apply/SKILL.md), agents in [`.claude/agents/`](../../.claude/agents/)). The exception is a tooling-only change (`skip_specs: true`, e.g. CI): it has no scenario and nothing to test first, so it is applied directly with `/opsx:apply` and its task groups are named after its work ([workflow.md § 6](workflow.md#6-openspec)).
 
 - **Three roles, three contexts.** The **orchestrator** (the session running the skill) plans, delegates, verifies and judges; it edits only `tasks.md` checkboxes, `.tdd-state.md` and the close-out docs. The **test-writer** subagent writes failing tests and compile-only stubs. The **implementer** subagent makes them pass. Separate contexts are what stop tests from mirroring an implementation the same agent already has in mind.
 - **Persistent subagents:** each is spawned once per change and resumed with SendMessage; their IDs, the current group, the review mode and open disputes live in `openspec/changes/<change>/.tdd-state.md`. The artifacts and tests stay the source of truth: an agent that cannot be resumed is replaced by a fresh one with a summary. One shared working tree, no worktree isolation.

@@ -1,0 +1,39 @@
+# Checks that the PR title is a Conventional Commit: squash merge makes it the commit title on main
+# (c002 design.md D3, D8; docs/conventions/workflow.md § 3).
+# The job name `pr-title` is a required check in the ruleset on main
+# (docs/operations/main-ruleset.json): renaming it means updating the ruleset in the same PR.
+# `edited` re-runs only this check when the title is fixed; `synchronize` gives every new
+# commit its own result, which the ruleset requires.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The title reaches the script only as an environment variable, never pasted into the
+      # script text, so a crafted title cannot run commands (GitHub's script-injection advice).
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+          pattern="^(${types})(\([^()]+\))?!?: [^[:space:]]"
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "The PR title is a Conventional Commit."
+            exit 0
+          fi
+          echo "::error title=PR title::The PR title is not a Conventional Commit."
+          echo "Expected: <type>(<scope>)!: <subject>, for example 'feat(c005): show the balance'."
+          echo "The type is one of: ${types//|/, }. The scope and the ! are optional; the subject must not be empty."
+          exit 1

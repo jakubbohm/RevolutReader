@@ -1,0 +1,36 @@
+# Builds the solution and runs all tests on every pull request (c002 design.md D2, D8).
+# The job name `build-and-test` is a required check in the ruleset on main
+# (docs/operations/main-ruleset.json): renaming it means updating the ruleset in the same PR.
+# No path or branch filters: a required check that does not run stays pending and blocks the merge.
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Installs exactly the SDK that global.json pins (prerelease included).
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build
+
+      - name: Test
+        run: dotnet test --no-build
