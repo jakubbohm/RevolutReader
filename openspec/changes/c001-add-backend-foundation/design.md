@@ -53,6 +53,13 @@
    - The API's `Program.cs` holds only `AddServiceDefaults`, build and run. No FastEndpoints yet: it refuses to start with zero endpoints, so I wires it with the first endpoint (tasks 2.1).
    - The AppHost holds `AddProject<Projects.RevolutReader_Api>("api")`.
    - `dotnet format` run until the build passes under `.editorconfig`.
+   - *Found during setup (2026-11-05):*
+     - `nuget.config` with nuget.org only: the machine's global sources include a feed that answers 404, and central package management refuses several unmapped sources (NU1507). This is the same file as DoseUp's.
+     - `.editorconfig` gets explicit severities for IDE0055 (layout), IDE0008 (no `var`) and IDE0161 (file-scoped namespaces). Without them these rules stayed silent in the build, so "the build is the format gate" (docs/conventions/README.md § Formatting) was not true. RCS1002 and the banned time APIs already fail the build: Roslynator 5.0.1 still has RCS1002. A probe file showed all five failing the build. IDE0055 does not flag LF line endings, so files the agents write do not fail on them.
+     - ServiceDefaults lives in namespace `RevolutReader.ServiceDefaults` as `ServiceDefaultsExtensions`, as in DoseUp. The template's class name `Extensions` collides with a framework namespace (CA1724).
+     - The OpenTelemetry packages are at 1.20.1, not the template's 1.17.0: TUnit.AspNetCore needs at least 1.20.1, and the tests and production should run the same version.
+     - `aspire.config.json` sits at the repository root, pointing to the AppHost, so `aspire start` works from the root.
+     - `Program` is visible to the test project without a `public partial class Program` declaration (compile probe).
 4. **Check:** `dotnet build` passes. `dotnet test` reports that no tests ran (MTP exit code 8). This is the accepted baseline for C1's `/tdd-apply` step 0, once; from group 1 on, the suite has tests. Nothing ignores exit code 8 permanently: an empty run must stay visible.
 5. **Commit** `build(c001): [setup] solution, projects and build rules` (the `[setup]` tag is added to docs/conventions/workflow.md § 3 in close).
 
@@ -63,10 +70,11 @@
 ### D1 — Solution layout
 
 ```
-RevolutReader.slnx · global.json · Directory.Build.props · Directory.Packages.props · BannedSymbols.txt
+RevolutReader.slnx · global.json · nuget.config · aspire.config.json
+Directory.Build.props · Directory.Packages.props · BannedSymbols.txt
 src/
   RevolutReader.Api/              Program.cs · Health/HealthEndpoint.cs · appsettings.json
-  RevolutReader.ServiceDefaults/  Extensions.cs (OpenTelemetry, service discovery)
+  RevolutReader.ServiceDefaults/  ServiceDefaultsExtensions.cs (OpenTelemetry, service discovery)
   RevolutReader.AppHost/          AppHost.cs (local only)
 tests/
   RevolutReader.AcceptanceTests/  Scenarios/ServiceHealth/ · Scenarios/ApiErrors/ · Dsl/ · Drivers/ · Traceability/ · Conventions/
@@ -305,6 +313,7 @@ Both scenarios are API acceptance tests (the default level). Nothing in C1 is ve
 - **Software factory:**
   - lesson R-28 *(New)*: how the first test-first change starts on an empty repository (bootstrap commit, the accepted zero-test baseline, the test foundation in the acceptance group, self-tests for the traceability check);
   - lesson R-29 *(Divergence from DoseUp)*: no default HTTP retries when an outside API counts requests;
+  - lesson R-30 *(New)*: an IDE style rule gates the build only with an explicit severity in `.editorconfig`, even under `AnalysisLevel latest-all`. Prove the gate with a probe file instead of trusting the convention text. DoseUp's `.editorconfig` has the same missing severities (not verified there);
   - inventory lines for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files.
 
 ## Risks / Trade-offs
@@ -325,4 +334,4 @@ Greenfield: nothing to migrate. Rollback is reverting the squash-merged PR.
 
 ## Open Questions
 
-- AppHost target framework (`net11.0` or `net10.0`): decided when the Aspire 13.6.4 template is generated (§ Bootstrap, step 3). It changes neither the specs nor the tasks.
+None. The AppHost's target framework was settled at setup: `net11.0`, which the Aspire 13.6.4 template offers. `aspire start` runs it and the `api` resource reaches Healthy.
