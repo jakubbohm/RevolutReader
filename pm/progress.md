@@ -17,7 +17,7 @@
 | M1 | Enable Banking setup and verification of risks 5 and 6 | done | — | 2026-11-04 | Research done; findings and the user's decision on Q5, Q6 recorded in [ADR-0001-bank-data-access](../docs/adr/0001-bank-data-access.md) (outcomes below). Deviation from roadmap ch. 3, item 3: the user decided not to contact Enable Banking support. Done: Enable Banking account, production application, Revolut account linked in the Control Panel (link expires 2026-12-04 → M9), Revolut values read via `GET /aspsps` (180 days; no required PSU headers). Decided: settled transactions kept from 2026-08-09 (ADR-0001 § Decision, item 6). API session authorised (valid until 2027-05-03) and history downloaded (116 settled transactions). Control Panel link still active next to the session (→ M9 needed). Smoke test passed: 6 balance reads with the owner's PSU headers, all HTTP 200 ([spikes/enable-banking/](../spikes/enable-banking/README.md), step 6). Expiring approvals and how to restore them: [docs/operations/expiring-approvals.md](../docs/operations/expiring-approvals.md). Closed by the user. Follow-ups: M9 by 2026-12-03; C5 confirms whether Revolut returns pending transactions and that the `ITAV` balance matches the Revolut app |
 | F0-1 | Knowledge base and best practices | done | — | 2026-11-04 | Knowledge base written from a review of 40 DoseUp decisions (`D:\source\jakubbohm\DoseUp`): `docs/conventions/`, `docs/adr/`, `docs/software-factory.md`, `.claude/rules/`, `openspec/config.yaml`, `CLAUDE.md`. TDD/BDD part written from the user's 2026-10-22 design session and decided item by item: [testing.md](../docs/conventions/testing.md), `openspec/config.yaml` (TL;DRs, spec, design and task rules, apply/archive guidance), [workflow.md § 3, § 6](../docs/conventions/workflow.md#3-git), `.claude/skills/tdd-apply/`, `.claude/agents/`, `.claude/hooks/`, `.claude/rules/testing.md`, software-factory R-12 to R-21; Mock ASPSP spike [spikes/enable-banking-mock/](../spikes/enable-banking-mock/README.md). Closed by the user |
 | D2 | Split the software-factory file | done | — | 2026-11-04 | `docs/software-factory.md` split into `docs/software-factory/`: [lessons.md](../docs/software-factory/lessons.md) (all entries R-1 … R-21, plus new R-22), [divergences.md](../docs/software-factory/divergences.md) (R-1, R-3, R-4, R-6, R-7, R-8, R-12, R-13, R-14, R-19: what the project gives up, when to switch back), [creating-handover-package.md](../docs/software-factory/creating-handover-package.md) (inventory of reusable artifacts + how to build the package). Deviation: the handover becomes a package, not a file copy (change log). References updated; R-4 lesson link corrected (it pointed at workflow.md; the decision is in configuration.md § Not adopted). After R-12, R-19 and R-14, the user delegated the placement of the remaining entries for this step only. Closed by the user |
-| F0-2 | Architecture decisions | todo | — | — | Input from M1: a database is needed already in v1 ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 6) |
+| F0-2 | Architecture decisions | done | — | 2026-11-05 | Decided with the user, one by one, after background research (sources dated in each ADR): Q3 one container, one origin ([ADR-0002](../docs/adr/0002-frontend-hosting.md)); Q2 BFF login cookie + Q9 iPhone 13 Pro, Home Screen app ([ADR-0003](../docs/adr/0003-sign-in.md)); Q1 email allowlist, personal Microsoft accounts only, list in Key Vault ([ADR-0004](../docs/adr/0004-account-allowlist.md)); storage: Azure Table Storage in the app's own storage account, not the shared Cosmos DB (Neon also weighed) ([ADR-0005](../docs/adr/0005-data-storage.md)); Q4 Container Apps scaling to zero, ghcr.io public image, Logic App as the job's clock ([ADR-0006](../docs/adr/0006-hosting-registry-and-job.md)). Reversal: App Service Free accepted first, switched to Container Apps the same day (recorded in ADR-0006 and software-factory R-27). Deviation: Apple sign-in was considered and declined (stays out of scope); Key Vault widened to non-public values. Resource list (manual vs Bicep): [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); region Germany West Central. Roadmap updated (change log: M6 removed). Software factory: R-23 to R-27. Closed by the user |
 | M2 | GitHub repository | todo | — | — | |
 | C1 | `cNNN-add-backend-foundation` | todo | — | — | |
 | C2 | `cNNN-add-ci-pipeline` | todo | — | — | |
@@ -29,7 +29,6 @@
 | C6 | `cNNN-add-user-login` (UC1) | todo | — | — | |
 | C7 | `cNNN-add-account-detail` (UC2) | todo | — | — | |
 | M5 | Handover v1 | todo | — | — | |
-| M6 | Azure prerequisites for notifications | todo | — | — | |
 | C8 | `cNNN-add-push-subscriptions` (UC3, part 1) | todo | — | — | |
 | C9 | `cNNN-add-account-change-notifications` (UC3, part 2) | todo | — | — | |
 | M7 | Handover v2 | todo | — | — | |
@@ -52,40 +51,40 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
 ### Q1 — Account allowlisting mechanism
 
 - **Step:** F0-2
-- **Status:** open
-- **Outcome:** —
-- **Record:** —
-- **Date:** —
-- **Impact on the roadmap:** —
+- **Status:** decided
+- **Outcome:** app registration in the owner's existing directory, personal Microsoft accounts only; the backend checks an email allowlist at sign-in and on every request; the list lives in Key Vault (production) and user-secrets (local), never in the public repo. No invitations, no External ID, no Apple.
+- **Record:** [ADR-0004-account-allowlist § Decision](../docs/adr/0004-account-allowlist.md#decision)
+- **Date:** 2026-11-05
+- **Impact on the roadmap:** M2 may make the repository public. M4 sets the audience to personal accounts only and prepares the test accounts. C6 builds the check and a guided task puts the list into Key Vault and user-secrets. D1 restores the list. Key Vault now also holds non-public values ([configuration.md](../docs/conventions/configuration.md#where-each-value-lives)).
 
 ### Q2 — Authentication flow
 
 - **Step:** F0-2
-- **Status:** open
-- **Outcome:** —
-- **Record:** —
-- **Date:** —
-- **Impact on the roadmap:** —
+- **Status:** decided
+- **Outcome:** BFF: the backend signs the user in (authorization code flow, ASP.NET Core's own handlers) and keeps a persistent HttpOnly login cookie (30 days, sliding); the browser never holds a Microsoft token; a 12-month client secret.
+- **Record:** [ADR-0003-sign-in § Decision](../docs/adr/0003-sign-in.md#decision)
+- **Date:** 2026-11-05
+- **Impact on the roadmap:** M4 registers web redirect URIs and creates the client secret (kept for Key Vault, added to `docs/operations/expiring-approvals.md`). C6 builds the sign-in, persists the cookie's Data Protection keys in Blob Storage ([ADR-0006](../docs/adr/0006-hosting-registry-and-job.md#decision)), and checks the sign-in on the owner's iPhone from the Home Screen app before M5 (fallbacks in the ADR). C3 needs no sign-in library. C7/C8 write requests need CSRF protection (C6 picks the mechanism).
 
 ### Q3 — Frontend hosting
 
 - **Step:** F0-2
-- **Status:** open
-- **Outcome:** —
-- **Record:** —
-- **Date:** —
-- **Impact on the roadmap:** —
+- **Status:** decided
+- **Outcome:** one container: the backend serves the built frontend, so both share one origin (no CORS, a sign-in cookie stays possible on the iPhone, settings come from the backend at runtime).
+- **Record:** [ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)
+- **Date:** 2026-11-05
+- **Impact on the roadmap:** C3 serves the frontend from the backend and runs the Vite dev server in the AppHost with `/api` forwarding. C4 builds one image (Node stage + .NET stage). No change to the steps themselves.
 
 ### Q4 — Job hosting, registry and costs
 
-- **Step:** F0-2 (job hosting may move to C9)
-- **Status:** open
+- **Step:** F0-2 (job hosting decided there too, not deferred to C9)
+- **Status:** decided
 - **Input (from F0-1 testing, 2026-11-04):** tests start the background check directly, so the check must be ordinary app code that the scheduler only calls ([docs/conventions/testing.md § Time and the background job](../docs/conventions/testing.md#time-and-the-background-job)).
 - **Input (from D2, 2026-11-04):** hosting the job in its own process (outside the API) removes one reason for running acceptance tests inside the test process; weigh it against [divergences.md R-12](../docs/software-factory/divergences.md) before choosing.
-- **Outcome:** —
-- **Record:** —
-- **Date:** —
-- **Impact on the roadmap:** —
+- **Outcome:** Azure Container Apps (Consumption, scaling to zero, max 1 replica) within the free grant; Data Protection keys persisted in Blob Storage so a wake doesn't sign users out; ghcr.io with a public image; the job is a Logic App (Consumption) that calls a protected, retry-safe endpoint in the app 4 times a day, so the app stays one process (R-12 holds). Cost about €0 plus pennies. If the ~20 s cold start is too slow: one always-on replica at the idle rate (roughly $4–6/month), never a night-time scale rule (it bills the day at the active rate). App Service Free was accepted first and reversed the same day.
+- **Record:** [ADR-0006-hosting-registry-and-job § Decision](../docs/adr/0006-hosting-registry-and-job.md#decision)
+- **Date:** 2026-11-05
+- **Impact on the roadmap:** M3 creates the resource group in Germany West Central. C4 deploys the Container Apps environment and app with the public ghcr.io image, picks the log destination and measures the cold start. C6 adds the storage account with the Data Protection keys. C9 adds the Logic App and the endpoint (auth, time zone, times). M6 removed (change log). No container registry resource.
 
 ### Q5 — Enable Banking consent validity and pricing *(risk)*
 
@@ -107,7 +106,7 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
   - C5: forward PSU headers from the incoming request; take the required headers from `GET /aspsps`; handle 429, expired and revoked sessions.
   - C7: stored settled transactions plus a live read of the balance and the recent window (Decision, item 6), including the import of the M1 history file. C7 may need splitting, with the transaction store first (roadmap C7 notes): agree with the user when C7 is planned.
   - C9: 4 runs a day from 06:00; notify only on changes since the daughter's last view. The time zone of the start time and whether the last view is tracked per user are decided there (Q8).
-  - F0-2 / M3: a database is needed already in v1 (Decision, item 6). F0-2 picks the storage; M3 prepares access to the shared Cosmos DB account if that is the choice. The job is needed only for v2, so job hosting can still be deferred to C9.
+  - F0-2 / M3: a database is needed already in v1 (Decision, item 6). F0-2 picks the storage; M3 prepares access to the shared Cosmos DB account if that is the choice. The job is needed only for v2, so job hosting can still be deferred to C9. → F0-2 (2026-11-05): Azure Table Storage in the app's own storage account, in Bicep; no shared Cosmos DB access needed ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)).
 
 ### Q7 — Transactions
 
@@ -132,11 +131,11 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
 ### Q9 — Push on iOS *(risk)*
 
 - **Step:** F0-2
-- **Status:** open
-- **Outcome:** —
-- **Record:** —
-- **Date:** —
-- **Impact on the roadmap:** —
+- **Status:** verified
+- **Outcome:** the daughter has an iPhone 13 Pro (supports iOS 26; exact version confirmed at M5); the owner has an iPhone for testing. Web Push works only in the app added to the Home Screen (iOS 16.4+), so she uses it from there and sign-in must work there too.
+- **Record:** [ADR-0003-sign-in § Context — The main user's phone](../docs/adr/0003-sign-in.md#the-main-users-phone-q9)
+- **Date:** 2026-11-05
+- **Impact on the roadmap:** C3 makes the PWA installable on iOS. C6 tests sign-in from the Home Screen app on the owner's iPhone. C8 subscribes to push from the Home Screen app. M5/M7 install the app to the Home Screen and confirm the iOS version.
 
 ### Q10 — PWA scope
 
@@ -163,3 +162,4 @@ Question status: `open`, `decided` (decision questions) or `verified` (questions
 | 2026-11-04 | M2 becomes a dependency of C1 (and sets the squash commit message to include the branch's commits); C1 also builds the test foundation (three test projects, in-process harness with a walking-skeleton scenario, traceability test) and is the first `/tdd-apply` run (`review=all`); C3 adds the frontend scenario tags to the traceability test; C5 tests against the local fake bank server, checks on demand against the Mock ASPSP and develops locally against it (`review=all`); OpenSpec changes are applied with `/tdd-apply` | F0-1 TDD/BDD part: decisions in [docs/conventions/testing.md](../docs/conventions/testing.md) and [workflow.md § 3](../docs/conventions/workflow.md#3-git); the user approved M2 before C1 with the commit-tag proposal |
 | 2026-11-04 | Added D2 "Split the software-factory file" (Documentation) right after F0-1: one file for the lessons transferred to the software factory, one for this project's divergences from it. The Documentation step type now also covers restructuring documents | F0-1: the user asked for it while recording the in-process test harness as a project-only exception (software-factory R-12) |
 | 2026-11-04 | D2 and M8: the handover to the software factory becomes a package built at the end (the lessons plus the reusable artifacts themselves) instead of copying the lessons file; D2 adds `docs/software-factory/creating-handover-package.md` with an inventory of reusable artifacts that every step keeps current (roadmap § 1) | D2: the user — the handover is a process; the reusable work lives in artifacts (e.g. the test-first workflow: testing.md, the `tdd-apply` skill, the agents, the hook), which the package includes instead of copies (software-factory R-22) |
+| 2026-11-05 | F0-2 impact: **M6 removed** (no shared Cosmos DB access, no manual job part; C8's guided task generates and stores the VAPID keys; C8 and C9 no longer depend on M6). M3 creates the resource group in Germany West Central and drops the shared Cosmos DB access. C4: Azure Container Apps scaling to zero (App Service Free was accepted first and reversed the same day) and a public ghcr.io image instead of a container registry, plus the log destination and measuring the cold start. C6 adds the storage account with the Data Protection keys (Blob Storage) and ends with the iPhone Home Screen sign-in check. C7 adds the tables. C8 stores subscriptions in a table, tests on Azurite. M4's redirect URI comes from the app's URL (C4). C9: the Logic App clock and a protected endpoint; it no longer decides job hosting. M8: no shared resources to clean; purge the deleted Key Vault, delete the resource group and the app registration. Roadmap § 3 and § 5 tables updated | F0-2 decisions ([ADR-0002](../docs/adr/0002-frontend-hosting.md) … [ADR-0006](../docs/adr/0006-hosting-registry-and-job.md)); approved by the user |

@@ -5,6 +5,11 @@ One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, number
 | ADR | Title | Status | Date |
 |---|---|---|---|
 | [0001](0001-bank-data-access.md) | Bank data access — consent, request limits, PSU headers and transaction history | Accepted | 2026-11-04 |
+| [0002](0002-frontend-hosting.md) | Frontend hosting — one container, one origin | Accepted | 2026-11-05 |
+| [0003](0003-sign-in.md) | Sign-in — the backend signs users in and keeps a login cookie (BFF) | Accepted | 2026-11-05 |
+| [0004](0004-account-allowlist.md) | Account allowlist — personal Microsoft accounts checked against an email list kept out of the repo | Accepted | 2026-11-05 |
+| [0005](0005-data-storage.md) | Data storage — Azure Table Storage in the app's own storage account | Accepted | 2026-11-05 |
+| [0006](0006-hosting-registry-and-job.md) | Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock | Accepted | 2026-11-05 |
 
 ## Template
 

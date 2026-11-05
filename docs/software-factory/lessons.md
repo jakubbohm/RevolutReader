@@ -159,3 +159,79 @@ RevolutReader ([docs/conventions/workflow.md § 3](../conventions/workflow.md#3-
 Options: copy the lesson entries as text into the factory's catalog · keep copies of the reusable artifacts next to the lessons · a handover package built at the end: the lessons plus the reusable artifacts themselves, taken from an inventory kept current while the project runs.
 RevolutReader ([creating-handover-package.md](creating-handover-package.md), 2026-11-04): **a handover package built at the end of the project: the lessons, plus the artifacts listed in an inventory that every step keeps current, cleaned of project specifics, secrets and bank data, with a README naming the target. The receiving side takes it in through its own process.** The first procedure copied the lesson entries into DoseUp's catalog as new entries. The owner pointed out that the reusable work lives in artifacts (the test-first workflow alone is a convention, a skill, two agents, a hook and the spec tool's rules), and copies of them next to the lessons would drift from the originals.
 *Generalizes:* a lesson describes the answer; the artifact is what the next project reuses, so hand over both. Collect the inventory as you go, because reconstructing it at the end misses things (as with restore knowledge, R-10). The receiver integrates the package under its own rules. Reverses toward text-only lessons when a project produced no reusable artifacts.
+
+**R-23 · Where does a PWA's frontend run: on a static host, or in the API's own container?** *(Divergence — relates to DoseUp F-85)*
+Options: a static host with a CDN on its own origin (e.g. Azure Static Web Apps Free) · the same with the API proxied under the static host's origin (Static Web Apps Standard, paid) · the API's container serves the built frontend, so both share one origin.
+DoseUp: Static Web Apps Free on its own origin, so the shell loads from a CDN and stays up while the scale-to-zero API sleeps or breaks. Costs a CORS allowlist and a `config.json` the release pipeline writes beside the bundle.
+RevolutReader ([ADR-0002-frontend-hosting](../adr/0002-frontend-hosting.md), 2026-11-05): **the API's container serves the frontend, so both share one origin.**
+- One origin keeps a sign-in cookie possible on the iPhone, where Safari blocks cookies on cross-site requests.
+- It removes CORS and the settings sidecar file: the frontend asks its own origin.
+- It is one image and one deployment.
+- DoseUp's objection was that first paint would wait for a cold start. Here the PWA's service worker serves the cached shell, so only the data waits.
+- Merging the origins on a static host needs the paid Standard plan (verified 2026-11-05).
+
+*Generalizes:* one origin is the default when the frontend and the API deploy together and sign-in or settings would otherwise cross origins. Reverses toward a static host with a CDN when:
+- the frontend has many or distant users;
+- it must stay available while the API is down, beyond what a service worker covers (first visits);
+- or it ships on its own cadence.
+
+**R-24 · How does a PWA sign users in: a token in the browser, or a login cookie kept by the backend (BFF)?** *(Divergence — relates to DoseUp F-24, F-68, F-85)*
+Options: a single-page app with the identity provider's browser library and a bearer token (public client, PKCE, no secret) · a backend-for-frontend: the backend runs the code flow and keeps an HttpOnly login cookie, which needs one origin and a client credential · the BFF with the ID token only (no credential, but the identity provider calls it the implicit flow and discourages it).
+DoseUp: a single-page app (public client with PKCE) sending a JWT bearer to an API on another origin.
+RevolutReader ([ADR-0003-sign-in](../adr/0003-sign-in.md), 2026-11-05): **BFF with a persistent 30-day sliding cookie and a 12-month client secret.**
+- The main user is on an iPhone and must use the app from the Home Screen, because iOS gives Web Push only to Home Screen apps. There, sign-in redirects are the uncertain part: separate cookies from Safari, outside pages in a Safari sheet, and 2026 reports of state cookies lost on the way back.
+- Entra caps a single-page app's refresh token at 24 hours, so the browser-token option would run that redirect every day. The cookie runs it once.
+- The frontend loses its sign-in library, and no token is readable by JavaScript.
+- Costs: a client secret to keep and renew, and CSRF protection on cookie-authenticated writes.
+
+*Generalizes:* when the frontend and the API share one origin, a BFF is the stronger default: tokens stay off the device and the session lifetime is the app's own. It matters most for installed PWAs on iOS, where every sign-in redirect is a risk. Reverses toward a token in the browser when the API serves other clients or sits on another origin, or when keeping a client credential is not possible. *(Entra and WebKit behaviour verified 2026-11-05.)*
+
+**R-25 · How do you admit a fixed handful of people who already have personal accounts, with no sign-up step at all?** *(Divergence — relates to DoseUp F-24, F-51, F-87)*
+Options:
+- invite them as guests into the organisation's directory, so the identity provider is the gate;
+- a customer directory (CIAM, e.g. Entra External ID) with open sign-up and a membership gate in the app;
+- accept the consumer account provider directly and check an allowlist in the app, keyed by email (known in advance) or by the stable account ID (known only after the first sign-in).
+
+DoseUp: Entra External ID with open sign-up. Membership is an account row in the app's database, keyed by `oid` and created by an in-app complete-signup step.
+RevolutReader ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md), 2026-11-05): **personal Microsoft accounts only, checked against an email allowlist on every request; the list stays out of the public repo, in Key Vault.**
+- Guests were rejected because of a consent page on the first sign-in, and because Entra's security defaults (on by default) make guests register Authenticator MFA.
+- An ID-keyed allowlist was rejected because the ID is known only after a first, rejected sign-in, and the main user must not wait for approval.
+- Microsoft warns that the email claim is mutable and not for authorization. Accepting only the personal-accounts tenant removes the nOAuth case, where another directory asserts any email.
+- A customer directory adds a user flow, because it owns the accounts. It pays off only when users lack a common account provider (here, Apple sign-in was declined: a paid developer program, a secret renewed every 6 months, and "Hide My Email" defeating an email list).
+
+What the project gives up: [divergences.md R-25](divergences.md).
+*Generalizes:* the full version keys membership on the stable account ID (`oid` plus tenant) in the app's own store; the email is used once, to match an invitation, and then the account is bound to its ID. Checking the email on every request is acceptable only when a single consumer provider issues every token and the user set is fixed and tiny. Before choosing guests, check the directory's security defaults: they turn "invite a guest" into "make the guest register MFA". The full version applies again as soon as accounts come from more than one directory or provider, or the users change or grow. *(Entra behaviour verified 2026-11-05.)*
+
+**R-26 · Where does a tiny app keep a few hundred records when a free-tier database already exists, shared, in the subscription?** *(Divergence — relates to DoseUp F-23, F-47)*
+Options: the subscription's shared free-tier document database (Cosmos DB) · a serverless relational database (Azure SQL free offer, Neon) · a key–value table store in a storage account the app owns (Azure Table Storage).
+DoseUp: Neon serverless Postgres, after reversing Cosmos DB serverless. It wanted relational modelling, real migrations and portability.
+RevolutReader ([ADR-0005-data-storage](../adr/0005-data-storage.md), 2026-11-05): **Table Storage in the app's own storage account.**
+- It costs about $0.01 a month, lives in the app's deployment stack (deleted with it), uses a managed identity with no secret, and runs in tests as Azurite.
+- The shared Cosmos DB free tier is free only while the *whole account* fits in 1,000 RU/s. A new database adds at least 400 RU/s (about €21 a month beyond the free share). Sharing also needs manual access and puts the data next to another project's.
+- Azure SQL's free offer pauses after 15 minutes and takes about a minute to resume.
+- Neon was weighed because the owner wanted to learn it. It is free and offers real SQL, but costs about half a day more, a password secret, a lifecycle outside the stack, and the data on another cloud (its Azure regions are deprecated).
+
+What the project gives up: [divergences.md R-26](divergences.md).
+*Generalizes:* for a handful of record kinds read by key, a table store owned by the app beats a shared or relational database on setup, secrets and teardown. A shared free tier's "free" is account-wide, so price the minimum throughput a new database would add. Reverses toward a relational database (DoseUp's default) when:
+- the data has relations or needs queries beyond keys;
+- it outlives the app;
+- or learning is a stated goal of the project (DoseUp F-4).
+
+*(Prices and limits verified 2026-11-05.)*
+
+**R-27 · Where does a small app run on a free budget, and how does its scheduled job run when the host sleeps?** *(Divergence and Reversal — relates to DoseUp F-47, F-52)*
+Options:
+- hosting: App Service Free (sleeps after 20 min, hard daily CPU cap) · Container Apps on the Consumption plan (scales to zero, monthly free grant) · a paid always-on tier;
+- the job: an in-app scheduler on an always-on host · a separate serverless job (Functions timer, Container Apps job) · an external clock calling a protected endpoint (Logic App, GitHub Actions schedule) · a queue-based alarm with a scaler (DoseUp).
+
+DoseUp: Container Apps scaling to zero; storage-queue visibility-timeout alarms wake it through KEDA, with one message per occurrence.
+RevolutReader ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-and-job.md), 2026-11-05): **Container Apps scaling to zero (maximum 1 replica), plus a Logic App (Consumption) calling a protected, retry-safe endpoint 4 times a day.**
+- **Reversal:** App Service Free was accepted first and switched the same day. The cold start is the same (about 20 s on both). App Service Free has a hard 60-CPU-minute daily cap that locks users out until midnight UTC, and its only always-on upgrade costs about €11.83 a month. On Container Apps, one always-on replica billed at the idle rate costs roughly $4–6 a month.
+- **Gotcha:** Container Apps bills the idle rate only when the minimum replica count is above zero and the app sits at it. A time-based rule meaning "1 by day, 0 at night" runs its daytime replica at the active rate and costs more than one replica left on all the time.
+- **Gotcha that applies to any scale-to-zero host:** the login cookie's encryption keys (ASP.NET Core Data Protection) live inside the container by default. Every wake would sign everyone out, so the keys go to Blob Storage.
+- **The job:**
+  - The Logic App is free, fully in Bicep, schedules in local time, and keeps the app one process (the in-process test harness stays valid).
+  - Rejected: a Functions timer (Flex can't run containers, so a second project, its own storage, duplicated secrets, UTC only); a Container Apps job (a second process, UTC only); a GitHub Actions schedule (delayed or dropped runs, disabled after 60 days without activity in public repositories).
+
+What the project gives up: [divergences.md R-27](divergences.md).
+*Generalizes:* on a free budget, prefer the host whose always-on upgrade is cheapest and whose free tier has no hard cutoff. Price the idle-billing rules before planning time-based scaling. For a few fixed runs a day on a sleeping host, an external clock calling the app keeps one deployable and one process. The endpoint must be idempotent because the clock retries, which is critical when each run spends a rate-limited quota. Persist cookie-encryption keys on any host that recreates containers. For many timers or per-entity schedules, DoseUp's queue alarms win. Reverses toward an always-on host with an in-app scheduler when the budget allows (the simplest), and toward a separate job process when the work is long or heavy. *(Prices and limits verified 2026-11-05.)*

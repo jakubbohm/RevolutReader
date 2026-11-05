@@ -86,3 +86,32 @@ Full version: one test per scenario, run through an API driver or a browser driv
 Here ([docs/conventions/testing.md § Every scenario has exactly one test](../conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check), 2026-11-04): **one level per scenario** — an API acceptance test by default, a frontend component test for rules only the browser shows, manual at handover for device-only behaviour. The full version would need browsers in CI, the app on a real port, the built frontend served and a test sign-in: too much for one screen and two months.
 Given up: no automated proof that the frontend, the API and the sign-in work together in a browser; local runs, post-deployment checks and the handovers cover it.
 *Switch back when:* the app gets more screens or a longer life, or an integration break between the frontend and the API actually happens.
+
+**R-25 · Membership is an email allowlist, not accounts bound to their stable ID**
+Full version: membership keyed by the stable account ID in the app's own store; the email is used once, to match an invitation ([lessons.md R-25](lessons.md), DoseUp F-51, F-87).
+Here ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md), 2026-11-05): **the signed-in account's email is checked on every request against a list kept in Key Vault** — a fixed handful of users, all on personal Microsoft accounts, and the main user must not wait for approval.
+Given up:
+- Microsoft says the email claim is mutable and not for authorization;
+- a changed address locks its owner out until the list is updated;
+- changing the list needs a Key Vault edit and a restart.
+
+*Switch back when:* there are more users or they change, a second account provider or directory appears, or the app runs well beyond its planned period.
+
+**R-26 · A key–value table store instead of a relational database**
+Full version: relational Postgres with migrations, unless something strong pulls away ([lessons.md R-26](lessons.md), DoseUp F-23).
+Here ([ADR-0005-data-storage](../adr/0005-data-storage.md), 2026-11-05): **Azure Table Storage in the app's own storage account** — three kinds of records, a few hundred items in all, read by key; nothing manual, no secret, deleted with the stack.
+Given up:
+- no queries beyond keys, no joins, no schema;
+- no migration discipline, because nothing enforces the shape of stored data.
+
+*Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period.
+
+**R-27 · The production app scales to zero, with an external clock for the job**
+Full version: an always-on host for anything real users depend on, with the job scheduled inside the app ([lessons.md R-27](lessons.md)).
+Here ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-and-job.md), 2026-11-05): **Container Apps scaling to zero within the free grant, plus a Logic App calling a protected endpoint** — the budget is free tiers only, for three users.
+Given up:
+- about 20 s for the first response after 5 minutes without use;
+- an extra internal endpoint and a clock to maintain;
+- persisted Data Protection keys, needed only because containers come and go.
+
+*Switch back when:* the wake-up time bothers the daughter → minimum 1 replica, always on (roughly $4–6 a month). The job may then move inside the app, if the operation runs well beyond the plan.

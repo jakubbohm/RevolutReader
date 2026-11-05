@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-04 (F0-1, M1, D2 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -40,17 +40,18 @@
 | 14 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
 | ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7 deployed via C4 | |
 | 15 | M5 | Manual | Handover v1 | v1 | — |
-| 16 | M6 | Manual | Azure prerequisites for notifications | M3, F0-2 | — |
-| 17 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6, M6 | — |
-| 18 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8, M6; findings on Q5, Q6 | decides Q8 (and job hosting from Q4 if F0-2 deferred it) |
+| 16 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
+| 17 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 19 | M7 | Manual | Handover v2 | v2 | — |
+| 18 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 20 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 21 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| 19 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 20 | M8 | Manual | Decommissioning | end of operation; D1 | — |
 
-**Two tracks.** Manual steps (M1–M4, M6) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 (v1) → C8 → C9 (v2).
+M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
+
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 (v1) → C8 → C9 (v2).
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -71,8 +72,7 @@
 
 | Step | What the findings decide | Wait for them? |
 |---|---|---|
-| F0-2 | job hosting (Q4); whether Cosmos DB is needed already in v1 | recommended; if missing, F0-2 defers job hosting to C9 |
-| M3 | whether access to the shared Cosmos DB account moves from M6 into M3 | yes, if F0-2 had them |
+| F0-2 | job hosting (Q4); whether a database is needed already in v1 | done: both decided in F0-2 with the M1 findings ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md), [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)) |
 | C5 | handling of expired consent and rate-limit responses | recommended |
 | C7 | live reads from the bank or a cache | **blocking** |
 | C9 | check frequency and the use of stored state | **blocking** |
@@ -161,7 +161,7 @@
 ### C3 — `cNNN-add-frontend-foundation`
 
 - **Type:** OpenSpec change
-- **Goal:** Set up the frontend: Vite + React + TypeScript, Tailwind CSS, Radix Primitives behind the app's own components, ESLint + Prettier, the generated API client (openapi-typescript + openapi-fetch), PWA basics (manifest, service worker, installability) and test infrastructure (Vitest, with the `scenario(...)` helper and the traceability test reading it — [testing.md § Every scenario has exactly one test](../docs/conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check)). Integrate it into Aspire and serve it from the backend if Q3 says so. Add the frontend build, checks and tests to CI.
+- **Goal:** Set up the frontend: Vite + React + TypeScript, Tailwind CSS, Radix Primitives behind the app's own components, ESLint + Prettier, the generated API client (openapi-typescript + openapi-fetch), PWA basics (manifest, service worker, installability) and test infrastructure (Vitest, with the `scenario(...)` helper and the traceability test reading it — [testing.md § Every scenario has exactly one test](../docs/conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check)). Integrate it into Aspire (Vite dev server with `/api` forwarding) and serve it from the backend ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)); no sign-in library ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)). Add the frontend build, checks and tests to CI.
 - **Depends on:** C1, C2
 - **Inputs:** kickoff ch. 2, 6, 7, 10 (Q10); the knowledge base; F0-2 decisions (Q2, Q3, Q9).
 - **Outputs:** archived change; a running PWA shell with the basis for the Czech UI; CI covering the frontend.
@@ -170,16 +170,16 @@
 ### M3 — Azure prerequisites for v1
 
 - **Type:** Manual
-- **Goal:** Set up what v1 needs in Azure that cannot be automated: access to the subscription, the resource group if F0-2 scopes the deployment stack to one, the identity GitHub Actions deploys with (OIDC federated credential and role assignment), and — if F0-2 puts Cosmos DB into v1 — access to the shared Cosmos DB account. Everything else is created by Bicep in C4.
+- **Goal:** Set up what v1 needs in Azure that cannot be automated: access to the subscription; the resource group the deployment stack is scoped to, in **Germany West Central**; the identity GitHub Actions deploys with (OIDC federated credential and the narrowest roles on the resource group that let the stack create the resources and their role assignments). Everything else is created by Bicep (C4, C6, C7, C9). Resource list: [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure).
 - **Depends on:** F0-2, M1, M2
-- **Inputs:** kickoff ch. 6, 7, 9.4; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); F0-2 decisions (Q3, Q4: which resources exist and which are shared); M1 findings.
+- **Inputs:** kickoff ch. 6, 7, 9.4; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); F0-2 decisions ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md) and the resource list); M1 findings.
 - **Outputs:** the deploy identity and its federated credential; the values the workflow needs before Bicep can run (subscription, resource group, client ID) on the GitHub Environment; non-secret identifiers recorded.
 - **Open questions:** — (applies Q3, Q4)
 
 ### C4 — `cNNN-add-deployment-pipeline`
 
 - **Type:** OpenSpec change
-- **Goal:** Bicep in `infra/` for the app's own Azure resources as decided in F0-2 (e.g., App Service plan and Web App for Containers, Key Vault, container registry, the app's managed identity and its role assignments), a Docker image (backend and frontend in one container, if Q3 confirms it), and a GitHub Actions pipeline that on every merge to `main` builds the image once, applies the Bicep as an Azure Deployment Stack (removed resources get deleted) and deploys the image. It deploys the current skeleton, so every later change ships automatically. Includes a guided manual task to put the Enable Banking secrets into Key Vault.
+- **Goal:** Bicep in `infra/` for the app's own Azure resources as decided in F0-2: a Container Apps environment (Consumption) and the container app (scaling to zero, maximum 1 replica), Key Vault, the app's managed identity and its role assignments. A Docker image with backend and frontend in one container ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)), published as a public image on ghcr.io ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A GitHub Actions pipeline that on every merge to `main` builds the image once, applies the Bicep as an Azure Deployment Stack (removed resources get deleted) and deploys the image. It deploys the current skeleton, so every later change ships automatically. Includes a guided manual task to put the Enable Banking secrets into Key Vault, the choice of where the environment's logs go, and a measurement of how long the app takes to wake from zero (fallback in ADR-0006: one always-on replica).
 - **Depends on:** C3, M3
 - **Inputs:** kickoff ch. 6, 7; F0-2 decisions (Q3, Q4); identifiers from M3; [workflow.md §§ 4–5](../docs/conventions/workflow.md#4-cicd).
 - **Outputs:** archived change; the skeleton running on Azure and reading its secrets from Key Vault; the secrets listed in `docs/conventions/configuration.md` § Hand-provisioned secrets.
@@ -190,7 +190,7 @@
 
 - **Type:** Manual
 - **Goal:** Register the application in Entra ID and set up the allowed accounts (me, my daughter, test accounts) using the mechanism chosen in F0-2.
-- **Depends on:** F0-2. The production redirect URI needs the App Service URL from C4; it can be added later.
+- **Depends on:** F0-2. The production redirect URI needs the app's URL from C4; it can be added later.
 - **Inputs:** kickoff ch. 4; F0-2 decisions (Q1, Q2).
 - **Outputs:** application registration; allowed and test accounts; non-secret identifiers (tenant, client ID, redirect URIs) recorded; any secret stored in Key Vault.
 - **Open questions:** — (applies Q1, Q2)
@@ -207,7 +207,7 @@
 ### C6 — `cNNN-add-user-login` (UC1)
 
 - **Type:** OpenSpec change
-- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user.
+- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user. Sign-in is the backend's login cookie ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)) checked against the email allowlist ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md)). The change also adds the app's storage account with a blob container for the cookie's Data Protection keys, so a wake from zero does not sign users out ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). It ends with the manual check of signing in from the Home Screen app on the owner's iPhone.
 - **Depends on:** C3, M4
 - **Inputs:** kickoff ch. 4, 5 (UC1); F0-2 decisions (Q1, Q2); identifiers from M4.
 - **Outputs:** archived change; sign-in working locally and, after deployment, on Azure; BDD scenarios for allowed and rejected users.
@@ -221,7 +221,7 @@
 - **Inputs:** kickoff ch. 5 (UC2), 6, 10 (Q6, Q7); ADR-0001-bank-data-access and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v1 complete and deployed through C4.
 - **Open questions:** decides Q7.
-- **Notes:** if the Q6 findings force a cache for UC2, the step will probably need to be split (e.g., periodic fetching and storage first). Agree on it with the user and log it.
+- **Notes:** the Q6 findings require stored transactions (ADR-0001-bank-data-access § Decision, item 6), so the step will probably need to be split (e.g., the transaction store first). Agree on it with the user and log it. The change that first stores data adds the tables to the storage account C6 created, with their role assignment, and imports the M1 history file ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)).
 
 ### ◆ Milestone v1 — my daughter sees the balance and transactions
 
@@ -234,21 +234,11 @@
 - **Outputs:** v1 confirmed working for my daughter; any problems found are proposed as new steps.
 - **Open questions:** —
 
-### M6 — Azure prerequisites for notifications
-
-- **Type:** Manual
-- **Goal:** Set up what notifications need that cannot be automated: access to the shared Cosmos DB free-tier account (create the account first if the subscription has none yet — only one free-tier account per subscription), the VAPID keys generated on my machine (stored in Key Vault by a guided task in C8), and any manual part of the job hosting chosen in F0-2. The database inside the shared account and the job hosting resources are Bicep, in C8 and C9.
-- **Depends on:** M3, F0-2
-- **Inputs:** kickoff ch. 6, 9.5 (dependencies on manual steps); F0-2 decisions (Q4); M1 findings; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure).
-- **Outputs:** access to the shared resources; VAPID keys kept for Key Vault; identifiers recorded.
-- **Open questions:** —
-- **Notes:** skip whatever M3 already did. If F0-2 deferred job hosting to C9, set up that part after C9's design.
-
 ### C8 — `cNNN-add-push-subscriptions` (UC3, part 1)
 
 - **Type:** OpenSpec change
-- **Goal:** A signed-in user can enable notifications: the PWA asks for permission and subscribes, and the backend stores the subscription in Cosmos DB. The backend can send a Web Push and the service worker displays it. Bicep for the notification resources (e.g., the database in the shared Cosmos DB account, which is referenced as `existing`); a guided task storing the VAPID keys in Key Vault. Database tests follow the knowledge base (most likely Testcontainers).
-- **Depends on:** C4, C6, M6
+- **Goal:** A signed-in user can enable notifications: the PWA (from the iPhone's Home Screen, Q9) asks for permission and subscribes, and the backend stores the subscription in a table in the app's storage account ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)). The backend can send a Web Push and the service worker displays it. A guided task generates the VAPID keys on my machine and stores them in Key Vault (and in the AppHost's user-secrets for local development). Database tests run against Azurite ([testing.md § Decided later](../docs/conventions/testing.md#decided-later)).
+- **Depends on:** C4, C6
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q9); the answer to Q9 from F0-2; the knowledge base.
 - **Outputs:** archived change; a subscribed device receives a test notification.
 - **Open questions:** — (applies Q9: on iOS, Web Push works only for a PWA added to the home screen)
@@ -256,11 +246,11 @@
 ### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
 
 - **Type:** OpenSpec change
-- **Goal:** A periodic job reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. Bicep for the job hosting resources, if it needs any.
-- **Depends on:** C5, C8, M6; findings on Q5 and Q6 (blocking: they decide the check frequency).
-- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q4, Q6, Q8); ADR-0001-bank-data-access and the outcomes in `pm/progress.md`.
+- **Goal:** A periodic job reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. The clock is a Logic App (Consumption) in Bicep that calls a protected, retry-safe endpoint in the app ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)); C9 decides how the Logic App authenticates, the time zone and the exact times.
+- **Depends on:** C5, C8; findings on Q5 and Q6 (blocking: they decide the check frequency).
+- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v2 complete and deployed.
-- **Open questions:** decides Q8; decides job hosting (part of Q4) if F0-2 deferred it.
+- **Open questions:** decides Q8.
 
 ### ◆ Milestone v2 — push notifications
 
@@ -303,7 +293,7 @@
   - the allowed users;
   - the history import and the checks that the app works.
 - **Depends on:** M7 (C10 if it was done), so that everything that exists is covered.
-- **Inputs:** [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md), kept current by every step (section 1); ADRs; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); [configuration.md § Hand-provisioned secrets](../docs/conventions/configuration.md#hand-provisioned-secrets); the identifiers recorded in M1, M3, M4 and M6; the spike READMEs; the Bicep templates.
+- **Inputs:** [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md), kept current by every step (section 1); ADRs; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); [configuration.md § Hand-provisioned secrets](../docs/conventions/configuration.md#hand-provisioned-secrets); the identifiers recorded in M1, M3 and M4; the spike READMEs; the Bicep templates.
 - **Outputs:** `docs/operations/reinstatement.md`, reviewed by the user as a walk-through; no actual rebuild.
 - **Open questions:** —
 - **Notes:** M8 does not export the stored transactions (the user, 2026-11-04). A reinstated app downloads the history in the 5 minutes after its new API approval, as in M1, with `create-session.ps1 -HistoryStart <first day>`. It gets only as far back as Revolut then serves.
@@ -311,9 +301,9 @@
 ### M8 — Decommissioning
 
 - **Type:** Manual
-- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including stored account data; remove this project's data and access in the shared resources; delete the identity GitHub Actions deploys with; remove access for the allowed accounts. Then build the software-factory handover package and hand it over to DoseUp.
+- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including the stored account data (the app uses no shared resources, F0-2); purge the deleted Key Vault, which Azure otherwise keeps with its secrets for the retention period; delete the resource group and the identity GitHub Actions deploys with; delete the Entra app registration; remove access for the allowed accounts. Then build the software-factory handover package and hand it over to DoseUp.
 - **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1.
-- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3, M4 and M6; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
+- **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3 and M4; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
 - **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over to DoseUp; `pm/progress.md` closed.
 - **Open questions:** —
 
@@ -324,7 +314,7 @@
 | 1 | Account allowlisting mechanism | F0-2 | M2, M4, C6 |
 | 2 | Authentication flow | F0-2 | M4, C3, C6 |
 | 3 | Frontend hosting (one container) | F0-2 | C1, C3, C4 |
-| 4 | Job hosting, registry, costs | F0-2 (job hosting may move to C9) | M3, M6, C4, C9 |
+| 4 | Job hosting, registry, costs | F0-2 | M3, C4, C9 |
 | 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M9, M8 |
 | 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C7, C9 |
 | 7 | Transactions (history, paging, details) | C7 | — |

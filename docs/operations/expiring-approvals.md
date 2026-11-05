@@ -15,7 +15,7 @@
 
 Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself.
 
-**To be added by their steps** (do not guess them here): the deploy identity and shared Cosmos DB access (M3), the Entra ID app registration and any credential it gets (M4), the secrets in Key Vault (C4), the VAPID keys for push (M6, C8).
+**To be added by their steps** (do not guess them here): the deploy identity (M3), the Entra ID app registration and its 12-month client secret (M4), the secrets and the account allowlist in Key Vault (C4, C6), the VAPID keys for push (C8).
 
 ## 1. Enable Banking account link
 

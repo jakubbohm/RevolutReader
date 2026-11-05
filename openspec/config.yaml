@@ -16,9 +16,12 @@ context: |
   Stack (kickoff ch. 7): .NET 11 (ASP.NET Core + FastEndpoints) · .NET Aspire for local
   development · React + Vite + TypeScript PWA · Tailwind CSS · Radix Primitives (behind
   owned components) · openapi-typescript + openapi-fetch (generated TS contract client) ·
-  Enable Banking API → Revolut (read-only) · Microsoft Entra ID · Web Push · Cosmos DB
-  (free tier, shared account) · Azure Key Vault (secrets only) · Azure App Service (one
-  container) · Bicep + Azure Deployment Stacks · GitHub Actions.
+  Enable Banking API → Revolut (read-only) · Microsoft Entra ID, personal Microsoft accounts,
+  backend sign-in with a login cookie (BFF) and an email allowlist · Web Push · Azure Table
+  Storage (the app's own storage account) · Azure Key Vault (secrets and non-public values) ·
+  Azure Container Apps, scaling to zero (one container serving API and frontend, image on
+  ghcr.io; Data Protection keys in Blob Storage) · a Logic App as the job's clock · Bicep +
+  Azure Deployment Stacks · GitHub Actions. Decisions: docs/adr/ (ADR-0002 to ADR-0006).
 
   Backend code (docs/conventions/README.md): expected failures are Result values, translated
   into ProblemDetails only at the endpoint; thin FastEndpoints endpoints inject framework-free

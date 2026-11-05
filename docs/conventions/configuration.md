@@ -1,8 +1,8 @@
 # RevolutReader — Configuration
 
-**Status:** decided in F0-1 (2026-11-04), from the DoseUp configuration conventions adapted to App Service · **Mirror:** `.claude/rules/configuration.md`
+**Status:** decided in F0-1 (2026-11-04), from the DoseUp configuration conventions; the host is Azure Container Apps since F0-2 ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-and-job.md)) · **Mirror:** `.claude/rules/configuration.md`
 
-Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (appsettings); Key Vault is for secrets only; Azure App Configuration only if something ever has to change at runtime. This document says how.
+Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (appsettings); Key Vault is for secrets only; Azure App Configuration only if something ever has to change at runtime. This document says how. **Widened (2026-11-05):** because the repository is public, Key Vault also holds values that must not be public, such as the account allowlist ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md)).
 
 ## The one rule
 
@@ -14,8 +14,8 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 |---|---|---|
 | Non-secret default | `appsettings.json` | `appsettings.json` |
 | Local deviation | `appsettings.Development.json` | — |
-| Production-only non-secret | — | App Service app setting (an environment variable), authored in Bicep from `.bicepparam` or a resource reference |
-| Secret | the AppHost's user-secrets, surfaced as Aspire parameters → environment variables | Key Vault secret → Key Vault reference in an App Service app setting, authored in Bicep, resolved by the app's managed identity → environment variable |
+| Production-only non-secret | — | an environment variable on the container app, authored in Bicep from `.bicepparam` or a resource reference |
+| Secret, or a value that must not be public (e.g. the account allowlist, [ADR-0004-account-allowlist](../adr/0004-account-allowlist.md)) | the AppHost's user-secrets, surfaced as Aspire parameters → environment variables | Key Vault secret → a Container Apps secret that references it, authored in Bicep, resolved by the app's managed identity → environment variable |
 
 - **Bicep authors every production app setting.** The CD workflow passes only the image tag and which parameter file to apply; it never reads a value off one resource to hand it to another.
 - **GitHub Actions variables and secrets are not an app configuration store.** They hold only what the workflow needs before Bicep can run (subscription, resource group, the deploy identity's client id).
@@ -42,7 +42,7 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 ## Frontend
 
 - **Nothing secret or environment-specific goes into a `VITE_` variable.** Vite inlines them into the bundle at build time, which publishes them and ties the bundle to one environment (breaking build once, deploy the same artifact).
-- How the frontend gets deploy-time values (API address, Entra client id) depends on the hosting topology (Q3) and is decided in F0-2 / C3.
+- **The frontend shares the backend's origin** ([ADR-0002-frontend-hosting](../adr/0002-frontend-hosting.md)). It calls the API by relative paths and gets any other runtime value from the backend. The mechanism is chosen in C3.
 
 ## Hand-provisioned secrets
 

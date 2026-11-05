@@ -154,10 +154,10 @@ Evidence: [spikes/enable-banking-mock/](../../spikes/enable-banking-mock/README.
 Same as DoseUp (its software-factory entry F-68), so no software-factory entry here.
 
 - Tests sign their own tokens with a throwaway key generated at runtime, and the harness adds that key as a second trusted signer to the API's sign-in configuration. Checking the token, reading the user from it, the allowlist check (Q1) and the 401/403 responses all run production code.
-- **Test users are data:** an allowed user, a signed-in stranger (valid token, not on the allowlist), an anonymous visitor (no token). More kinds only when the specs need them.
+- **Test users are data:** an allowed user, a signed-in stranger (valid token, not on the allowlist), an anonymous visitor (no token). More kinds only when the specs need them. The harness sets the allowlist to made-up addresses. The real list never reaches tests, CI or GitHub ([ADR-0004-account-allowlist](../adr/0004-account-allowlist.md)).
 - The extra trusted key exists only inside the test process (§ Acceptance-test harness); the deployed app has no setting that could switch it on.
 - **Rejected:** a fake sign-in scheme that lets everyone in (it skips the code under test); real Microsoft test accounts (secrets, throttling, an outside dependency). Microsoft's own sign-in is not under automated test; C6 checks it locally and after deployment.
-- **The form depends on Q2** (F0-2): with the frontend sending a token, tests send the self-signed token as a bearer token; with the backend keeping a login cookie, the harness creates the session cookie from a self-signed token and skips only the Microsoft sign-in redirect. F0-2 records which one applies here.
+- **The backend keeps a login cookie** ([ADR-0003-sign-in](../adr/0003-sign-in.md), Q2). So the harness creates the session cookie from a self-signed token and skips only the Microsoft sign-in redirect. C6 settles the mechanics.
 
 ## Time and the background job
 
@@ -179,6 +179,6 @@ Same as DoseUp (its software-factory entry F-68), so no software-factory entry h
 
 ## Decided later
 
-- **Database tests:** in the change that first introduces the database, once F0-2 has chosen it. M1 found that a database is needed already in v1 ([ADR-0001-bank-data-access § Decision](../adr/0001-bank-data-access.md#decision), item 6).
+- **Database tests:** F0-2 chose Azure Table Storage ([ADR-0005-data-storage](../adr/0005-data-storage.md)). Database tests run against Azurite in a test container (`Testcontainers.Azurite`, with the image pinned explicitly). The change that first stores data (C7 or its first slice) sets them up.
 - **Fake push-notification service:** C8.
 - **Test commands** (one group's tests, one change's acceptance tests, the traceability check): C1 defines them and lists them in `CLAUDE.md` § Commands.

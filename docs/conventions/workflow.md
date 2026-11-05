@@ -61,11 +61,28 @@
 
 - **Manual only for what cannot be automated:** access to the Azure subscription; the Entra application registration; the identity GitHub Actions deploys with (OIDC federated credential and role assignment — CD cannot create its own trust); **shared resources and access to them** (e.g., the Cosmos DB free-tier account, which exists once per subscription and is therefore shared across the owner's projects); putting hand-provisioned secret values into Key Vault ([configuration.md § Hand-provisioned secrets](configuration.md#hand-provisioned-secrets)). Claude guides each manual step; non-secret identifiers are recorded in the repository.
 - **Everything else is hand-authored Bicep in `infra/`,** deployed by CD as an **Azure Deployment Stack** with `--action-on-unmanage deleteResources`: a resource removed from the Bicep files is deleted from Azure on the next deployment. No portal or ad-hoc CLI changes to anything the stack manages.
-- **Shared resources are referenced in Bicep as `existing`**, never managed by this project's stack, so the stack can never delete them. If the project needs its own child resource inside a shared one (e.g., a database in the shared Cosmos DB account), F0-2 decides it; verify in C4 how the stack treats such child resources before relying on it.
+- **Shared resources are referenced in Bicep as `existing`**, never managed by this project's stack, so the stack can never delete them. If a project ever needs its own child resource inside a shared one, verify how the stack treats such child resources before relying on it (undocumented as of 2026-11-05). F0-2 chose no shared resources for this app ([ADR-0005-data-storage](../adr/0005-data-storage.md)).
 - Environment-specific values live in `.bicepparam`. GitHub Actions signs in to Azure via OIDC (no stored credential); the app uses a managed identity with the narrowest built-in roles, assigned in Bicep.
 - **The Aspire AppHost models local orchestration only.** A change touching its resource graph includes an explicit "update Bicep" task.
-- **Decommissioning** (M8): delete the stack (removes every project-owned resource), then the manual parts — access to shared resources and this project's data in them, the deploy identity, the Entra registration.
-- Which resources exist and which of them are shared: F0-2 (Q3, Q4).
+- **Decommissioning** (M8): delete the stack (removes every project-owned resource), then the manual parts — purging the deleted Key Vault, the resource group, the deploy identity, the Entra registration.
+
+### Resources (decided in F0-2, 2026-11-05)
+
+Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md).
+
+| Resource | Who creates it | When |
+|---|---|---|
+| Resource group (the stack's scope) | by hand | M3 |
+| Deploy identity: federated credential for GitHub Actions + roles on the resource group | by hand | M3 |
+| Entra app registration (personal Microsoft accounts only, web redirect URIs) + 12-month client secret | by hand | M4 |
+| Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
+| Public container package on ghcr.io (made public once) | CD pushes; by hand once | C4 |
+| Container Apps environment (Consumption) + container app (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress), with a managed identity and Key Vault-backed secrets | Bicep | C4 |
+| Key Vault (RBAC), the app reads secrets | Bicep | C4 |
+| Storage account (shared-key access off): a blob container for the Data Protection keys (C6), then tables (C7 or its first slice) | Bicep | C6 |
+| Logic App (Consumption), the job's clock | Bicep | C9 |
+
+No container registry, no Cosmos DB, nothing shared with other projects. Monitoring (Application Insights) is not in v1; C4 may propose it.
 
 ## 6. OpenSpec
 
