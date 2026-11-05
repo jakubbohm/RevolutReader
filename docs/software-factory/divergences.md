@@ -51,11 +51,8 @@ Here ([docs/conventions/workflow.md § 9](../conventions/workflow.md#9-project-m
 Given up: no board view, and no links between work items and commits or PRs.
 *Switch back when:* the backlog outgrows the fixed plan, or a second contributor joins.
 
-**R-7 · One design mockup, for the account screen only**
-Full version: a Claude Design mockup and handoff for every UI-heavy change ([lessons.md R-7](lessons.md), DoseUp F-41).
-Here ([docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design), 2026-11-04): **one mockup, for the account detail screen (C7)** — the only real screen; the sign-in and other small UI are built directly.
-Given up: the sign-in and the small UI get no design review before they are built.
-*Switch back when:* the app gets more screens.
+**R-7 · Switched back (2026-11-05): every screen is designed before it is built**
+The cut-down version (one mockup, for the account screen only, 2026-11-04) was dropped before any UI existed: a design system and one Screens design now cover all UI ([docs/conventions/workflow.md § 8](../conventions/workflow.md#8-design), [lessons.md R-7](lessons.md)). Kept so the id is not reused.
 
 **R-8 · The signed-in user's PSU headers are sent without asking the provider**
 Full version: when losing bank access would be costly, ask the provider first whether someone other than the account holder counts as present, or stay within the unattended quota with stored data ([lessons.md R-8](lessons.md)).

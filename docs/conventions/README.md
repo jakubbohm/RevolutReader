@@ -63,5 +63,6 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
 - Stack from kickoff ch. 7: React + Vite + TypeScript PWA, Tailwind CSS, Radix Primitives.
 - **Radix stays behind the app's own components:** feature code never imports Radix directly, only the owned component layer does (ESLint `no-restricted-imports`, set up in C3), so the library stays swappable.
 - Wire payloads use the generated contract types only, never hand-written wire types.
-- UI text is Czech (kickoff ch. 8); code, comments and identifiers are English.
+- UI text is Czech (kickoff ch. 8); code, comments and identifiers are English. The one exception is the app's name, *Tarjeta papá*, which stays Spanish (the user, 2026-11-05).
+- The look comes from the design system ([workflow.md § 8](workflow.md#8-design)).
 - Nothing secret or environment-specific in `VITE_` variables ([configuration.md § Frontend](configuration.md#frontend)).
