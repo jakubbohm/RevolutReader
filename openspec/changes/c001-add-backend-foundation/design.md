@@ -317,6 +317,7 @@ Both scenarios are API acceptance tests (the default level). Nothing in C1 is ve
   - lesson R-29 *(Divergence from DoseUp)*: no default HTTP retries when an outside API counts requests;
   - lesson R-30 *(New)*: an IDE style rule gates the build only with an explicit severity in `.editorconfig`, even under `AnalysisLevel latest-all`. Prove the gate with a probe file instead of trusting the convention text. DoseUp's `.editorconfig` has the same missing severities (not verified there);
   - lesson R-31 *(New; reverses D2's first choice)*: a framework can map an anonymous route by itself (FastEndpoints ≤ 8.3 maps `_test_url_cache_`, which lists every endpoint), so "secure by default" needs the anonymous-endpoint check over the real endpoint list, not trust in the framework; C1 moved to the FastEndpoints 9 beta for it. DoseUp (8.2.0) should check;
+  - lesson R-32 *(New, found in close)*: the implementer's hook declared in its frontmatter never ran; registered in `.claude/settings.json` with an `agent_type` check, it does (testing.md § Test-first workflow);
   - inventory lines for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files.
 
 ## Risks / Trade-offs

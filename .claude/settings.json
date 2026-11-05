@@ -8,5 +8,20 @@
       "ClaudeInChromeDomain(tilisy-sandbox.enablebanking.com)",
       "ClaudeInChromeDomain(localhost)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/deny-test-edits.mjs"],
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
   }
 }

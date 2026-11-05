@@ -24,16 +24,16 @@ Before this list: the setup commit from design.md § Bootstrap (tools, generated
 
 ## 4. [close] Acceptance green
 
-- [ ] 4.1 All acceptance tests of this change pass, then the full suite including the traceability check. Verify: `dotnet test` exits 0
-- [ ] 4.2 Measure the cost of one app copy per test (time per acceptance test, from the test output) and record it with the date in docs/conventions/testing.md § Acceptance-test harness. Verify: the number is in the file; if it is too slow, propose the fallback named there to the user
-- [ ] 4.3 `aspire start`: the `api` resource reaches Healthy and `/health` answers in the browser; then `aspire stop`. Verify: `aspire describe` shows the resource healthy before stopping
-- [ ] 4.4 Hook check: resume I and have it try to write a probe file under `tests/RevolutReader.AcceptanceTests/Scenarios/`; the hook must block it (accept the workspace trust prompt first). Verify: I reports the block and `git status` shows no new file; record the result and date in docs/conventions/testing.md § Test-first workflow
-- [ ] 4.5 `CLAUDE.md`: replace "No code yet" with a Commands section holding the commands of design.md D10, in the exact form that worked. Verify: each command run once as written
-- [ ] 4.6 docs/conventions/README.md § Backend code: Result shape (D9), case → status table with the 404 row, no default HTTP retries (D5); mirror the short form in `.claude/rules/backend-code.md`. Verify: both files state the same rules
-- [ ] 4.7 docs/conventions/testing.md: `Conventions/` in § Where tests live; the per-requirement delta rule and the ignored archive in § Every scenario has exactly one test; the `Production` environment in § Acceptance-test harness; test commands now in `CLAUDE.md` (§ Decided later). Mirror in `.claude/rules/testing.md`. Verify: no statement in the two files contradicts design.md D6–D8
-- [ ] 4.8 docs/conventions/workflow.md § 3: add the `[setup]` row (one-time, C1: the solution before the first `/tdd-apply`, type `build`, committed by Claude). Verify: the table lists it
-- [ ] 4.9 Software factory: lessons R-28 to R-31 in docs/software-factory/lessons.md (design.md § Cross-cutting effects); inventory lines in docs/software-factory/creating-handover-package.md for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files. Verify: every new entry links to its source
-- [ ] 4.10 `pm/progress.md`: C1 row (status as the user decides, date, notes: measured cost, hook result, deviations). Verify: the row matches what was done
+- [x] 4.1 All acceptance tests of this change pass, then the full suite including the traceability check. Verify: `dotnet test` exits 0
+- [x] 4.2 Measure the cost of one app copy per test (time per acceptance test, from the test output) and record it with the date in docs/conventions/testing.md § Acceptance-test harness. Verify: the number is in the file; if it is too slow, propose the fallback named there to the user
+- [x] 4.3 `aspire start`: the `api` resource reaches Healthy and `/health` answers in the browser; then `aspire stop`. Verify: `aspire describe` shows the resource healthy before stopping
+- [x] 4.4 Hook check: resume I and have it try to write a probe file under `tests/RevolutReader.AcceptanceTests/Scenarios/`; the hook must block it (accept the workspace trust prompt first). Verify: I reports the block and `git status` shows no new file; record the result and date in docs/conventions/testing.md § Test-first workflow
+- [x] 4.5 `CLAUDE.md`: replace "No code yet" with a Commands section holding the commands of design.md D10, in the exact form that worked. Verify: each command run once as written
+- [x] 4.6 docs/conventions/README.md § Backend code: Result shape (D9), case → status table with the 404 row, no default HTTP retries (D5); mirror the short form in `.claude/rules/backend-code.md`. Verify: both files state the same rules
+- [x] 4.7 docs/conventions/testing.md: `Conventions/` in § Where tests live; the per-requirement delta rule and the ignored archive in § Every scenario has exactly one test; the `Production` environment in § Acceptance-test harness; test commands now in `CLAUDE.md` (§ Decided later). Mirror in `.claude/rules/testing.md`. Verify: no statement in the two files contradicts design.md D6–D8
+- [x] 4.8 docs/conventions/workflow.md § 3: add the `[setup]` row (one-time, C1: the solution before the first `/tdd-apply`, type `build`, committed by Claude). Verify: the table lists it
+- [x] 4.9 Software factory: lessons R-28 to R-32 in docs/software-factory/lessons.md (design.md § Cross-cutting effects); inventory lines in docs/software-factory/creating-handover-package.md for the traceability check, the anonymous-endpoint check, the acceptance harness base and the build-rule files. Verify: every new entry links to its source
+- [x] 4.10 `pm/progress.md`: C1 row (status as the user decides, date, notes: measured cost, hook result, deviations). Verify: the row matches what was done
 
 ## Workflow follow-up
 
