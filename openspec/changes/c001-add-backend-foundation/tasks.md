@@ -19,8 +19,8 @@ Before this list: the setup commit from design.md § Bootstrap (tools, generated
 
 ## 3. [wiring] Problem descriptions
 
-- [ ] 3.1 `AddProblemDetails` and `UseStatusCodePages` in `Program.cs` (design.md D4). Verify: `GET /api/no-such-address` against the app answers 404 `application/problem+json`
-- [ ] 3.2 `ApiDriver.GetProblem` replaces its stub: status, content type and body `status` checked, title mapped to `ProblemDescription`. Verify: the api-errors scenario runs against the app and passes
+- [x] 3.1 `AddProblemDetails` and `UseStatusCodePages` in `Program.cs` (design.md D4). Verify: `GET /api/no-such-address` against the app answers 404 `application/problem+json`
+- [x] 3.2 `ApiDriver.GetProblem` replaces its stub: status, content type and body `status` checked, title mapped to `ProblemDescription`. Verify: the api-errors scenario runs against the app and passes
 
 ## 4. [close] Acceptance green
 
