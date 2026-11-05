@@ -76,7 +76,7 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 | Resource group (the stack's scope) | by hand | M3 |
 | Deploy identity: user-assigned managed identity in the resource group, federated credential for GitHub Actions, Contributor + role assignments limited to the app's data roles, on the resource group | by hand | M3 |
 | GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
-| Entra app registration (personal Microsoft accounts only, web redirect URIs) + 12-month client secret | by hand | M4 |
+| Entra app registration (personal Microsoft accounts only, web redirect URIs; [entra-id.md](../operations/entra-id.md)) + 12-month client secret | by hand | M4; the secret in C6 |
 | Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
 | Public container package on ghcr.io (made public once) | CD pushes; by hand once | C4 |
 | Container Apps environment (Consumption) + container app (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress), with a managed identity and Key Vault-backed secrets | Bicep | C4 |

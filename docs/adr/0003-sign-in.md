@@ -1,6 +1,6 @@
 # ADR-0003: Sign-in — the backend signs users in and keeps a login cookie (BFF)
 
-**Status:** Accepted (the user's decision, 2026-11-05) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
+**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-05 in M4: the client secret is created in C6, not M4 (Decision, item 4) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
 
 > Findings verified on 2026-11-05 against the sources linked with each one.
 
@@ -50,7 +50,7 @@ Decided by the user, 2026-11-05:
    - HttpOnly and Secure, scoped to the app's own site;
    - **persistent with an expiry date** (because of the WebKit bug above);
    - **30 days, renewed while the app is used.**
-4. **The credential is a client secret valid for 12 months.** M4 creates it. It goes to Key Vault, and until Key Vault exists (C4) it stays on the owner's machine. It is listed with the expiring approvals.
+4. **The credential is a client secret valid for 12 months.** C6 creates it in its guided task, straight into Key Vault and the AppHost's user-secrets, so it never sits in a file and its 12 months start when it is first needed. It is listed with the expiring approvals. *(Amended by the user, 2026-11-05, in M4: originally M4 created it and kept it on the owner's machine until Key Vault existed.)*
 5. **Sign-in from the Home Screen app is tested on a real iPhone** (the owner's) on the deployed app in C6, before the handover (M5).
 
 ## Alternatives considered
@@ -66,11 +66,9 @@ Decided by the user, 2026-11-05:
 
 ## Consequences
 
-- **M4:**
-  - register the app with the web platform's redirect URIs (local, and production once C4 gives the URL);
-  - create the 12-month client secret, kept for Key Vault;
-  - update [expiring-approvals.md](../operations/expiring-approvals.md).
+- **M4:** register the app with the web platform's redirect URIs (local, and production once C4 gives the URL).
 - **C6:**
+  - a guided task creates the 12-month client secret straight into Key Vault and the AppHost's user-secrets, and adds it to [expiring-approvals.md](../operations/expiring-approvals.md);
   - the OpenID Connect and cookie handlers, the login and logout endpoints, and the allowlist check (Q1);
   - the manual check on the owner's iPhone, signing in from the Home Screen app;
   - if that fails, fall back in this order: open the sign-in via `window.open`, then hand the session to the app with a one-time code.

@@ -2,7 +2,7 @@
 
 > What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
-> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-05 (M3).
+> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-05 (M4).
 
 ## Overview
 
@@ -13,9 +13,9 @@
 | 3 | [Enable Banking application key](#3-enable-banking-application-and-key) | no expiry found (checked 2026-11-04) | only if lost or leaked | the Control Panel account |
 | — | API token (JWT) | 1 hour | nothing to do: signed for every request | — |
 
-Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)).
+Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)).
 
-**To be added by their steps** (do not guess them here): the Entra ID app registration and its 12-month client secret (M4), the secrets and the account allowlist in Key Vault (C4, C6), the VAPID keys for push (C8).
+**To be added by their steps** (do not guess them here): the app registration's 12-month client secret (C6), the secrets and the account allowlist in Key Vault (C4, C6), the VAPID keys for push (C8).
 
 ## 1. Enable Banking account link
 
