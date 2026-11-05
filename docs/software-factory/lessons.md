@@ -235,3 +235,16 @@ RevolutReader ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-
 
 What the project gives up: [divergences.md R-27](divergences.md).
 *Generalizes:* on a free budget, prefer the host whose always-on upgrade is cheapest and whose free tier has no hard cutoff. Price the idle-billing rules before planning time-based scaling. For a few fixed runs a day on a sleeping host, an external clock calling the app keeps one deployable and one process. The endpoint must be idempotent because the clock retries, which is critical when each run spends a rate-limited quota. Persist cookie-encryption keys on any host that recreates containers. For many timers or per-entity schedules, DoseUp's queue alarms win. Reverses toward an always-on host with an in-app scheduler when the budget allows (the simplest), and toward a separate job process when the work is long or heavy. *(Prices and limits verified 2026-11-05.)*
+
+**R-28 · What identity does the deploy pipeline use, and how narrow can its rights be when the infrastructure code also grants roles?** *(New — relates to DoseUp F-53)*
+Options:
+- identity: a service principal with a stored secret · an Entra app registration with a federated credential · a user-assigned managed identity with a federated credential;
+- rights: Owner on the resource group · Contributor + User Access Administrator · Contributor + Role Based Access Control Administrator with a condition naming the assignable roles.
+
+DoseUp: GitHub → Azure via OIDC federated credentials; the identity type and its roles are not recorded in the catalog.
+RevolutReader ([docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md), 2026-11-05): **a user-assigned managed identity in the app's resource group, trusted only for the repository's `production` environment, which deploys from `main` only; Contributor plus Role Based Access Control Administrator limited by a condition to the four data roles the Bicep grants.**
+- A managed identity can never hold a password and disappears with the resource group; a deployment stack leaves it alone because it deletes only what it manages.
+- **Gotcha:** GitHub repositories created after 2026-07-15 send an immutable OIDC subject, `repo:OWNER@OWNER-ID/REPO@REPO-ID:…`. Most guides still show `repo:OWNER/REPO:…`, which no longer matches. Read the repository's own prefix from its OIDC customization API before creating the credential.
+- **Gotcha:** an identity whose rights end at the resource group cannot register resource providers, a subscription-level action, so a new subscription needs them registered by hand.
+
+*Generalizes:* give the pipeline a keyless identity whose lifetime matches the project's resources, and when the infrastructure code assigns roles, delegate role assignment with a condition naming exactly the roles it grants, never Owner. The cost is one manual step whenever a new role is needed. Reverses toward Owner on the group only for a throwaway sandbox. *(GitHub and Azure behaviour verified 2026-11-05.)*

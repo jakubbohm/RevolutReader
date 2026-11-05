@@ -2,3 +2,4 @@
 - [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next
 - [Factory gets the full version](factory-gets-full-version.md) — project simplifications are exceptions; software-factory entries keep the full approach as default
 - [Ask "done?" before committing](ask-done-before-commit.md) — at the end of a step, ask whether it is done so the status update goes into the same commit
+- [Git Bash rewrites /paths for az](git-bash-az-path-conversion.md) — use MSYS_NO_PATHCONV=1 for --scope /subscriptions/...; always pass --subscription

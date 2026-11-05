@@ -22,7 +22,7 @@
 | C1 | `cNNN-add-backend-foundation` | todo | — | — | |
 | C2 | `cNNN-add-ci-pipeline` | todo | — | — | |
 | C3 | `cNNN-add-frontend-foundation` | todo | — | — | |
-| M3 | Azure prerequisites for v1 | todo | — | — | |
+| M3 | Azure prerequisites for v1 | done | — | 2026-11-05 | In the owner's personal subscription; identifiers, rationale, commands and checks: [docs/operations/azure-prerequisites.md](../docs/operations/azure-prerequisites.md). Registered the Key Vault and Logic Apps providers; resource group `rg-revolutreader` (Germany West Central); deploy identity = user-assigned managed identity `id-revolutreader-deploy` with a federated credential for the `production` environment (GitHub's immutable subject format for repositories created after 2026-07-15); Contributor + Role Based Access Control Administrator limited to four data roles, on the resource group only; GitHub environment `production` (deploys from `main` only) with the four Azure variables. Software factory R-28. Closed by the user. Follow-ups: C4's first deploy is the first real login (if it fails, fix the subject per azure-prerequisites.md § Checks); a role beyond the four needs a manual change to the condition |
 | C4 | `cNNN-add-deployment-pipeline` | todo | — | — | |
 | M4 | Entra ID | todo | — | — | |
 | C5 | `cNNN-add-enable-banking-adapter` | todo | — | — | |
