@@ -177,8 +177,8 @@ The owner ran workflow.md § 8's loop on 2026-11-06: design system version 17939
 
 ## 26. [close] Acceptance green
 
-- [ ] 26.1 All of this change's tests pass (the two page scenarios, the four frontend scenarios, the unit tests of slices 2 and 8), then the full suite and the traceability check. Verify: `dotnet test` and `npm --prefix src/RevolutReader.Web test` both exit 0
-- [ ] 26.2 `pm/progress.md`: C3 row (status as the user decides, date, notes: the local checks, deviations). Verify: the row matches what was done
+- [x] 26.1 All of this change's tests pass (the two page scenarios, the four frontend scenarios, the unit tests of slices 2 and 8), then the full suite and the traceability check. Verify: `dotnet test` and `npm --prefix src/RevolutReader.Web test` both exit 0
+- [x] 26.2 `pm/progress.md`: C3 row (status as the user decides, date, notes: the local checks, deviations). Verify: the row matches what was done
 
 ## Workflow follow-up
 
