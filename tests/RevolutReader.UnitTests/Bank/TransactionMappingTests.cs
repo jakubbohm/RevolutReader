@@ -112,6 +112,49 @@ public sealed class TransactionMappingTests {
     }
   }
 
+  // Transactions that cannot be read: a bug or a changed answer, never a result (D4), and never quoting the bank (D5)
+
+  [Test]
+  [Arguments("12x34.56")]
+  [Arguments("")]
+  public void A_transaction_whose_amount_is_not_a_number_is_an_error_and_the_message_does_not_contain_it(string amount) {
+    EbTransaction transaction = BookedPayment() with { TransactionAmount = new("EUR", amount) };
+
+    BankReadException error = Should.Throw<BankReadException>(() => TransactionMapping.Map([transaction]));
+
+    ShouldCarryNoBankData(error, transaction);
+  }
+
+  [Test]
+  public void A_transaction_without_any_date_is_an_error() {
+    EbTransaction transaction = BookedPayment() with { TransactionDate = null, BookingDate = null, ValueDate = null };
+
+    BankReadException error = Should.Throw<BankReadException>(() => TransactionMapping.Map([transaction]));
+
+    ShouldCarryNoBankData(error, transaction);
+  }
+
+  /// <param name="indicator">The bank's <c>credit_debit_indicator</c>: missing, empty, or a value that is neither DBIT nor CRDT.</param>
+  [Test]
+  [Arguments("missing")]
+  [Arguments("empty")]
+  [Arguments("unknown")]
+  public void A_transaction_that_is_neither_money_spent_nor_money_received_is_an_error(string indicator) {
+    string? creditDebitIndicator = indicator switch {
+      "missing" => null,
+      "empty" => "",
+      "unknown" => "XXXX",
+      _ => throw new ArgumentOutOfRangeException(nameof(indicator), indicator, "Not a known case."),
+    };
+
+    // A missing indicator reaches the record as null, whatever its annotation: System.Text.Json does not enforce it.
+    EbTransaction transaction = BookedPayment() with { CreditDebitIndicator = creditDebitIndicator! };
+
+    BankReadException error = Should.Throw<BankReadException>(() => TransactionMapping.Map([transaction]));
+
+    ShouldCarryNoBankData(error, transaction, creditDebitIndicator);
+  }
+
   /// <summary>A booked payment of 12.30 EUR to "Pekárna U Lípy", booked and valued on 3 November; each test changes what it is about.</summary>
   private static EbTransaction BookedPayment() => new(
     EntryReference: "e-101",
@@ -127,4 +170,22 @@ public sealed class TransactionMappingTests {
 
   /// <summary>The one transaction the mapping keeps from a list of one.</summary>
   private static BankTransaction MapOne(EbTransaction transaction) => TransactionMapping.Map([transaction]).Kept.ShouldHaveSingleItem();
+
+  /// <summary>
+  /// The error as it would be logged (message, inner exceptions, stack trace, as in BalanceSelectionTests) holds none of
+  /// the transaction's bank data: amount, currency, reference, counterparties, details, and whatever else the test names.
+  /// </summary>
+  private static void ShouldCarryNoBankData(BankReadException error, EbTransaction transaction, params string?[] more) {
+    string[] bankData = [
+      .. new[] { transaction.TransactionAmount.Amount, transaction.TransactionAmount.Currency, transaction.EntryReference, transaction.Creditor?.Name, transaction.Debtor?.Name }
+        .Concat(transaction.RemittanceInformation ?? [])
+        .Concat(more)
+        .OfType<string>()
+        .Where(static value => value.Length > 0),
+    ];
+
+    string text = error.ToString();
+
+    bankData.ShouldAllBe(value => !text.Contains(value, StringComparison.Ordinal), "the error carries no bank data from the transaction");
+  }
 }
