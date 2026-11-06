@@ -41,10 +41,10 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 4. [unit] Slice 2 — The install-hint rule
 
-- [ ] 4.1 An iPhone Safari tab needs the install hint
-- [ ] 4.2 Another browser tab on an iPhone needs the install hint too
-- [ ] 4.3 The app opened from the Home Screen needs no install hint
-- [ ] 4.4 An iPad, an Android phone or a computer needs no install hint
+- [x] 4.1 An iPhone Safari tab needs the install hint
+- [x] 4.2 Another browser tab on an iPhone needs the install hint too
+- [x] 4.3 The app opened from the Home Screen needs no install hint
+- [x] 4.4 An iPad, an Android phone or a computer needs no install hint
 
 ## 5. [wiring] Slice 2 — The install-hint screen
 

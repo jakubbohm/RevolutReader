@@ -16,8 +16,11 @@ export function readDevice(browser: Window): Device {
   };
 }
 
-/** Whether the app shows only the install hint: on an iPhone, in a browser tab rather than the Home Screen app (c003 design.md D8). */
+/**
+ * Whether the app shows only the install hint: on an iPhone, in a browser tab rather than the Home Screen app
+ * (c003 design.md D8). Every iPhone browser counts, not only Safari: none of them gets push or the Home Screen app's
+ * sign-in. An iPad reports itself as a Mac, so it gets the app, as do Android phones and computers.
+ */
 export function needsInstallHint(device: Device): boolean {
-  void device;
-  throw new Error("Not implemented: needsInstallHint");
+  return device.userAgent.includes("iPhone") && !device.standalone;
 }
