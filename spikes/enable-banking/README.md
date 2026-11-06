@@ -1,6 +1,6 @@
 # Spike: Enable Banking setup and Revolut link (M1)
 
-**Roadmap:** M1 · **Started:** 2026-11-04 · **Verdict:** yes, 2026-11-04 (see § Verdict) · **Decision record:** [ADR-0001-bank-data-access](../../docs/adr/0001-bank-data-access.md)
+**Roadmap:** M1 · **Started:** 2026-11-04 · **Verdict:** yes, 2026-11-04 (see § Verdict) · **Decision record:** [ADR-0001-bank-data-access](../../docs/adr/0001-bank-data-access.md) · **Follow-up:** step 7, for issue [#12](https://github.com/jakubbohm/RevolutReader/issues/12) (2026-11-06)
 
 ## Question
 
@@ -16,6 +16,7 @@ Can we get a working Enable Banking application in restricted (personal-use) mod
 | 4 | Link the Revolut account in the Control Panel ("Activate by linking accounts"), which activates restricted mode. Country: Lithuania (Czechia is not offered; Revolut's EU bank is Revolut Bank UAB, Lithuania), type: personal | user (SCA in the Revolut app) | yes | done 2026-11-04 |
 | 5 | Authorise an API session (`POST /auth` → SCA → `POST /sessions`) and record the actual `valid_until`. Right after the approval, download the transaction history since 2026-08-09 into `secrets/` ([ADR-0001 § Decision](../../docs/adr/0001-bank-data-access.md#decision), item 6). **Before about 2026-11-07** | script + user (SCA) | yes | done 2026-11-04 |
 | 6 | Smoke test with the owner's own PSU headers: 6 balance reads (more than the 4 unattended) and one recent-transactions read; record only status codes, balance types and counts | script | yes | done 2026-11-04 |
+| 7 | After M1, for issue [#12](https://github.com/jakubbohm/RevolutReader/issues/12) (the phone triggers the account check when a Revolut notification arrives): how soon after the notification the change shows up in Enable Banking, and whether a card payment appears as pending at once. The owner makes a small payment on the account and marks the moment the notification appears; the script reads the balance and the last 2 days' transactions every 20 s with the owner's PSU headers and records only offsets and counts | script + user (a payment) | yes | done 2026-11-06 |
 
 ## Scripts
 
@@ -28,6 +29,7 @@ PowerShell 7, run from the repository root.
 | `create-session.ps1` | 5 | Requests a session lasting Revolut's maximum minus 1 hour (`POST /auth`) and opens the approval page. You approve in the Revolut app and paste the redirected `https://localhost/callback?...` address back, and the script creates the session (`POST /sessions`). The session ID and account UIDs are stored only in `secrets/session.json`; a redacted summary goes to `evidence/<date>-session.json`. Right after that it runs `export-history.ps1`, then checks the session status and that the application is still active. It needs you at the keyboard, so run it in your own PowerShell 7 window: `pwsh -NoProfile -File spikes/enable-banking/create-session.ps1 -HistoryStart 2026-08-09`. `-HistoryStart` (local date, default 2026-08-09) is passed to `export-history.ps1` |
 | `export-history.ps1` | 5 | Downloads all transactions since `-HistoryStart` (local date, default 2026-08-09; requested from one day earlier, because Enable Banking reads dates as UTC), page by page, into `secrets/transactions-<date>.json`, exactly as sent. It prints and records in `evidence/<date>-history-export.json` only counts by status, settled transactions without `entry_reference`, duplicate references, and field names; the date range is printed but not recorded. Fallback if the download inside `create-session.ps1` fails: run it on its own while the start date is within the last 90 days, `pwsh -NoProfile -File spikes/enable-banking/export-history.ps1 -HistoryStart 2026-08-09` |
 | `smoke-test.ps1` | 6 | Reads the balance 6 times and the last 7 days of transactions, all with the owner's real PSU headers: the public IP from `api.ipify.org`, which is sent only to Enable Banking and never printed or saved, and the script's user agent. Prints and records in `evidence/<date>-smoke-test.json` only status codes, error codes, balance types and counts. Run: `pwsh -NoProfile -File spikes/enable-banking/smoke-test.ps1` |
+| `watch-change.ps1` | 7 | Takes a first reading of the balance and the last 2 days' transactions, then reads both every 20 s with the owner's real PSU headers (as in `smoke-test.ps1`). Press Enter the moment the Revolut notification appears and Q to stop early. It stops on its own 15 min after the notification, once the balance has changed and a booked transaction has appeared, or at the first error. For each change (balance, or the count of pending `PDNG` or booked `BOOK` transactions) it prints the window it happened in, e.g. "PDNG 0->1 between 3 s and 23 s" after the notification. The balance is compared in memory only, never printed, saved or hashed. `evidence/<date>-watch-change.json` holds only offsets, status codes, error codes and counts; neither the time of day nor the PSU header values are recorded. It waits for key presses, so run it in your own PowerShell 7 window: `pwsh -NoProfile -File spikes/enable-banking/watch-change.ps1` (`-IntervalSeconds`, `-MaxMinutes`, `-RecentDays`; `-SecretsDir <folder>` when the key and `session.json` are not in this copy's `secrets/`, e.g. when running it from a worktree) |
 
 ## Identifiers (non-secret)
 
@@ -71,7 +73,15 @@ Kept in `secrets/` (gitignored, along with `*.pem` and `*.key`) on the owner's m
   - **6 balance reads in a row all returned HTTP 200**, more than the 4 unattended reads a day. Reads with the user present are not capped at 4 (no control run without headers was made).
   - One balance came back, type `ITAV` (available balance). C5 checks once that it matches the Revolut app.
   - Recent transactions since 2026-10-28: HTTP 200, 23 in one page, all settled; again no pending transactions.
+- **2026-11-06, step 7** ([evidence](evidence/2026-11-06-watch-change.json)): one small card payment by the owner, 47 readings 20 s apart with the owner's PSU headers (94 API calls in about 16 minutes), all HTTP 200.
+  - **The change was already in Enable Banking when the notification appeared.** The balance and the number of pending transactions (3 → 4) changed between 22 s and 2 s *before* the owner pressed Enter at the notification. With readings 20 s apart and the owner's reaction time, the data is there no later than the notification.
+  - **A card payment shows up at once as pending (`PDNG`), and the balance changes with it.** It was not settled within 15 minutes (`BOOK` unchanged), as expected for a card payment.
+  - **Revolut does return pending transactions through Enable Banking:** 3 were there at the start (steps 5 and 6 saw none).
+  - No rate limit was hit by 94 calls with the owner's PSU headers within 16 minutes.
+  - For C9 (one sample): the check endpoint can read once, right when the Shortcut calls it; it needs no repeated reads to catch a card payment. A transfer coming in was not measured.
 
 ## Verdict
 
 **2026-11-04: yes.** The application is active in restricted mode. The API session runs until 2027-05-03. The history since 2026-08-09 is saved locally. Live reads with the user present work beyond the 4-a-day limit. To keep: renew the Control Panel link every 30 days (M9). Every expiring approval: [docs/operations/expiring-approvals.md](../../docs/operations/expiring-approvals.md). M1 closed by the user on 2026-11-04.
+
+**Step 7, 2026-11-06:** a card payment is visible in Enable Banking (balance and a new pending transaction) by the time its Revolut notification appears, so a check triggered by the notification finds it on the first read (issue [#12](https://github.com/jakubbohm/RevolutReader/issues/12)).

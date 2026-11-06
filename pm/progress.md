@@ -30,7 +30,7 @@
 | C7 | `cNNN-add-account-detail` (UC2) | todo | — | — | |
 | M5 | Handover v1 | todo | — | — | |
 | C8 | `cNNN-add-push-subscriptions` (UC3, part 1) | todo | — | — | |
-| C9 | `cNNN-add-account-change-notifications` (UC3, part 2) | todo | — | — | Scope changed 2026-11-05: the owner's iPhone triggers the check instead of 4 runs a day ([#12](https://github.com/jakubbohm/RevolutReader/issues/12), change log). Before C9: the phone test in #12 |
+| C9 | `cNNN-add-account-change-notifications` (UC3, part 2) | todo | — | — | Scope changed 2026-11-05: the owner's iPhone triggers the check instead of 4 runs a day ([#12](https://github.com/jakubbohm/RevolutReader/issues/12), change log). Phone test in #12 done 2026-11-06: the automation fires at once, even on a locked phone, with no text filter (the owner's choice), and a card payment is already readable in Enable Banking when its notification appears ([M1 spike, step 7](../spikes/enable-banking/README.md)) |
 | M7 | Handover v2 | todo | — | — | |
 | C10 | `cNNN-add-consent-renewal` (conditional) | todo | — | — | Needed only if the Q5 findings require it |
 | M9 | Renew the Enable Banking account link (conditional, dated) | todo | — | — | **Needed. Deadline 2026-12-03** (the link expires 2026-12-04), then every 30 days. M1: the link stayed active next to the API session, so whether API access depends on it is unknown. How: [docs/operations/expiring-approvals.md § 1](../docs/operations/expiring-approvals.md#1-enable-banking-account-link) |
