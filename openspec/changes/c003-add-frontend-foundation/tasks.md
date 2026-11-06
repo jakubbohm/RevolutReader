@@ -133,8 +133,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 20. [close] Slice 9 — The Home Screen shows the app's icon and name
 
-- [ ] 20.1 Local check in Chrome against the API serving the real build: DevTools → Application → Manifest shows the name and the icons with no errors, and Chrome offers to install the app. Record it in `.tdd-state.md`; the iPhone check stays the manual row (M5). Verify: the result is recorded
-- [ ] 20.2 Docs:
+- [x] 20.1 Local check in Chrome against the API serving the real build: DevTools → Application → Manifest shows the name and the icons with no errors, and Chrome offers to install the app. Record it in `.tdd-state.md`; the iPhone check stays the manual row (M5). Verify: the result is recorded
+- [x] 20.2 Docs:
   - workflow.md § 8 and `.claude/rules/design.md`: the three-part rule for design files (design.md D10);
   - a line added to lesson R-7;
   - an inventory line for the icon and launch-image script config.
