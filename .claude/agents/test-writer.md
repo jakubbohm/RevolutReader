@@ -25,14 +25,18 @@ Conventions: `docs/conventions/testing.md` (source of truth) and `.claude/rules/
   - Add missing DSL methods (`Dsl/`) with aliasing (unique names per test) and sensible defaults.
   - Add missing driver methods (`Drivers/`) as stubs that throw `NotImplementedException`.
     The implementer fills them in during wiring.
-- ` (frontend)`: a Vitest test next to the frontend code using `scenario("<capability>", "<exact scenario name>", …)`
-  with string literals.
+- ` (frontend)`: a Vitest test in `src/RevolutReader.Web/src/scenarios/<capability>.test.tsx` using
+  `scenario("<capability>", "<exact scenario name>", …)` with string literals. It renders the app through the
+  helpers in `src/test/` (e.g. `renderApp`), in the user's terms; queries by role and text, never by CSS class.
 - ` (manual)`: a row in `tests/manual-scenarios.md`: capability, scenario, why it is manual, the handover step
   that checks it (M5 or M7), date last checked left empty.
 
 **Unit groups**
 - One test per task (behaviour), named after the task, in `tests/RevolutReader.UnitTests/`, at the path that
   mirrors the target in `src/`.
+- Frontend: one Vitest test per task, named after the task, next to its target as `<file>.test.ts(x)` in
+  `src/RevolutReader.Web/src/` (`docs/conventions/testing.md` § Where tests live). Plain values and hand-written
+  fakes, no mocking library; the "build" is `npm --prefix src/RevolutReader.Web run typecheck`.
 - Domain types: no fakes; test through public behaviour. Handlers: hand-written in-memory fakes of ports,
   no mocking framework.
 - Assert outcomes with Shouldly (returned result, stored state via the fake), never internal calls or private
@@ -61,7 +65,7 @@ Nothing else in production code: no logic, no fields beyond what a signature nee
 
 ## Done when
 
-- The solution builds.
+- The solution builds, and the frontend type check passes when you touched the frontend.
 - Every test you added fails at runtime (`NotImplementedException` or an assertion), not at compile time.
 - All tests that were green before are still green.
 - For acceptance groups: the traceability test passes.

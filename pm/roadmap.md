@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning — see the change log in `pm/progress.md`)
 
 ---
 
@@ -160,10 +160,10 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Outputs:** archived change; CI passing on GitHub; the rule on `main` in place, checked by a PR whose CI fails and cannot be merged.
 - **Open questions:** —
 
-### C3 — `cNNN-add-frontend-foundation`
+### C3 — `c003-add-frontend-foundation`
 
 - **Type:** OpenSpec change
-- **Goal:** Set up the frontend: Vite + React + TypeScript, Tailwind CSS, Radix Primitives behind the app's own components, ESLint + Prettier, the generated API client (openapi-typescript + openapi-fetch), PWA basics (manifest, service worker, installability) and test infrastructure (Vitest, with the `scenario(...)` helper and the traceability test reading it — [testing.md § Every scenario has exactly one test](../docs/conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check)). Integrate it into Aspire (Vite dev server with `/api` forwarding) and serve it from the backend ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)); no sign-in library ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)). Add the frontend build, checks and tests to CI. The look comes from the design system ([workflow.md § 8](../docs/conventions/workflow.md#8-design)): the Tailwind theme from its tokens, the app shell and the app icon; later changes build the components their screens need.
+- **Goal:** Set up the frontend: Vite + React + TypeScript 7, Tailwind CSS, the oxlint rule that keeps Radix Primitives behind the app's own components, oxlint + Prettier (not ESLint, change log 2026-11-06), PWA basics (manifest, service worker, installability, the install hint in an iPhone browser tab) and test infrastructure (Vitest, with the `scenario(...)` helper and the traceability test reading it — [testing.md § Every scenario has exactly one test](../docs/conventions/testing.md#every-scenario-has-exactly-one-test-the-traceability-check)). Integrate it into Aspire (Vite dev server with `/api` forwarding) and serve it from the backend ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)); no sign-in library ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)). Add the frontend build, checks and tests to CI. The generated API client moved to C6 (change log 2026-11-06). The look comes from the design system ([workflow.md § 8](../docs/conventions/workflow.md#8-design)): the Tailwind theme from its tokens, the app shell and the app icon; later changes build the components their screens need.
 - **Depends on:** C1, C2
 - **Inputs:** kickoff ch. 2, 6, 7, 10 (Q10); the knowledge base; F0-2 decisions (Q2, Q3, Q9); the design system ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Outputs:** archived change; a running PWA shell with the basis for the Czech UI; CI covering the frontend.
@@ -209,7 +209,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### C6 — `cNNN-add-user-login` (UC1)
 
 - **Type:** OpenSpec change
-- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user. Sign-in is the backend's login cookie ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)) checked against the email allowlist ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md)). The change also adds the app's storage account with a blob container for the cookie's Data Protection keys, so a wake from zero does not sign users out ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A guided task creates the 12-month client secret on the M4 app registration, straight into Key Vault and the AppHost's user-secrets, together with the allowlist. It ends with the manual check of signing in from the Home Screen app on the owner's iPhone.
+- **Goal:** UC1 end to end. A user signs in with a Microsoft account; only allowed accounts get through and everyone else is rejected. After sign-in, the (still empty) account detail page is shown. Backend endpoints require a signed-in, allowed user. Sign-in is the backend's login cookie ([ADR-0003-sign-in](../docs/adr/0003-sign-in.md)) checked against the email allowlist ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md)). It brings the generated API client, moved here from C3 (change log 2026-11-06): the FastEndpoints OpenAPI export, openapi-typescript (run with its own TypeScript 5, because the frontend is on TypeScript 7) and openapi-fetch, with the CI drift check ([README.md § API contract](../docs/conventions/README.md#api-contract)). The change also adds the app's storage account with a blob container for the cookie's Data Protection keys, so a wake from zero does not sign users out ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A guided task creates the 12-month client secret on the M4 app registration, straight into Key Vault and the AppHost's user-secrets, together with the allowlist. It ends with the manual check of signing in from the Home Screen app on the owner's iPhone.
 - **Depends on:** C3, M4
 - **Inputs:** kickoff ch. 4, 5 (UC1); F0-2 decisions (Q1, Q2); identifiers from M4; the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Outputs:** archived change; sign-in working locally and, after deployment, on Azure; BDD scenarios for allowed and rejected users.

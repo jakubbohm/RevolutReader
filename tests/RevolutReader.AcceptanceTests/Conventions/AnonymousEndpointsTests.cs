@@ -15,6 +15,9 @@ public sealed class AnonymousEndpointsTests : AcceptanceTest {
   /// <summary>Endpoints that answer without sign-in, as <c>"METHOD /route"</c>.</summary>
   private static readonly string[] _allowlist = [
     "GET /health",
+    // The page fallback: every page address outside /api gets the app's page, which needs no sign-in (c003 design.md D5).
+    "GET /{*path:regex(^(?!api(/|$)).*$):nonfile}",
+    "HEAD /{*path:regex(^(?!api(/|$)).*$):nonfile}",
   ];
 
   [Test]

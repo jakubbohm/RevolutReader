@@ -39,7 +39,7 @@
   | Step | Commit | Type | Committed by |
   |---|---|---|---|
   | `[plan]` | change artifacts created or changed (propose, new, continue, ff; a spec or design fix after a dispute) | `docs` | Claude, when the user approves the artifacts |
-  | `[setup]` | one-time (C1): the solution, projects and build rules before the first `/tdd-apply`, so it starts from a green build | `build` | Claude, after the user approves the artifacts |
+  | `[setup]` | once per stack, before its first `/tdd-apply`, so the loop starts from a green build: C1 the solution, projects and build rules; C3 the frontend project and its tools | `build` | Claude, after the user approves the artifacts |
   | `[accept]` | the change's acceptance tests, failing | `test` | orchestrator, after the user's review |
   | `[red]` | one group's failing tests by the test-writer (also its fixes after a dispute) | `test` | orchestrator |
   | `[green]` | the implementer made that group pass | `feat` / `fix` | orchestrator |
@@ -64,8 +64,9 @@
   |---|---|---|---|
   | `build-and-test` | [ci.yml](../../.github/workflows/ci.yml) | Builds the solution and runs all three test projects, the traceability check included. Analyzer and layout errors fail the build, so formatting needs no check of its own. | C2 |
   | `pr-title` | [pr-title.yml](../../.github/workflows/pr-title.yml) | The PR title is a Conventional Commit (§ 3). | C2 |
+  | `frontend` | [ci.yml](../../.github/workflows/ci.yml) | In `src/RevolutReader.Web`: a clean install from the lock file, then Prettier's check, lint, the type check, the tests and the production build. | C3 |
 
-  C3 (frontend) and C4 (deployment) add theirs; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
+  C4 (deployment) adds its own; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
 - **No path or branch filters on a required workflow:** a required check that never runs stays "pending" and blocks the merge. To skip work, use a job-level `if:` (a job skipped that way reports success).
 - **No security scanning** (CodeQL, dependency review), on purpose ([divergences.md R-35](../software-factory/divergences.md)).
 
@@ -170,8 +171,13 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
   | A text, a behaviour or a bug fix with no visual change | — | as usual |
 
   Another Design artifact is made only for something that is not this app's UI.
-- **The owner edits the artifacts in Claude; Claude Code only reads them,** by the links above with its Artifact tool, signed in as the owner. Nothing is exported or downloaded into the repository. A step that builds UI from the design as it is reads the design system and its artboards before proposing or coding; nothing changes in Claude. In `/tdd-apply`, the implementer subagent cannot open artifacts, so the orchestrator reads the files into the session's scratchpad and hands it their paths. When the owner asks Claude Code for a visual change, Claude Code points to the design system first, so the code and later screen designs do not drift apart, and walks the owner through the steps above, writing the prompt for the change itself.
+- **The owner edits the artifacts in Claude; Claude Code only reads them,** by the links above with its Artifact tool, signed in as the owner. Only the files the app ships are copied into the repository (the next bullet). A step that builds UI from the design as it is reads the design system and its artboards before proposing or coding; nothing changes in Claude. In `/tdd-apply`, the implementer subagent cannot open artifacts, so the orchestrator reads the files into the session's scratchpad and hands it their paths. When the owner asks Claude Code for a visual change, Claude Code points to the design system first, so the code and later screen designs do not drift apart, and walks the owner through the steps above, writing the prompt for the change itself.
 - **For the look, the design wins; for behaviour, the specs win.** A change translates the design into the repo's own Tailwind theme and components ([README.md § Frontend](README.md#frontend)). The design system's reference components are a model, never committed as they are. A genuinely new token or component is flagged in the change's design as a decision.
+- **Three kinds of design files** (decided in C3, [c003 design.md D10](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06):
+  - **Copied and committed as they are:** the files the app ships, such as the app icon, images and logos. The icon is `src/RevolutReader.Web/public/app-icon.svg`, byte for byte the design system's asset. The PNG sizes the phone needs are made from it by `npm run icons` and committed as well; the build never runs that tool.
+  - **Translated, not copied:** the tokens (into the app's Tailwind theme), the components (rebuilt with Tailwind utilities), the number and date formats.
+  - **Never copied:** the reference components' code, the screens, the sample data, the guidelines.
+  - A changed asset arrives through the loop above like any other design change; Claude Code copies the new file and regenerates the PNGs.
 
 ## 9. Project management
 

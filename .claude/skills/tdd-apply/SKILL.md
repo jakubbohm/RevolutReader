@@ -33,8 +33,11 @@ Arguments: `$ARGUMENTS`
 4. Check `tasks.md` follows the group structure from `openspec/config.yaml`
    (`[acceptance]`, `[unit]`, `[integration]`, `[wiring]`, `[close]`; slices for changes with more than
    3 scenarios). If not, stop and ask the human to regenerate the tasks.
-5. Run the full test suite once. Record the baseline. If anything is already red, stop and report;
-   do not start on a red baseline.
+5. Run the full test suite once (`CLAUDE.md` § Commands: `dotnet test` and the frontend tests). Record the
+   baseline. If anything is already red, stop and report; do not start on a red baseline. One red is
+   expected: the repository traceability check reporting "Not claimed" for exactly this change's own
+   scenarios, which group 1 claims. Anything more is a red baseline. A change's `design.md` may name one
+   more accepted exception, for its first run only (c003: the frontend has no test files yet).
 6. Create or read `openspec/changes/<change>/.tdd-state.md`. It holds: agent IDs of T and I, current group,
    review mode, the list of this change's acceptance tests, open disputes, the last commit per step.
    **Write the agent IDs there as soon as you spawn each agent.** If your context is compacted,
@@ -145,6 +148,13 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
 5. Tick the `[close]` tasks, commit `feat(<cNNN>): [close] acceptance green`, and report to the human: groups
    done, disputes and how they were resolved, any spec/design changes, and that the change is ready for
    `/opsx:archive`.
+
+## Frontend groups
+
+A group whose tests are Vitest tests (`src/RevolutReader.Web/`) follows the same loops. There, "builds" means
+`npm --prefix src/RevolutReader.Web run typecheck` passes, lint (`run lint`) stays clean, and "the tests" are
+`npm --prefix src/RevolutReader.Web test` next to `dotnet test`. A new frontend test fails at runtime: an
+assertion, or a stub that throws.
 
 ## Rules for you (O)
 

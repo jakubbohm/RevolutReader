@@ -19,8 +19,8 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
 - **The build is the format gate:** layout violations are IDE0055 build errors (`EnforceCodeStyleInBuild` + `TreatWarningsAsErrors`). Fixer: `dotnet format whitespace <solution>`. Format-on-save comes from the committed `.vscode/settings.json`.
 - **Line width:** soft ~200 characters, deliberately unenforced. A statement that fits stays on one line; a line break expresses structure (a fluent chain, one condition per line), never a printer's default.
 - **One-line blocks carry no braces;** the statement sits on the next line, indented. Enforced in both directions: Roslynator RCS1002 removes braces (the only Roslynator rule enabled), IDE0011 (`csharp_prefer_braces = when_multiline`) adds them on multi-line bodies.
-- **TypeScript/React:** ESLint + Prettier, Prettier's style taken as is; CI checks format, lint and `tsc` (set up in C3).
-- **Line endings:** `.gitattributes` normalizes text and forces CRLF for `*.cs`, so Linux CI checkouts match `.editorconfig`.
+- **TypeScript/React:** TypeScript 7, **oxlint + Prettier** (not ESLint; the user, 2026-11-06, c003 design.md D3). Prettier's style is taken as is (`.prettierrc.json` is `{}`), oxlint runs with `--deny-warnings`, and the type check is `tsc -b`. CI checks all three (the `frontend` job). Why not ESLint: typescript-eslint supports TypeScript below 6.1 only, and TypeScript 7 has no classic compiler API; a tool that needs that API (C6's openapi-typescript) runs with its own TypeScript 5 copy.
+- **Line endings:** `.gitattributes` normalizes text and forces CRLF for `*.cs`, so Linux CI checkouts match `.editorconfig`. It forces LF for `src/RevolutReader.Web/**`, Prettier's line ending, so its check agrees on Windows and Linux. PNGs are marked `binary` after that line: as text, their bytes would be rewritten on commit. A new binary type in the frontend folder (e.g. a font) needs the same line.
 - No pre-commit hooks: on-save, on-build and CI cover formatting.
 
 ## Static analysis
@@ -60,8 +60,9 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
 
 ## Frontend
 
-- Stack from kickoff ch. 7: React + Vite + TypeScript PWA, Tailwind CSS, Radix Primitives.
-- **Radix stays behind the app's own components:** feature code never imports Radix directly, only the owned component layer does (ESLint `no-restricted-imports`, set up in C3), so the library stays swappable.
+- Stack from kickoff ch. 7: React + Vite + TypeScript PWA, Tailwind CSS, Radix Primitives. The app lives in `src/RevolutReader.Web/`, run by npm (c003 design.md D1).
+- **Radix stays behind the app's own components:** feature code never imports Radix directly, only the owned component layer in `src/components/` does (oxlint `no-restricted-imports` in `.oxlintrc.json`, with an override for `src/components/**`), so the library stays swappable.
+- **Czech texts sit in the components;** the UI has one language, so there's no i18n library.
 - Wire payloads use the generated contract types only, never hand-written wire types.
 - UI text is Czech (kickoff ch. 8); code, comments and identifiers are English. The one exception is the app's name, *Tarjeta Papá* (exactly so: capital P, with the accent), which stays Spanish (the user, 2026-11-05).
 - The look comes from the design system ([workflow.md § 8](workflow.md#8-design)).

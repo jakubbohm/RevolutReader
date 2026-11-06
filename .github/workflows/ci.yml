@@ -1,6 +1,7 @@
-# Builds the solution and runs all tests on every pull request (c002 design.md D2, D8).
-# The job name `build-and-test` is a required check in the ruleset on main
-# (docs/operations/main-ruleset.json): renaming it means updating the ruleset in the same PR.
+# Builds and tests everything on every pull request: the solution (c002 design.md D2, D8) and the
+# frontend (c003 design.md D12).
+# The job names `build-and-test` and `frontend` are required checks in the ruleset on main
+# (docs/operations/main-ruleset.json): renaming either means updating the ruleset in the same PR.
 # No path or branch filters: a required check that does not run stays pending and blocks the merge.
 name: CI
 
@@ -34,3 +35,39 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/RevolutReader.Web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Node from the version the frontend pins; npm's download cache is keyed on its lock file.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: src/RevolutReader.Web/.node-version
+          cache: npm
+          cache-dependency-path: src/RevolutReader.Web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

@@ -10,6 +10,7 @@ One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, number
 | [0004](0004-account-allowlist.md) | Account allowlist — personal Microsoft accounts checked against an email list kept out of the repo | Accepted | 2026-11-05 |
 | [0005](0005-data-storage.md) | Data storage — Azure Table Storage in the app's own storage account | Accepted | 2026-11-05 |
 | [0006](0006-hosting-registry-and-job.md) | Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock | Accepted | 2026-11-05 |
+| [0007](0007-offline-balance.md) | Offline scope — the phone keeps the app's files and the last balance, never transactions | Accepted | 2026-11-06 |
 
 ## Template
 

@@ -3,3 +3,9 @@
 # (dotnet format, IDE format-on-save).
 * text=auto
 *.cs text eol=crlf
+# The frontend uses Prettier's line endings (LF) everywhere, so `prettier --check` agrees on Windows
+# checkouts (core.autocrlf) and in Linux CI (c003 design.md § Bootstrap).
+src/RevolutReader.Web/** text eol=lf
+# Images are binary, also in the frontend: as text, their bytes would be rewritten on commit (a PNG's
+# signature holds a CRLF). After the line above, so it wins.
+*.png binary
