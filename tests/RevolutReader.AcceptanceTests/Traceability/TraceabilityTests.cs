@@ -3,24 +3,32 @@ using Shouldly;
 namespace RevolutReader.AcceptanceTests.Traceability;
 
 /// <summary>
-/// Every scenario has exactly one claim (docs/conventions/testing.md, c001 design.md D7). The first test checks the
-/// repository; the others feed the check made-up specs, so a check that always passes cannot look like a working one.
+/// Every scenario has exactly one claim (docs/conventions/testing.md, c001 design.md D7, c003 design.md D7). The first
+/// test checks the repository; the others feed the check made-up specs and test files, so a check that always passes
+/// cannot look like a working one.
 /// </summary>
 public sealed class TraceabilityTests {
   private const string CAPABILITY = "pets";
   private const string MANUAL_LIST = "manual-scenarios.md";
+  private const string FRONTEND_TEST = "src/RevolutReader.Web/src/scenarios/pets.test.tsx";
 
   [Test]
   public void Every_scenario_is_claimed_exactly_once() {
     string root = RepositoryRoot();
     IReadOnlyList<SpecScenario> required = TraceabilityCheck.RequiredScenarios(SpecDiscovery.MainSpecs(root), SpecDiscovery.ActiveDeltas(root));
+    FrontendClaims[] frontend = [.. ClaimDiscovery.FrontendTestFiles(root).Select(file => ClaimDiscovery.FromFrontendTest(File.ReadAllText(Path.Combine(root, file)), file))];
     IReadOnlyList<ScenarioClaim> claims = [
       .. ClaimDiscovery.FromAttributes(typeof(TraceabilityTests).Assembly),
       .. ClaimDiscovery.FromManualList(File.ReadAllText(Path.Combine(root, "tests", MANUAL_LIST)), $"tests/{MANUAL_LIST}"),
+      .. frontend.SelectMany(static file => file.Claims),
+    ];
+    IReadOnlyList<string> problems = [
+      .. TraceabilityCheck.Problems(required, claims),
+      .. frontend.SelectMany(static file => file.Unreadable).Select(static call => $"Unreadable scenario(...) call, its capability and name must be string literals: {call}"),
     ];
 
     required.ShouldNotBeEmpty($"No scenarios found under {root}: the check would pass without checking anything.");
-    TraceabilityCheck.Problems(required, claims).ShouldBeEmpty();
+    problems.ShouldBeEmpty();
   }
 
   [Test]
@@ -106,6 +114,90 @@ public sealed class TraceabilityTests {
   }
 
   [Test]
+  public void A_frontend_claim_in_double_quotes_is_found() {
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest("""scenario("pets", "Cat is fed", () => {});"""), FRONTEND_TEST);
+
+    found.Claims.ShouldBe([Claim("Cat is fed", $"{FRONTEND_TEST} line 3")]);
+    found.Unreadable.ShouldBeEmpty();
+  }
+
+  [Test]
+  public void A_frontend_claim_in_single_quotes_is_found() {
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest("""scenario('pets', 'Cat is fed', () => {});"""), FRONTEND_TEST);
+
+    found.Claims.ShouldBe([Claim("Cat is fed", $"{FRONTEND_TEST} line 3")]);
+    found.Unreadable.ShouldBeEmpty();
+  }
+
+  [Test]
+  public void A_frontend_claim_across_lines_is_found() {
+    string call = """
+      scenario(
+        "pets",
+        'The cat\'s bowl is "full"',
+        () => {},
+      );
+      """;
+
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest(call), FRONTEND_TEST);
+
+    found.Claims.ShouldBe([Claim("The cat's bowl is \"full\"", $"{FRONTEND_TEST} line 3")]);
+    found.Unreadable.ShouldBeEmpty();
+  }
+
+  [Test]
+  public void A_frontend_call_with_a_template_literal_is_reported_with_its_line() {
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest("""scenario("pets", "Cat is fed", () => {});""", """scenario("pets", `Cat is fed at ${noon}`, () => {});"""), FRONTEND_TEST);
+
+    found.Claims.ShouldBe([Claim("Cat is fed", $"{FRONTEND_TEST} line 3")]);
+    found.Unreadable.ShouldBe([$"{FRONTEND_TEST} line 4"]);
+  }
+
+  [Test]
+  public void A_frontend_call_with_a_variable_is_reported_with_its_line() {
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest("""const capability = "pets";""", """scenario(capability, "Cat is fed", () => {});"""), FRONTEND_TEST);
+
+    found.Claims.ShouldBeEmpty();
+    found.Unreadable.ShouldBe([$"{FRONTEND_TEST} line 4"]);
+  }
+
+  [Test]
+  public void A_frontend_call_without_a_name_is_reported_with_its_line() {
+    FrontendClaims found = ClaimDiscovery.FromFrontendTest(FrontendTest("""scenario("pets", () => {});"""), FRONTEND_TEST);
+
+    found.Claims.ShouldBeEmpty();
+    found.Unreadable.ShouldBe([$"{FRONTEND_TEST} line 3"]);
+  }
+
+  [Test]
+  public void A_frontend_claim_and_an_attribute_on_the_same_scenario_count_as_two_claims() {
+    IReadOnlyList<SpecScenario> required = TraceabilityCheck.RequiredScenarios([MainSpec(Requirement("Feeding", "Cat is fed"))], []);
+    IReadOnlyList<ScenarioClaim> claims = [
+      Claim("Cat is fed", "PetsScenarios.Cat_is_fed"),
+      .. ClaimDiscovery.FromFrontendTest(FrontendTest("""scenario("pets", "Cat is fed", () => {});"""), FRONTEND_TEST).Claims,
+    ];
+
+    TraceabilityCheck.Problems(required, claims).ShouldBe([$"Claimed 2 times: pets / Cat is fed (PetsScenarios.Cat_is_fed; {FRONTEND_TEST} line 3)"]);
+  }
+
+  [Test]
+  public void Discovery_reads_only_the_frontend_test_files() {
+    string root = TemporaryRepository();
+    try {
+      WriteFile(root, "src/RevolutReader.Web/src/scenarios/pets.test.tsx", string.Empty);
+      WriteFile(root, "src/RevolutReader.Web/src/app/feeding.test.ts", string.Empty);
+      WriteFile(root, "src/RevolutReader.Web/src/app/feeding.ts", string.Empty);
+      WriteFile(root, "src/RevolutReader.Web/src/test/scenario.ts", string.Empty);
+      WriteFile(root, "src/RevolutReader.Web/node_modules/some-package/index.test.ts", string.Empty);
+
+      ClaimDiscovery.FrontendTestFiles(root).ShouldBe(["src/RevolutReader.Web/src/app/feeding.test.ts", "src/RevolutReader.Web/src/scenarios/pets.test.tsx"]);
+    }
+    finally {
+      Directory.Delete(root, recursive: true);
+    }
+  }
+
+  [Test]
   public void Discovery_ignores_archived_changes() {
     string root = TemporaryRepository();
     try {
@@ -156,6 +248,9 @@ public sealed class TraceabilityTests {
   /// <summary>The manual list's real header (tests/manual-scenarios.md) with the given rows; the first row is line 5.</summary>
   private static string ManualList(params string[] rows) =>
     $"# Manual scenarios\n\n| Capability | Scenario | Why manual | Handover step | Date last checked |\n|---|---|---|---|---|\n{string.Join('\n', rows)}\n";
+
+  /// <summary>A frontend test file: the helper's import, a blank line, then the given lines; the first given line is line 3.</summary>
+  private static string FrontendTest(params string[] lines) => $"import {{ scenario }} from \"../test/scenario\";\n\n{string.Join('\n', lines)}\n";
 
   private static SpecScenario Required(string name) => new(CAPABILITY, name);
 

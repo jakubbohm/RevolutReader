@@ -68,7 +68,7 @@ Given up: no confirmation that this is allowed; Enable Banking may cut off the a
 **R-12 · Acceptance tests run the app inside the test process**
 Full version: the real running app, started by the orchestrator (Aspire testing harness) ([lessons.md R-12](lessons.md), DoseUp F-26).
 Here ([docs/conventions/testing.md § Acceptance-test harness](../conventions/testing.md#acceptance-test-harness-the-app-runs-inside-the-test-process), 2026-11-04): **in-process (TUnit.AspNetCore)** — the tests must control the bank, the clock and the sign-in key; in-process each is a one-line swap and no test needs a real secret. The app is a single API process.
-Given up: the Aspire wiring and the hosting configuration are not under test; running locally and the first deployment cover them.
+Given up: the Aspire wiring and the hosting configuration are not under test; running locally and the first deployment cover them. Since C3 (2026-11-06) the built pages too: the tests serve a stand-in page folder instead of the frontend build (c003 design.md D6), and the frontend tests, the CI build, local checks against the API serving the build and the first deployment cover the build.
 *Switch back when:* the app gets a second process (e.g. F0-2 or C9 moves the background job out of the API into a separate service, Q4), or a wiring bug reaches production.
 
 **R-13 · No CI check against the provider's hosted mock bank**

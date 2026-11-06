@@ -132,12 +132,22 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 
 - **The check fails when:** a scenario has no claim; a scenario is claimed twice; a claim names a scenario that does not exist (renamed or removed); two scenarios in one capability share a name.
 - **It checks existence, not results.** While a change is being implemented, its new acceptance tests exist and fail ([workflow.md § 6](workflow.md#6-openspec)).
-- **When it arrives:** C1 builds the check with the .NET attribute and the manual list; C3 adds reading the frontend tags.
+- **Frontend claims** (c003 design.md D7): the check reads every `scenario(` call in `src/RevolutReader.Web/src/**/*.test.ts` and `*.test.tsx`.
+  - A call whose capability and name are string literals (single or double quotes; line breaks allowed between the arguments) is a claim.
+  - Any other `scenario(` call is reported as unreadable, with its file and line, so a claim can never vanish silently: a template literal, a variable, a missing name, even a call in a comment.
+  - Name frontend test files `*.test.ts(x)`: Vitest also runs `*.spec.*` files, but the check doesn't read them.
+  - The helper itself sits in `src/test/scenario.ts`, which is not a test file, and names the test `<capability> / <name>`.
+- **When it arrived:** C1 built the check with the .NET attribute and the manual list; C3 added the frontend claims.
 - No browser end-to-end tests: frontend rules are tested on components, device rules by hand (trade-off: [software-factory/divergences.md R-19](../software-factory/divergences.md); full version: [lessons.md R-19](../software-factory/lessons.md)).
 
 ## Acceptance-test harness: the app runs inside the test process
 
-- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host), **in environment `Production`**, so it runs on the base `appsettings.json` (production truth) without Development-only behaviour; a test in `Conventions/` guards it. Before it starts, the test replaces only what it must control: the Enable Banking address, the sign-in signing key and the clock (none yet in C1). Everything else is production code. FastEndpoints runs inside this host (proven in C1).
+- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host), **in environment `Production`**, so it runs on the base `appsettings.json` (production truth) without Development-only behaviour; a test in `Conventions/` guards it. Before it starts, the test replaces only what it must control: the Enable Banking address, the sign-in signing key, the clock and the web root (so far only the web root, since C3). Everything else is production code. FastEndpoints runs inside this host (proven in C1).
+- **The web root is a stand-in page folder** (c003 design.md D6):
+  - `Drivers/StandInPages/` holds a tiny `index.html`. It's copied to the test output and set as every test app's web root (`UseWebRoot` in `AcceptanceTest`).
+  - The tests check the backend's serving rules (which addresses get the page, which never do), not the frontend build. "The app's page" in the DSL means a successful `text/html` answer whose body is the stand-in page.
+  - Nothing in the deployed app can switch it on: it's set in test code, not in a setting.
+  - The real build is covered by the frontend tests, the CI build, the local checks against the API serving the build (c003 design.md D9) and the first deployment (C4).
 - **One app copy per test,** because the app is configured for exactly one bank account, and tests sharing an app would fight over what the bank returns. **Cost measured in C1 (2026-11-05, owner's machine, Debug build, .NET 11 RC3, TUnit 1.80.0):** the first app copy in a run costs about 0.25 s (start-up and warm-up), each further copy tens of milliseconds when the tests run in parallel; a scenario test with its HTTP call takes about 60 ms; the acceptance project's 17 tests (5 app copies) run in about 0.9 s. No fallback needed; if it ever is: one copy per test class, with that class's tests run one after another.
 - **Not covered:** the Aspire wiring and the hosting configuration. Running the app locally (`aspire start`) and the first deployment (C4) cover them.
 - **No test needs a real secret:** the harness generates throwaway keys at runtime.

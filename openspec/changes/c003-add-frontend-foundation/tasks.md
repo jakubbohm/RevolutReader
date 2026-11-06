@@ -8,21 +8,21 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation: frontend claims in the traceability check (design.md D7). Claims are `scenario(` calls with two string literals in `src/RevolutReader.Web/src/**/*.test.{ts,tsx}`; any other `scenario(` call is reported as unreadable, with its file and line. Verify: the new self-tests pass, and the repository check counts the frontend claims below
-- [ ] 1.2 Foundation: `scenario()` and `renderApp()` in `src/RevolutReader.Web/src/test/` (design.md D7, D8). Verify: `npm --prefix src/RevolutReader.Web test` runs the scenario files below
-- [ ] 1.3 Foundation: the stand-in page folder `Drivers/StandInPages/` (an `index.html` and `StandInPages`), copied to the test output and set as every test app's web root (design.md D6). Verify: every acceptance test that was green stays green
-- [ ] 1.4 Foundation: the page fallback's two entries on the anonymous-endpoint allowlist, exactly as design.md D5 gives them. Verify: "only allowlisted endpoints answer without sign-in" passes; "every allowlisted endpoint exists" fails at runtime until 11.1
-- [ ] 1.5 Acceptance: app-shell / The top bar shows the app name (frontend)
-- [ ] 1.6 Acceptance: app-installation / iPhone Safari shows only the install hint (frontend)
-- [ ] 1.7 Acceptance: app-installation / The Home Screen app shows the app, not the install hint (frontend)
-- [ ] 1.8 Acceptance: app-installation / Other browsers show the app, not the install hint (frontend)
-- [ ] 1.9 Acceptance: app-installation / The Home Screen shows the app's icon and name (manual)
-- [ ] 1.10 Acceptance: app-installation / The Home Screen app opens with its launch screen (manual)
-- [ ] 1.11 Acceptance: app-delivery / The start page opens at the root address
-- [ ] 1.12 Acceptance: app-delivery / An unknown page address opens the app
-- [ ] 1.13 Acceptance: app-delivery / The app opens without network after the first visit (manual)
-- [ ] 1.14 Acceptance: app-delivery / A new version shows on the first open after a deploy (manual)
-- [ ] 1.15 Docs:
+- [x] 1.1 Foundation: frontend claims in the traceability check (design.md D7). Claims are `scenario(` calls with two string literals in `src/RevolutReader.Web/src/**/*.test.{ts,tsx}`; any other `scenario(` call is reported as unreadable, with its file and line. Verify: the new self-tests pass, and the repository check counts the frontend claims below
+- [x] 1.2 Foundation: `scenario()` and `renderApp()` in `src/RevolutReader.Web/src/test/` (design.md D7, D8). Verify: `npm --prefix src/RevolutReader.Web test` runs the scenario files below
+- [x] 1.3 Foundation: the stand-in page folder `Drivers/StandInPages/` (an `index.html` and `StandInPages`), copied to the test output and set as every test app's web root (design.md D6). Verify: every acceptance test that was green stays green
+- [x] 1.4 Foundation: the page fallback's two entries on the anonymous-endpoint allowlist, exactly as design.md D5 gives them. Verify: "only allowlisted endpoints answer without sign-in" passes; "every allowlisted endpoint exists" fails at runtime until 11.1
+- [x] 1.5 Acceptance: app-shell / The top bar shows the app name (frontend)
+- [x] 1.6 Acceptance: app-installation / iPhone Safari shows only the install hint (frontend)
+- [x] 1.7 Acceptance: app-installation / The Home Screen app shows the app, not the install hint (frontend)
+- [x] 1.8 Acceptance: app-installation / Other browsers show the app, not the install hint (frontend)
+- [x] 1.9 Acceptance: app-installation / The Home Screen shows the app's icon and name (manual)
+- [x] 1.10 Acceptance: app-installation / The Home Screen app opens with its launch screen (manual)
+- [x] 1.11 Acceptance: app-delivery / The start page opens at the root address
+- [x] 1.12 Acceptance: app-delivery / An unknown page address opens the app
+- [x] 1.13 Acceptance: app-delivery / The app opens without network after the first visit (manual)
+- [x] 1.14 Acceptance: app-delivery / A new version shows on the first open after a deploy (manual)
+- [x] 1.15 Docs:
   - testing.md § Every scenario has exactly one test: frontend claims, the file pattern, unreadable calls reported;
   - testing.md § Acceptance-test harness: the stand-in page folder, the fourth swap;
   - `.claude/rules/testing.md`;

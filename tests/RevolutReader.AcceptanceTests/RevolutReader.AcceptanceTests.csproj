@@ -16,4 +16,9 @@
     <ProjectReference Include="..\..\src\RevolutReader.Api\RevolutReader.Api.csproj" />
   </ItemGroup>
 
+  <!-- The stand-in page folder, every test app copy's web root (c003 design.md D6). -->
+  <ItemGroup>
+    <None Update="Drivers\StandInPages\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
