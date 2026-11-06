@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1 — see the change log in `pm/progress.md`)
 
 ---
 
@@ -178,13 +178,13 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Outputs:** the deploy identity and its federated credential; the values the workflow needs before Bicep can run (subscription, resource group, client ID) on the GitHub Environment; non-secret identifiers recorded.
 - **Open questions:** — (applies Q3, Q4)
 
-### C4 — `cNNN-add-deployment-pipeline`
+### C4 — `c005-add-deployment-pipeline`
 
 - **Type:** OpenSpec change
-- **Goal:** Bicep in `infra/` for the app's own Azure resources as decided in F0-2: a Container Apps environment (Consumption) and the container app (scaling to zero, maximum 1 replica), Key Vault, the app's managed identity and its role assignments. A Docker image with backend and frontend in one container ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)), published as a public image on ghcr.io ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A GitHub Actions pipeline that on every merge to `main` builds the image once, applies the Bicep as an Azure Deployment Stack (removed resources get deleted) and deploys the image. It deploys the current skeleton, so every later change ships automatically. Includes a guided manual task to put the Enable Banking secrets into Key Vault, the choice of where the environment's logs go, and a measurement of how long the app takes to wake from zero (fallback in ADR-0006: one always-on replica).
+- **Goal:** Bicep in `infra/` for the app's own Azure resources as decided in F0-2: a Container Apps environment (Consumption) and the container app (scaling to zero, maximum 1 replica), Key Vault, the app's managed identity and its role assignments. A Docker image with backend and frontend in one container ([ADR-0002-frontend-hosting](../docs/adr/0002-frontend-hosting.md)), published as a public image on ghcr.io ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)). A GitHub Actions pipeline that on every merge to `main` builds the image once, applies the Bicep as an Azure Deployment Stack (removed resources get deleted) and deploys the image. It deploys the current skeleton, so every later change ships automatically. Includes a guided manual task to put the Enable Banking secrets into Key Vault, and the choice of where the environment's logs go. The measurement of how long the app takes to wake from zero (fallback in ADR-0006: one always-on replica) moved to after v1, [#18](https://github.com/jakubbohm/RevolutReader/issues/18) (change log 2026-11-06).
 - **Depends on:** C3, M3
 - **Inputs:** kickoff ch. 6, 7; F0-2 decisions (Q3, Q4); identifiers from M3; [workflow.md §§ 4–5](../docs/conventions/workflow.md#4-cicd).
-- **Outputs:** archived change; the skeleton running on Azure and reading its secrets from Key Vault; the secrets listed in `docs/conventions/configuration.md` § Hand-provisioned secrets.
+- **Outputs:** archived change; the skeleton running on Azure; the Enable Banking values in Key Vault, which the app reads from C5's merge on, when C5 wires them into the Bicep (c005 design.md D2); C5 lists them in `docs/conventions/configuration.md` § Hand-provisioned secrets.
 - **Open questions:** —
 - **Notes:** if it is too big for one session, propose a split (e.g., infrastructure first, then the pipeline).
 

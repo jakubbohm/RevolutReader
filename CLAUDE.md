@@ -4,7 +4,7 @@ A read-only PWA in which the owner's daughter sees the balance and transactions 
 
 ## Commands
 
-Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06).
+Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06; the image rows in C4, 2026-11-06).
 
 | Purpose | Command |
 |---|---|
@@ -22,11 +22,16 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | Frontend build | `npm --prefix src/RevolutReader.Web run build` |
 | App icons and launch images | `npm --prefix src/RevolutReader.Web run icons`: by hand, only when `public/app-icon.svg` or the launch-screen design changes; commit the PNGs and paste the launch tags it prints into `index.html` |
 | Run the app | `aspire start` / `aspire stop` (Claude: through the aspire skills, never `dotnet run` on the AppHost). The app opens at the `web` resource's address (Vite, forwarding `/api` to the API); the API's own address serves no pages (C3) |
+| Image, local build | `docker build -t revolutreader:local .` (Docker running; the same Dockerfile the deploy builds) |
+| Image, quick start | see below (setting the throwaway key differs per shell) |
+| Bicep check | `az bicep lint --file infra/main.bicep` (lints the modules too; a warning counts as a finding: the PR check `image-and-infra` fails on it) |
+| Preview the next deploy (read-only, needs the owner's Azure login) | [docs/operations/deployment.md § Previewing a change to the Bicep](docs/operations/deployment.md#previewing-a-change-to-the-bicep-read-only) |
 
 - One change's acceptance tests (scenario classes are named `<Capability>Scenarios`; the change's `.tdd-state.md` lists its tests): whole classes with `dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/(<Capability1>Scenarios)|(<Capability2>Scenarios)/*"`, chosen tests of one class with `--treenode-filter "/*/*/<Class>/(<Test1>)|(<Test2>)"`.
 - TUnit runs on Microsoft.Testing.Platform: `dotnet test --filter` is not supported (it runs nothing); use `--treenode-filter`, whose segments are `/<assembly>/<namespace>/<class>/<test>`.
 - Exit code 8 means zero tests ran: a layer run on an empty project (the unit and integration projects until C5) exits 8; the full `dotnet test` still exits 0 when another project ran tests.
 - One change's frontend scenario tests: its `src/scenarios/<capability>.test.tsx` files, listed after `--`. Vitest exits 1 when it finds no test file.
+- Image quick start, with made-up Enable Banking values (c005 design.md D14): first a throwaway key, in Bash `export EnableBanking__PrivateKey="$(openssl genpkey -quiet -algorithm RSA -pkeyopt rsa_keygen_bits:2048)"`, in PowerShell 7 `$env:EnableBanking__PrivateKey = [System.Security.Cryptography.RSA]::Create(2048).ExportPkcs8PrivateKeyPem()`; then, in either shell, `docker run -d --rm --name revolutreader-local -p 8080:8080 -e EnableBanking__ApplicationId=00000000-0000-0000-0000-000000000000 -e EnableBanking__PrivateKey -e EnableBanking__SessionId=00000000-0000-0000-0000-000000000000 -e EnableBanking__AccountId=00000000-0000-0000-0000-000000000000 revolutreader:local`. The pages and the API answer at `http://localhost:8080`; `docker logs revolutreader-local` shows the app's output, `docker stop revolutreader-local` removes it.
 
 ## Read before deciding anything
 
@@ -35,7 +40,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
 - [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes, design), testing.md. `.claude/rules/` and the tooling mirror them.
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
-- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4) and the ruleset on `main` (C2), with their identifiers; later the reinstatement guide (D1).
+- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4), the ruleset on `main` (C2) and the deployment (C4: the deployed resources, the first deploy, the Key Vault task, checks, rolling back), with their identifiers; later the reinstatement guide (D1).
 
 Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory/](docs/software-factory/) is what goes to the user's future software factory ([workflow.md § 10](docs/conventions/workflow.md#10-software-factory)): add a lesson whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; a divergence when the project runs a cut-down version; an inventory line when a step creates or substantially changes a reusable artifact. A handover package is built from it at the end of the project.
 

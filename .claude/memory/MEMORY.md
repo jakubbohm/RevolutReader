@@ -5,3 +5,4 @@
 - [Continue announced steps](continue-announced-steps.md) — after one agreed step, go on to the next already-agreed one; stop only for new decisions or unapproved outward actions
 - [Git Bash rewrites /paths for az](git-bash-az-path-conversion.md) — use MSYS_NO_PATHCONV=1 for --scope /subscriptions/...
 - [Every az command names the subscription](az-always-explicit-subscription.md) — always --subscription 7811bd13-…; never the default (employer tenant), never --tenant alone, never az account set
+- [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup

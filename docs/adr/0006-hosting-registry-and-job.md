@@ -1,6 +1,6 @@
 # ADR-0006: Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock
 
-**Status:** Accepted (the user's decision, 2026-11-05); Decision item 4 (the Logic App clock) superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone calls the endpoint · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
+**Status:** Accepted (the user's decision, 2026-11-05); Decision item 4 (the Logic App clock) superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone calls the endpoint; amended 2026-11-06 in C4: the first push's private package and the deploy's image check (Decision, item 3), the cold-start measurement moved to after v1 (Decision, item 5), the log destination (Consequences) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
 
 > Findings verified on 2026-11-05 against the sources linked with each one. Unless noted, prices are Azure list prices for West Europe from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices).
 >
@@ -72,12 +72,13 @@ Decided by the user, 2026-11-05:
    - It is built once per merge to `main` ([workflow.md § 4](../conventions/workflow.md#4-cicd)) and pushed with GitHub's built-in token.
    - Container Apps pulls it anonymously.
    - The image contains nothing private: secrets and the allowlist come from Key Vault at runtime.
+   - *(Amended by the user, 2026-11-06, in C4: GitHub creates the package private on the first push, and only its web page makes it public, irreversibly ([GitHub Docs: access control and visibility](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility), read 2026-11-06). So the deploy checks, before touching Azure, that the image it just pushed can be pulled without a login; on the first run it stops with the link to the package's settings until the owner makes it public. The check catches the same again at reinstatement. A private image was weighed again and rejected: a classic token with access to all the owner's packages, and Azure's pulls counting against the Free plan's quota once ghcr.io charges (c005 design.md D3).)*
 4. **The 4-a-day job: a Logic App (Consumption) acts as the clock.** On schedule it calls a protected endpoint in the app. The call wakes the app like any request, and the app runs the check as ordinary app code. The app stays a single process.
    - **The endpoint must be safe to call twice.** Logic Apps retries failed calls, and each bank call counts against the 4 unattended requests a day.
    - **C9 decides** how the Logic App proves who it is (its managed identity, or a random key in Key Vault), the time zone, and the exact times.
 
    *(Superseded by the user, 2026-11-05, after the phone test of 2026-11-06: [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md). There is no Logic App. An iOS Shortcuts automation on the owner's iPhone calls the same protected endpoint whenever a Revolut notification arrives. The call still wakes the app like any request, and the app stays one process. The endpoint must still be safe to call twice, because one payment can bring several notifications and the Shortcut may retry. C9 decides how the Shortcut proves who it is.)*
-5. **If the cold start is too slow:** set the minimum to 1 replica, around the clock. Its idle rate comes to roughly $4–6 a month after the free grant (East US rates, the owner's estimate is up to about $8). It stays on at night, because a time-based rule that turns it off at night would bill the daytime replica at the active rate and cost more. C4 measures the cold start first.
+5. **If the cold start is too slow:** set the minimum to 1 replica, around the clock. Its idle rate comes to roughly $4–6 a month after the free grant (East US rates, the owner's estimate is up to about $8). It stays on at night, because a time-based rule that turns it off at night would bill the daytime replica at the active rate and cost more. C4 measures the cold start first. *(Amended by the user, 2026-11-06, in C4: the measurement moved to after v1, [#18](https://github.com/jakubbohm/RevolutReader/issues/18), with its decision rule set in advance: a median up to about 20 s changes nothing; slower, and the owner chooses between a longer cool-down and one always-on replica. Until then the app runs with the settings above and the default cool-down, and each deploy's summary shows the time to its first answer (c005 design.md D8, D9).)*
 
 ## Alternatives considered
 
@@ -113,8 +114,8 @@ Decided by the user, 2026-11-05:
 - **C4:**
   - the Container Apps environment and app in Bicep, pulling the ghcr.io image, with a managed identity and Key Vault-backed secrets;
   - making the GitHub package public, since GitHub may create it private on the first push;
-  - choosing where the environment's logs go: none, or a Log Analytics workspace;
-  - measuring the cold start.
+  - choosing where the environment's logs go: none, or a Log Analytics workspace. *(Amended by the user, 2026-11-06, in C4: a Log Analytics workspace, 30 days of retention and a daily cap of 0.1 GB. A copy that scaled to zero takes its output with it, and the live log stream shows only running copies. The first 5 GB a month are free, and the cap bounds even a runaway month; when it is reached, collection stops until the daily reset. [#17](https://github.com/jakubbohm/RevolutReader/issues/17) checks the real volume (c005 design.md D6).)*
+  - measuring the cold start. *(Moved to after v1: Decision, item 5.)*
 - **C6:** the storage account with a blob container for the Data Protection keys, accessed with the managed identity. [ADR-0005-data-storage](0005-data-storage.md) gets its tables in the same account later.
 - **C9:**
   - the Logic App in Bicep;

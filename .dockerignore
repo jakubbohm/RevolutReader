@@ -1,0 +1,27 @@
+# The image's build context is an allowlist (c005 design.md D12): everything is left out except
+# what the Dockerfile's stages copy. So the private keys in spikes/**/secrets/, the local .claude/
+# folder and any other local file can never enter a build, whatever lies in the working tree.
+# A file a stage needs must be added here, or the build fails to find it.
+*
+
+# The backend and the frontend, as sources.
+!src/RevolutReader.Api/
+!src/RevolutReader.ServiceDefaults/
+!src/RevolutReader.Web/
+
+# The build rules at the root.
+!global.json
+!nuget.config
+!Directory.Build.props
+!Directory.Packages.props
+!BannedSymbols.txt
+!.editorconfig
+
+# Never local build output or installed packages, even inside the folders above. These come after
+# the exceptions, because the last matching line wins.
+**/bin/
+**/obj/
+src/RevolutReader.Web/node_modules/
+src/RevolutReader.Web/dist/
+src/RevolutReader.Web/dev-dist/
+src/RevolutReader.Web/coverage/
