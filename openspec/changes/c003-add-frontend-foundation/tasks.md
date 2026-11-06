@@ -110,7 +110,6 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 - [ ] 16.2 No update check runs while the phone is offline
 - [ ] 16.3 No update check runs when the app goes to the background
 - [ ] 16.4 A failed update check is ignored until the next return
-- [ ] 16.5 No update check runs after the watch stops
 
 ## 17. [wiring] Slice 8 — Switching to a new version
 

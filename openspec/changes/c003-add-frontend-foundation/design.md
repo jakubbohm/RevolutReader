@@ -457,9 +457,9 @@ export function InstallHint(): JSX.Element;                          // artboard
 
 // app/updates.ts
 export interface UpdatableRegistration { update(): Promise<unknown> }
-export interface Page { visibilityState: DocumentVisibilityState; addEventListener(type: "visibilitychange", listener: () => void): void; removeEventListener(type: "visibilitychange", listener: () => void): void }
+export interface Page { visibilityState: DocumentVisibilityState; addEventListener(type: "visibilitychange", listener: () => void): void }
 export interface Network { onLine: boolean }
-export function watchForUpdates(registration: UpdatableRegistration, page: Page, network: Network): () => void;  // returns stop
+export function watchForUpdates(registration: UpdatableRegistration, page: Page, network: Network): void;  // runs as long as the page; nothing stops it
 
 // sw.ts: no exports (D9)
 
