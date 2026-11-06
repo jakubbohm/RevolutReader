@@ -6,15 +6,15 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 ## 1. Image (D12)
 
-- [ ] 1.1 `.dockerignore`, as an allowlist: everything ignored except the paths D12 lists, and within `src/RevolutReader.Web/` never `node_modules/` or `dist/`. Verify: a temporary Dockerfile stage that lists the build context (removed again) shows only the allowlisted paths; nothing under `spikes/`, `.claude/`, `tests/`, `docs/` or any `bin/`, `obj/`, `node_modules/`.
-- [ ] 1.2 `Dockerfile` with D12's three stages and exact tags: `node:24-slim`, `mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-resolute`, `mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-resolute-chiseled`. The publish runs in Release, without the native app launcher and with analyzers off; the frontend's `dist/` goes to `/app/wwwroot`. Verify: `docker build -t revolutreader:local .` from the repository root succeeds; `docker image ls revolutreader:local` shows the size (expected roughly 60–80 MB compressed on top of the base); `docker inspect` shows user 1654 and port 8080.
-- [ ] 1.3 A quick start of the local image, with the four `EnableBanking__*` stand-ins of D14 (made-up IDs, a key from `openssl`). Verify, against `http://localhost:8080`:
+- [x] 1.1 `.dockerignore`, as an allowlist: everything ignored except the paths D12 lists, and within `src/RevolutReader.Web/` never `node_modules/` or `dist/`. Verify: a temporary Dockerfile stage that lists the build context (removed again) shows only the allowlisted paths; nothing under `spikes/`, `.claude/`, `tests/`, `docs/` or any `bin/`, `obj/`, `node_modules/`.
+- [x] 1.2 `Dockerfile` with D12's three stages and exact tags: `node:24-slim`, `mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-resolute`, `mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-resolute-chiseled`. The publish runs in Release, without the native app launcher and with analyzers off; the frontend's `dist/` goes to `/app/wwwroot`. Verify: `docker build -t revolutreader:local .` from the repository root succeeds; `docker image ls revolutreader:local` shows the size (expected roughly 60–80 MB compressed on top of the base); `docker inspect` shows user 1654 and port 8080.
+- [x] 1.3 A quick start of the local image, with the four `EnableBanking__*` stand-ins of D14 (made-up IDs, a key from `openssl`). Verify, against `http://localhost:8080`:
   - `/health` answers `Healthy`;
   - `/` and a made-up page address such as `/somewhere` return the page with `<div id="root">`;
   - `/api/nothing` returns a problem description with status 404 (spec `api-errors`);
   - `/assets/<a hashed file>` carries the year-long caching header and `/` carries `no-cache` (spec `app-delivery`, c003 D5);
   - the container's log shows no error at start.
-- [ ] 1.4 `CLAUDE.md` § Commands: rows for the local image build and the quick start, as 1.2 and 1.3 ran them (PowerShell 7 and Bash both). `docs/software-factory/creating-handover-package.md` inventory: a line for the `Dockerfile` and `.dockerignore`. Verify: the rows' commands run as written; the inventory link resolves.
+- [x] 1.4 `CLAUDE.md` § Commands: rows for the local image build and the quick start, as 1.2 and 1.3 ran them (PowerShell 7 and Bash both). `docs/software-factory/creating-handover-package.md` inventory: a line for the `Dockerfile` and `.dockerignore`. Verify: the rows' commands run as written; the inventory link resolves.
 
 ## 2. Infrastructure (D1, D6, D10, D13)
 
