@@ -10,7 +10,7 @@
 |---|---|
 | Repository | `jakubbohm/RevolutReader` |
 | Ruleset | name `main`, id `26623567` (created 2026-11-05); applies to the default branch |
-| Required checks | `build-and-test` and `frontend` ([ci.yml](../../.github/workflows/ci.yml)), and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368). `frontend` added in C3: applied 2026-11-06 with the update command below, on the user's go, after its first run passed on [#16](https://github.com/jakubbohm/RevolutReader/pull/16); read back as `build-and-test`, `frontend`, `pr-title`, still active, strict, squash only, no bypass |
+| Required checks | `build-and-test`, `frontend` and `image-and-infra` ([ci.yml](../../.github/workflows/ci.yml)), and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368). `frontend` added in C3: applied 2026-11-06 with the update command below, on the user's go, after its first run passed on [#16](https://github.com/jakubbohm/RevolutReader/pull/16); read back as `build-and-test`, `frontend`, `pr-title`, still active, strict, squash only, no bypass. `image-and-infra` added in C4 (the image and the Bicep the deploy uses, c005 design.md D7): in the file, not applied yet |
 
 ## What it enforces, and why
 
@@ -38,7 +38,7 @@ $id = gh api "repos/$repo/rulesets" --jq '.[] | select(.name == "main") | .id'
 gh api --method PUT "repos/$repo/rulesets/$id" --input $file --jq '.id'
 ```
 
-### Adding a check (C3, C4)
+### Adding a check (C3 `frontend`, C4 `image-and-infra`)
 
 1. Add the job to a workflow in `.github/workflows/`, with no path or branch filters. A required check that never runs stays "pending" and blocks every merge.
 2. In the same PR, add `{ "context": "<job name>", "integration_id": 15368 }` to `required_status_checks` in the file.

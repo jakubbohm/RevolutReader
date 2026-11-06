@@ -41,14 +41,14 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 ## 3. Pipelines (D3, D7, D8, D14)
 
-- [ ] 3.1 `.github/workflows/ci.yml`: the job `image-and-infra` (D14), with the same triggers and no path filters, `contents: read`, `timeout-minutes: 15`, and the header comment naming it as a required check. Verify locally, in Git Bash: the job's Bicep commands and its smoke-run script, run as written against the image from 1.2, pass. A broken image (a stage that deletes `wwwroot`) makes the smoke run fail and print the container's log. The workflow file parses as YAML. The run on GitHub is checked in 5.1.
-- [ ] 3.2 `.github/workflows/deploy.yml` (D14): the jobs `image` and `deploy`, the permissions, the concurrency group, the timeouts, and the five deploy steps, with the stack command from 2.4. Verify:
+- [x] 3.1 `.github/workflows/ci.yml`: the job `image-and-infra` (D14), with the same triggers and no path filters, `contents: read`, `timeout-minutes: 15`, and the header comment naming it as a required check. Verify locally, in Git Bash: the job's Bicep commands and its smoke-run script, run as written against the image from 1.2, pass. A broken image (a stage that deletes `wwwroot`) makes the smoke run fail and print the container's log. The workflow file parses as YAML. The run on GitHub is checked in 5.1.
+- [x] 3.2 `.github/workflows/deploy.yml` (D14): the jobs `image` and `deploy`, the permissions, the concurrency group, the timeouts, and the five deploy steps, with the stack command from 2.4. Verify:
   - the file parses as YAML;
   - the image-check script, run locally, passes for a public ghcr.io image and fails, with D3's message and the package link, for a tag that does not exist;
   - the check after the deploy follows D8's three steps (its live proof is 6.2);
   - only M3's four variables and `GITHUB_TOKEN` are used, and nothing reads a secret.
-- [ ] 3.3 `docs/operations/main-ruleset.json`: `image-and-infra` added to the required checks with integration ID 15368. `main-ruleset.md`: C4's check listed. Verify: the file parses (`node -e` with `JSON.parse`) and lists four checks. It is applied in 5.2.
-- [ ] 3.4 Docs:
+- [x] 3.3 `docs/operations/main-ruleset.json`: `image-and-infra` added to the required checks with integration ID 15368. `main-ruleset.md`: C4's check listed. Verify: the file parses (`node -e` with `JSON.parse`) and lists four checks. It is applied in 5.2.
+- [x] 3.4 Docs:
   - `docs/conventions/workflow.md` § 4: the deploy paragraph (what runs on a merge, the two checks, what to do when it is red) and the `image-and-infra` row;
   - lessons R-47 and R-48 (D16), with "confirmed in the first deployment" left for 6.4;
   - inventory lines for `deploy.yml`, and the `ci.yml` row updated.

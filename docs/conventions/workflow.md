@@ -65,8 +65,15 @@
   | `build-and-test` | [ci.yml](../../.github/workflows/ci.yml) | Builds the solution and runs all three test projects, the traceability check included. Analyzer and layout errors fail the build, so formatting needs no check of its own. | C2 |
   | `pr-title` | [pr-title.yml](../../.github/workflows/pr-title.yml) | The PR title is a Conventional Commit (§ 3). | C2 |
   | `frontend` | [ci.yml](../../.github/workflows/ci.yml) | In `src/RevolutReader.Web`: a clean install from the lock file, then Prettier's check, lint, the type check, the tests and the production build. | C3 |
+  | `image-and-infra` | [ci.yml](../../.github/workflows/ci.yml) | What the deploy will use: the Bicep in `infra/` built and linted, with any warning failing the check; the image built from the deploy's Dockerfile, not pushed, and started once with made-up Enable Banking values. `/health` must answer `Healthy` and `/` must return the app's page; otherwise the container's log is printed. | C4 |
 
-  C4 (deployment) adds its own; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
+  Test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
+- **The deploy** ([deploy.yml](../../.github/workflows/deploy.yml), C4): every merge to `main` builds the image once from the merge commit, pushes it to ghcr.io tagged with the commit SHA, and applies `infra/` as the deployment stack (§ 5). It also runs by hand, on `main` only. Deploys run one at a time, in the order of the merges. Two checks turn it red:
+  - **before Azure is touched,** the image just pushed must be pullable without a login. A new package starts private, so the first deploy stops here until the owner makes it public;
+  - **after the stack,** the latest revision must be ready and run that image, `/health` and `/` must answer at the app's address, and the revision must be Running. A stack can succeed while the app cannot start.
+
+  The run's summary shows the image, the revision, the address and the time to the first answer.
+- **When the deploy is red,** GitHub emails the owner. The failed step says what happened: the image check names the package settings to change; a failed Azure login shows the subject to fix ([azure-prerequisites.md § Checks](../operations/azure-prerequisites.md#checks)); a failed stack shows Azure's error. If the check after the deploy fails, the new version did not start. The fix is a revert PR, whose merge deploys the previous code; nothing rolls back on its own.
 - **No path or branch filters on a required workflow:** a required check that never runs stays "pending" and blocks the merge. To skip work, use a job-level `if:` (a job skipped that way reports success).
 - **No security scanning** (CodeQL, dependency review), on purpose ([divergences.md R-35](../software-factory/divergences.md)).
 

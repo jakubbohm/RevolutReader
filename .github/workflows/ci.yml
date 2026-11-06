@@ -1,7 +1,9 @@
-# Builds and tests everything on every pull request: the solution (c002 design.md D2, D8) and the
-# frontend (c003 design.md D12).
-# The job names `build-and-test` and `frontend` are required checks in the ruleset on main
-# (docs/operations/main-ruleset.json): renaming either means updating the ruleset in the same PR.
+# Builds and tests everything on every pull request: the solution (c002 design.md D2, D8), the
+# frontend (c003 design.md D12), and the image and the Bicep that the deploy uses (c005 design.md
+# D7, D14).
+# The job names `build-and-test`, `frontend` and `image-and-infra` are required checks in the
+# ruleset on main (docs/operations/main-ruleset.json): renaming one means updating the ruleset in
+# the same PR. No job here holds a credential or publishes anything (docs/conventions/workflow.md § 4).
 # No path or branch filters: a required check that does not run stays pending and blocks the merge.
 name: CI
 
@@ -71,3 +73,93 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # What the deploy will build and apply, checked before the merge: the Bicep compiled and linted,
+  # the image built from the same Dockerfile and started once. The image is not pushed: the one
+  # deployed is built again from the merge commit on main (deploy.yml).
+  image-and-infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The same Bicep as deploy.yml, so a new release's rules never turn a PR red on their own.
+      # In CI the Azure CLI would otherwise prefer a bicep binary on the runner's PATH.
+      BICEP_VERSION: v0.48.1
+      AZURE_BICEP_USE_BINARY_FROM_PATH: "false"
+      IMAGE: revolutreader:pr-check
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Errors fail the command. Warnings do not, so a warning line fails the step here: there are
+      # no advisory checks. The lint rules are errors already (infra/bicepconfig.json); this
+      # catches Bicep's own compiler warnings. A made-up tag stands in for the commit SHA.
+      - name: Bicep
+        env:
+          IMAGE_TAG: pr-check
+        run: |
+          set -euo pipefail
+          az bicep install --version "$BICEP_VERSION"
+          az bicep version
+          bicep_check() {
+            local diagnostics
+            if ! diagnostics="$("$@" 2>&1 >/dev/null)"; then
+              printf '%s\n' "$diagnostics"
+              return 1
+            fi
+            if grep -q ' : Warning ' <<<"$diagnostics"; then
+              printf '%s\n' "$diagnostics"
+              echo "::error::Bicep reported a warning. There are no advisory checks: fix it."
+              return 1
+            fi
+          }
+          bicep_check az bicep build --file infra/main.bicep --stdout
+          bicep_check az bicep lint --file infra/main.bicep
+          bicep_check az bicep build-params --file infra/main.bicepparam --stdout
+          echo "Bicep: built, linted and parameters built, no finding."
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Reads the build cache that the deploy on main writes; a PR writes none.
+      - name: Image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          provenance: false
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+
+      # The image started once, with made-up Enable Banking values and a throwaway key, which the
+      # app needs from C5 on (c005 design.md D7). On failure the container's log is printed.
+      - name: Smoke run
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f smoke-run >/dev/null 2>&1 || true' EXIT
+          fail() {
+            echo "::error::$1"
+            echo "--- The container's log:"
+            docker logs smoke-run 2>&1 || true
+            exit 1
+          }
+          EnableBanking__PrivateKey="$(openssl genpkey -quiet -algorithm RSA -pkeyopt rsa_keygen_bits:2048)"
+          export EnableBanking__PrivateKey
+          docker run -d --name smoke-run -p 8080:8080 \
+            -e EnableBanking__ApplicationId=00000000-0000-0000-0000-000000000000 \
+            -e EnableBanking__PrivateKey \
+            -e EnableBanking__SessionId=00000000-0000-0000-0000-000000000000 \
+            -e EnableBanking__AccountId=00000000-0000-0000-0000-000000000000 \
+            "$IMAGE" >/dev/null
+          health=""
+          for _ in $(seq 1 30); do
+            health="$(curl -fsS --max-time 2 http://localhost:8080/health 2>/dev/null || true)"
+            [ "$health" = "Healthy" ] && break
+            sleep 1
+          done
+          [ "$health" = "Healthy" ] || fail "/health did not answer \"Healthy\" within 30 seconds."
+          echo "/health answered: $health"
+          page="$(curl -fsS --max-time 5 http://localhost:8080/)" || fail "/ did not answer."
+          grep -q '<div id="root">' <<<"$page" || fail "/ did not return the app's page (no <div id=\"root\">)."
+          echo "/ answered with the app's page (<div id=\"root\">)."

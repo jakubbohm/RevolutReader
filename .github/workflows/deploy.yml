@@ -1,0 +1,222 @@
+# Deploys every merge to main (c005 design.md D14): builds the image once from the merge commit,
+# pushes it to ghcr.io tagged with the commit SHA, applies infra/ as the deployment stack
+# "revolutreader", and checks that the new version started and answers.
+# Runs by hand too (Run workflow, on main), e.g. to redeploy after a reinstatement (roadmap D1).
+# Credentials: GITHUB_TOKEN for ghcr.io, and Azure through the federated credential of the
+# environment "production", which admits only main. No stored secret; only the environment's four
+# variables (docs/operations/azure-prerequisites.md). What to do when it is red:
+# docs/operations/deployment.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# One deploy at a time, in the order of the merges, never cancelled mid-stack.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  # The image this run builds and deploys: the repository main.bicep pulls from, tagged with the
+  # commit SHA.
+  IMAGE: ghcr.io/jakubbohm/revolutreader:${{ github.sha }}
+  # The same Bicep as the PR check (ci.yml). In CI the Azure CLI would otherwise prefer a bicep
+  # binary on the runner's PATH.
+  BICEP_VERSION: v0.48.1
+  AZURE_BICEP_USE_BINARY_FROM_PATH: "false"
+
+jobs:
+  # No environment and no Azure access.
+  image:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # One plain linux/amd64 image under the tag, without a provenance attestation. A push from
+      # this workflow links the package to the repository. The cache is the one the PR check reads.
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          provenance: false
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    # Creating the Container Apps environment the first time takes minutes.
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Container Apps pulls the image without a login (c005 design.md D3). The first push creates
+      # the package private, so the first run stops here, before anything touches Azure, until the
+      # owner makes the package public. Later runs pass in about a second.
+      - name: Image check
+        run: |
+          set -euo pipefail
+          repository="${IMAGE%:*}"
+          repository="${repository#ghcr.io/}"
+          tag="${IMAGE##*:}"
+          settings="https://github.com/users/jakubbohm/packages/container/revolutreader/settings"
+          refuse() {
+            echo "::error title=The image cannot be pulled without a login::$1 Make the package public: open $settings, then Danger Zone, Change visibility, Public. Then choose \"Re-run failed jobs\" on this run."
+            {
+              echo "### The image cannot be pulled without a login"
+              echo
+              echo "$1 A new package starts private, so this is expected on the first deploy."
+              echo
+              echo "1. Open the [package settings]($settings)."
+              echo "2. Danger Zone, Change visibility, Public. This cannot be undone."
+              echo "3. On this run, choose **Re-run failed jobs**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          token="$(curl -fsS "https://ghcr.io/token?scope=repository:${repository}:pull" | jq -r '.token // empty')" \
+            || refuse "ghcr.io refused an anonymous pull token for ${repository}."
+          [ -n "$token" ] || refuse "ghcr.io gave no anonymous pull token for ${repository}."
+          status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${token}" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/${repository}/manifests/${tag}")"
+          [ "$status" = 200 ] || refuse "ghcr.io answered HTTP ${status} for the manifest of ${IMAGE}."
+          echo "${IMAGE} can be pulled without a login."
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Deletes whatever the Bicep no longer declares (docs/conventions/workflow.md § 5). No deny
+      # settings: the deploy identity's Contributor role cannot manage them.
+      - name: Stack
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          az bicep install --version "$BICEP_VERSION"
+          az bicep version
+          az stack group create \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name revolutreader \
+            --template-file infra/main.bicep \
+            --parameters infra/main.bicepparam \
+            --action-on-unmanage deleteResources \
+            --deny-settings-mode none \
+            --description "Commit ${GITHUB_SHA}" \
+            --yes \
+            --output none
+
+      # A stack can succeed while the app cannot start: a revision with no running copy may count
+      # as ready (c005 design.md D8). So: wait until the latest revision is ready and runs this
+      # image, wake it with real requests, then confirm it is Running.
+      - name: Check after the deploy
+        id: check
+        run: |
+          set -euo pipefail
+          fail() { echo "::error title=The new version did not start::$1"; exit 1; }
+          outputs="$(az stack group show --subscription "$AZURE_SUBSCRIPTION_ID" --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name revolutreader --query "outputs || properties.outputs" --output json)"
+          app_name="$(jq -r '.appName.value' <<<"$outputs")"
+          app_url="$(jq -r '.appUrl.value' <<<"$outputs")"
+          app_id="/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${AZURE_RESOURCE_GROUP}/providers/Microsoft.App/containerApps/${app_name}"
+          echo "url=${app_url}" >> "$GITHUB_OUTPUT"
+          show() { az resource show --ids "$1" --api-version 2026-07-01 --query "$2" --output tsv; }
+
+          # 1. The latest revision is the latest ready one, and runs the image just pushed.
+          deadline=$((SECONDS + 300))
+          while :; do
+            latest="$(show "$app_id" properties.latestRevisionName)"
+            ready="$(show "$app_id" properties.latestReadyRevisionName)"
+            if [ -n "$latest" ] && [ "$latest" = "$ready" ]; then break; fi
+            [ "$SECONDS" -lt "$deadline" ] || fail "Revision ${latest} did not become ready within 5 minutes (latest ready: ${ready})."
+            sleep 5
+          done
+          revision_id="${app_id}/revisions/${latest}"
+          image="$(show "$revision_id" 'properties.template.containers[0].image')"
+          [ "$image" = "$IMAGE" ] || fail "Revision ${latest} runs ${image}, not ${IMAGE}."
+          echo "revision=${latest}" >> "$GITHUB_OUTPUT"
+          echo "Revision ${latest} is ready and runs ${IMAGE}. Before the first request:"
+          az resource show --ids "$revision_id" --api-version 2026-07-01 \
+            --query "{runningState: properties.runningState, replicas: properties.replicas, healthState: properties.healthState}" --output json
+
+          # 2. /health and / answer at the app's address; the first request wakes the app.
+          start=$SECONDS
+          deadline=$((SECONDS + 180))
+          health=""
+          until [ "$health" = "Healthy" ]; do
+            [ "$SECONDS" -lt "$deadline" ] || fail "${app_url}/health did not answer \"Healthy\" within 3 minutes."
+            health="$(curl -fsS --max-time 60 "${app_url}/health" 2>/dev/null || true)"
+            [ "$health" = "Healthy" ] || sleep 5
+          done
+          first_answer=$((SECONDS - start))
+          echo "first_answer=${first_answer}" >> "$GITHUB_OUTPUT"
+          echo "${app_url}/health answered \"Healthy\" after ${first_answer} s."
+          page="$(curl -fsS --max-time 30 "${app_url}/")" || fail "${app_url}/ did not answer."
+          grep -q '<div id="root">' <<<"$page" || fail "${app_url}/ did not return the app's page."
+          echo "${app_url}/ answered with the app's page."
+
+          # 3. The revision is Running, not Degraded, Failed or Stopped.
+          running=""
+          for _ in $(seq 1 12); do
+            running="$(show "$revision_id" properties.runningState)"
+            case "$running" in
+              Running) break ;;
+              Degraded | Failed | Stopped) fail "Revision ${latest} is ${running}." ;;
+            esac
+            sleep 5
+          done
+          [ "$running" = "Running" ] || fail "Revision ${latest} is ${running}, not Running, a minute after its first answer."
+          echo "Revision ${latest} is Running."
+
+      - name: Summary
+        if: ${{ !cancelled() && steps.check.outputs.url != '' }}
+        env:
+          CHECK: ${{ steps.check.outcome }}
+          APP_URL: ${{ steps.check.outputs.url }}
+          REVISION: ${{ steps.check.outputs.revision }}
+          FIRST_ANSWER: ${{ steps.check.outputs.first_answer }}
+        run: |
+          {
+            if [ "$CHECK" = success ]; then echo "### Deployed"; else echo "### Deployed, but the check after the deploy failed"; fi
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE}\` |"
+            echo "| Revision | \`${REVISION:-not ready}\` |"
+            echo "| Address | ${APP_URL} |"
+            echo "| Time to the first answer | ${FIRST_ANSWER:-no answer} ${FIRST_ANSWER:+s} |"
+          } >> "$GITHUB_STEP_SUMMARY"
