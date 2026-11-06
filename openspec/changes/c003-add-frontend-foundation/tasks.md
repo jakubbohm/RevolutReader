@@ -37,7 +37,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 3. [close] Slice 1 — The top bar shows the app name
 
-- [ ] 3.1 The scenario's test passes. Verify: green, including app-shell / The top bar shows the app name
+- [x] 3.1 The scenario's test passes. Verify: green, including app-shell / The top bar shows the app name
 
 ## 4. [unit] Slice 2 — The install-hint rule
 
