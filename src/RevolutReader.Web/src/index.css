@@ -1,2 +1,5 @@
 @import "tailwindcss";
 @import "./styles/theme.css";
+
+/* The launch-image script isn't app code: its words would otherwise become utilities (e.g. `rounded`). */
+@source not "../launch-images.ts";

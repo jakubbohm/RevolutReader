@@ -143,7 +143,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 21. [wiring] Slice 10 — Launch images
 
-- [ ] 21.1 The same script makes the launch images of design.md D10 into `public/launch/` (every iPhone the tool knows, portrait, light and dark), and their `<link rel="apple-touch-startup-image">` tags go into `index.html`. Verify: every launch-image `href` in the built `index.html` exists in `dist/`; running `npm run icons` again changes no file
+- [x] 21.1 The same script makes the launch images of design.md D10 into `public/launch/` (every iPhone the tool knows, portrait, light and dark), and their `<link rel="apple-touch-startup-image">` tags go into `index.html`. Verify: every launch-image `href` in the built `index.html` exists in `dist/`; running `npm run icons` again changes no file
 
 ## 22. [close] Slice 10 — The Home Screen app opens with its launch screen
 
