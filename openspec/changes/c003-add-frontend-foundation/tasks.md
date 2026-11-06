@@ -91,7 +91,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 14. [close] Slice 7 — The app opens without network after the first visit
 
-- [ ] 14.1 Local check in Chrome against the API serving the real build (design.md D9):
+- [x] 14.1 Local check in Chrome against the API serving the real build (design.md D9):
   - the service worker is active;
   - with the network switched off in DevTools, a reload still shows the top bar.
 

@@ -6,7 +6,8 @@
       "Bash(openspec:*)",
       "ClaudeInChromeDomain(enablebanking.com)",
       "ClaudeInChromeDomain(tilisy-sandbox.enablebanking.com)",
-      "ClaudeInChromeDomain(localhost)"
+      "ClaudeInChromeDomain(localhost)",
+      "ClaudeInChromeDomain(localhost:5310)"
     ]
   },
   "hooks": {
@@ -17,7 +18,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/deny-test-edits.mjs"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/deny-test-edits.mjs"
+            ],
             "onFailure": "block"
           }
         ]
