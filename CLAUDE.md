@@ -50,6 +50,7 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 - **Commands and scripts the user copies and runs are PowerShell 7** (backtick or splatting for line continuation, `$env:NAME = 'value'`), never bash. Claude's own tool calls are unaffected.
 - **Never log or commit bank data** (balances, amounts, counterparties, transaction texts, account identifiers) **or secrets.**
 - **Never change, switch off or delete the ruleset on `main` without the user's explicit go** ([docs/operations/main-ruleset.md](docs/operations/main-ruleset.md)). Claude works with the owner's admin login, so it could otherwise switch off the one thing that blocks a merge past a red check.
+- **Azure, Entra ID and databases: Claude reads freely and changes only on the user's explicit go.** Claude works with the owner's own login, which is Owner of the subscription. Read-only operations need no confirmation. Before any operation that creates, changes, deletes or grants anything — in Azure (resources, role assignments, Key Vault secrets, deployments Claude starts itself), in Entra ID (Microsoft Graph), or by a command sent directly to a database, local or deployed (creating or dropping a table, writing or deleting data) — Claude shows the exact commands and what they change, then waits for the user's explicit go. A go covers only the commands shown. Not covered: data that tests and the app write through the code; Claude never writes to a database directly.
 
 ## Language
 

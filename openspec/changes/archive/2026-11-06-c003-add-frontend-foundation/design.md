@@ -83,7 +83,7 @@ The test-writer may add only signatures to production code, and the implementer 
      - § 0 step 5's baseline may hold one known red: the repository traceability check, reporting "Not claimed" for exactly this change's own scenarios (see step 4). C3 is the first change that adds scenarios after the check exists.
    - **workflow.md § 3:** `[setup]` becomes "once per stack: C1 the backend, C3 the frontend".
    - **CLAUDE.md § Commands:** the frontend rows of D1.
-   - **Software factory:** lesson R-40, a line added to R-29, and the inventory line for the oxlint config.
+   - **Software factory:** lesson R-41, a line added to R-29, and the inventory line for the oxlint config.
 4. **Check:**
    - `dotnet build` passes;
    - `dotnet test` is green except one test: the repository traceability check fails with "Not claimed" for exactly the ten scenarios of this change's delta specs, and nothing else. The specs already exist; group 1 claims them;
@@ -192,7 +192,7 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
 - **Alternatives:**
   - TypeScript 5.9.3 with ESLint + typescript-eslint, the old convention. Every tool supports it, but the template's defaults would have to be swapped back.
   - TypeScript 6.0.3. ESLint works, but openapi-typescript's peer range refuses it, with no gain.
-- **Software factory:** lesson R-40 *(Divergence from DoseUp, which names ESLint + Prettier; New: the TypeScript 7 finding)*.
+- **Software factory:** lesson R-41 *(Divergence from DoseUp, which names ESLint + Prettier; New: the TypeScript 7 finding)*.
 
 ### D4 — The look: the design system translated (decision 11)
 
@@ -289,7 +289,7 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
   - **Slice 7:** with the network switched off in DevTools, a reload still shows the top bar.
   - **Slice 8:** rebuild with a visible change, switch the tab away and back, and the page reloads once with the change. The response headers also follow D5.
 - **The service worker is off in the Vite dev server** (the plugin's default).
-- **Software factory:** lesson R-41 *(New: how a scale-to-zero PWA picks up a new version)*.
+- **Software factory:** lesson R-42 *(New: how a scale-to-zero PWA picks up a new version)*.
 
 ### D10 — Manifest, icon and launch images (decisions 10, 11, 12)
 
@@ -318,7 +318,7 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
   - copied and committed: the files the app ships (icon, images, logos);
   - translated, not copied: the tokens, the components, the formats;
   - never copied: the reference components' code, the screens, the sample data, the guidelines.
-- **Software factory:** a line added to lesson R-7 (the asset rule); lesson R-42 *(New: iOS ignores the manifest for its launch screen and needs one image per device)*.
+- **Software factory:** a line added to lesson R-7 (the asset rule); lesson R-43 *(New: iOS ignores the manifest for its launch screen and needs one image per device)*.
 
 ### D11 — Local development: Aspire runs Vite
 
@@ -364,7 +364,7 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
 - **Recorded in the `[plan]` commit:**
   - ADR-0007 (the full decision);
   - the Q10 entry in progress.md;
-  - lesson R-39 *(New)*.
+  - lesson R-40 *(New)*.
 - **What C3 builds of it:** only the service worker's "app files only" rule (D9).
 - **What C7 builds:** the stored balance in IndexedDB, the waking-up and offline screens with it, and its deletion on sign-out.
 - **What C9 builds:** the push payload carrying the balance and its read time, and the service worker writing them.
@@ -535,10 +535,10 @@ None. C3 adds no repository, external client or push sender, so there's no `[int
   - **Artboards:** "Shell / Safari / Install hint", "Shell / Home Screen / Icon", "Shell / Launch / Default".
   - No new token or component.
 - **Software factory:**
-  - lesson R-39 *(New)*: what a scale-to-zero PWA keeps on the phone: only the last balance, never transactions, replaced by refresh and push (ADR-0007);
-  - lesson R-40 *(Divergence from DoseUp, and New)*: TypeScript 7 + oxlint + Prettier; why ESLint and openapi-typescript don't fit TypeScript 7 yet;
-  - lesson R-41 *(New)*: how the installed PWA picks up a new version (automatic, one reload, a check on every return);
-  - lesson R-42 *(New)*: iOS's launch screen needs one image per device, with no manifest fallback;
+  - lesson R-40 *(New)*: what a scale-to-zero PWA keeps on the phone: only the last balance, never transactions, replaced by refresh and push (ADR-0007);
+  - lesson R-41 *(Divergence from DoseUp, and New)*: TypeScript 7 + oxlint + Prettier; why ESLint and openapi-typescript don't fit TypeScript 7 yet;
+  - lesson R-42 *(New)*: how the installed PWA picks up a new version (automatic, one reload, a check on every return);
+  - lesson R-43 *(New)*: iOS's launch screen needs one image per device, with no manifest fallback;
   - lines added to R-7 (the asset rule) and R-29 (`[setup]` once per stack), and to divergences.md R-12 (the stand-in page folder);
   - inventory lines: the oxlint config (Radix wall), the traceability check's frontend reading with the `scenario()` helper, the service worker with the update watch, the icon and launch-image script config.
 

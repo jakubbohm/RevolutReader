@@ -124,7 +124,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
   - switch the tab away and back: the page reloads once by itself and shows the change.
 
   Record it in `.tdd-state.md`; the iPhone check stays the manual row (M5). Verify: the result is recorded
-- [x] 18.2 Docs: lesson R-41 (how the installed PWA picks up a new version); an inventory line for the service worker with the update watch. Verify: both link to design.md D9
+- [x] 18.2 Docs: lesson R-42 (how the installed PWA picks up a new version); an inventory line for the service worker with the update watch. Verify: both link to design.md D9
 
 ## 19. [wiring] Slice 9 — Icon, name and manifest
 
@@ -148,7 +148,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 ## 22. [close] Slice 10 — The Home Screen app opens with its launch screen
 
 - [x] 22.1 The images exist for the iPhone 13 Pro (1170 × 2532) in light and dark, and their tags carry the matching `media` conditions, dark ones included. The iPhone check stays the manual row (M5). Verify: both files and both tags are present
-- [x] 22.2 Docs: lesson R-42 (iOS's launch screen needs one image per device). Verify: it links to design.md D10
+- [x] 22.2 Docs: lesson R-43 (iOS's launch screen needs one image per device). Verify: it links to design.md D10
 
 ## 23. [wiring] Local development
 

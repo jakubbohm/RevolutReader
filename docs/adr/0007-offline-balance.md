@@ -43,4 +43,4 @@ The design follows the same rule: the design system's "What the phone stores" se
   - the freshness line names the day of an older balance ("Aktualizováno včera v 14:05").
 - **C9:** the push payload carries the balance and its read time. Web Push encrypts it for the device, so the push service cannot read it. What the lock screen shows stays a separate choice (Q8). The service worker writes the payload into the stored balance.
 - **Data at rest:** one balance and one time, on the user's own phone, inside the Home Screen app's storage, which is separate from Safari's (ADR-0003-sign-in § Context). Logs and the repository still never hold bank data (CLAUDE.md).
-- **Software factory:** [lessons.md R-39](../software-factory/lessons.md).
+- **Software factory:** [lessons.md R-40](../software-factory/lessons.md).

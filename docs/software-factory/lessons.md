@@ -363,7 +363,16 @@ RevolutReader ([.claude/skills/cleanup-branch/](../../.claude/skills/cleanup-bra
 
 *Generalizes:* in a worktree session, a skill that must touch the main checkout leaves the worktree first and runs from there; a worktree is removed only after the same merged-PR checks as a branch; a checkout another session may be using is never changed without asking the user, because no check sees a session that has not changed anything yet. Reverses if Claude Code lets a worktree session run checked scripts against the main checkout, or shows which checkout each session works in.
 
-**R-39 · What does a PWA keep on the phone when its server scales to zero?** *(New)*
+**R-39 · What may the AI do on its own with the owner's cloud and database access?** *(New)*
+Options: a separate login for the AI that can only read · the owner's own login, unrestricted · the owner's own login, reads free, every change shown and approved first.
+RevolutReader ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-06): **the AI uses the owner's own login, on the owner's behalf. Read-only operations need no confirmation. Before anything that creates, changes, deletes or grants in Azure, Entra ID or directly in a database, the AI shows the exact commands and what they change and waits for the owner's go, which covers only the commands shown. Data that tests and the app write through the code is not covered; the AI never writes to a database directly.**
+- A separate read-only login for the AI was rejected by the user: the AI does the operations work on the owner's behalf, so it would need the same permissions anyway, and an unguarded AI could still use the owner's login cached in the CLI. The rule makes every change visible before it happens instead of trying to make it impossible.
+- Why the rule is needed: the owner's login is Owner of the subscription, so nothing on the Azure side stops a wrong command, and in Claude Code's auto mode no permission prompt may come first. The first change under it (2026-11-06): a Key Vault role assignment, shown as exact commands and run after the go.
+- Related rules in the same file: the ruleset on `main` is never changed without the owner's go (R-36), and every `az` command names the subscription explicitly, because the owner's CLI login also holds an employer account.
+
+*Generalizes:* an AI that does the owner's operations work uses the owner's access, reads freely and surfaces every change as exact commands for approval before running it. Holds for a solo owner or a small team whose AI acts on a person's behalf. Reverses when the AI works unattended (a scheduled agent, a pipeline), where no one is there to approve: that AI gets its own identity with only the permissions its task needs.
+
+**R-40 · What does a PWA keep on the phone when its server scales to zero?** *(New)*
 Options: nothing but the app's own files (live data only) · the last value the user looks for first · the last screenful of data (value and list) · a full offline copy kept in sync.
 RevolutReader ([ADR-0007-offline-balance](../adr/0007-offline-balance.md), 2026-11-06): **the app's own files, plus the last balance and the time the server read it, never the transactions.** The balance is replaced on every successful refresh and by every push, which carries it, and it is deleted on sign-out. It lives in IndexedDB, because the service worker writes it from the push handler and has no `localStorage`.
 - The deciding fact was the cold start, not offline use. A server that scales to zero makes most opens wait about 20 s. One stored value shows the answer to "how much is left" at once, marked with its time, while the list waits for the server.
@@ -371,7 +380,7 @@ RevolutReader ([ADR-0007-offline-balance](../adr/0007-offline-balance.md), 2026-
 
 *Generalizes:* when the backend sleeps, store on the device the one value the user opens the app for, with the time it was read, and update it from every channel that already carries it (refresh, push). Keep the rest live, so less sensitive data rests on the device and nothing needs syncing. Reverses toward a fuller offline copy when users act offline or the list itself is the point of opening the app, and toward nothing stored when the server is always on or the data must never rest on a device.
 
-**R-40 · Which linter and TypeScript version does a new React + Vite frontend start with?** *(Divergence — relates to DoseUp's conventions; New: the TypeScript 7 finding)*
+**R-41 · Which linter and TypeScript version does a new React + Vite frontend start with?** *(Divergence — relates to DoseUp's conventions; New: the TypeScript 7 finding)*
 Options: ESLint + typescript-eslint + Prettier on TypeScript 5.9 · the same on TypeScript 6.0 · the current Vite template: TypeScript 7 (the native compiler) + oxlint, with Prettier added.
 DoseUp: ESLint + Prettier (its conventions; no frontend code yet, checked 2026-11-06).
 RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [c003 design.md D3](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **TypeScript 7 + oxlint (`--deny-warnings`) + Prettier as is**, chosen by the user for knowledge building over the recommended ESLint on TypeScript 5.9.
@@ -385,7 +394,7 @@ RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [
 
 *Generalizes:* start from the framework template's current toolchain when its linter can enforce the project's structural import rules, and check that every tool needing the compiler's API supports that compiler before adopting it. Pin the compiler and give an API-dependent generator its own pinned copy. Reverses to ESLint + typescript-eslint while type-aware lint rules matter more than speed, or until typescript-eslint supports TypeScript 7.
 
-**R-41 · How does an installed PWA pick up a new version when its server scales to zero?** *(New)*
+**R-42 · How does an installed PWA pick up a new version when its server scales to zero?** *(New)*
 Options: the browser's default (the new service worker waits until every tab of the app is closed) · a banner that asks the user to reload · automatic: the new worker takes over at once and the page reloads once · the page always from the network first.
 RevolutReader ([c003 design.md D9](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), [D5](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **automatic with one reload, plus an update check whenever the app comes back to the screen while online.**
 - **Takeover:** `skipWaiting()` on install and `clientsClaim()` in the service worker; vite-plugin-pwa 2.0.0 with `registerType: "autoUpdate"` reloads the page once when the new worker takes over.
@@ -397,7 +406,7 @@ RevolutReader ([c003 design.md D9](../../openspec/changes/archive/2026-11-06-c00
 
 *Generalizes:* for an app with one screen and nothing typed into it, update automatically with one reload, check on every return to the screen as well as on open, and cache only content-hashed files for long. Reverses to a prompt when a reload could lose the user's input or the update must be the user's choice, and toward network-first for the page when the server is always on.
 
-**R-42 · How does a Home Screen web app on iPhone get its launch screen?** *(New)*
+**R-43 · How does a Home Screen web app on iPhone get its launch screen?** *(New)*
 Options: none (iOS shows a blank screen while the app starts) · one image per iPhone screen size, light and dark, made by a tool and committed · images made at build time.
 RevolutReader ([c003 design.md D10](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **one image per screen size, light and dark, generated by hand with `@vite-pwa/assets-generator` 2.0.0 and committed.** Android builds its launch screen from the manifest; iOS doesn't, and needs an `apple-touch-startup-image` link per device, matched by screen size, pixel ratio and orientation.
 - **Facts (2026-11-06):** the tool knows 28 iPhones from the 11 to the 17 and the Air, which come down to 10 portrait sizes. Light and dark make 20 images, about 142 KB.
