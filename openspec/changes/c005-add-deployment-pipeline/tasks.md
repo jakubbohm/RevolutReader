@@ -84,7 +84,7 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 ## 5. PR 1 (D4, D7)
 
-- [ ] 5.1 Push the branch and open PR 1, titled `ci: add deployment pipeline (C4)`. Verify: `gh pr checks` shows `build-and-test`, `frontend`, `pr-title` and `image-and-infra` passing; `image-and-infra`'s log shows the smoke run's two answers.
+- [x] 5.1 Push the branch and open PR 1, titled `ci: add deployment pipeline (C4)`. Verify: `gh pr checks` shows `build-and-test`, `frontend`, `pr-title` and `image-and-infra` passing; `image-and-infra`'s log shows the smoke run's two answers.
 - [ ] 5.2 Re-apply the ruleset with the page's update command, then read it back (`gh api repos/jakubbohm/RevolutReader/rules/branches/main`). Record the date in `main-ruleset.md`, commit and push. Verify: the read-back lists four checks, strict, with no bypass; after the push all checks pass again and `gh pr view --json mergeStateStatus` reads `CLEAN`.
 - [ ] 5.3 Squash merge PR 1. Verify: the PR reads `MERGED`, and the `Deploy` workflow has started on `main` (`gh run list --workflow deploy.yml`).
 

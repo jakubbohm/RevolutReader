@@ -2,7 +2,7 @@
 
 > What roadmap step C2 set up by hand on GitHub so that a failing CI check blocks the merge. The definition is [main-ruleset.json](main-ruleset.json). This page says why it looks the way it does, how to create, update, check and remove it, and how it was proven. The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7 and run with the owner's `gh` login, an admin of the repository. **Claude never changes, switches off or deletes this ruleset without the user's explicit go.** Last updated: 2026-11-06 (C3: `frontend` added and applied on the user's go).
+> Commands are PowerShell 7 and run with the owner's `gh` login, an admin of the repository. **Claude never changes, switches off or deletes this ruleset without the user's explicit go.** Last updated: 2026-11-06 (C4: `image-and-infra` added and applied on the user's go).
 
 ## Identifiers (non-secret)
 
@@ -10,7 +10,7 @@
 |---|---|
 | Repository | `jakubbohm/RevolutReader` |
 | Ruleset | name `main`, id `26623567` (created 2026-11-05); applies to the default branch |
-| Required checks | `build-and-test`, `frontend` and `image-and-infra` ([ci.yml](../../.github/workflows/ci.yml)), and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368). `frontend` added in C3: applied 2026-11-06 with the update command below, on the user's go, after its first run passed on [#16](https://github.com/jakubbohm/RevolutReader/pull/16); read back as `build-and-test`, `frontend`, `pr-title`, still active, strict, squash only, no bypass. `image-and-infra` added in C4 (the image and the Bicep the deploy uses, c005 design.md D7): in the file, not applied yet |
+| Required checks | `build-and-test`, `frontend` and `image-and-infra` ([ci.yml](../../.github/workflows/ci.yml)), and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368). `frontend` added in C3: applied 2026-11-06 with the update command below, on the user's go, after its first run passed on [#16](https://github.com/jakubbohm/RevolutReader/pull/16); read back as `build-and-test`, `frontend`, `pr-title`, still active, strict, squash only, no bypass. `image-and-infra` added in C4 (the image and the Bicep the deploy uses, c005 design.md D7): applied 2026-11-06 the same way, on the user's go, after its first run passed on [#21](https://github.com/jakubbohm/RevolutReader/pull/21) in 48 s; read back as `build-and-test`, `frontend`, `pr-title`, `image-and-infra`, still active, strict, squash only, no bypass (`current_user_can_bypass: never`) |
 
 ## What it enforces, and why
 
