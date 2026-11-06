@@ -3,8 +3,23 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig } from "vitest/config";
 
+/**
+ * The API's address when Aspire runs the dev server: `WithReference(api)` in the AppHost sets API_HTTPS and API_HTTP
+ * (D11). Outside Aspire neither is set, and the dev server forwards nothing.
+ */
+const apiAddress = process.env.API_HTTPS ?? process.env.API_HTTP;
+
 // https://vite.dev/config/ — c003 design.md D1
 export default defineConfig({
+  // The browser talks to the dev server only, which forwards /api to the API. `secure: false` accepts the local
+  // development certificate.
+  server: apiAddress
+    ? {
+        proxy: {
+          "/api": { target: apiAddress, changeOrigin: true, secure: false },
+        },
+      }
+    : undefined,
   plugins: [
     react(),
     tailwindcss(),

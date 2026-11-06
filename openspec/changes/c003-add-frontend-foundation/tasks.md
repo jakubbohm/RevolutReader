@@ -152,12 +152,12 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 23. [wiring] Local development
 
-- [ ] 23.1 AppHost: `Aspire.Hosting.JavaScript` 13.6.4 (central version) and `AddViteApp("web", "../RevolutReader.Web").WithReference(api).WaitFor(api)`. `vite.config.ts` forwards `/api` to `API_HTTPS` or `API_HTTP` (design.md D11). Verify, with `aspire start`, then `aspire stop`:
+- [x] 23.1 AppHost: `Aspire.Hosting.JavaScript` 13.6.4 (central version) and `AddViteApp("web", "../RevolutReader.Web").WithReference(api).WaitFor(api)`. `vite.config.ts` forwards `/api` to `API_HTTPS` or `API_HTTP` (design.md D11). Verify, with `aspire start`, then `aspire stop`:
   - `web` runs and `api` is healthy;
   - the `web` address shows the top bar;
   - `<web address>/api/no-such-address` answers the 404 problem description.
-- [ ] 23.2 Bicep: none until C4 creates `infra/`. C4's Dockerfile builds this folder in a Node stage (ADR-0002). Verify: roadmap C4 still names the frontend in its one image
-- [ ] 23.3 Docs: CLAUDE.md § Commands, "Run the app": locally the app opens at the `web` resource's address. Verify: the row says so
+- [x] 23.2 Bicep: none until C4 creates `infra/`. C4's Dockerfile builds this folder in a Node stage (ADR-0002). Verify: roadmap C4 still names the frontend in its one image
+- [x] 23.3 Docs: CLAUDE.md § Commands, "Run the app": locally the app opens at the `web` resource's address. Verify: the row says so
 
 ## 24. [wiring] CI
 

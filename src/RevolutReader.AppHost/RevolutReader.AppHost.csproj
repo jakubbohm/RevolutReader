@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RevolutReader.Api\RevolutReader.Api.csproj" />
   </ItemGroup>
 
