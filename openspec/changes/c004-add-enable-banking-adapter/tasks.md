@@ -45,8 +45,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 4. [unit] Slice 1 — Balance selection
 
-- [ ] 4.1 The available balance is the ITAV balance, with its amount and currency
-- [ ] 4.2 A balance list without an ITAV balance is an error
+- [x] 4.1 The available balance is the ITAV balance, with its amount and currency
+- [x] 4.2 A balance list without an ITAV balance is an error
 
 ## 5. [wiring] Slice 1 — The balance read
 
