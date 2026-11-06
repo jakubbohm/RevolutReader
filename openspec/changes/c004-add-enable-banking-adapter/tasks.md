@@ -122,7 +122,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 15. [close] Slice 5 — Cancelled and rejected transactions are left out
 
-- [ ] 15.1 The scenario's test passes; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
+- [x] 15.1 The scenario's test passes; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
 
 ## 16. [unit] Slice 6 — Transaction pages
 
