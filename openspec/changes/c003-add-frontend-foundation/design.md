@@ -199,12 +199,14 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
 - **Tokens:** `src/styles/theme.css` starts from the design system's `tailwind/theme.css` (`@theme static` with the light values and a `prefers-color-scheme: dark` block). It's the repository's own theme file:
   - a header comment names the design-system version it was taken from;
   - a token change arrives through § 8's loop as a small direct PR.
+  - **The three shadows sit outside `@theme`,** in a plain `:root` block, each with an `@utility` rule that reads its variable. Tailwind v4 copies `@theme` shadow values into the `shadow-*` utilities at build time, so the dark values would never reach them. Found while building C3; the owner fixed it in the design system through § 8's loop (version 1793973462-31c9, 2026-11-06). These three utilities don't combine with `ring-*` or `shadow-<colour>` on the same element.
   - Utilities follow the design: `bg-background`, `text-ink`, `text-headline`, `px-gutter`, `h-topbar` and so on.
 - **Components are rebuilt,** never copied. The design system's reference components (`bundle.js`, `src/index.tsx`) are a model.
   - **`AppShell`:** the top bar `spacing-topbar` high below `env(safe-area-inset-top)`, opaque `color-background`, sticky; "Tarjeta Papá" in `text-headline` with `lang="es"`; a `main` with `spacing-section` gaps and the bottom inset. **Without the account menu:** it needs a signed-in account (C6). That isn't a design change, only a staged build.
   - **`InstallHint`:** as the design system's guideline, laid out as artboard "Shell / Safari / Install hint":
     - the icon at 64 px, the name in `text-title` with `lang="es"`, the sentence "Uvidíš tu zůstatek a pohyby na tátově eurovém účtu.";
-    - the card "Nejdřív si appku přidej na plochu", "Upozornění na iPhonu fungují jen v appce otevřené z plochy." and the three steps, a real `<ol>` with the Lucide icons `ellipsis` (`aria-label="tři tečky"`), `share` and `square-plus` in `color-accent`.
+    - the card "Nejdřív si appku přidej na plochu", "Upozornění na iPhonu fungují jen v appce otevřené z plochy." and the three steps, a real `<ol>` with the Lucide icons `ellipsis` (`aria-label="tři tečky"`), `share` and `square-plus` in `color-accent`;
+    - the step words "Sdílet", "Přidat na plochu" and "Přidat" as `<b>` at weight 600 (`font-semibold`), not the browser's 700 (the same loop).
 - **Czech texts sit in the components;** there's one language, so no i18n library.
 - **No new token or component.** The install screen's header block (icon, name, sentence) is screen composition from the artboard.
 

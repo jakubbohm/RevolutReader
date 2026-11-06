@@ -110,6 +110,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 - [ ] 16.2 No update check runs while the phone is offline
 - [ ] 16.3 No update check runs when the app goes to the background
 - [ ] 16.4 A failed update check is ignored until the next return
+- [ ] 16.5 No update check runs after the watch stops
 
 ## 17. [wiring] Slice 8 — Switching to a new version
 
@@ -168,10 +169,17 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
   Not applied yet (§ Workflow follow-up). Verify: the JSON parses and names the three checks
 
-## 25. [close] Acceptance green
+## 25. [wiring] The design system's two fixes
 
-- [ ] 25.1 All of this change's tests pass (the two page scenarios, the four frontend scenarios, the unit tests of slices 2 and 8), then the full suite and the traceability check. Verify: `dotnet test` and `npm --prefix src/RevolutReader.Web test` both exit 0
-- [ ] 25.2 `pm/progress.md`: C3 row (status as the user decides, date, notes: the local checks, deviations). Verify: the row matches what was done
+The owner ran workflow.md § 8's loop on 2026-11-06: design system version 1793973462-31c9, Screens design version 1793974594-78c8 (design.md D4).
+
+- [ ] 25.1 `src/styles/theme.css` follows the design system's `tailwind/theme.css` version 1793973462-31c9: the three shadows leave `@theme` for a plain `:root` block, and `@utility shadow-card`, `shadow-menu` and `shadow-sheet` read their variable; the header comment names the new version. Verify: in the built CSS, `.shadow-card` is `box-shadow: var(--shadow-card)` and the dark block sets `--shadow-card: none`; lint and `typecheck` pass; green
+- [ ] 25.2 `InstallHint`: the step words "Sdílet", "Přidat na plochu" and "Přidat" at weight 600 (`font-semibold`), as the design system's InstallHint guideline says. Verify: lint and `typecheck` pass; green
+
+## 26. [close] Acceptance green
+
+- [ ] 26.1 All of this change's tests pass (the two page scenarios, the four frontend scenarios, the unit tests of slices 2 and 8), then the full suite and the traceability check. Verify: `dotnet test` and `npm --prefix src/RevolutReader.Web test` both exit 0
+- [ ] 26.2 `pm/progress.md`: C3 row (status as the user decides, date, notes: the local checks, deviations). Verify: the row matches what was done
 
 ## Workflow follow-up
 
