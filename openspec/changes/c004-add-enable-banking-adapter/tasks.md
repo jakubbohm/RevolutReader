@@ -38,9 +38,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 3. [unit] Slice 1 — Application token
 
-- [ ] 3.1 The token is signed with RS256 and names the application id as its key id
+- [ ] 3.1 The token is signed with RS256 and names the application id as its key id (its header also says `typ` JWT: the user, group 3 review)
 - [ ] 3.2 The token is issued by enablebanking.com for api.enablebanking.com
-- [ ] 3.3 The token is issued now and expires one hour later
+- [ ] 3.3 The token is issued now and expires one hour later (in whole seconds: a `now` with milliseconds is rounded down, as the M1 client sends it: the user, group 3 review)
 - [ ] 3.4 The token's signature verifies with the application's public key
 
 ## 4. [unit] Slice 1 — Balance selection

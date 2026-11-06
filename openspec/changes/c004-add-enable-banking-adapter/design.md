@@ -280,7 +280,11 @@ public sealed class NotSecretPlaceholderAttribute : ValidationAttribute;        
 public sealed class EnableBankingOptionsValidator : IValidateOptions<EnableBankingOptions>;
 
 public sealed class ApplicationToken(string applicationId, RSA key) {
-  /// <summary>RS256; header kid = application id; iss enablebanking.com, aud api.enablebanking.com, iat = now, exp = now + 1 h. BCL only.</summary>
+  /// <summary>
+  /// RS256; header typ JWT, kid = application id (typ pinned too: the user, group 3 review, as the M1 client sends it);
+  /// iss enablebanking.com, aud api.enablebanking.com, iat = now, exp = now + 1 h, both in whole Unix seconds (milliseconds
+  /// dropped, as the M1 client sends them: the user, group 3 review). BCL only.
+  /// </summary>
   public string Create(DateTimeOffset now);
 }
 
