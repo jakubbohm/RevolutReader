@@ -116,7 +116,7 @@ Starts on a new branch off the freshest `main`, `docs/c005-first-deployment`, in
 
 ## 7. Close
 
-- [ ] 7.1 Final check:
+- [x] 7.1 Final check:
   - `dotnet build`, `dotnet test` and the frontend checks pass locally;
   - `openspec validate c005-add-deployment-pipeline` passes;
   - PR 2 (`docs: record the first deployment (C4)`) is open, its checks pass and its state is `CLEAN`.
