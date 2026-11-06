@@ -77,7 +77,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 12. [close] Slice 6 — An unknown page address opens the app
 
-- [ ] 12.1 The scenario's test passes. Verify: green, including this scenario and api-errors
+- [x] 12.1 The scenario's test passes. Verify: green, including this scenario and api-errors
 
 ## 13. [wiring] Slice 7 — The service worker
 
