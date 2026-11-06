@@ -230,7 +230,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 - [ ] 37.1 The bank client's default logging is removed (`RemoveAllLoggers()`). Each request carries `HttpRequestTracing.Exclude`, which ServiceDefaults' HTTP-client trace filter drops (design.md D5). Verify: build passes; green
 - [ ] 37.2 One log line per read (`LoggerMessage`): which read, present user or unattended, HTTP status, `error` code, duration, pages, and the number left out. Never the PSU values, amounts, names, texts or ids (design.md D5). Verify: build passes; green
 - [ ] 37.3 The guard `Conventions/BankTelemetryTests` passes. If it fails on the exported trace, apply design.md § Risks' fallback. Verify: green, guard included
-- [ ] 37.4 Docs: lesson R-45, and inventory lines for the guard test and the fake bank driver. Verify: they link to design.md D5 and D1
+- [ ] 37.4 Docs: lesson R-51 (R-45 to R-50 were taken in `main` by #20 and C4, design.md D8), and inventory lines for the guard test and the fake bank driver. Verify: they link to design.md D5 and D1
 
 ## 38. [wiring] Local development
 
@@ -246,7 +246,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 - [ ] 38.4 Check 1, `Wiring/RealBank/MockAspspCheck` (`[Explicit]`), as design.md D7 describes. It reads the balance and the transactions, both with PSU headers and unattended (one page: the mock does not page at 25). A made-up session id must come back as access expired. Verify: the owner runs it; it passes
 - [ ] 38.5 Docs:
   - configuration.md § Local development and tests: the backup vault and the `RealAccountCheck:*` keys;
-  - configuration.md § Hand-provisioned secrets: four rows, provisioned in C4 or by task 40.1;
+  - configuration.md § Hand-provisioned secrets: four rows (`EnableBanking--ApplicationId`, `--PrivateKey`, `--SessionId`, `--AccountId` in `kv-revolutreader`), provisioned 2026-11-06 by docs/operations/deployment.md § Guided task (C4); written after the rebase (task 40.1);
   - docs/operations/expiring-approvals.md: a row for the Mock ASPSP session (180 days), and § 3 step 3 naming the application id as a secret;
   - `spikes/enable-banking-mock/README.md`: 180-day sessions, the test data, and how the last page is marked.
 
@@ -270,12 +270,15 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 40. [wiring] Deployment
 
-- [ ] 40.1 Rebase onto `main` once C4 has merged (C4 merges first, design.md D8), then:
-  - the four Key Vault secrets, referenced as Container Apps secrets, as the `EnableBanking__*` environment variables in Bicep (and `.bicepparam` if needed);
-  - C4's PR check's start test: its stand-in values for the four settings and its generated key pass C5's start-up validation; where they don't, adjust that CI step;
-  - the guided Key Vault task with the production values from the owner's files, each Azure change shown first and run on the owner's go, and the configuration.md rows dated.
+- [ ] 40.1 Rebase onto `main` (C4 merged and deployed, 2026-11-07; the branch is based on dce448d, `main` is past #19–#23). Expected conflicts, from C4's handover (design.md D8):
+  - `docs/software-factory/lessons.md` (#20's R-45, C4's R-46 to R-50): keep everything; C5's R-44 stays, its second lesson is R-51;
+  - `pm/progress.md` (#19, #20, C4's row and change-log rows): keep both sides, C5 edits only its own row;
+  - `openspec/config.yaml` (#19 or #20): keep both.
 
-  Verify: `az bicep build` passes for the changed files; the PR check's start test passes on the PR
+  Verify: the build and the full suite are green on the rebased branch
+- [ ] 40.2 Bicep, in `infra/features.bicep` § "The bank (C5)": four Container Apps secrets referencing the Key Vault secrets `EnableBanking--ApplicationId`, `--PrivateKey`, `--SessionId`, `--AccountId` (already in `kv-revolutreader`, put there 2026-11-06 by docs/operations/deployment.md § Guided task), read with the app's identity, exposed as the `EnableBanking__*` environment variables (names in c005 design.md D15). `platform.bicep` outputs `keyVault.properties.vaultUri`, and `main.bicep` passes it to `features.bicep`. Verify: `az bicep lint --file infra/main.bicep` has no warning (any warning fails CI); the read-only preview in deployment.md runs and shows only these changes
+- [ ] 40.3 The PR check `image-and-infra` starts the image with made-up values for the four settings and a real throwaway RSA key: C5's start-up validation must accept them, and C5 adds no required setting without a value in `appsettings.json`. Verify: the check passes on the PR
+- [ ] 40.4 After the merge (the owner's go, outside the PR): the deploy is the first real start with the secrets. Verify: the app is running; if it stops at start, its log through deployment.md § Checks' query
 
 ## 41. [close] Acceptance green
 

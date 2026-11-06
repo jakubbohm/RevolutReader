@@ -209,6 +209,12 @@ Recorded in propose (2026-11-06), from the user's notes that C3 has merged and C
   - Otherwise C4 does the same with these names; the owner passes them to the C4 session.
 - *Settled 2026-11-06 (the user, passing on C4's note):* **C4 merges first; C5 waits for it and wires the four secrets when it merges** (the first branch above, task 40.1). C4's PR check has a start test that starts the app with stand-in values for these four settings and a key generated on the spot. C5's start-up validation (no `"<secret>"` placeholder; the key parses as an RSA private key in PEM form, D6) must accept them; where it is stricter, C5 adjusts that CI step in the same task.
 - **Files shared with C4:** CLAUDE.md, configuration.md § Hand-provisioned secrets, docs/operations, pm/progress.md and lessons.md. They merge as text at the rebase. Lesson numbers R-44 and R-45 are free as of writing; if C4 takes them first, whichever change merges second renumbers.
+- *C4's handover (the user, 2026-11-07):* **C4 is merged and deployed**, and Key Vault `kv-revolutreader` already holds the four values (`EnableBanking--ApplicationId`, `--PrivateKey`, `--SessionId`, `--AccountId`), put there on 2026-11-06 by C4's guided task (docs/operations/deployment.md § Guided task). So C5 runs no Key Vault task. What C5 still does (tasks 40.1–40.4):
+  - **Rebase** past #19–#23. Expected conflicts: lessons.md (keep everything; R-45 went to #20 and R-46 to R-50 to C4, so C5's second lesson is **R-51**), pm/progress.md (keep both sides), `openspec/config.yaml` (keep both).
+  - **Bicep:** in `infra/features.bicep` § "The bank (C5)", Container Apps secrets referencing the four Key Vault secrets with the app's identity, exposed as `EnableBanking__*` (names in c005 design.md D15). For that, `platform.bicep` outputs the vault's URI and `main.bicep` passes it on.
+  - **The rows** in configuration.md § Hand-provisioned secrets, pointing to deployment.md § Guided task.
+  - **Checks:** the PR check `image-and-infra` starts the image with made-up values and a real throwaway RSA key, so it should pass C5's validation (it fails if C5 adds a required setting with no value in `appsettings.json`). Before the PR: `az bicep lint --file infra/main.bicep`, where any warning fails CI, and deployment.md's read-only preview.
+  - **After the merge:** the deploy is the first real start with the secrets; if the app stops at start, its log is in the workspace (deployment.md § Checks).
 
 ## Public API sketch
 
@@ -466,7 +472,7 @@ All thirteen through the port, as D1 decided. Each is an acceptance test in `Sce
 ## Cross-cutting effects
 
 - **API contract / TS client:** none; no endpoint.
-- **Bicep:** none in C5 itself; D8's conditional task applies if C4's `infra/` is in `main` when C5 rebases.
+- **Bicep:** C4's `infra/` is in `main` (D8, C4's handover): C5 wires the four Key Vault secrets in `features.bicep` and passes the vault's URI from `platform.bicep` through `main.bicep` (task 40.2).
 - **Settings:** the `EnableBanking` section in `appsettings.json`: `ApiBaseUrl` and `RequestTimeout` with values, the four secrets as `"<secret>"`, each key with its provenance comment (configuration.md). The AppHost declares four secret parameters.
 - **Bank calls** (ADR-0001 § Decision):
   - PSU headers only when the caller says a user is present, with that user's values (D2);
@@ -484,7 +490,7 @@ All thirteen through the port, as D1 decided. Each is an acceptance test in `Sce
   - README.md § Backend code: failure records next to the union (D4); the bank cases' status rows move to C7;
   - configuration.md:
     - the shared `"<secret>"` validator now exists;
-    - § Hand-provisioned secrets gets four rows, provisioned in C4 or by D8's task;
+    - § Hand-provisioned secrets gets four rows, provisioned on 2026-11-06 by C4's guided task (D8);
     - § Local development and tests: the backup vault and the `RealAccountCheck:*` keys.
 - **Operations:**
   - `docs/operations/expiring-approvals.md`: a row for the Mock ASPSP session (180 days); § 3's step 3 now names the application id as a secret;
@@ -492,7 +498,7 @@ All thirteen through the port, as D1 decided. Each is an acceptance test in `Sce
 - **Design:** no UI.
 - **Software factory:**
   - lesson R-44 *(New)*: the public-channel rule generalises from apps to libraries and ports; the channel is the public interface of what is specified (D1);
-  - lesson R-45 *(New)*: `IHttpClientFactory` logging and HTTP-client tracing record URL paths, so an identifier in a path leaks. The fix: silence that one client, log one line per call, and guard it with a test (D5);
+  - lesson R-51 *(New; numbered R-45 until C4's handover, D8)*: `IHttpClientFactory` logging and HTTP-client tracing record URL paths, so an identifier in a path leaks. The fix: silence that one client, log one line per call, and guard it with a test (D5);
   - inventory lines: the telemetry guard test and the fake bank driver.
 
 ## Risks / Trade-offs
