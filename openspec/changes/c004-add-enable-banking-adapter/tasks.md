@@ -140,7 +140,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 18. [close] Slice 6 — Transactions on every page are returned
 
-- [ ] 18.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 18.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 19. [unit] Slice 7 — PSU headers
 
