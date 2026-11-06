@@ -128,6 +128,54 @@ public sealed class TransactionMappingTests {
     mapped.Reference.ShouldBeNull();
   }
 
+  // Other statuses: left out, only counted (D3; spec bank-reads, "Reading transactions from a given day")
+
+  /// <param name="status">
+  /// One of the API reference's statuses other than booked and pending: cancelled, rejected, on hold, scheduled, other.
+  /// It sits between kept transactions, so keeping everything, dropping everything or reordering all fail.
+  /// </param>
+  [Test]
+  [Arguments("CNCL")]
+  [Arguments("RJCT")]
+  [Arguments("HOLD")]
+  [Arguments("SCHD")]
+  [Arguments("OTHR")]
+  public void Cancelled_rejected_on_hold_scheduled_and_other_transactions_are_left_out(string status) {
+    MappedTransactions mapped = TransactionMapping.Map([
+      BookedPayment() with { EntryReference = "e-101" },
+      BookedPayment() with { Status = status, EntryReference = "e-201" },
+      PendingPayment() with { EntryReference = "e-103" },
+      BookedTransferReceived() with { EntryReference = "e-102" },
+    ]);
+
+    mapped.Kept.Select(static transaction => transaction.Reference).ShouldBe(["e-101", "e-103", "e-102"]);
+  }
+
+  /// <param name="list">None left out; or each other status once and cancelled twice, between kept transactions.</param>
+  /// <param name="leftOut">How many the list holds with a status other than booked or pending.</param>
+  [Test]
+  [Arguments("booked and pending only", 0)]
+  [Arguments("every other status, one of them twice", 6)]
+  public void The_transactions_left_out_are_counted(string list, int leftOut) {
+    EbTransaction[] transactions = list switch {
+      "booked and pending only" => [BookedPayment(), PendingPayment(), BookedTransferReceived()],
+      "every other status, one of them twice" => [
+        BookedPayment(),
+        BookedPayment() with { Status = "CNCL" },
+        BookedPayment() with { Status = "RJCT" },
+        PendingPayment(),
+        BookedPayment() with { Status = "HOLD" },
+        BookedPayment() with { Status = "SCHD" },
+        BookedPayment() with { Status = "OTHR" },
+        BookedPayment() with { Status = "CNCL" },
+        BookedTransferReceived(),
+      ],
+      _ => throw new ArgumentOutOfRangeException(nameof(list), list, "Not a known case."),
+    };
+
+    TransactionMapping.Map(transactions).LeftOut.ShouldBe(leftOut);
+  }
+
   // The date
 
   [Test]
