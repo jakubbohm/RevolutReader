@@ -88,8 +88,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 8. [wiring] Slice 2 — The transactions read, one page
 
-- [ ] 8.1 `EnableBankingClient.ReadTransactions` for a single page: a signed `GET /accounts/{account}/transactions` with `date_from`, then `TransactionMapping`. Verify: build passes; green
-- [ ] 8.2 `BankDriver` `Lists` and `ReadTransactionsFrom`: the answer copied from the capture; the stub answers only for the expected `date_from`. Verify: the scenario runs against the app
+- [x] 8.1 `EnableBankingClient.ReadTransactions` for a single page: a signed `GET /accounts/{account}/transactions` with `date_from`, then `TransactionMapping`. Verify: build passes; green
+- [x] 8.2 `BankDriver` `Lists` and `ReadTransactionsFrom`: the answer copied from the capture; the stub answers only for the expected `date_from`. Verify: the scenario runs against the app
 
 ## 9. [close] Slice 2 — A spent payment comes back negative, with the payee and its details
 

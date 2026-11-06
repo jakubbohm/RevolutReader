@@ -36,6 +36,10 @@ public sealed class FakeBank : IDisposable {
 
   private const string JSON = "application/json";
 
+  /// <summary>The transactions query's parameters (API reference).</summary>
+  private const string DATE_FROM = "date_from";
+  private const string CONTINUATION_KEY = "continuation_key";
+
   /// <summary>
   /// One application key per test run: generating an RSA key takes tens of milliseconds, and nothing in a test depends
   /// on it being different from another test's. PKCS#8 PEM, as the Control Panel hands it out.
@@ -97,16 +101,23 @@ public sealed class FakeBank : IDisposable {
   /// <c>GET /accounts/{account}/balances</c> answers with these balances (the capture's shape), only on this account's
   /// path and only when the request carries a bearer token; any other request gets WireMock's 404.
   /// </summary>
-  public void AnswerBalances(string body) =>
-    _server
-      .Given(SignedGet($"/accounts/{AccountId}/balances"))
-      .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", JSON).WithBody(body));
+  public void AnswerBalances(string body) => _server.Given(SignedGet($"/accounts/{AccountId}/balances")).RespondWith(JsonAnswer(body));
 
   /// <summary>
-  /// <c>GET /accounts/{account}/transactions</c> answers with this page, only for this <c>date_from</c> and
-  /// <c>continuation_key</c> (none on the first page).
+  /// <c>GET /accounts/{account}/transactions</c> answers with this page, only for this <c>date_from</c> (as the API
+  /// reference writes a date, <c>yyyy-MM-dd</c>) and <c>continuation_key</c> (none on the first page), and only on this
+  /// account's path with a bearer token; any other request gets WireMock's 404.
   /// </summary>
-  public void AnswerTransactionsPage(DateOnly dateFrom, string? continuationKey, string body) => throw new NotImplementedException();
+  public void AnswerTransactionsPage(DateOnly dateFrom, string? continuationKey, string body) {
+    IRequestBuilder request = SignedGet($"/accounts/{AccountId}/transactions")
+      .WithParam(DATE_FROM, new ExactMatcher(dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+
+    request = continuationKey is null
+      ? request.WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
+      : request.WithParam(CONTINUATION_KEY, new ExactMatcher(continuationKey));
+
+    _server.Given(request).RespondWith(JsonAnswer(body));
+  }
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => throw new NotImplementedException();
@@ -122,6 +133,9 @@ public sealed class FakeBank : IDisposable {
   /// <summary>A <c>GET</c> of exactly <paramref name="path"/> that carries a bearer token (the application's JWT).</summary>
   private static IRequestBuilder SignedGet(string path) =>
     Request.Create().UsingGet().WithPath(new ExactMatcher(path)).WithHeader("Authorization", "Bearer *");
+
+  /// <summary>200 with this JSON body.</summary>
+  private static IResponseBuilder JsonAnswer(string body) => Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", JSON).WithBody(body);
 
   /// <summary>
   /// Keeps the fake bank's own server out of every trace (for the guard <c>Conventions/BankTelemetryTests</c>, c004

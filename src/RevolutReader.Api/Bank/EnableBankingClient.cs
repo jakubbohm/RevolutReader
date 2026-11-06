@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -12,26 +13,42 @@ namespace RevolutReader.Api.Bank;
 public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time) : IBankAccount {
   private const string BEARER = "Bearer";
 
+  /// <summary>A calendar date as the API reference writes it in a query.</summary>
+  private const string DATE = "yyyy-MM-dd";
+
   /// <summary>The API reference's names: snake_case.</summary>
   private static readonly JsonSerializerOptions _json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
+  /// <summary>The configured account's path, relative to the API address.</summary>
+  private string AccountPath => $"accounts/{Uri.EscapeDataString(options.Value.AccountId)}";
+
   /// <summary><c>GET /accounts/{account}/balances</c>, then the available balance (D3).</summary>
-  public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) {
-    using HttpRequestMessage request = SignedGet($"accounts/{Uri.EscapeDataString(options.Value.AccountId)}/balances");
+  public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) =>
+    BalanceSelection.Available(await Get<EbBalances>($"{AccountPath}/balances", cancellationToken));
+
+  /// <summary>
+  /// <c>GET /accounts/{account}/transactions?date_from=…</c>, then the mapping (D3). The first page only: following the
+  /// <c>continuation_key</c> to every page (D7) is not built yet.
+  /// </summary>
+  public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
+    EbTransactionPage page = await Get<EbTransactionPage>($"{AccountPath}/transactions?date_from={from.ToString(DATE, CultureInfo.InvariantCulture)}", cancellationToken);
+
+    return new Transactions(TransactionMapping.Map(page.Transactions).Kept);
+  }
+
+  /// <summary>A signed <c>GET</c> of <paramref name="pathAndQuery"/>, its JSON body read as <typeparamref name="T"/>.</summary>
+  private async Task<T> Get<T>(string pathAndQuery, CancellationToken cancellationToken) where T : class {
+    using HttpRequestMessage request = SignedGet(pathAndQuery);
     using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
 
     response.EnsureSuccessStatusCode();
 
-    EbBalances balances = await response.Content.ReadFromJsonAsync<EbBalances>(_json, cancellationToken)
-      ?? throw new BankReadException("The bank's balances answer is empty.");
-
-    return BalanceSelection.Available(balances);
+    return await response.Content.ReadFromJsonAsync<T>(_json, cancellationToken)
+      ?? throw new BankReadException($"The bank's answer is empty where a {typeof(T).Name} was expected.");
   }
 
-  public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) => throw new NotImplementedException();
-
-  /// <summary>A <c>GET</c> of <paramref name="path"/>, relative to the API address, carrying a new application token.</summary>
-  private HttpRequestMessage SignedGet(string path) => new(HttpMethod.Get, new Uri(path, UriKind.Relative)) {
+  /// <summary>A <c>GET</c> of <paramref name="pathAndQuery"/>, relative to the API address, carrying a new application token.</summary>
+  private HttpRequestMessage SignedGet(string pathAndQuery) => new(HttpMethod.Get, new Uri(pathAndQuery, UriKind.Relative)) {
     Headers = { Authorization = new AuthenticationHeaderValue(BEARER, token.Create(time.GetUtcNow())) },
   };
 }
