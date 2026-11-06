@@ -20,8 +20,10 @@ context: |
   backend sign-in with a login cookie (BFF) and an email allowlist · Web Push · Azure Table
   Storage (the app's own storage account) · Azure Key Vault (secrets and non-public values) ·
   Azure Container Apps, scaling to zero (one container serving API and frontend, image on
-  ghcr.io; Data Protection keys in Blob Storage) · a Logic App as the job's clock · Bicep +
-  Azure Deployment Stacks · GitHub Actions. Decisions: docs/adr/ (ADR-0002 to ADR-0006).
+  ghcr.io; Data Protection keys in Blob Storage) · the account check triggered by a Revolut
+  notification on the owner's iPhone (an iOS Shortcuts automation calling a protected
+  endpoint, ADR-0008) · Bicep + Azure Deployment Stacks · GitHub Actions. Decisions: docs/adr/
+  (ADR-0001 to ADR-0008).
 
   Backend code (docs/conventions/README.md): expected failures are Result values, translated
   into ProblemDetails only at the endpoint; thin FastEndpoints endpoints inject framework-free

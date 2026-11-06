@@ -1,6 +1,6 @@
 # ADR-0001: Bank data access — consent, request limits, PSU headers and transaction history
 
-**Status:** Accepted (the user's decision, 2026-11-04) · **Date:** 2026-11-04 · **Roadmap:** M1 (verification); applied in F0-2, M3, C5, C7, C9, C10, M9 · **Questions:** Q5, Q6 (kickoff ch. 10); input to Q7
+**Status:** Accepted (the user's decision, 2026-11-04); Decision item 3 and the background-job constraint superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone triggers the check, with the phone's PSU headers · **Date:** 2026-11-04 · **Roadmap:** M1 (verification); applied in F0-2, M3, C5, C7, C9, C10, M9 · **Questions:** Q5, Q6 (kickoff ch. 10); input to Q7
 
 > Recorded during M1. Findings were verified against the sources listed with each one on 2026-11-04. Revolut's values in Enable Banking were read via `GET /aspsps` on 2026-11-04 ([spike evidence](../../spikes/enable-banking/evidence/2026-11-04-aspsps-revolut.json)); the API session was authorised on 2026-11-04 in M1 ([session evidence](../../spikes/enable-banking/evidence/2026-11-04-session.json)).
 
@@ -65,18 +65,18 @@ Decided by the user, 2026-11-04:
 
 1. **User-triggered reads are live and carry the user's PSU headers.** When a signed-in user opens or refreshes the account view, the backend reads live from the bank and forwards that user's real PSU headers (IP address, user agent, …). The user's position: the daughter acts on the account holder's behalf.
 2. **Enable Banking support is not asked** (deviation from roadmap ch. 3, item 3). The user accepts the risk that Enable Banking cuts off the application; the design keeps that risk low through the constraints below.
-3. **The background job for notifications runs 4 times a day without PSU headers:** every 6 hours, the first run at 06:00 (configurable).
+3. **The background job for notifications runs 4 times a day without PSU headers:** every 6 hours, the first run at 06:00 (configurable). *(Superseded by the user, 2026-11-05, after the phone test of 2026-11-06: [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md). A Revolut notification on the owner's iPhone triggers the check, and its reads carry the phone's PSU headers.)*
 4. **A database is needed:** it holds the downloaded transactions and the time of the daughter's last view.
 5. **A notification is sent only if something changed since the daughter's last view.**
 6. **Settled transactions are stored from 2026-08-09 for the whole operation; pending ones never.**
    - Only settled transactions are written to the database, keyed by `entry_reference`.
-   - Each open or refresh reads the balance and a short recent window live. Newly settled transactions are stored; pending ones are shown but not stored. The background job reads the same window without PSU headers.
+   - Each open or refresh reads the balance and a short recent window live. Newly settled transactions are stored; pending ones are shown but not stored. The background job reads the same window without PSU headers. *(Since ADR-0008: the phone-triggered check reads it, with the phone's PSU headers.)*
    - The history since 2026-08-09 is downloaded once, right after the API session is approved in M1 (spike step 5), into a gitignored file on the owner's machine. It is imported once the database exists, and the file is then deleted.
 
 **Constraints (binding on every bank call):**
 
-- PSU headers only on bank requests triggered directly by a signed-in user's open or refresh, with that user's real values.
-- Never PSU headers on the background job.
+- PSU headers only on bank requests triggered directly by a signed-in user's open or refresh, with that user's real values. *(Since ADR-0008, also on the check the owner's iPhone triggers, with the phone's real values.)*
+- Never PSU headers on the background job. *(Superseded by ADR-0008: there is no scheduled job. A fallback check, if C9 keeps one, sends none.)*
 - All required headers or none.
 - No bank calls beyond what the view needs.
 - 429 and bank errors are handled gracefully.
@@ -91,13 +91,13 @@ Decided by the user, 2026-11-04:
 ## Consequences
 
 - **Consent:** no consent renewal feature is needed: the API session runs until 2027-05-03, beyond the operating period. The 30-day Control Panel link is renewed by hand every 30 days (roadmap M9); M1 could not show that API access is independent of it. Every expiring approval and how to restore it: [docs/operations/expiring-approvals.md](../operations/expiring-approvals.md). Expired and revoked sessions (`EXPIRED_SESSION`, `REVOKED_SESSION`) must be handled; the fallback is repeating the linking, which needs the account holder for SCA.
-- **Bank adapter:** it forwards PSU headers from the incoming request only on user-triggered reads, takes the list of required headers from `GET /aspsps` (none for Revolut as of 2026-11-04; Enable Banking recommends sending all available, especially `Psu-Ip-Address` and `Psu-User-Agent`), and handles 429, expired and revoked sessions.
+- **Bank adapter:** it forwards PSU headers from the incoming request only on user-triggered reads (since ADR-0008, also on the phone-triggered check), takes the list of required headers from `GET /aspsps` (none for Revolut as of 2026-11-04; Enable Banking recommends sending all available, especially `Psu-Ip-Address` and `Psu-User-Agent`), and handles 429, expired and revoked sessions.
 - **Account detail (UC2):** the stored settled transactions, plus a live read of the balance and the recent window (Decision, item 6).
   - **A database is needed in v1.** This answers F0-2's "whether Cosmos DB is needed already in v1"; the storage technology stays F0-2's call, and M3 prepares access to it.
   - The recent window must cover how long Revolut keeps transactions pending. It is set in C5 from real data, which also confirms whether Revolut returns pending transactions at all (none appeared in the history download).
   - The history download found a unique `entry_reference` on all 116 settled transactions, so no fallback key is planned.
   - The history file is imported by the change that creates the transaction store; the file is then deleted.
 - **Bank data on disk:** until that import, the history sits in `spikes/enable-banking/secrets/` on the owner's machine (gitignored, never printed or committed).
-- **Notifications (UC3):** 4 runs a day from 06:00; notify only on changes since the daughter's last view. The time zone of the start time and whether the last view is tracked per user are decided with Q8.
+- **Notifications (UC3):** 4 runs a day from 06:00; notify only on changes since the daughter's last view. The time zone of the start time and whether the last view is tracked per user are decided with Q8. *(Since ADR-0008: the check runs when a Revolut notification reaches the owner's iPhone, so there is no start time; whether the last view is tracked per user is still decided with Q8.)*
 - **Accepted risk:** Enable Banking may cut off the application because of the PSU-header approach (Decision, item 2).
 - **Logging:** bank data never appears in logs (docs/conventions/README.md § Backend code).
