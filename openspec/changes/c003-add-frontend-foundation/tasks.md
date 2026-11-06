@@ -48,7 +48,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 5. [wiring] Slice 2 — The install-hint screen
 
-- [ ] 5.1 `public/app-icon.svg` copied as it is from the design system's asset `App icon/app-icon.svg` (design.md D10). `InstallHint` as design.md D4, laid out as artboard "Shell / Safari / Install hint" (design system InstallHint), showing that icon. `App` shows it alone when `needsInstallHint` says so. Verify: `typecheck` and lint pass; green
+- [x] 5.1 `public/app-icon.svg` copied as it is from the design system's asset `App icon/app-icon.svg` (design.md D10). `InstallHint` as design.md D4, laid out as artboard "Shell / Safari / Install hint" (design system InstallHint), showing that icon. `App` shows it alone when `needsInstallHint` says so. Verify: `typecheck` and lint pass; green
 
 ## 6. [close] Slice 2 — iPhone Safari shows only the install hint
 
