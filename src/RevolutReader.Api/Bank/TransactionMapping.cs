@@ -12,6 +12,9 @@ public static class TransactionMapping {
   /// <summary>The bank's credit/debit indicator of money spent.</summary>
   private const string MONEY_SPENT = "DBIT";
 
+  /// <summary>The bank's credit/debit indicator of money received.</summary>
+  private const string MONEY_RECEIVED = "CRDT";
+
   /// <summary>Booked and pending kept and mapped (D3); every other status left out and counted.</summary>
   public static MappedTransactions Map(IEnumerable<EbTransaction> transactions) {
     ArgumentNullException.ThrowIfNull(transactions);
@@ -21,7 +24,9 @@ public static class TransactionMapping {
 
   /// <summary>
   /// The fields of D3's table: the reference; the status; the transaction date, else the booking date, else the value
-  /// date; the amount, negative for money spent; its currency; the creditor for money spent; the payment details unchanged.
+  /// date; the amount, negative for money spent and positive for money received; its currency; the counterparty, the
+  /// creditor for money spent and the debtor for money received (none when that side has no name); the payment details
+  /// unchanged.
   /// </summary>
   private static BankTransaction Mapped(EbTransaction transaction) {
     ArgumentNullException.ThrowIfNull(transaction);
@@ -39,6 +44,7 @@ public static class TransactionMapping {
 
     (decimal signedAmount, EbParty? counterparty) = transaction.CreditDebitIndicator switch {
       MONEY_SPENT => (-amount, transaction.Creditor),
+      MONEY_RECEIVED => (amount, transaction.Debtor),
       _ => throw new BankReadException("A transaction has a credit/debit indicator the mapping does not read."),
     };
 

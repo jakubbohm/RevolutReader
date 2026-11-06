@@ -97,9 +97,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 10. [unit] Slice 3 — Transaction mapping: money received
 
-- [ ] 10.1 Money received has a positive amount
-- [ ] 10.2 Money received names the debtor as the counterparty
-- [ ] 10.3 A transaction without a named counterparty has none
+- [x] 10.1 Money received has a positive amount
+- [x] 10.2 Money received names the debtor as the counterparty
+- [x] 10.3 A transaction without a named counterparty has none
 
 ## 11. [close] Slice 3 — A received transfer comes back positive, with the payer
 
