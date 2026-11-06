@@ -2,7 +2,7 @@
 
 > What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, and C4's one addition (item 7): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-06 (C4: the owner's Key Vault role).
+> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-06 (C4: the owner's Key Vault role, applied; the first login).
 
 ## Identifiers (non-secret)
 
@@ -26,7 +26,7 @@ None of these is a credential: knowing them gives no access. They are public, he
 3. **Deploy identity as a user-assigned managed identity,** not an Entra app registration. It can never hold a password, and it is deleted with the resource group. The deployment stack leaves it alone: a stack deletes only the resources it manages ([Microsoft Learn: deployment stacks](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deployment-stacks), 2026-06-18).
 4. **Federated credential** trusting only jobs that run in this repository's `production` environment.
    - **GitHub's subject format changed:** repositories created after 2026-07-15 use an immutable format with the owner and repository IDs, `repo:OWNER@OWNER-ID/REPO@REPO-ID:…` ([GitHub Docs: OIDC reference](https://docs.github.com/en/actions/reference/security/oidc), 2026-11-05). Older guides show `repo:OWNER/REPO:…`, which does not match.
-   - This repository's prefix comes from `gh api repos/jakubbohm/RevolutReader/actions/oidc/customization/sub` (`use_immutable_subject: true`, `sub_claim_prefix`, read 2026-11-05). The `:environment:production` suffix follows GitHub's documented pattern; GitHub shows immutable examples only for branches, so the first login in C4 is the real check (see [Checks](#checks)).
+   - This repository's prefix comes from `gh api repos/jakubbohm/RevolutReader/actions/oidc/customization/sub` (`use_immutable_subject: true`, `sub_claim_prefix`, read 2026-11-05). The `:environment:production` suffix follows GitHub's documented pattern; GitHub shows immutable examples only for branches, so the first login in C4 was the real check, and it passed (see [Checks](#checks)).
 5. **Roles on `rg-revolutreader` only:**
    - **Contributor:** creates and changes resources, including the deployment stack. It cannot manage a stack's deny settings, which the project does not use.
    - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for four roles only. These are the roles Bicep grants in C4, C6 and C7. The pipeline cannot grant Owner or widen its own rights.
@@ -97,7 +97,7 @@ gh variable set AZURE_RESOURCE_GROUP  --repo $repo --env production --body $rg
 
 The condition string in step 5 was checked on 2026-11-05: it equals the condition Azure stored, and it reaches the CLI unchanged through `az.cmd` in PowerShell 7.
 
-Step 7 (C4), run once by the owner, or by Claude on the owner's go, after the first deployment created the vault ([deployment.md § The first deployment](deployment.md#the-first-deployment)). It prints nothing:
+Step 7 (C4), run once by the owner in the owner's own PowerShell 7 window, after the first deployment created the vault ([deployment.md § The first deployment](deployment.md#the-first-deployment)). Claude Code's permission check blocks a role assignment by Claude even with the owner's go (2026-11-06). It prints nothing. **Applied on 2026-11-06** by the owner; read back with step 7's check below: one user holds Key Vault Secrets Officer on `rg-revolutreader`. The owner's ID is in no file (searched).
 
 ```powershell
 $sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -130,7 +130,7 @@ az role assignment list --subscription $sub --scope $scope --role 'Key Vault Sec
     --query "[].{role: roleDefinitionName, principalType: principalType, scope: scope}" --output table
 ```
 
-**The first real login is C4's first deploy.** If `azure/login` fails with `AADSTS700213` ("No matching federated identity record found"), the error message shows the subject GitHub sent: put exactly that into the federated credential (`az identity federated-credential update … --subject <subject>`) and record it in the table above.
+**The first real login succeeded on 2026-11-06,** in C4's first deploy (run [42302387813](https://github.com/jakubbohm/RevolutReader/actions/runs/42302387813)), with the subject in the table above, exactly as M3 set it. **At a reinstatement,** if `azure/login` fails with `AADSTS700213` ("No matching federated identity record found"), the error message shows the subject GitHub sent: put exactly that into the federated credential (`az identity federated-credential update … --subject <subject>`) and record it in the table above.
 
 ## Removing it (M8)
 

@@ -2,7 +2,7 @@
 
 > What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
-> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-06 (C4).
+> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-06 (C4, after the first deploy).
 
 ## Overview
 
@@ -13,7 +13,7 @@
 | 3 | [Enable Banking application key](#3-enable-banking-application-and-key) | no expiry found (checked 2026-11-04) | only if lost or leaked | the Control Panel account |
 | — | API token (JWT) | 1 hour | nothing to do: signed for every request | — |
 
-Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io and the owner's Key Vault role, both made by hand once ([deployment.md § The first deployment](deployment.md#the-first-deployment)). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them.
+Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them.
 
 **To be added by their steps** (do not guess them here): the app registration's 12-month client secret (C6), the account allowlist in Key Vault (C6), the VAPID keys for push (C8).
 
