@@ -107,8 +107,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 12. [unit] Slice 4 — Transaction mapping: pending
 
-- [ ] 12.1 A pending transaction is marked pending
-- [ ] 12.2 A pending transaction without a reference has none
+- [x] 12.1 A pending transaction is marked pending
+- [x] 12.2 A pending transaction without a reference has none
 
 ## 13. [close] Slice 4 — Pending transactions come back marked pending
 

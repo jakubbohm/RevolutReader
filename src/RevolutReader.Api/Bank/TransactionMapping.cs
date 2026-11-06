@@ -9,6 +9,9 @@ public static class TransactionMapping {
   /// <summary>The bank's status of a booked transaction.</summary>
   private const string BOOKED = "BOOK";
 
+  /// <summary>The bank's status of a pending transaction.</summary>
+  private const string PENDING = "PDNG";
+
   /// <summary>The bank's credit/debit indicator of money spent.</summary>
   private const string MONEY_SPENT = "DBIT";
 
@@ -33,6 +36,7 @@ public static class TransactionMapping {
 
     TransactionStatus status = transaction.Status switch {
       BOOKED => TransactionStatus.Booked,
+      PENDING => TransactionStatus.Pending,
       _ => throw new BankReadException("A transaction has a status the mapping does not read."),
     };
 
