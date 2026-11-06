@@ -52,7 +52,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 6. [close] Slice 2 — iPhone Safari shows only the install hint
 
-- [ ] 6.1 The scenario's test passes. Verify: green, including app-installation / iPhone Safari shows only the install hint
+- [x] 6.1 The scenario's test passes. Verify: green, including app-installation / iPhone Safari shows only the install hint
 
 ## 7. [close] Slice 3 — The Home Screen app shows the app, not the install hint
 
