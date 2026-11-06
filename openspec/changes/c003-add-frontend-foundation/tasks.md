@@ -99,10 +99,10 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 15. [unit] Slice 8 — Page caching
 
-- [ ] 15.1 Files under /assets/ are kept for a year without asking again
-- [ ] 15.2 The start page is always checked with the server first
-- [ ] 15.3 The service worker is always checked with the server first
-- [ ] 15.4 Every other file is checked with the server first
+- [x] 15.1 Files under /assets/ are kept for a year without asking again
+- [x] 15.2 The start page is always checked with the server first
+- [x] 15.3 The service worker is always checked with the server first
+- [x] 15.4 Every other file is checked with the server first
 
 ## 16. [unit] Slice 8 — The update watch
 
