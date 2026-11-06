@@ -9,9 +9,10 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// Every request to Enable Banking carries a JWT signed by the application (c004 design.md § Context, § Rule ownership;
-/// the API reference § Authentication, as the M1 spike's <c>eb-client.ps1</c> signs it): RS256, the application id as
-/// the key id, issued by <c>enablebanking.com</c> for <c>api.enablebanking.com</c>, valid for one hour from now. The
-/// token is decoded here with the BCL only; the key is generated in the test.
+/// the API reference § Authentication, as the M1 spike's <c>eb-client.ps1</c> signs it): typed JWT, RS256, the
+/// application id as the key id, issued by <c>enablebanking.com</c> for <c>api.enablebanking.com</c>, valid for one hour
+/// from now, its times in whole Unix seconds. The token is decoded here with the BCL only; the key is generated in the
+/// test.
 /// </summary>
 public sealed class ApplicationTokenTests {
   private const string MADE_UP_APPLICATION_ID = "0c004000-0000-4000-8000-00000000a001";
@@ -19,15 +20,13 @@ public sealed class ApplicationTokenTests {
   /// <summary>10:30 in Prague (CET, +01:00), so 09:30 UTC: the offset must not move the token's times.</summary>
   private static readonly DateTimeOffset _now = new(2026, 11, 6, 10, 30, 0, TimeSpan.FromHours(1));
 
-  /// <summary><see cref="_now"/> in seconds since 1970-01-01T00:00:00Z.</summary>
-  private const long NOW_IN_UNIX_SECONDS = 1_793_957_400;
-
   [Test]
   public void The_token_is_signed_with_RS256_and_names_the_application_id_as_its_key_id() {
     using RSA key = RSA.Create(2048);
 
     DecodedToken token = Decode(new ApplicationToken(MADE_UP_APPLICATION_ID, key).Create(_now));
 
+    StringMember(token.Header, "typ").ShouldBe("JWT");
     StringMember(token.Header, "alg").ShouldBe("RS256");
     StringMember(token.Header, "kid").ShouldBe(MADE_UP_APPLICATION_ID);
   }
@@ -42,14 +41,18 @@ public sealed class ApplicationTokenTests {
     StringMember(token.Payload, "aud").ShouldBe("api.enablebanking.com");
   }
 
+  /// <param name="millisecondsAfterHalfPastTen">How long after 10:30:00 +01:00 (09:30:00 UTC) the token is created.</param>
+  /// <param name="nowInUnixSeconds">That moment in whole seconds since 1970-01-01T00:00:00Z, the milliseconds dropped.</param>
   [Test]
-  public void The_token_is_issued_now_and_expires_one_hour_later() {
+  [Arguments(0, 1_793_957_400L)]
+  [Arguments(15_482, 1_793_957_415L)]
+  public void The_token_is_issued_now_and_expires_one_hour_later(int millisecondsAfterHalfPastTen, long nowInUnixSeconds) {
     using RSA key = RSA.Create(2048);
 
-    DecodedToken token = Decode(new ApplicationToken(MADE_UP_APPLICATION_ID, key).Create(_now));
+    DecodedToken token = Decode(new ApplicationToken(MADE_UP_APPLICATION_ID, key).Create(_now.AddMilliseconds(millisecondsAfterHalfPastTen)));
 
-    NumberMember(token.Payload, "iat").ShouldBe(NOW_IN_UNIX_SECONDS);
-    NumberMember(token.Payload, "exp").ShouldBe(NOW_IN_UNIX_SECONDS + 3600);
+    NumberMember(token.Payload, "iat").ShouldBe(nowInUnixSeconds);
+    NumberMember(token.Payload, "exp").ShouldBe(nowInUnixSeconds + 3600);
   }
 
   [Test]
