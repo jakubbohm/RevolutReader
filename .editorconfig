@@ -330,3 +330,14 @@ dotnet_diagnostic.CA1515.severity = none
 # (verified in c001, 2026-11-05 on HealthEndpoint). A public endpoint also makes its request and
 # response types and its injected handler public (inconsistent accessibility otherwise).
 dotnet_diagnostic.CA1515.severity = none
+
+[src/RevolutReader.Api/Bank/{BankResult,ReadTrigger}.cs]
+# The bank port's C# 15 unions (c004 design.md D2, D4). The compiler generates each union as a struct holding its case
+# in one object field, and CA1815 asks every struct for its own Equals and ==. A union needs neither: callers switch on
+# its case, and ValueType.Equals already compares the case records by value (checked on .NET 11 RC3, 2026-11-06).
+dotnet_diagnostic.CA1815.severity = none
+
+[src/RevolutReader.Api/Bank/Transactions.cs]
+# The port's success value is named Transactions (c004 design.md § Public API sketch). CA1724 objects because the BCL
+# has a System.Transactions namespace, which nothing in the app imports.
+dotnet_diagnostic.CA1724.severity = none

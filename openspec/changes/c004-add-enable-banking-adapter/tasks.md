@@ -6,23 +6,23 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation: `FakeBank`, a WireMock.Net server per test started before the app copy, and the bank settings every app copy gets. Those are its address, a made-up application id, session id and account id, an RSA key in PEM form generated once per run, and a 1 s request timeout. `AcceptanceTest.ConfigureWebHostBuilder` calls `FakeBank.Configure` next to the web root (design.md § Public API sketch). Verify: every acceptance test that was green stays green
-- [ ] 1.2 Foundation: the port's types as signatures (`IBankAccount`, `ReadTrigger`, `PresentUser`, `Unattended`, `BankResult<T>` with its three failure records, `Balance`, `Transactions`, `BankTransaction`, `TransactionStatus`), exactly as design.md § Public API sketch. The generic union compiles here first (design.md § Risks). Verify: build passes
-- [ ] 1.3 Guard: `Conventions/BankTelemetryTests`, as design.md D5 and § Public API sketch describe it. Verify: fails at runtime until group 37
-- [ ] 1.4 Acceptance: bank-reads / The balance is the account's available balance
-- [ ] 1.5 Acceptance: bank-reads / A spent payment comes back negative, with the payee and its details
-- [ ] 1.6 Acceptance: bank-reads / A received transfer comes back positive, with the payer
-- [ ] 1.7 Acceptance: bank-reads / Pending transactions come back marked pending
-- [ ] 1.8 Acceptance: bank-reads / Cancelled and rejected transactions are left out
-- [ ] 1.9 Acceptance: bank-reads / Transactions on every page are returned
-- [ ] 1.10 Acceptance: bank-reads / A read for a present user carries the user's address and browser
-- [ ] 1.11 Acceptance: bank-reads / An unattended read carries no user headers
-- [ ] 1.12 Acceptance: bank-reads / An expired bank session reads as access expired
-- [ ] 1.13 Acceptance: bank-reads / A reached request limit reads as rate limited, with no second request
-- [ ] 1.14 Acceptance: bank-reads / A bank error reads as bank unavailable
-- [ ] 1.15 Acceptance: bank-reads / A bank that answers too slowly reads as bank unavailable
-- [ ] 1.16 Acceptance: bank-reads / A failure on a later page fails the whole read
-- [ ] 1.17 Docs (design.md D1):
+- [x] 1.1 Foundation: `FakeBank`, a WireMock.Net server per test started before the app copy, and the bank settings every app copy gets. Those are its address, a made-up application id, session id and account id, an RSA key in PEM form generated once per run, and a 1 s request timeout. `AcceptanceTest.ConfigureWebHostBuilder` calls `FakeBank.Configure` next to the web root (design.md § Public API sketch). Verify: every acceptance test that was green stays green
+- [x] 1.2 Foundation: the port's types as signatures (`IBankAccount`, `ReadTrigger`, `PresentUser`, `Unattended`, `BankResult<T>` with its three failure records, `Balance`, `Transactions`, `BankTransaction`, `TransactionStatus`), exactly as design.md § Public API sketch. The generic union compiles here first (design.md § Risks). Verify: build passes
+- [x] 1.3 Guard: `Conventions/BankTelemetryTests`, as design.md D5 and § Public API sketch describe it. Verify: fails at runtime until group 37
+- [x] 1.4 Acceptance: bank-reads / The balance is the account's available balance
+- [x] 1.5 Acceptance: bank-reads / A spent payment comes back negative, with the payee and its details
+- [x] 1.6 Acceptance: bank-reads / A received transfer comes back positive, with the payer
+- [x] 1.7 Acceptance: bank-reads / Pending transactions come back marked pending
+- [x] 1.8 Acceptance: bank-reads / Cancelled and rejected transactions are left out
+- [x] 1.9 Acceptance: bank-reads / Transactions on every page are returned
+- [x] 1.10 Acceptance: bank-reads / A read for a present user carries the user's address and browser
+- [x] 1.11 Acceptance: bank-reads / An unattended read carries no user headers
+- [x] 1.12 Acceptance: bank-reads / An expired bank session reads as access expired
+- [x] 1.13 Acceptance: bank-reads / A reached request limit reads as rate limited, with no second request
+- [x] 1.14 Acceptance: bank-reads / A bank error reads as bank unavailable
+- [x] 1.15 Acceptance: bank-reads / A bank that answers too slowly reads as bank unavailable
+- [x] 1.16 Acceptance: bank-reads / A failure on a later page fails the whole read
+- [x] 1.17 Docs (design.md D1):
   - `openspec/config.yaml` § specs: a port's scenarios are verified through its public interface, and its error scenarios name result cases;
   - testing.md § Acceptance tests and § Acceptance-test harness: a driver may take a port from the app copy; every app copy gets the fake bank's settings;
   - `.claude/rules/testing.md`;
