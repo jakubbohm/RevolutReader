@@ -78,7 +78,7 @@ None. The existing scenarios (`service-health`, `api-errors`, `app-delivery`) ke
   - `docs/conventions/` (README.md, configuration.md, testing.md) and their `.claude/rules/` mirrors;
   - ADR-0001 (amendment);
   - `docs/operations/expiring-approvals.md`;
-  - `spikes/enable-banking-mock/` (180-day sessions; made-up test data and a multi-page capture for the fake bank, design.md § Bootstrap);
+  - `spikes/enable-banking-mock/` (180-day sessions; made-up test data and its capture for the fake bank, design.md § Bootstrap);
   - `docs/software-factory/lessons.md` (R-44);
   - `CLAUDE.md` § Commands, `pm/progress.md`.
 - **No change to:** the API contract (no endpoint, no TS client), Entra, the ruleset.

@@ -26,7 +26,7 @@
 - **Enable Banking** (API reference, read 2026-11-06; spikes `enable-banking/` and `enable-banking-mock/`):
   - every request carries a JWT signed RS256 with the application's key (`kid` = application id, `iss` `enablebanking.com`, `aud` `api.enablebanking.com`, at most a day; we use one hour, docs/operations/expiring-approvals.md);
   - errors arrive as `{ message, code, error, detail }`;
-  - the Mock ASPSP pages transactions by 10, Revolut by 50; how the last page is signalled is not documented.
+  - Revolut pages transactions by 50; the Mock ASPSP returned 25 in one page, though its docs say 10. The reference doesn't say how the last page is marked. Both mark it with `continuation_key: null` (§ Bootstrap).
 - **Real data seen so far** (counts only): D3's check of the M1 history, and the 2026-11-06 smoke test (22 transactions since 2026-10-30, 20 `BOOK`, 2 `PDNG`).
 
 ## Goals / Non-Goals
@@ -56,6 +56,11 @@ The test-writer may add only signatures to production code, and the fake bank's 
    - The owner uploads it in the Control Panel.
    - The owner runs `read-mock.ps1`, which saves every page unchanged to `evidence/`.
    - The fake bank's answers are copied from that capture. The capture also shows how the bank marks the last page (no key, an empty key, or an empty page); D7's paging rule holds either way.
+   - **Done 2026-11-06** (`[setup]` commit; mock README finding 12):
+     - **The capture:** the new session runs until 2027-05-05. All 25 transactions came in **one page** with `continuation_key: null`, so the mock did not page.
+     - **How the last page is marked:** `continuation_key: null`. The M1 history at Revolut shows the same: pages of 50, 50 and 16, with a key on the first two and `null` on the last (structure only).
+     - **What this means for the fake bank:** its single-page answers are copied from the capture. Its multi-page answers are the capture's transactions in pages chained by made-up keys, with `null` on the last; they are written from the M1 page structure, with a comment saying so.
+     - **Paging against the real service:** Check 2 does it (D7).
 4. The setup build and the full suite are green. The only accepted red is the traceability check reporting this change's 13 scenarios as not claimed; group 1 claims them.
 
 ## Decisions
@@ -177,17 +182,18 @@ Decided with the user (2026-11-06, explore). Follows docs/conventions/configurat
 Decided with the user (2026-11-06, explore). The automated tests prove the client only against our fake bank, whose answers we wrote. Roadmap C5: "checked on demand against the Mock ASPSP through the sandbox application and verified once against the real API" (testing.md § Fake bank).
 
 - **Explicit tests in the integration test project,** marked `[Explicit]`: TUnit runs them only when the filter selects nothing but explicit tests, so `dotnet test` and CI skip them ([TUnit docs](https://tunit.dev/docs/writing-tests/explicit), read 2026-11-06). They take the port from the app's production wiring, as the acceptance driver does (D1), with real settings instead of the fake bank. The owner runs them on the owner's machine; never in CI.
-- **Check 1, the Mock ASPSP, repeatable:** the sandbox values from the AppHost's user-secrets (the ones `aspire start` uses, D6). It reads the balance and enough transactions to need more than one page, with PSU headers and unattended, and once with a made-up session id, which must come back as access expired (D4): the only failure the mock produces on demand. It proves what the fake cannot: the signed token, the addresses, the headers, the real JSON, the paging.
+- **Check 1, the Mock ASPSP, repeatable:** the sandbox values from the AppHost's user-secrets (the ones `aspire start` uses, D6). It reads the balance and the transactions with PSU headers and unattended (one page: the mock did not page at 25 transactions, § Bootstrap), and once with a made-up session id, which must come back as access expired (D4): the only failure the mock produces on demand. It proves what the fake cannot: the signed token, the addresses, the headers, the real JSON, the paging.
 - **Check 2, the real account, once before C5 ends:**
   - The production values sit apart from the sandbox values, so `aspire start` cannot reach the real account; they are backed up like every local secret (D6). *Refined in propose:* explore placed them in the test project's own user-secrets, but configuration.md § Local development and tests keeps every local secret in the AppHost's user-secrets only. So they sit there under `RealAccountCheck:*` keys, which the AppHost never declares as parameters and so never hands to the API; only Check 2 reads them.
   - Which fields a pending transaction carries is not visible through the port (it picks one date, D3). Check 2 therefore also reads the raw pages through the adapter's own page reader and counts the fields there.
   - One present-user read (balance and transactions) with the owner's public IP, fetched as the M1 smoke test does, and one unattended read (1 of the 4 a day, ADR-0001).
+  - *Refined after the bootstrap:* the transactions read covers the last 89 days, inside Revolut's 90-day limit. At about 1.3 transactions a day that is more than one page of 50, so it is the live test of paging the mock could not give. Present-user reads are not limited (ADR-0001 § Request limits). The window stays 31 days; that is C7's read.
   - It prints no bank data and writes a counts-only summary to `spikes/enable-banking/evidence/`: for pending transactions, how many carry `entry_reference`, which dates they carry and the oldest one's age in days; each read's duration (sets D4's timeout); counts by status.
   - The findings go into a dated amendment of ADR-0001 and into the timeout setting.
 - **Moved out:** comparing the balance with the Revolut app (it would print the balance; the owner sees it once the deployed app shows it, C7); whether a pending transaction keeps its `entry_reference` when it settles (needs two runs days apart and matters only to notifications: heads-up for C9).
 - **The recent window (ADR-0001 § Consequences: "set in C5 from real data") is 31 days, sized by Revolut's longest holds, not by the M1 history.** The history's gap between `booking_date` and `value_date` (16 transactions 0 days, 96 one day, 4 two days; counted 2026-11-06, nothing printed) covers three months of ordinary card payments and no long hold. Deposits and pre-authorisations (hotels, car rentals) stay pending up to 10 working days by Revolut's FAQ as quoted in its [community forum](https://community.revolut.com/t/problem-with-payment-of-a-deposit/13396), about 15 days in user reports when the merchant waits to inspect a returned car; Revolut's own help page says the app shows each pending payment's latest release date (read 2026-11-06). Why the window matters: a pending transaction is shown only while its date lies inside it, and if a settled transaction keeps its original date (all 116 have `booking_date` ≤ `value_date`), it is stored only when it settles inside the window. 31 days is about 40 transactions at the history's rate (1.3 a day), usually one page. Check 2 confirms the dating: if settled transactions are dated by settlement, only the showing part depends on the window. Accepted gap: a hold longer than 31 days drops off the list while pending (the balance stays right, it comes from the bank) and could miss the history if it later settles. The window is the caller's date (D2), so C7 owns the setting; ADR-0001's amendment records the value.
 - **Rejected for now: a dynamic window** (proposed by the user): storage remembers the oldest pending transaction's date and the next read starts there. It covers holds of any length, but it adds stored state and edge cases (two readers, failed reads, a cap) to C7 for holds Revolut releases well within 31 days. It needs nothing from the adapter, so C7 can switch to it later if a hold ever outlives the window.
-- **Every read follows every page, whatever the window** (the user): the adapter keeps requesting with the returned `continuation_key` until a response carries none, also after a page with no transactions, and returns all pages' transactions as one list (D2). The API reference does not describe page size, empty pages or the end of the iteration (read 2026-11-06). The history came in pages of 50 (D3). A scenario covers a read of three pages; a repeated `continuation_key` is an exception rather than an endless loop; Check 1 reads past one page of the Mock ASPSP, and Check 2 records the number of pages.
+- **Every read follows every page, whatever the window** (the user): the adapter keeps requesting with the returned `continuation_key` until a response carries none, also after a page with no transactions, and returns all pages' transactions as one list (D2). The API reference does not describe page size, empty pages or the end of the iteration (read 2026-11-06). The history came in pages of 50 (D3). Revolut and the Mock ASPSP both mark the last page with `continuation_key: null` (§ Bootstrap). A scenario covers a read of three pages, and a repeated `continuation_key` is an exception rather than an endless loop. Check 2 reads 89 days at Revolut, more than one page, and records the number of pages; the mock did not page.
 
 ### D8 — Parallel work: C3 merged, C4 in its own worktree
 
@@ -379,8 +385,8 @@ public sealed class BankDsl(BankDriver driver) {
 
 // Drivers/FakeBank.cs: a WireMock.Net server per test, started before the app copy. Made-up account and session ids, an RSA key
 //   generated once per run, a 1 s request timeout; Configure(IWebHostBuilder) writes them into the app copy's settings.
-//   Answers copied from the Mock ASPSP capture (§ Bootstrap); what the mock cannot produce (429, an expired session,
-//   ASPSP_ERROR, a slow answer) written from the API reference with a comment saying so. The transactions stub answers only
+//   Answers copied from the Mock ASPSP capture (§ Bootstrap); what the mock cannot produce (several pages, 429, an expired
+//   session, ASPSP_ERROR, a slow answer) written from the API reference and the M1 findings with a comment saying so. The transactions stub answers only
 //   for the expected date_from and continuation_key.
 // Drivers/BankDriver.cs: takes IBankAccount from the app copy (Services), turns DSL facts into FakeBank stubs and port
 //   results into DSL answers.

@@ -1,6 +1,6 @@
 # Tasks: c004-add-enable-banking-adapter
 
-Before this list: design.md § Bootstrap, committed as `[setup]`: the packages, the 180-day Mock ASPSP session, and the made-up test data with its multi-page capture. Its baseline holds one known exception, accepted once: the repository traceability check reports this change's 13 scenarios as not claimed. Group 1 claims them.
+Before this list: design.md § Bootstrap, committed as `[setup]`: the packages, the 180-day Mock ASPSP session, and the made-up test data with its capture (done 2026-11-06: one page, `continuation_key: null`). Its baseline holds one known exception, accepted once: the repository traceability check reports this change's 13 scenarios as not claimed. Group 1 claims them.
 
 Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). Thirteen scenarios, so the work is sliced per scenario (slices 1–13). Then come telemetry, local development with the two checks, deployment, and the final close. Docs tasks are the orchestrator's; "Guided" tasks need the owner. "Green" below means the full suite (`dotnet test` and the frontend tests), except this change's acceptance tests still waiting for their slice and the telemetry guard until group 37.
 
@@ -128,7 +128,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 ## 17. [wiring] Slice 6 — Paging
 
 - [ ] 17.1 `ReadTransactions` reads through `TransactionPages` with `ReadTransactionPage`, passing `continuation_key` on. Verify: build passes; green
-- [ ] 17.2 `BankDriver.ListsInPages`: stubs chained by continuation key, the last page marked as the capture shows (§ Bootstrap). Verify: the scenario runs against the app
+- [ ] 17.2 `BankDriver.ListsInPages`: the capture's transactions in pages chained by made-up continuation keys, with `continuation_key: null` on the last page, as Revolut and the Mock ASPSP mark it. Written from the M1 page structure with a comment saying so (design.md § Bootstrap). Verify: the scenario runs against the app
 
 ## 18. [close] Slice 6 — Transactions on every page are returned
 
@@ -236,7 +236,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
   Verify: the owner's listing shows the four user-secret names and the four vault copies, names only and never values
 - [ ] 38.3 `aspire start`: the API starts on the sandbox settings and its health check is healthy; then `aspire stop`. Verify: the `api` resource is healthy
-- [ ] 38.4 Check 1, `Wiring/RealBank/MockAspspCheck` (`[Explicit]`), as design.md D7 describes. It reads the balance and a transactions read past one page, both with PSU headers and unattended. A made-up session id must come back as access expired. Verify: the owner runs it; it passes
+- [ ] 38.4 Check 1, `Wiring/RealBank/MockAspspCheck` (`[Explicit]`), as design.md D7 describes. It reads the balance and the transactions, both with PSU headers and unattended (one page: the mock does not page at 25). A made-up session id must come back as access expired. Verify: the owner runs it; it passes
 - [ ] 38.5 Docs:
   - configuration.md § Local development and tests: the backup vault and the `RealAccountCheck:*` keys;
   - configuration.md § Hand-provisioned secrets: four rows, provisioned in C4 or by task 40.1;
@@ -248,7 +248,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 ## 39. [wiring] Check against the real account
 
 - [ ] 39.1 Check 2, `Wiring/RealBank/RealAccountCheck` (`[Explicit]`), as design.md D7 describes, reading the `RealAccountCheck:*` values.
-  - One present-user read with the owner's public IP: the balance and 31 days of transactions.
+  - One present-user read with the owner's public IP: the balance, and 89 days of transactions (more than one page at Revolut's 50, the live paging test).
   - One unattended balance read.
   - The raw pages' field counts.
   - It writes the counts-only summary to `spikes/enable-banking/evidence/` and prints no bank data.
