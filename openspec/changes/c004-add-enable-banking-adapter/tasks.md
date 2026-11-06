@@ -270,7 +270,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 40. [wiring] Deployment
 
-- [ ] 40.1 Rebase onto `main` (C4 merged and deployed, 2026-11-07; the branch is based on dce448d, `main` is past #19–#23). Expected conflicts, from C4's handover (design.md D8):
+- [x] 40.1 Rebase onto `main` (C4 merged and deployed, 2026-11-07; the branch is based on dce448d, `main` is past #19–#23). Expected conflicts, from C4's handover (design.md D8):
   - `docs/software-factory/lessons.md` (#20's R-45, C4's R-46 to R-50): keep everything; C5's R-44 stays, its second lesson is R-51;
   - `pm/progress.md` (#19, #20, C4's row and change-log rows): keep both sides, C5 edits only its own row;
   - `openspec/config.yaml` (#19 or #20): keep both.
