@@ -103,7 +103,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 11. [close] Slice 3 — A received transfer comes back positive, with the payer
 
-- [ ] 11.1 The scenario's test passes with what slices 1 and 2 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
+- [x] 11.1 The scenario's test passes with what slices 1 and 2 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
 
 ## 12. [unit] Slice 4 — Transaction mapping: pending
 
