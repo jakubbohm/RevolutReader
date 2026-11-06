@@ -28,10 +28,6 @@ class FakePage implements Page {
     this.listeners.add(listener);
   }
 
-  removeEventListener(_type: "visibilitychange", listener: () => void): void {
-    this.listeners.delete(listener);
-  }
-
   goesToTheBackground(): void {
     this.becomes("hidden");
   }
@@ -124,17 +120,4 @@ test("A failed update check is ignored until the next return", async () => {
   } finally {
     nodeProcess.off("unhandledRejection", recordUnhandled);
   }
-});
-
-test("No update check runs after the watch stops", () => {
-  const registration = new FakeRegistration();
-  const page = new FakePage();
-  const stop = watchForUpdates(registration, page, { onLine: true });
-  leaveAndReturn(page);
-  expect(registration.checks).toBe(1);
-
-  stop();
-  leaveAndReturn(page);
-
-  expect(registration.checks).toBe(1);
 });

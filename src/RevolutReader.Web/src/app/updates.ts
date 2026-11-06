@@ -7,7 +7,6 @@ export interface UpdatableRegistration {
 export interface Page {
   visibilityState: DocumentVisibilityState;
   addEventListener(type: "visibilitychange", listener: () => void): void;
-  removeEventListener(type: "visibilitychange", listener: () => void): void;
 }
 
 /** Whether the phone is online. */
@@ -17,13 +16,13 @@ export interface Network {
 
 /**
  * Asks for an update check whenever the app comes back to the screen while the phone is online; a failed check is
- * ignored, and the next return tries again (c003 design.md D9). Returns a function that stops watching.
+ * ignored, and the next return tries again (c003 design.md D9). It watches as long as the page runs; nothing stops it.
  */
 export function watchForUpdates(
   registration: UpdatableRegistration,
   page: Page,
   network: Network,
-): () => void {
+): void {
   void registration;
   void page;
   void network;
