@@ -48,21 +48,21 @@ export function InstallHint(): JSX.Element {
                 aria-label="tři tečky"
                 className={INLINE_ICON}
               />{" "}
-              vedle adresy a pak na <b>Sdílet</b>{" "}
+              vedle adresy a pak na <b className="font-semibold">Sdílet</b>{" "}
               <Share size={INLINE_ICON_SIZE} className={INLINE_ICON} />
             </span>
           </li>
           <li className="flex items-start gap-3">
             <span className={STEP_NUMBER}>2</span>
             <span className="text-body">
-              Sjeď níž a vyber <b>Přidat na plochu</b>{" "}
+              Sjeď níž a vyber <b className="font-semibold">Přidat na plochu</b>{" "}
               <SquarePlus size={INLINE_ICON_SIZE} className={INLINE_ICON} />
             </span>
           </li>
           <li className="flex items-start gap-3">
             <span className={STEP_NUMBER}>3</span>
             <span className="text-body">
-              Klepni na <b>Přidat</b> a otevři{" "}
+              Klepni na <b className="font-semibold">Přidat</b> a otevři{" "}
               <span lang="es">Tarjeta Papá</span> z plochy.
             </span>
           </li>

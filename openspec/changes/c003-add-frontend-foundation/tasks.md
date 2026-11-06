@@ -172,8 +172,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 The owner ran workflow.md § 8's loop on 2026-11-06: design system version 1793973462-31c9, Screens design version 1793974594-78c8 (design.md D4).
 
-- [ ] 25.1 `src/styles/theme.css` follows the design system's `tailwind/theme.css` version 1793973462-31c9: the three shadows leave `@theme` for a plain `:root` block, and `@utility shadow-card`, `shadow-menu` and `shadow-sheet` read their variable; the header comment names the new version. Verify: in the built CSS, `.shadow-card` is `box-shadow: var(--shadow-card)` and the dark block sets `--shadow-card: none`; lint and `typecheck` pass; green
-- [ ] 25.2 `InstallHint`: the step words "Sdílet", "Přidat na plochu" and "Přidat" at weight 600 (`font-semibold`), as the design system's InstallHint guideline says. Verify: lint and `typecheck` pass; green
+- [x] 25.1 `src/styles/theme.css` follows the design system's `tailwind/theme.css` version 1793973462-31c9: the three shadows leave `@theme` for a plain `:root` block, and `@utility shadow-card`, `shadow-menu` and `shadow-sheet` read their variable; the header comment names the new version. Verify: in the built CSS, `.shadow-card` is `box-shadow: var(--shadow-card)` and the dark block sets `--shadow-card: none`; lint and `typecheck` pass; green
+- [x] 25.2 `InstallHint`: the step words "Sdílet", "Přidat na plochu" and "Přidat" at weight 600 (`font-semibold`), as the design system's InstallHint guideline says. Verify: lint and `typecheck` pass; green
 
 ## 26. [close] Acceptance green
 
