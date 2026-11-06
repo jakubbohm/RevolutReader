@@ -33,7 +33,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 2. [wiring] Slice 1 — The frame
 
-- [ ] 2.1 `AppShell` as design.md D4: the sticky top bar below the safe-area inset, "Tarjeta Papá" in `text-headline` with `lang="es"`, and a `main` with the design's gaps and bottom inset. `App` shows it. The design files are those of design system AppShell and theme. Verify: `typecheck` and lint pass; green
+- [x] 2.1 `AppShell` as design.md D4: the sticky top bar below the safe-area inset, "Tarjeta Papá" in `text-headline` with `lang="es"`, and a `main` with the design's gaps and bottom inset. `App` shows it. The design files are those of design system AppShell and theme. Verify: `typecheck` and lint pass; green
 
 ## 3. [close] Slice 1 — The top bar shows the app name
 
