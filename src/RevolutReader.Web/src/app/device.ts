@@ -15,3 +15,9 @@ export function readDevice(browser: Window): Device {
       browser.matchMedia("(display-mode: standalone)").matches,
   };
 }
+
+/** Whether the app shows only the install hint: on an iPhone, in a browser tab rather than the Home Screen app (c003 design.md D8). */
+export function needsInstallHint(device: Device): boolean {
+  void device;
+  throw new Error("Not implemented: needsInstallHint");
+}
