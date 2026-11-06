@@ -122,7 +122,7 @@ Starts on a new branch off the freshest `main`, `docs/c005-first-deployment`, in
   - PR 2 (`docs: record the first deployment (C4)`) is open, its checks pass and its state is `CLEAN`.
 
   Verify: the commands' output.
-- [ ] 7.2 `pm/progress.md`, C4's notes:
+- [x] 7.2 `pm/progress.md`, C4's notes:
   - what was done, and the deviations (D2: no secret read by C4's own app; D9);
   - the follow-ups #17 and #18;
   - the heads-ups for C5 (wire the four secrets, D15) and C6 (forwarded headers D5, the sign-in addresses D11, the app's address);
