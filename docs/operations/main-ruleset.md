@@ -2,7 +2,7 @@
 
 > What roadmap step C2 set up by hand on GitHub so that a failing CI check blocks the merge. The definition is [main-ruleset.json](main-ruleset.json). This page says why it looks the way it does, how to create, update, check and remove it, and how it was proven. The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7 and run with the owner's `gh` login, an admin of the repository. **Claude never changes, switches off or deletes this ruleset without the user's explicit go.** Last updated: 2026-11-05 (C2).
+> Commands are PowerShell 7 and run with the owner's `gh` login, an admin of the repository. **Claude never changes, switches off or deletes this ruleset without the user's explicit go.** Last updated: 2026-11-06 (C3: `frontend` added to the file, not yet applied).
 
 ## Identifiers (non-secret)
 
@@ -10,14 +10,14 @@
 |---|---|
 | Repository | `jakubbohm/RevolutReader` |
 | Ruleset | name `main`, id `26623567` (created 2026-11-05); applies to the default branch |
-| Required checks | `build-and-test` ([ci.yml](../../.github/workflows/ci.yml)) and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368) |
+| Required checks | `build-and-test` and `frontend` ([ci.yml](../../.github/workflows/ci.yml)), and `pr-title` ([pr-title.yml](../../.github/workflows/pr-title.yml)), each reported by the GitHub Actions app (id 15368). `frontend` is in the file since C3; until the ruleset is re-applied with the user's go (C3 tasks.md § Workflow follow-up), GitHub still requires only the first two |
 
 ## What it enforces, and why
 
 Decided in C2 (c002 design.md D4, D5). The checks themselves: [workflow.md § 4](../conventions/workflow.md#4-cicd).
 
 1. **A pull request for every change to `main`.** No approval is required: the only person cannot approve their own PR. Squash merge only, as in the repository settings ([workflow.md § 3](../conventions/workflow.md#3-git)).
-2. **Both checks must pass,** each pinned to the GitHub Actions app, so nothing else can satisfy it by reporting a result under the same name.
+2. **Every required check must pass,** each pinned to the GitHub Actions app, so nothing else can satisfy it by reporting a result under the same name.
 3. **The branch must be up to date with `main`** before merging. If `main` has moved since the PR went green, the PR page offers "Update branch" and CI runs again. With squash merge, `main` then holds exactly the files CI tested.
 4. **No force-push to `main` and no deleting it.**
 5. **No bypass for anyone,** the admin included. Claude works with the owner's GitHub login, so an admin bypass would let Claude merge past a red check too.

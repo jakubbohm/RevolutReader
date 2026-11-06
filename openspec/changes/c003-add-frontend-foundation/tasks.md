@@ -161,8 +161,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 24. [wiring] CI
 
-- [ ] 24.1 `.github/workflows/ci.yml`: the `frontend` job of design.md D12 (same trigger, no path filters, read-only token, checkout without credentials, Node from `.node-version`, npm cache; `npm ci`, format check, lint, type check, tests, build). Verify: the same commands pass locally in `src/RevolutReader.Web`
-- [ ] 24.2 Docs:
+- [x] 24.1 `.github/workflows/ci.yml`: the `frontend` job of design.md D12 (same trigger, no path filters, read-only token, checkout without credentials, Node from `.node-version`, npm cache; `npm ci`, format check, lint, type check, tests, build). Verify: the same commands pass locally in `src/RevolutReader.Web`
+- [x] 24.2 Docs:
   - `docs/operations/main-ruleset.json` requires `frontend` as well;
   - `docs/operations/main-ruleset.md` and workflow.md § 4's checks table list it.
 

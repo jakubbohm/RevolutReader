@@ -64,8 +64,9 @@
   |---|---|---|---|
   | `build-and-test` | [ci.yml](../../.github/workflows/ci.yml) | Builds the solution and runs all three test projects, the traceability check included. Analyzer and layout errors fail the build, so formatting needs no check of its own. | C2 |
   | `pr-title` | [pr-title.yml](../../.github/workflows/pr-title.yml) | The PR title is a Conventional Commit (§ 3). | C2 |
+  | `frontend` | [ci.yml](../../.github/workflows/ci.yml) | In `src/RevolutReader.Web`: a clean install from the lock file, then Prettier's check, lint, the type check, the tests and the production build. | C3 |
 
-  C3 (frontend) and C4 (deployment) add theirs; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
+  C4 (deployment) adds its own; test-related checks follow [testing.md](testing.md). A change that adds a check also adds it to the ruleset file and re-applies the ruleset, or the check would only be advisory.
 - **No path or branch filters on a required workflow:** a required check that never runs stays "pending" and blocks the merge. To skip work, use a job-level `if:` (a job skipped that way reports success).
 - **No security scanning** (CodeQL, dependency review), on purpose ([divergences.md R-35](../software-factory/divergences.md)).
 
