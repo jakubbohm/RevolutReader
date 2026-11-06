@@ -47,7 +47,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 - [x] 4.1 The available balance is the ITAV balance, with its amount and currency
 - [x] 4.2 A balance list without an ITAV balance is an error
-- [ ] 4.3 An available balance whose amount is not a number is an error, and the message does not contain it (added 2026-11-06 by the user, from the implementer's missing-test report: `decimal.Parse` quotes its input; D5)
+- [x] 4.3 An available balance whose amount is not a number is an error, and the message does not contain it (added 2026-11-06 by the user, from the implementer's missing-test report: `decimal.Parse` quotes its input; D5)
 
 ## 5. [wiring] Slice 1 — The balance read
 

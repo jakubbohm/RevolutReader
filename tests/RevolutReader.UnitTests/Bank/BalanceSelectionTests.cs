@@ -39,4 +39,21 @@ public sealed class BalanceSelectionTests {
 
     bankData.ShouldAllBe(value => !error.Message.Contains(value, StringComparison.OrdinalIgnoreCase), "the error's message carries no amount or currency from the list");
   }
+
+  /// <summary>
+  /// The error is checked as it would be logged (message, inner exceptions, stack trace): <c>decimal.Parse</c> quotes its
+  /// input in its <c>FormatException</c>, so even a wrapped one would carry the amount (D5).
+  /// </summary>
+  [Test]
+  [Arguments("12x34.56")]
+  [Arguments("")]
+  public void An_available_balance_whose_amount_is_not_a_number_is_an_error_and_the_message_does_not_contain_it(string amount) {
+    EbBalances balances = new([new(new("EUR", amount), "ITAV")]);
+
+    BankReadException error = Should.Throw<BankReadException>(() => BalanceSelection.Available(balances));
+
+    string[] bankData = [.. new[] { amount, "EUR" }.Where(static value => value.Length > 0)];
+
+    bankData.ShouldAllBe(value => !error.ToString().Contains(value, StringComparison.Ordinal), "the error carries neither the amount nor the currency");
+  }
 }
