@@ -125,3 +125,16 @@ test("A failed update check is ignored until the next return", async () => {
     nodeProcess.off("unhandledRejection", recordUnhandled);
   }
 });
+
+test("No update check runs after the watch stops", () => {
+  const registration = new FakeRegistration();
+  const page = new FakePage();
+  const stop = watchForUpdates(registration, page, { onLine: true });
+  leaveAndReturn(page);
+  expect(registration.checks).toBe(1);
+
+  stop();
+  leaveAndReturn(page);
+
+  expect(registration.checks).toBe(1);
+});
