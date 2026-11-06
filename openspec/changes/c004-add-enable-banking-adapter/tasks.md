@@ -93,7 +93,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 9. [close] Slice 2 — A spent payment comes back negative, with the payee and its details
 
-- [ ] 9.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 9.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 10. [unit] Slice 3 — Transaction mapping: money received
 
