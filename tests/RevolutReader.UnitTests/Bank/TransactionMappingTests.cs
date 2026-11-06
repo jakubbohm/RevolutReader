@@ -8,8 +8,8 @@ namespace RevolutReader.UnitTests.Bank;
 /// What a transaction carries (spec bank-reads, c004 design.md D3): the reference, the status, one date (the transaction
 /// date, else the booking date, else the value date), the amount signed by direction in its currency, the counterparty
 /// and the payment details, unchanged. Each test maps one transaction the bank lists, made up in the Mock ASPSP
-/// capture's shape: a booked payment, money spent (<c>DBIT</c>), dated like Revolut's settled ones (booking and value
-/// date, no transaction date).
+/// capture's shape: a booked payment, money spent (<c>DBIT</c>), or a booked transfer received (<c>CRDT</c>), dated like
+/// Revolut's settled ones (booking and value date, no transaction date).
 /// </summary>
 public sealed class TransactionMappingTests {
   private static readonly DateOnly _november2 = new(2026, 11, 2);
@@ -63,6 +63,45 @@ public sealed class TransactionMappingTests {
     BankTransaction mapped = MapOne(BookedPayment() with { RemittanceInformation = remittanceInformation });
 
     mapped.PaymentDetails.ShouldBeEmpty();
+  }
+
+  // Money received
+
+  [Test]
+  public void Money_received_has_a_positive_amount() {
+    BankTransaction mapped = MapOne(BookedTransferReceived() with { TransactionAmount = new("EUR", "50.00") });
+
+    mapped.Amount.ShouldBe(50.00m);
+  }
+
+  [Test]
+  public void Money_received_names_the_debtor_as_the_counterparty() {
+    BankTransaction mapped = MapOne(BookedTransferReceived() with { Debtor = new("Jan Novák"), Creditor = new("Jana Nováková") });
+
+    mapped.Counterparty.ShouldBe("Jan Novák");
+  }
+
+  /// <param name="party">
+  /// Which side has no name. The other side's party keeps its name each time (the account holder, made up), so a mapping
+  /// that falls back to it fails. Real data (D3): 1 of 103 payments had no creditor's name, 2 of 13 receipts no debtor's.
+  /// </param>
+  [Test]
+  [Arguments("money spent, no creditor")]
+  [Arguments("money spent, a creditor without a name")]
+  [Arguments("money received, no debtor")]
+  [Arguments("money received, a debtor without a name")]
+  public void A_transaction_without_a_named_counterparty_has_none(string party) {
+    EbParty accountHolder = new("Jana Nováková");
+
+    EbTransaction transaction = party switch {
+      "money spent, no creditor" => BookedPayment() with { Creditor = null, Debtor = accountHolder },
+      "money spent, a creditor without a name" => BookedPayment() with { Creditor = new(Name: null), Debtor = accountHolder },
+      "money received, no debtor" => BookedTransferReceived() with { Debtor = null, Creditor = accountHolder },
+      "money received, a debtor without a name" => BookedTransferReceived() with { Debtor = new(Name: null), Creditor = accountHolder },
+      _ => throw new ArgumentOutOfRangeException(nameof(party), party, "Not a known case."),
+    };
+
+    MapOne(transaction).Counterparty.ShouldBeNull();
   }
 
   // The date
@@ -167,6 +206,19 @@ public sealed class TransactionMappingTests {
     BookingDate: _november3,
     ValueDate: _november3,
     RemittanceInformation: ["Pekárna U Lípy"]);
+
+  /// <summary>A booked transfer of 50.00 EUR received from "Jan Novák" on 4 November, as the capture lists one; each test changes what it is about.</summary>
+  private static EbTransaction BookedTransferReceived() => new(
+    EntryReference: "e-102",
+    Status: "BOOK",
+    TransactionAmount: new("EUR", "50.00"),
+    CreditDebitIndicator: "CRDT",
+    Creditor: null,
+    Debtor: new("Jan Novák"),
+    TransactionDate: null,
+    BookingDate: _november4,
+    ValueDate: _november4,
+    RemittanceInformation: ["Kapesné listopad"]);
 
   /// <summary>The one transaction the mapping keeps from a list of one.</summary>
   private static BankTransaction MapOne(EbTransaction transaction) => TransactionMapping.Map([transaction]).Kept.ShouldHaveSingleItem();
