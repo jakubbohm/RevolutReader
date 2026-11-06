@@ -144,8 +144,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 19. [unit] Slice 7 — PSU headers
 
-- [ ] 19.1 A present user gives exactly the IP address and user agent headers
-- [ ] 19.2 An unattended read gives no user headers
+- [x] 19.1 A present user gives exactly the IP address and user agent headers
+- [x] 19.2 An unattended read gives no user headers
 
 ## 20. [wiring] Slice 7 — PSU headers on every request
 
