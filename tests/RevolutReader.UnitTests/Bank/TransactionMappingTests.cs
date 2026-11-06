@@ -9,12 +9,13 @@ namespace RevolutReader.UnitTests.Bank;
 /// date, else the booking date, else the value date), the amount signed by direction in its currency, the counterparty
 /// and the payment details, unchanged. Each test maps one transaction the bank lists, made up in the Mock ASPSP
 /// capture's shape: a booked payment, money spent (<c>DBIT</c>), or a booked transfer received (<c>CRDT</c>), dated like
-/// Revolut's settled ones (booking and value date, no transaction date).
+/// Revolut's settled ones (booking and value date, no transaction date), or a pending payment (a transaction date only).
 /// </summary>
 public sealed class TransactionMappingTests {
   private static readonly DateOnly _november2 = new(2026, 11, 2);
   private static readonly DateOnly _november3 = new(2026, 11, 3);
   private static readonly DateOnly _november4 = new(2026, 11, 4);
+  private static readonly DateOnly _november5 = new(2026, 11, 5);
 
   // Money spent
 
@@ -102,6 +103,29 @@ public sealed class TransactionMappingTests {
     };
 
     MapOne(transaction).Counterparty.ShouldBeNull();
+  }
+
+  // Pending
+
+  /// <summary>Marked pending, and mapped like any other: dated by its transaction date, the only date a pending one has.</summary>
+  [Test]
+  public void A_pending_transaction_is_marked_pending() {
+    BankTransaction mapped = MapOne(PendingPayment());
+
+    mapped.Status.ShouldBe(TransactionStatus.Pending);
+    mapped.Reference.ShouldBe("e-103");
+    mapped.Date.ShouldBe(_november5);
+    mapped.Amount.ShouldBe(-8.90m);
+    mapped.Currency.ShouldBe("EUR");
+    mapped.Counterparty.ShouldBe("Kavárna Na Rohu");
+    mapped.PaymentDetails.ShouldBe(["Kavárna Na Rohu"]);
+  }
+
+  [Test]
+  public void A_pending_transaction_without_a_reference_has_none() {
+    BankTransaction mapped = MapOne(PendingPayment() with { EntryReference = null });
+
+    mapped.Reference.ShouldBeNull();
   }
 
   // The date
@@ -219,6 +243,22 @@ public sealed class TransactionMappingTests {
     BookingDate: _november4,
     ValueDate: _november4,
     RemittanceInformation: ["Kapesné listopad"]);
+
+  /// <summary>
+  /// A pending card payment of 8.90 EUR to "Kavárna Na Rohu" on 5 November, as the capture lists one: a transaction date
+  /// only, no booking or value date yet; each test changes what it is about.
+  /// </summary>
+  private static EbTransaction PendingPayment() => new(
+    EntryReference: "e-103",
+    Status: "PDNG",
+    TransactionAmount: new("EUR", "8.90"),
+    CreditDebitIndicator: "DBIT",
+    Creditor: new("Kavárna Na Rohu"),
+    Debtor: null,
+    TransactionDate: _november5,
+    BookingDate: null,
+    ValueDate: null,
+    RemittanceInformation: ["Kavárna Na Rohu"]);
 
   /// <summary>The one transaction the mapping keeps from a list of one.</summary>
   private static BankTransaction MapOne(EbTransaction transaction) => TransactionMapping.Map([transaction]).Kept.ShouldHaveSingleItem();
