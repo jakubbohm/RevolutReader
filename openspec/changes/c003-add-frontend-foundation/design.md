@@ -90,6 +90,14 @@ The test-writer may add only signatures to production code, and the implementer 
    - in `src/RevolutReader.Web`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm run format:check` and `npm run build` pass;
    - `npm test` reports "No test files found". This is the accepted frontend baseline for `/tdd-apply` § 0 step 5, once, as C1 accepted exit code 8. From group 1 on, there are tests.
 5. **Commit:** `build(c003): [setup] frontend project, tools and conventions`.
+6. ***Found during setup (2026-11-06):***
+   - create-vite needs `--no-immediate --no-interactive` to scaffold without prompts or installing.
+   - **Every D2 package was installed in setup,** not slice by slice. So the toolchain's compatibility is proven once (no peer conflicts on TypeScript 7, Vite 8, Vitest 5), and the implementer adds no package.
+   - oxlint runs with `--deny-warnings`; otherwise the template's warning rules would pass CI as advisories (workflow.md § 4). The Radix rule was probed in the project itself: a feature-folder import failed, `src/components/` passed.
+   - Testing Library's automatic cleanup needs Vitest globals, which the project doesn't use. So `src/test/setup.ts` registers `afterEach(cleanup)`.
+   - The Vitest settings sit in `vite.config.ts` through `defineConfig` from `vitest/config`.
+   - **npm audit reports 6 advisories (2 low, 4 moderate):** `glob`, `minimatch` and `deepmerge` in workbox-build's build-time chain under vite-plugin-pwa. Its suggested fix downgrades vite-plugin-pwa to 1.1.0. They run at build time on our own files only and never ship to the browser, so they're accepted; there is no security scanning in CI by design (divergences.md R-35).
+   - Prettier reads `.editorconfig`, whose sections cover `*.cs` only, so nothing there changes the frontend's style.
 
 **Shape of group 1** (as in C1). Besides one task per scenario, group 1 holds the foundation the test-writer owns:
 - the frontend claims in the traceability check (D7);
