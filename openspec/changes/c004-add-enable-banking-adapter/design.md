@@ -207,7 +207,7 @@ Recorded in propose (2026-11-06), from the user's notes that C3 has merged and C
 - **C4 runs in parallel** (its own worktree, started 2026-11-06). From C5 on the app refuses to start without the four Enable Banking secrets (D6), in production too. Whichever change merges second wires them into the deployment:
   - If C4 is in `main` when C5 rebases before its PR, C5's deployment task adds them to Bicep: four Key Vault secrets, referenced as Container Apps secrets, as the environment variables `EnableBanking__ApplicationId`, `EnableBanking__PrivateKey`, `EnableBanking__SessionId` and `EnableBanking__AccountId`. It also runs the guided Key Vault task, showing each Azure change first and running it only on the owner's go (CLAUDE.md).
   - Otherwise C4 does the same with these names; the owner passes them to the C4 session.
-- *Settled 2026-11-06 (the user, passing on C4's note):* **C4 merges first; C5 waits for it and wires the four secrets when it merges** (the first branch above, task 40.1). C4's PR check has a start test that starts the app with stand-in values for these four settings and a key generated on the spot. C5's start-up validation (no `"<secret>"` placeholder; the key parses as an RSA key in PEM form, D6) must accept them; where it is stricter, C5 adjusts that CI step in the same task.
+- *Settled 2026-11-06 (the user, passing on C4's note):* **C4 merges first; C5 waits for it and wires the four secrets when it merges** (the first branch above, task 40.1). C4's PR check has a start test that starts the app with stand-in values for these four settings and a key generated on the spot. C5's start-up validation (no `"<secret>"` placeholder; the key parses as an RSA private key in PEM form, D6) must accept them; where it is stricter, C5 adjusts that CI step in the same task.
 - **Files shared with C4:** CLAUDE.md, configuration.md § Hand-provisioned secrets, docs/operations, pm/progress.md and lessons.md. They merge as text at the rebase. Lesson numbers R-44 and R-45 are free as of writing; if C4 takes them first, whichever change merges second renumbers.
 
 ## Public API sketch
@@ -273,7 +273,10 @@ public sealed class EnableBankingOptions {
 // src/RevolutReader.Api/Configuration/: the shared validator configuration.md § Binding names, built here first.
 public sealed class NotSecretPlaceholderAttribute : ValidationAttribute;                    // rejects "<secret>"
 
-/// <summary>The key parses as an RSA key in PEM form. The message names the setting, never its value.</summary>
+/// <summary>
+/// The key parses as an RSA private key in PEM form; a public key fails too (the user, group 2 review, 2026-11-06: it
+/// would otherwise pass the start-up check and fail only at the first signing). The message names the setting, never its value.
+/// </summary>
 public sealed class EnableBankingOptionsValidator : IValidateOptions<EnableBankingOptions>;
 
 public sealed class ApplicationToken(string applicationId, RSA key) {
@@ -422,7 +425,7 @@ The guard and the checks:
 | Never retried (ADR-0001) | no resilience handler on any client (ServiceDefaults, C1); `EnableBankingClient` sends each request once |
 | Read-only toward the bank | `IBankAccount` has only reads; the client sends only `GET` |
 | Every request signed by the application | `ApplicationToken` and `EnableBankingClient` |
-| Settings complete, no placeholder left, the key parses | `NotSecretPlaceholderAttribute`, `EnableBankingOptionsValidator`, `ValidateOnStart` |
+| Settings complete, no placeholder left, the key parses as an RSA private key | `NotSecretPlaceholderAttribute`, `EnableBankingOptionsValidator`, `ValidateOnStart` |
 | No account id, session id or PSU address in logs or exported traces (D5) | `RemoveAllLoggers()`, `HttpRequestTracing.Exclude`, the adapter's one log line; guarded by `BankTelemetryTests` |
 | Every scenario claimed exactly once | `TraceabilityTests` |
 
@@ -432,7 +435,7 @@ The guard and the checks:
 |---|---|---|---|
 | `ReadBalance` | `Balance` | `BankAccessExpired`, `BankRateLimited`, `BankUnavailable` (D4) | `BankReadException`: an unexpected code or status, an unreadable body, no `ITAV` balance. `OperationCanceledException` when the caller cancels |
 | `ReadTransactions` | `Transactions` | the same, from any page | the same, plus a repeated continuation key |
-| App start | — | — | `OptionsValidationException` from `ValidateOnStart`: a missing or placeholder setting, a key that does not parse. The message names the setting, never its value |
+| App start | — | — | `OptionsValidationException` from `ValidateOnStart`: a missing or placeholder setting, a key that does not parse as an RSA private key. The message names the setting, never its value |
 
 - A network failure (`HttpRequestException`) and our own timeout (`TaskCanceledException` while the caller's token is not cancelled) become `BankUnavailable`.
 - The log line records the HTTP status and the Enable Banking `error` code for every outcome; an exception's message carries the same and nothing else (D5). C7's endpoint maps the cases to statuses and lets exceptions become a 500.
