@@ -81,13 +81,13 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 13. [wiring] Slice 7 — The service worker
 
-- [ ] 13.1 vite-plugin-pwa with `strategies: "injectManifest"` and `src/sw.ts`, as design.md D9:
+- [x] 13.1 vite-plugin-pwa with `strategies: "injectManifest"` and `src/sw.ts`, as design.md D9:
   - the build's files precached, old caches cleaned;
   - a navigation route to `index.html` that never covers `/api` or `/health`;
   - no runtime caching.
 
   Verify: `npm run build` writes `dist/sw.js` with the precache list, which holds no launch images; `typecheck` and lint pass; green
-- [ ] 13.2 `main.tsx` registers the service worker through `virtual:pwa-register` (design.md D9). Verify: `typecheck` passes; green
+- [x] 13.2 `main.tsx` registers the service worker through `virtual:pwa-register` (design.md D9). Verify: `typecheck` passes; green
 
 ## 14. [close] Slice 7 — The app opens without network after the first visit
 
