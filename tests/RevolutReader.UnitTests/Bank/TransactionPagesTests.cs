@@ -99,6 +99,23 @@ public sealed class TransactionPagesTests {
     Joined(await TransactionPages.ReadAll(bank.Read)).PageCount.ShouldBe(pageCount);
   }
 
+  /// <summary>
+  /// The bank marks the last page with no key; an empty key is undocumented and cannot name a page, so it ends the read
+  /// the same way (D7, the user, 2026-11-07): nothing more is asked for, and the page that carried it counts.
+  /// </summary>
+  [Test]
+  public async Task An_empty_continuation_key_ends_the_read_as_no_key_does() {
+    PagesAtBank bank = new(
+      firstPage: new([Booked("e-101")], KEY_OF_PAGE_2),
+      (KEY_OF_PAGE_2, new([Booked("e-102")], ContinuationKey: "")));
+
+    JoinedPages joined = Joined(await TransactionPages.ReadAll(bank.Read));
+
+    joined.Transactions.Select(static transaction => transaction.EntryReference).ShouldBe(["e-101", "e-102"]);
+    joined.PageCount.ShouldBe(2);
+    bank.KeysAskedFor.ShouldBe([null, KEY_OF_PAGE_2], "no page is asked for with the empty key");
+  }
+
   /// <summary>The read's value; fails when the read came back as one of the failures instead.</summary>
   private static JoinedPages Joined(BankResult<JoinedPages> result) => result.Value.ShouldBeOfType<JoinedPages>();
 
