@@ -1,3 +1,4 @@
+using System.Net;
 using RevolutReader.AcceptanceTests.Dsl;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
@@ -9,10 +10,23 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <see cref="PageAnswer.SomethingElse"/> for any other answer.
 /// </summary>
 public sealed class PagesDriver {
+  private const string HTML = "text/html";
+
   private readonly HttpClient _http;
 
   public PagesDriver(HttpClient http) => _http = http;
 
-  /// <summary>Stub until the wiring of slice 5 (tasks.md 9.2).</summary>
-  public Task<PageAnswer> GetPage(string path) => throw new NotImplementedException();
+  public async Task<PageAnswer> GetPage(string path) {
+    using HttpResponseMessage response = await _http.GetAsync(new Uri(path, UriKind.Relative));
+
+    if (response.StatusCode != HttpStatusCode.OK)
+      return PageAnswer.SomethingElse;
+
+    if (!string.Equals(response.Content.Headers.ContentType?.MediaType, HTML, StringComparison.OrdinalIgnoreCase))
+      return PageAnswer.SomethingElse;
+
+    string body = await response.Content.ReadAsStringAsync();
+
+    return string.Equals(body, StandInPages.StartPage, StringComparison.Ordinal) ? PageAnswer.TheApp : PageAnswer.SomethingElse;
+  }
 }

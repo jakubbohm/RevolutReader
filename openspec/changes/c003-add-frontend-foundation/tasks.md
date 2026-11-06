@@ -64,8 +64,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 9. [wiring] Slice 5 — Static pages
 
-- [ ] 9.1 `UseAppPages()` in `src/RevolutReader.Api/Pages/`: default and static files from the web root, called in `Program.cs` after `UseStatusCodePages` and before `UseFastEndpoints` (design.md D5). Verify: build passes; green
-- [ ] 9.2 `PagesDriver.GetPage` replaces its stub: status 200, a `text/html` content type and a body equal to `StandInPages.StartPage` give `PageAnswer.TheApp`, anything else `SomethingElse` (design.md D6). Verify: the scenario runs against the app
+- [x] 9.1 `UseAppPages()` in `src/RevolutReader.Api/Pages/`: default and static files from the web root, called in `Program.cs` after `UseStatusCodePages` and before `UseFastEndpoints` (design.md D5). Verify: build passes; green
+- [x] 9.2 `PagesDriver.GetPage` replaces its stub: status 200, a `text/html` content type and a body equal to `StandInPages.StartPage` give `PageAnswer.TheApp`, anything else `SomethingElse` (design.md D6). Verify: the scenario runs against the app
 
 ## 10. [close] Slice 5 — The start page opens at the root address
 
