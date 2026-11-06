@@ -1,0 +1,226 @@
+{
+  "note": "Redacted: offsets in seconds, status codes, error codes and transaction counts only. Balances were compared in memory and are not recorded, nor are the PSU header values or the time of day.",
+  "run_date": "2026-11-06",
+  "times_relative_to": "the notification",
+  "psu_headers_sent": [
+    "Psu-Ip-Address",
+    "Psu-User-Agent"
+  ],
+  "interval_seconds": 20,
+  "max_minutes": 15.0,
+  "recent_days": 2,
+  "notification_marked": true,
+  "notification_after_start_s": 43.5,
+  "readings": 47,
+  "api_calls": 94,
+  "stopped": "15 min after the notification",
+  "counts_at_start": {
+    "PDNG": 3,
+    "BOOK": 6
+  },
+  "counts_at_end": {
+    "PDNG": 4,
+    "BOOK": 6
+  },
+  "changes": [
+    {
+      "change": "balance",
+      "between_s": -22.0,
+      "and_s": -2.0
+    },
+    {
+      "change": "PDNG 3->4",
+      "between_s": -22.0,
+      "and_s": -2.0
+    }
+  ],
+  "reading_offsets_s": [
+    {
+      "at_s": -22.0,
+      "changes": []
+    },
+    {
+      "at_s": -2.0,
+      "changes": [
+        "balance",
+        "PDNG 3->4"
+      ]
+    },
+    {
+      "at_s": 17.9,
+      "changes": []
+    },
+    {
+      "at_s": 37.9,
+      "changes": []
+    },
+    {
+      "at_s": 57.9,
+      "changes": []
+    },
+    {
+      "at_s": 77.8,
+      "changes": []
+    },
+    {
+      "at_s": 97.8,
+      "changes": []
+    },
+    {
+      "at_s": 117.9,
+      "changes": []
+    },
+    {
+      "at_s": 137.8,
+      "changes": []
+    },
+    {
+      "at_s": 157.8,
+      "changes": []
+    },
+    {
+      "at_s": 177.8,
+      "changes": []
+    },
+    {
+      "at_s": 197.9,
+      "changes": []
+    },
+    {
+      "at_s": 217.9,
+      "changes": []
+    },
+    {
+      "at_s": 238.0,
+      "changes": []
+    },
+    {
+      "at_s": 257.8,
+      "changes": []
+    },
+    {
+      "at_s": 277.9,
+      "changes": []
+    },
+    {
+      "at_s": 298.0,
+      "changes": []
+    },
+    {
+      "at_s": 322.0,
+      "changes": []
+    },
+    {
+      "at_s": 342.2,
+      "changes": []
+    },
+    {
+      "at_s": 362.0,
+      "changes": []
+    },
+    {
+      "at_s": 382.1,
+      "changes": []
+    },
+    {
+      "at_s": 402.1,
+      "changes": []
+    },
+    {
+      "at_s": 422.1,
+      "changes": []
+    },
+    {
+      "at_s": 442.1,
+      "changes": []
+    },
+    {
+      "at_s": 462.1,
+      "changes": []
+    },
+    {
+      "at_s": 482.1,
+      "changes": []
+    },
+    {
+      "at_s": 502.1,
+      "changes": []
+    },
+    {
+      "at_s": 522.0,
+      "changes": []
+    },
+    {
+      "at_s": 542.1,
+      "changes": []
+    },
+    {
+      "at_s": 562.2,
+      "changes": []
+    },
+    {
+      "at_s": 582.1,
+      "changes": []
+    },
+    {
+      "at_s": 602.2,
+      "changes": []
+    },
+    {
+      "at_s": 622.0,
+      "changes": []
+    },
+    {
+      "at_s": 642.0,
+      "changes": []
+    },
+    {
+      "at_s": 662.1,
+      "changes": []
+    },
+    {
+      "at_s": 682.1,
+      "changes": []
+    },
+    {
+      "at_s": 702.1,
+      "changes": []
+    },
+    {
+      "at_s": 722.2,
+      "changes": []
+    },
+    {
+      "at_s": 742.2,
+      "changes": []
+    },
+    {
+      "at_s": 762.0,
+      "changes": []
+    },
+    {
+      "at_s": 782.2,
+      "changes": []
+    },
+    {
+      "at_s": 802.1,
+      "changes": []
+    },
+    {
+      "at_s": 822.1,
+      "changes": []
+    },
+    {
+      "at_s": 842.2,
+      "changes": []
+    },
+    {
+      "at_s": 862.0,
+      "changes": []
+    },
+    {
+      "at_s": 882.0,
+      "changes": []
+    }
+  ]
+}
