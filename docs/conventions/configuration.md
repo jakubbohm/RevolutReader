@@ -42,7 +42,11 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 ## Frontend
 
 - **Nothing secret or environment-specific goes into a `VITE_` variable.** Vite inlines them into the bundle at build time, which publishes them and ties the bundle to one environment (breaking build once, deploy the same artifact).
-- **The frontend shares the backend's origin** ([ADR-0002-frontend-hosting](../adr/0002-frontend-hosting.md)). It calls the API by relative paths and gets any other runtime value from the backend. The mechanism is chosen in C3.
+- **The frontend shares the backend's origin** ([ADR-0002-frontend-hosting](../adr/0002-frontend-hosting.md)). It calls the API by relative paths and gets any other runtime value from the backend.
+- **A runtime value comes from an ordinary API endpoint,** behind sign-in like every endpoint, typed by the generated client (the user, 2026-11-06, in C3; c003 design.md D13).
+  - The first change that needs a value adds the endpoint, e.g. C8 with the public push key. Until then, there is none.
+  - Not in `index.html`: the service worker serves a cached copy, so a value written into it would go stale.
+  - Not in a settings file loaded before start: it delays every start and can go stale the same way.
 
 ## Hand-provisioned secrets
 

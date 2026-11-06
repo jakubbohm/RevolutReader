@@ -1,6 +1,6 @@
 # ADR-0002: Frontend hosting — one container, one origin
 
-**Status:** Accepted (the user's decision, 2026-11-05) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in C3, C4 · **Questions:** Q3
+**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-06 in C3: the runtime-settings mechanism is chosen (Decision) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in C3, C4 · **Questions:** Q3
 
 ## Context
 
@@ -15,7 +15,7 @@
 Decided by the user, 2026-11-05: **the backend's container serves the built frontend, so the frontend and the API share one origin.**
 
 - The pages are served at `/` and the API under `/api`. The frontend calls the API by relative paths.
-- The frontend gets its runtime settings from the backend on the same origin. The mechanism is chosen in C3.
+- The frontend gets its runtime settings from the backend on the same origin. The mechanism is chosen in C3. *(Amended by the user, 2026-11-06, in C3: an ordinary API endpoint, added by the first change that needs a value ([configuration.md § Frontend](../conventions/configuration.md#frontend)).)*
 - Locally, the AppHost runs the Vite dev server, which forwards `/api` to the backend, so development also uses one origin.
 - The PWA's service worker serves the cached app shell. The screen therefore appears without waiting for the backend, and only the data waits for it.
 
