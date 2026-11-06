@@ -24,7 +24,7 @@ PowerShell 7, run from the repository root. They reuse the M1 client (`../enable
 | Script | What it does |
 |---|---|
 | `mock-client.ps1` | Dot-sourced helper: loads the M1 client and switches it to the sandbox application ID and key |
-| `create-mock-session.ps1` | `POST /auth` for Mock ASPSP / LT / personal (10 days), opens the approval page, takes the redirected `https://localhost/callback?...` address (prompt or `-CallbackUrl`), `POST /sessions`, keeps the session ID and account UIDs in `secrets/session.json`, saves the response without them to `evidence/`, then runs `read-mock.ps1`. The approval page needs your Control Panel login, so run it in your own window: `pwsh -NoProfile -File spikes/enable-banking-mock/create-mock-session.ps1` (`-New` starts a fresh approval) |
+| `create-mock-session.ps1` | `POST /auth` for Mock ASPSP / LT / personal (180 days, the mock's maximum; 10 days until c004), opens the approval page, takes the redirected `https://localhost/callback?...` address (prompt or `-CallbackUrl`), `POST /sessions`, keeps the session ID and account UIDs in `secrets/session.json`, saves the response without them to `evidence/`, then runs `read-mock.ps1`. The approval page needs your Control Panel login, so run it in your own window: `pwsh -NoProfile -File spikes/enable-banking-mock/create-mock-session.ps1` (`-New` starts a fresh approval) |
 | `read-mock.ps1` | Session status, account details, balances and all transaction pages, saved unchanged to `evidence/` (made-up data). `-BalanceRepeats <n>` repeats the balance read without PSU headers: `pwsh -NoProfile -File spikes/enable-banking-mock/read-mock.ps1 -BalanceRepeats 6` |
 
 ## Identifiers (non-secret)
@@ -35,11 +35,12 @@ PowerShell 7, run from the repository root. They reuse the M1 client (`../enable
 | Redirect URL | `https://localhost/callback` | 2026-11-04 |
 | ASPSP name / country / PSU type | Mock ASPSP / LT / personal | 2026-11-04 |
 | Test account | `RevolutReader Test` (CACC, CZK) in the Control Panel → Mock ASPSP | 2026-11-04 |
+| Test account for C5 | `RevolutReader C5 Test` (CACC, EUR), uploaded from [`test-data/c004-transactions.json`](test-data/c004-transactions.json): an `ITAV` balance and 25 transactions (21 `BOOK`, 2 `PDNG`, 1 `CNCL`, 1 `RJCT`) | 2026-11-06 |
 
 ## Secrets (never committed)
 
 - `../enable-banking/secrets/b4780885-a339-48bd-b6b3-067e5056d2ad.pem`: the sandbox application's private key.
-- `secrets/session.json`: sandbox session ID and account UIDs (valid until 2026-11-14). Only made-up data behind it, but kept out of the repository like any credential.
+- `secrets/session.json`: sandbox session ID and account UIDs (since 2026-11-06 the 180-day session with `RevolutReader C5 Test`, valid until 2027-05-05T19:44Z; the 10-day one it replaced is kept as `session-replaced-2026-11-06.json` until it ends on 2026-11-14). Only made-up data behind it, but kept out of the repository like any credential.
 - `secrets/auth-state.json`: exists only while an approval waits for its address.
 
 **Data rule:** Mock ASPSP data is made up. Never load a real account into it (the Control Panel offers an export of a real account through Enable Banking's demo app; not used).
@@ -59,6 +60,7 @@ PowerShell 7, run from the repository root. They reuse the M1 client (`../enable
 9. **Filters work:** `transaction_status=PDNG` returned only the pending one; `date_from=2026-11-04` returned the pending transaction dated by `transaction_date` and left out the booked one from 2026-11-03.
 10. **Real error responses** (`evidence/2026-11-04-error-responses.json`), shape `{ code, message, error, detail }`: future `date_from` → 422 `DATE_FROM_IN_FUTURE`; invalid `continuation_key` → 422 `WRONG_REQUEST_PARAMETERS` (not `WRONG_CONTINUATION_KEY`, which the reference also lists); unknown account → 404 `ACCOUNT_DOES_NOT_EXIST`; malformed `Psu-Ip-Address` → 422 `PSU_HEADER_INVALID` (Enable Banking validates PSU header formats).
 11. **Not reproducible with the mock:** 429 / `ASPSP_RATE_LIMIT_EXCEEDED`, bank errors and timeouts, Revolut's own fields and behaviour. Expired or revoked sessions only by waiting for `valid_until` or by deleting the session (not tried). Paging (10 per page, newest first, per the docs) not exercised: the test account has 2 transactions.
+12. **No paging at 25 transactions** (c004, 2026-11-06, `evidence/2026-11-06-account1-*.json`): `RevolutReader C5 Test` returned all 25 in one page, newest first, with `continuation_key: null`, so the documented 10 per page did not happen. The mock returns cancelled and rejected transactions as entered, and pending ones with no booking or value date, dated by `transaction_date`. The last page is marked the same way at Revolut: the M1 history came in pages of 50, 50 and 16, with a key on the first two and `null` on the last (structure only, counted 2026-11-06). `read-mock.ps1` now saves a single page as a one-page list; this capture was rewrapped to that shape.
 
 ## Verdict
 
