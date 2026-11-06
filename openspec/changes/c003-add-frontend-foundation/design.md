@@ -262,7 +262,7 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
 
 - **`needsInstallHint(device)`** (`src/app/device.ts`, unit-tested): the device is an iPhone (`iPhone` in the user agent) and the page is not the Home Screen app.
   - iPadOS reports a Mac user agent, so an iPad gets the app, as do Android phones and computers.
-- **Assumption, to confirm at review:** every browser tab on an iPhone gets the hint, not only Safari's. That includes Chrome and in-app browsers, because none of them gets push or the Home Screen app's sign-in. The hint's steps describe Safari, which is where Apple's "Add to Home Screen" lives. The spec's requirement says "a browser tab on an iPhone"; the scenario uses Safari.
+- **Confirmed by the user (2026-11-06, at the group 1 review):** every browser tab on an iPhone gets the hint, not only Safari's. That includes Chrome and in-app browsers, because none of them gets push or the Home Screen app's sign-in. The hint's steps describe Safari, which is where Apple's "Add to Home Screen" lives. The spec's requirement says "a browser tab on an iPhone"; the scenario uses Safari.
 - **`App({ device })`** renders `InstallHint` alone (no top bar) when the rule says so, and `AppShell` otherwise.
   - `main.tsx` passes `readDevice(window)` (§ Bootstrap).
   - The scenario tests use `renderApp(opened)`, where `opened` is `"iPhone Safari" | "iPhone Home Screen" | "computer browser"`. It builds a realistic `Device` and renders `<App device>`, so the scenarios run through the real rule.
@@ -547,7 +547,7 @@ None. C3 adds no repository, external client or push sender, so there's no `[int
 - [For a few seconds after a deploy, the old frontend calls the new API] → C3 calls no API. Later changes that modify a contract update every consumer in the same change (README.md § API contract), and the reload follows within seconds.
 - [The web root set from the test host doesn't take effect] → D6's fallback, or stop.
 - [Windows checkouts turn LF into CRLF] → the `.gitattributes` line (§ Bootstrap).
-- [Every browser tab on an iPhone gets the hint, including ones whose steps differ from Safari's] → the assumption in D8, to confirm at review.
+- [Every browser tab on an iPhone gets the hint, including ones whose steps differ from Safari's] → confirmed by the user (D8): the hint's steps send her to Safari.
 - [Packages published days before this change (jsdom 31.0.0, Vite 8.3.6)] → exact pins. If a test tool misbehaves, the previous version is the first thing to try.
 - [The ruleset requiring `frontend` before C3 merges] → D12's timing.
 
