@@ -71,18 +71,18 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 7. [unit] Slice 2 — Transaction mapping: money spent
 
-- [ ] 7.1 A booked transaction is marked booked and keeps its reference
-- [ ] 7.2 Money spent has a negative amount in its currency
-- [ ] 7.3 Money spent names the creditor as the counterparty
-- [ ] 7.4 The payment details are the bank's lines, unchanged and in order
-- [ ] 7.5 A transaction without payment details has none
-- [ ] 7.6 A transaction is dated by its transaction date when the bank gives one
-- [ ] 7.7 Without a transaction date, the booking date dates it
-- [ ] 7.8 Without a transaction or booking date, the value date dates it
-- [ ] 7.9 The amount is read the same whatever the machine's culture
-- [ ] 7.10 A transaction whose amount is not a number is an error, and the message does not contain it
-- [ ] 7.11 A transaction without any date is an error
-- [ ] 7.12 A transaction that is neither money spent nor money received is an error
+- [x] 7.1 A booked transaction is marked booked and keeps its reference
+- [x] 7.2 Money spent has a negative amount in its currency
+- [x] 7.3 Money spent names the creditor as the counterparty
+- [x] 7.4 The payment details are the bank's lines, unchanged and in order
+- [x] 7.5 A transaction without payment details has none
+- [x] 7.6 A transaction is dated by its transaction date when the bank gives one
+- [x] 7.7 Without a transaction date, the booking date dates it
+- [x] 7.8 Without a transaction or booking date, the value date dates it
+- [x] 7.9 The amount is read the same whatever the machine's culture
+- [x] 7.10 A transaction whose amount is not a number is an error, and the message does not contain it
+- [x] 7.11 A transaction without any date is an error
+- [x] 7.12 A transaction that is neither money spent nor money received is an error
 
   7.10–7.12 added 2026-11-06 by the user at the group 7 review, from the test-writer's notes: each is a `BankReadException` whose text holds no bank data (design.md D4 "everything else", § Error model, D5).
 
