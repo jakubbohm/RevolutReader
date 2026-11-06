@@ -118,13 +118,13 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 18. [close] Slice 8 — A new version shows on the first open after a deploy
 
-- [ ] 18.1 Local check in Chrome against the API serving the real build:
+- [x] 18.1 Local check in Chrome against the API serving the real build:
   - open the app;
   - rebuild with a visible change;
   - switch the tab away and back: the page reloads once by itself and shows the change.
 
   Record it in `.tdd-state.md`; the iPhone check stays the manual row (M5). Verify: the result is recorded
-- [ ] 18.2 Docs: lesson R-41 (how the installed PWA picks up a new version); an inventory line for the service worker with the update watch. Verify: both link to design.md D9
+- [x] 18.2 Docs: lesson R-41 (how the installed PWA picks up a new version); an inventory line for the service worker with the update watch. Verify: both link to design.md D9
 
 ## 19. [wiring] Slice 9 — Icon, name and manifest
 
