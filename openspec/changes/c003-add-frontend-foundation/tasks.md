@@ -73,7 +73,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 11. [wiring] Slice 6 — The page fallback
 
-- [ ] 11.1 The page fallback in `UseAppPages()` with the route pattern of design.md D5. Verify: both anonymous-endpoint tests pass; api-errors / Unknown API address answers with a problem description and the health scenario still pass
+- [x] 11.1 The page fallback in `UseAppPages()` with the route pattern of design.md D5. Verify: both anonymous-endpoint tests pass; api-errors / Unknown API address answers with a problem description and the health scenario still pass
 
 ## 12. [close] Slice 6 — An unknown page address opens the app
 
