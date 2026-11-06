@@ -85,7 +85,7 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 
 | Resource | Who creates it | When |
 |---|---|---|
-| Resource providers the deploy identity cannot register (Key Vault, Logic Apps) | by hand | M3 |
+| Resource providers the deploy identity cannot register (Key Vault; Logic Apps too, registered in M3 and unused since ADR-0008) | by hand | M3 |
 | Resource group (the stack's scope) | by hand | M3 |
 | Deploy identity: user-assigned managed identity in the resource group, federated credential for GitHub Actions, Contributor + role assignments limited to the app's data roles, on the resource group | by hand | M3 |
 | GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
@@ -95,9 +95,8 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 | Container Apps environment (Consumption) + container app (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress), with a managed identity and Key Vault-backed secrets | Bicep | C4 |
 | Key Vault (RBAC), the app reads secrets | Bicep | C4 |
 | Storage account (shared-key access off): a blob container for the Data Protection keys (C6), then tables (C7 or its first slice) | Bicep | C6 |
-| Logic App (Consumption), the job's clock | Bicep | C9 |
 
-No container registry, no Cosmos DB, nothing shared with other projects. Monitoring (Application Insights) is not in v1; C4 may propose it.
+No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. Monitoring (Application Insights) is not in v1; C4 may propose it.
 
 ## 6. OpenSpec
 

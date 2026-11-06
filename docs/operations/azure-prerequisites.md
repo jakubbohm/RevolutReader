@@ -20,7 +20,7 @@ None of these is a credential: knowing them gives no access. They are public, he
 
 ## What was set up and why
 
-1. **Resource providers** `Microsoft.KeyVault` (C4) and `Microsoft.Logic` (C9) registered on the subscription. The others the app needs were already registered (`Microsoft.App`, `Microsoft.Storage`, `Microsoft.ManagedIdentity`, `Microsoft.OperationalInsights`). Registering is a subscription-level action, which the deploy identity cannot do: its rights end at the resource group.
+1. **Resource providers** `Microsoft.KeyVault` (C4) and `Microsoft.Logic` (C9) registered on the subscription. `Microsoft.Logic` is unused since [ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md) (2026-11-06) dropped the Logic App; it stays registered, which costs nothing, and a reinstatement can skip it. The others the app needs were already registered (`Microsoft.App`, `Microsoft.Storage`, `Microsoft.ManagedIdentity`, `Microsoft.OperationalInsights`). Registering is a subscription-level action, which the deploy identity cannot do: its rights end at the resource group.
 2. **Resource group** `rg-revolutreader`.
 3. **Deploy identity as a user-assigned managed identity,** not an Entra app registration. It can never hold a password, and it is deleted with the resource group. The deployment stack leaves it alone: a stack deletes only the resources it manages ([Microsoft Learn: deployment stacks](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deployment-stacks), 2026-06-18).
 4. **Federated credential** trusting only jobs that run in this repository's `production` environment.

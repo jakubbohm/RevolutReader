@@ -108,12 +108,12 @@ Given up:
 
 *Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period.
 
-**R-27 · The production app scales to zero, with an external clock for the job**
+**R-27 · The production app scales to zero, with a caller outside the app for the check**
 Full version: an always-on host for anything real users depend on, with the job scheduled inside the app ([lessons.md R-27](lessons.md)).
-Here ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-and-job.md), 2026-11-05): **Container Apps scaling to zero within the free grant, plus a Logic App calling a protected endpoint** — the budget is free tiers only, for three users.
+Here ([ADR-0006-hosting-registry-and-job](../adr/0006-hosting-registry-and-job.md), 2026-11-05): **Container Apps scaling to zero within the free grant, plus a caller outside the app for a protected endpoint** — the budget is free tiers only, for three users. The caller was planned as a Logic App; since 2026-11-06 it is the owner's iPhone ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), R-45).
 Given up:
 - about 20 s for the first response after 5 minutes without use;
-- an extra internal endpoint and a clock to maintain;
+- an extra internal endpoint and its caller to maintain;
 - persisted Data Protection keys, needed only because containers come and go.
 
 *Switch back when:* the wake-up time bothers the daughter → minimum 1 replica, always on (roughly $4–6 a month). The job may then move inside the app, if the operation runs well beyond the plan.
@@ -126,3 +126,12 @@ Given up:
 - neither is a typical security bug in the code (e.g. an injection). Only secret scanning and push protection run.
 
 *Switch back when:* the app runs well beyond its planned period, or gets more packages or contributors. Before turning on dependency review, make sure the dependency graph lists the packages.
+
+**R-45 · The phone's automated reads carry the owner's PSU headers**
+Full version: reads that no one starts by hand at that moment go without PSU headers, within the bank's unattended quota (4 a day under PSD2), unless the provider confirms otherwise ([lessons.md R-45](lessons.md), EBA Q&A 2018_4172).
+Here ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06): **the check the owner's iPhone triggers on every Revolut notification forwards the phone's real PSU headers** — in the owner's view the phone acts on the owner's explicit request, and the owner accepts the risk. Within 4 reads a day, the check could not follow every notification.
+Given up:
+- no confirmation that this is allowed; Enable Banking may cut off the application (the risk accepted in ADR-0001, item 2, now covers these reads too);
+- notifications depend on one phone: when it is off or offline, nothing triggers the check.
+
+*Switch back when:* the app runs well beyond its planned period, losing bank access becomes costly, or Enable Banking or Revolut objects.

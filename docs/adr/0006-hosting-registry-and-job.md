@@ -1,6 +1,6 @@
 # ADR-0006: Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock
 
-**Status:** Accepted (the user's decision, 2026-11-05) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
+**Status:** Accepted (the user's decision, 2026-11-05); Decision item 4 (the Logic App clock) superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone calls the endpoint · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
 
 > Findings verified on 2026-11-05 against the sources linked with each one. Unless noted, prices are Azure list prices for West Europe from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices).
 >
@@ -9,7 +9,7 @@
 ## Context
 
 - **Kickoff ch. 6–7:** the app runs as one Docker container on Azure App Service. Q4 asked for the tier, the registry and the job hosting: an in-app job needs a host that is always awake.
-- **The job:** it runs 4 times a day without PSU headers, from 06:00 ([ADR-0001-bank-data-access § Decision](0001-bank-data-access.md#decision)). The check is ordinary app code that a scheduler only triggers ([testing.md § Time and the background job](../conventions/testing.md#time-and-the-background-job)). The in-process test harness holds while the app is a single process ([divergences.md R-12](../software-factory/divergences.md)).
+- **The job:** it runs 4 times a day without PSU headers, from 06:00 ([ADR-0001-bank-data-access § Decision](0001-bank-data-access.md#decision)); since [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md), the owner's iPhone triggers it instead. The check is ordinary app code that a scheduler only triggers ([testing.md § Time and the background job](../conventions/testing.md#time-and-the-background-job)). The in-process test harness holds while the app is a single process ([divergences.md R-12](../software-factory/divergences.md)).
 - **Constraints:**
   - The budget is free tiers only and the repository is public (the user, 2026-11-04).
   - The owner uses Container Apps for nothing else, so the free grant is all this app's (the user, 2026-11-05).
@@ -75,6 +75,8 @@ Decided by the user, 2026-11-05:
 4. **The 4-a-day job: a Logic App (Consumption) acts as the clock.** On schedule it calls a protected endpoint in the app. The call wakes the app like any request, and the app runs the check as ordinary app code. The app stays a single process.
    - **The endpoint must be safe to call twice.** Logic Apps retries failed calls, and each bank call counts against the 4 unattended requests a day.
    - **C9 decides** how the Logic App proves who it is (its managed identity, or a random key in Key Vault), the time zone, and the exact times.
+
+   *(Superseded by the user, 2026-11-05, after the phone test of 2026-11-06: [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md). There is no Logic App. An iOS Shortcuts automation on the owner's iPhone calls the same protected endpoint whenever a Revolut notification arrives. The call still wakes the app like any request, and the app stays one process. The endpoint must still be safe to call twice, because one payment can bring several notifications and the Shortcut may retry. C9 decides how the Shortcut proves who it is.)*
 5. **If the cold start is too slow:** set the minimum to 1 replica, around the clock. Its idle rate comes to roughly $4–6 a month after the free grant (East US rates, the owner's estimate is up to about $8). It stays on at night, because a time-based rule that turns it off at night would bill the daytime replica at the active rate and cost more. C4 measures the cold start first.
 
 ## Alternatives considered
@@ -118,6 +120,8 @@ Decided by the user, 2026-11-05:
   - the Logic App in Bicep;
   - the protected, retry-safe endpoint;
   - its authentication, the time zone and the times.
+
+  *(Since ADR-0008: no Logic App, time zone or times. C9 builds the endpoint and decides how the Shortcut authenticates.)*
 - **Maximum 1 replica:** one app copy at a time.
 - **The app stays one process,** so the in-process test harness (R-12) stays valid.
 - **Software factory:** [lessons.md R-27](../software-factory/lessons.md) (including the reversal), and the project's shortcut in [divergences.md R-27](../software-factory/divergences.md).
