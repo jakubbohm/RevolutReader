@@ -67,7 +67,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 6. [close] Slice 1 — The balance is the account's available balance
 
-- [ ] 6.1 The scenario's test passes. Verify: green, including bank-reads / The balance is the account's available balance
+- [x] 6.1 The scenario's test passes. Verify: green, including bank-reads / The balance is the account's available balance
 
 ## 7. [unit] Slice 2 — Transaction mapping: money spent
 
