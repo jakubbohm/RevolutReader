@@ -7,10 +7,10 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// The Enable Banking settings are checked at start-up (c004 design.md D6, § Error model; configuration.md § Binding):
-/// no secret may still hold the declared placeholder, and the private key must be an RSA key in PEM form. A failure
-/// names the setting, never its value. Each test runs both checks the app runs at start: the settings' data
-/// annotations, as <c>ValidateDataAnnotations</c> runs them, and <see cref="EnableBankingOptionsValidator"/>. Every
-/// value here is made up; every key is generated in the test.
+/// no secret may still hold the declared placeholder, and the private key must be an RSA private key in PEM form (a
+/// public key fails too). A failure names the setting, never its value. Each test runs both checks the app runs at
+/// start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs them, and
+/// <see cref="EnableBankingOptionsValidator"/>. Every value here is made up; every key is generated in the test.
 /// </summary>
 public sealed class EnableBankingOptionsTests {
   private const string PLACEHOLDER = "<secret>";
@@ -45,11 +45,13 @@ public sealed class EnableBankingOptionsTests {
   [Test]
   [Arguments("plain text")]
   [Arguments("an EC key in PEM form")]
-  public void A_private_key_that_is_not_an_RSA_key_in_PEM_form_fails_validation_and_the_message_does_not_contain_the_key(string notAnRsaKey) {
-    string privateKey = notAnRsaKey switch {
+  [Arguments("an RSA public key in PEM form")]
+  public void A_private_key_that_is_not_an_RSA_private_key_in_PEM_form_fails_validation_and_the_message_does_not_contain_the_key(string notAnRsaPrivateKey) {
+    string privateKey = notAnRsaPrivateKey switch {
       "plain text" => PLAIN_TEXT,
       "an EC key in PEM form" => EcKeyPem(),
-      _ => throw new ArgumentOutOfRangeException(nameof(notAnRsaKey), notAnRsaKey, "Not a known case."),
+      "an RSA public key in PEM form" => RsaPublicKeyPem(),
+      _ => throw new ArgumentOutOfRangeException(nameof(notAnRsaPrivateKey), notAnRsaPrivateKey, "Not a known case."),
     };
 
     IReadOnlyList<string> failures = Failures(Settings(privateKey: privateKey));
@@ -99,6 +101,13 @@ public sealed class EnableBankingOptionsTests {
       "RSA PRIVATE KEY" => key.ExportRSAPrivateKeyPem(),
       _ => throw new ArgumentOutOfRangeException(nameof(pemLabel), pemLabel, "Not an RSA private key PEM label."),
     };
+  }
+
+  /// <summary>A new RSA key's public half, as PEM (<c>PUBLIC KEY</c>): an RSA key, but nothing to sign with.</summary>
+  private static string RsaPublicKeyPem() {
+    using RSA key = RSA.Create(2048);
+
+    return key.ExportSubjectPublicKeyInfoPem();
   }
 
   /// <summary>A new P-256 private key, as PKCS#8 PEM: the same label as an RSA key's, another algorithm inside.</summary>
