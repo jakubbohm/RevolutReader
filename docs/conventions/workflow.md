@@ -79,6 +79,19 @@
 - **The Aspire AppHost models local orchestration only.** A change touching its resource graph includes an explicit "update Bicep" task.
 - **Decommissioning** (M8): delete the stack (removes every project-owned resource), then the manual parts — purging the deleted Key Vault, the resource group (the deploy identity lives in it), the Entra registration.
 
+### Bicep layout (C4, 2026-11-06)
+
+Decided in c005 design.md D1, D10 and D13.
+
+- **One deployment stack,** `revolutreader` on `rg-revolutreader`, applied on every merge to `main`. One deployment creates everything in order, so a change that adds a shared resource and the feature part that uses it lands in one run.
+- **Three Bicep files in `infra/`:**
+  - [`main.bicep`](../../infra/main.bicep): the stack's entry point. It calls the other two and passes names and IDs between them; its outputs are `appName`, `appUrl` and `keyVaultName`.
+  - [`platform.bicep`](../../infra/platform.bicep): the shared infrastructure. The log workspace, Key Vault, the app's identity and its roles, the Container Apps environment; later the storage account (C6). A feature PR changes it only when it adds something shared.
+  - [`features.bicep`](../../infra/features.bicep): the container app at the top, then one section per feature (the bank C5, sign-in C6, the account detail C7, push C8). A section holds the feature's resources and the settings and secrets it adds to the app, so they sit next to what they point to.
+- **[`main.bicepparam`](../../infra/main.bicepparam)** holds the production values: the region, and the image tag from the environment variable `IMAGE_TAG`, which the deploy sets. Nothing personal or secret, since the repository is public.
+- **[`bicepconfig.json`](../../infra/bicepconfig.json)** makes every linter rule that is on by default an error. Bicep's own compiler warnings exit with success, so the PR check fails on any warning line itself (§ 4).
+- **Accepted risk:** a PR that removes Key Vault or (from C6) the storage account deletes it on merge. The owner's review is the guard; a deleted vault stays recoverable for 90 days. The software factory's default is two stacks, the shared one behind an approval ([lessons.md R-46](../software-factory/lessons.md); this project's single stack: [divergences.md R-46](../software-factory/divergences.md)).
+
 ### Resources (decided in F0-2, 2026-11-05)
 
 Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md). The hand-made part, with identifiers and commands: [docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md).
@@ -91,12 +104,14 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 | GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
 | Entra app registration (personal Microsoft accounts only, web redirect URIs; [entra-id.md](../operations/entra-id.md)) + 12-month client secret | by hand | M4; the secret in C6 |
 | Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
-| Public container package on ghcr.io (made public once) | CD pushes; by hand once | C4 |
-| Container Apps environment (Consumption) + container app (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress), with a managed identity and Key Vault-backed secrets | Bicep | C4 |
-| Key Vault (RBAC), the app reads secrets | Bicep | C4 |
+| Public container package `ghcr.io/jakubbohm/revolutreader`. The first push creates it private; the deploy stops at its image check until the owner makes it public, once | CD pushes; made public by hand once | C4 |
+| Log Analytics workspace (30 days, 0.1 GB daily cap), the environment's log destination (`platform.bicep`) | Bicep | C4 |
+| Key Vault (Azure roles), and the app's user-assigned identity with Key Vault Secrets User on it (`platform.bicep`) | Bicep | C4 |
+| Container Apps environment, workload profiles with Consumption only (`platform.bicep`) | Bicep | C4 |
+| Container app `tarjeta-papa` (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress, probes on `/health`), with the app's identity and, from C5, Key Vault-backed secrets (`features.bicep`) | Bicep | C4 |
 | Storage account (shared-key access off): a blob container for the Data Protection keys (C6), then tables (C7 or its first slice) | Bicep | C6 |
 
-No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. Monitoring (Application Insights) is not in v1; C4 may propose it.
+No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. No Application Insights in v1: the logs go to the workspace only (c005 design.md D6).
 
 ## 6. OpenSpec
 

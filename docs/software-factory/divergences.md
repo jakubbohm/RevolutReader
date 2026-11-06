@@ -135,3 +135,10 @@ Given up:
 - notifications depend on one phone: when it is off or offline, nothing triggers the check.
 
 *Switch back when:* the app runs well beyond its planned period, losing bank access becomes costly, or Enable Banking or Revolut objects.
+
+**R-46 · One deployment stack for the shared infrastructure and the features**
+Full version: two stacks, the shared one behind an approval, the features' one on every merge ([lessons.md R-46](lessons.md)).
+Here ([workflow.md § 5, Bicep layout](../conventions/workflow.md#bicep-layout-c4-2026-11-06), 2026-11-06): **one stack, applied on every merge, in three files** (an entry point, the shared platform, the features). The shared layer is small: a vault, a log workspace, the Container Apps environment and, from C6, one storage account. It changes twice (C4, C6). With two stacks, C6's storage account and its blob container would need a failed deploy or two PRs, because deploys run only from `main`.
+Given up: a merge whose Bicep no longer declares the vault or the storage account deletes it. Only the owner's review guards against that; the vault stays recoverable for 90 days, and the stored transactions can be imported again from the M1 history file.
+
+*Switch back when:* more features come onto the shared layer, a second environment or another contributor arrives, or the stack holds data that cannot be imported again.

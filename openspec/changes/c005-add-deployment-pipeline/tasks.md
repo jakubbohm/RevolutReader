@@ -18,21 +18,21 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 ## 2. Infrastructure (D1, D6, D10, D13)
 
-- [ ] 2.1 `infra/platform.bicep` (D13): the Log Analytics workspace (per GB, 30 days, 0.1 GB cap); Key Vault (standard, Azure roles, soft delete at the default, purge protection off); the identity `id-revolutreader-app` with Key Vault Secrets User on the vault (the only role assignment in the Bicep, D17); the Container Apps environment (workload profiles, Consumption only, logs to the workspace). Outputs for `main.bicep`. Verify: `az bicep build` and `az bicep lint` on the file report nothing.
-- [ ] 2.2 `infra/features.bicep` (D10, D13): the container app at the top, with D13's ingress, image, size, scale and probes, the identity, and no settings or secrets. Below it, one commented heading per later feature section (the bank C5, sign-in C6, the account detail C7, push C8). Verify: build and lint report nothing.
-- [ ] 2.3 `infra/main.bicep`, `infra/main.bicepparam` and `infra/bicepconfig.json` (D13):
+- [x] 2.1 `infra/platform.bicep` (D13): the Log Analytics workspace (per GB, 30 days, 0.1 GB cap); Key Vault (standard, Azure roles, soft delete at the default, purge protection off); the identity `id-revolutreader-app` with Key Vault Secrets User on the vault (the only role assignment in the Bicep, D17); the Container Apps environment (workload profiles, Consumption only, logs to the workspace). Outputs for `main.bicep`. Verify: `az bicep build` and `az bicep lint` on the file report nothing.
+- [x] 2.2 `infra/features.bicep` (D10, D13): the container app at the top, with D13's ingress, image, size, scale and probes, the identity, and no settings or secrets. Below it, one commented heading per later feature section (the bank C5, sign-in C6, the account detail C7, push C8). Verify: build and lint report nothing.
+- [x] 2.3 `infra/main.bicep`, `infra/main.bicepparam` and `infra/bicepconfig.json` (D13):
   - `main.bicep` calls both modules and outputs `appName`, `appUrl` and `keyVaultName`;
   - the parameter file sets the region and reads `IMAGE_TAG` from the environment; no personal ID anywhere (D17);
   - the config raises the linter's rules to errors;
   - API versions are the newest stable ones the current Bicep knows.
 
   Verify: `az bicep build`, `az bicep lint` and `az bicep build-params` (with a made-up `IMAGE_TAG`) succeed with no finding. An unused parameter added for the test fails the lint, and is then removed.
-- [ ] 2.4 The local preview (D7), read-only, with the owner's login:
+- [x] 2.4 The local preview (D7), read-only, with the owner's login:
   - `az stack group validate` with D13's options settles design.md's open question on the flags; record the exact command for 3.2;
   - `az deployment group what-if` on the same files.
 
   Verify: the what-if creates exactly the workspace, the vault, the identity, its role assignment, the environment and the container app, and changes or deletes nothing that exists (the deploy identity stays as it is).
-- [ ] 2.5 Docs:
+- [x] 2.5 Docs:
   - `docs/conventions/workflow.md` § 5: the Bicep layout (D1, D10) and the resource table (the log workspace, the container app in `features.bicep`, the package's one-time visibility step);
   - ADR-0006: a dated amendment for the log destination (D6), the private first push with the image check (D3), and the measurement moved to #18 (D9);
   - `docs/software-factory/`: lessons R-46 and R-49, divergence R-46 (D16), and an inventory line for `infra/`.

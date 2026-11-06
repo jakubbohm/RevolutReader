@@ -1,0 +1,44 @@
+{
+  // Every linter rule that is on by default is an error, so a finding fails `az bicep lint` and
+  // the PR check image-and-infra (c005 design.md D7, D13): there are no advisory checks
+  // (docs/conventions/workflow.md § 4). The rules Bicep keeps off by default stay off; among them
+  // use-recent-api-versions, which would fail a PR only because time passed. The rules that are
+  // errors by default (max-*, nested-deployment-template-scoping, use-secure-value-for-secure-inputs)
+  // need no line. Rule list: Microsoft Learn, "Linter settings for Bicep config" (2026-08-13).
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "rules": {
+        "adminusername-should-not-be-literal": { "level": "error" },
+        "artifacts-parameters": { "level": "error" },
+        "decompiler-cleanup": { "level": "error" },
+        "no-conflicting-metadata": { "level": "error" },
+        "no-deployments-resources": { "level": "error" },
+        "no-explicit-any": { "level": "error" },
+        "no-hardcoded-env-urls": { "level": "error" },
+        "no-unnecessary-dependson": { "level": "error" },
+        "no-unused-existing-resources": { "level": "error" },
+        "no-unused-imports": { "level": "error" },
+        "no-unused-params": { "level": "error" },
+        "no-unused-types": { "level": "error" },
+        "no-unused-vars": { "level": "error" },
+        "outputs-should-not-contain-secrets": { "level": "error" },
+        "prefer-interpolation": { "level": "error" },
+        "prefer-unquoted-property-names": { "level": "error" },
+        "protect-commandtoexecute-secrets": { "level": "error" },
+        "secure-parameter-default": { "level": "error" },
+        "secure-params-in-nested-deploy": { "level": "error" },
+        "secure-params-in-parameters-file": { "level": "error" },
+        "secure-secrets-in-params": { "level": "error" },
+        "simplify-interpolation": { "level": "error" },
+        "simplify-json-null": { "level": "error" },
+        "use-parent-property": { "level": "error" },
+        "use-recognized-resource-type": { "level": "error" },
+        "use-resource-symbol-reference": { "level": "error" },
+        "use-safe-access": { "level": "error" },
+        "use-stable-resource-identifiers": { "level": "error" },
+        "use-stable-vm-image": { "level": "error" }
+      }
+    }
+  }
+}
