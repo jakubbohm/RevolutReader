@@ -60,7 +60,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 8. [close] Slice 4 — Other browsers show the app, not the install hint
 
-- [ ] 8.1 The scenario's test passes with what slices 1 and 2 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
+- [x] 8.1 The scenario's test passes with what slices 1 and 2 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
 
 ## 9. [wiring] Slice 5 — Static pages
 
