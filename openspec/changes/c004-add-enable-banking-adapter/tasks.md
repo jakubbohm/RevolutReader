@@ -126,12 +126,12 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 16. [unit] Slice 6 — Transaction pages
 
-- [ ] 16.1 A page without a continuation key is the whole list
-- [ ] 16.2 Pages are followed until no continuation key comes back, and joined in order
-- [ ] 16.3 An empty page with a continuation key is followed
-- [ ] 16.4 A repeated continuation key is an error
-- [ ] 16.5 The pages read are counted
-- [ ] 16.6 An empty continuation key ends the read, as no key does (added 2026-11-07 by the user at the group 16 review, option A: an empty key cannot name a page; design.md D7)
+- [x] 16.1 A page without a continuation key is the whole list
+- [x] 16.2 Pages are followed until no continuation key comes back, and joined in order
+- [x] 16.3 An empty page with a continuation key is followed
+- [x] 16.4 A repeated continuation key is an error
+- [x] 16.5 The pages read are counted
+- [x] 16.6 An empty continuation key ends the read, as no key does (added 2026-11-07 by the user at the group 16 review, option A: an empty key cannot name a page; design.md D7)
 
 ## 17. [wiring] Slice 6 — Paging
 
