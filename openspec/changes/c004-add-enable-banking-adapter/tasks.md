@@ -80,6 +80,11 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 - [ ] 7.7 Without a transaction date, the booking date dates it
 - [ ] 7.8 Without a transaction or booking date, the value date dates it
 - [ ] 7.9 The amount is read the same whatever the machine's culture
+- [ ] 7.10 A transaction whose amount is not a number is an error, and the message does not contain it
+- [ ] 7.11 A transaction without any date is an error
+- [ ] 7.12 A transaction that is neither money spent nor money received is an error
+
+  7.10–7.12 added 2026-11-06 by the user at the group 7 review, from the test-writer's notes: each is a `BankReadException` whose text holds no bank data (design.md D4 "everything else", § Error model, D5).
 
 ## 8. [wiring] Slice 2 — The transactions read, one page
 
