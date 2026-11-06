@@ -135,8 +135,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 17. [wiring] Slice 6 — Paging
 
-- [ ] 17.1 `ReadTransactions` reads through `TransactionPages` with `ReadTransactionPage`, passing `continuation_key` on. Verify: build passes; green
-- [ ] 17.2 `BankDriver.ListsInPages`: as many different booked and pending transactions as the scenario names, in the capture's shape: the capture's 23 booked and pending ones, plus made-up ones in the same shape for the rest (the scenario needs 25). In pages chained by made-up continuation keys, with `continuation_key: null` on the last page, as Revolut and the Mock ASPSP mark it. Written from the M1 page structure with a comment saying so (design.md § Bootstrap). Verify: the scenario runs against the app
+- [x] 17.1 `ReadTransactions` reads through `TransactionPages` with `ReadTransactionPage`, passing `continuation_key` on. Verify: build passes; green
+- [x] 17.2 `BankDriver.ListsInPages`: as many different booked and pending transactions as the scenario names, in the capture's shape: the capture's 23 booked and pending ones, plus made-up ones in the same shape for the rest (the scenario needs 25). In pages chained by made-up continuation keys, with `continuation_key: null` on the last page, as Revolut and the Mock ASPSP mark it. Written from the M1 page structure with a comment saying so (design.md § Bootstrap). Verify: the scenario runs against the app
 
 ## 18. [close] Slice 6 — Transactions on every page are returned
 

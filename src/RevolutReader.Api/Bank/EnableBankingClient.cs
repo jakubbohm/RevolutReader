@@ -26,14 +26,26 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
   public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) =>
     BalanceSelection.Available(await Get<EbBalances>($"{AccountPath}/balances", cancellationToken));
 
-  /// <summary>
-  /// <c>GET /accounts/{account}/transactions?date_from=…</c>, then the mapping (D3). The first page only: following the
-  /// <c>continuation_key</c> to every page (D7) is not built yet.
-  /// </summary>
-  public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
-    EbTransactionPage page = await Get<EbTransactionPage>($"{AccountPath}/transactions?date_from={from.ToString(DATE, CultureInfo.InvariantCulture)}", cancellationToken);
+  /// <summary>Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read.</summary>
+  public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) =>
+    (await TransactionPages.ReadAll(continuationKey => ReadTransactionPage(from, continuationKey, trigger, cancellationToken))) switch {
+      JoinedPages joined => new Transactions(TransactionMapping.Map(joined.Transactions).Kept),
+      BankAccessExpired expired => expired,
+      BankRateLimited rateLimited => rateLimited,
+      BankUnavailable unavailable => unavailable,
+    };
 
-    return new Transactions(TransactionMapping.Map(page.Transactions).Kept);
+  /// <summary>
+  /// One raw page, <c>GET /accounts/{account}/transactions?date_from=…</c>, with <c>&amp;continuation_key=…</c> (escaped)
+  /// for a later page; used by <see cref="ReadTransactions"/> and by Check 2's field counts (D7).
+  /// </summary>
+  public async Task<BankResult<EbTransactionPage>> ReadTransactionPage(DateOnly from, string? continuationKey, ReadTrigger trigger, CancellationToken cancellationToken) {
+    string query = $"date_from={from.ToString(DATE, CultureInfo.InvariantCulture)}";
+
+    if (continuationKey is not null)
+      query += $"&continuation_key={Uri.EscapeDataString(continuationKey)}";
+
+    return await Get<EbTransactionPage>($"{AccountPath}/transactions?{query}", cancellationToken);
   }
 
   /// <summary>A signed <c>GET</c> of <paramref name="pathAndQuery"/>, its JSON body read as <typeparamref name="T"/>.</summary>
