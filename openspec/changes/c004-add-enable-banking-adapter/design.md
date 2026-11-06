@@ -59,7 +59,8 @@ The test-writer may add only signatures to production code, and the fake bank's 
    - **Done 2026-11-06** (`[setup]` commit; mock README finding 12):
      - **The capture:** the new session runs until 2027-05-05. All 25 transactions came in **one page** with `continuation_key: null`, so the mock did not page.
      - **How the last page is marked:** `continuation_key: null`. The M1 history at Revolut shows the same: pages of 50, 50 and 16, with a key on the first two and `null` on the last (structure only).
-     - **What this means for the fake bank:** its single-page answers are copied from the capture. Its multi-page answers are the capture's transactions in pages chained by made-up keys, with `null` on the last; they are written from the M1 page structure, with a comment saying so.
+     - **What this means for the fake bank:** its single-page answers are copied from the capture. Its multi-page answers are transactions in the capture's shape, in pages chained by made-up keys, with `null` on the last; they are written from the M1 page structure, with a comment saying so.
+     - *Refined at the acceptance gate (the user, 2026-11-06):* the paging scenario needs 25 transactions that all come back, but the capture's 25 include one cancelled and one rejected, which a read leaves out. So the multi-page answer lists different booked and pending transactions only: the capture's 23, plus made-up ones in the same shape for the rest. The spec stays as it is, and the paging scenario tests paging alone.
      - **Paging against the real service:** Check 2 does it (D7).
 4. The setup build and the full suite are green. The only accepted red is the traceability check reporting this change's 13 scenarios as not claimed; group 1 claims them.
 
@@ -206,6 +207,7 @@ Recorded in propose (2026-11-06), from the user's notes that C3 has merged and C
 - **C4 runs in parallel** (its own worktree, started 2026-11-06). From C5 on the app refuses to start without the four Enable Banking secrets (D6), in production too. Whichever change merges second wires them into the deployment:
   - If C4 is in `main` when C5 rebases before its PR, C5's deployment task adds them to Bicep: four Key Vault secrets, referenced as Container Apps secrets, as the environment variables `EnableBanking__ApplicationId`, `EnableBanking__PrivateKey`, `EnableBanking__SessionId` and `EnableBanking__AccountId`. It also runs the guided Key Vault task, showing each Azure change first and running it only on the owner's go (CLAUDE.md).
   - Otherwise C4 does the same with these names; the owner passes them to the C4 session.
+- *Settled 2026-11-06 (the user, passing on C4's note):* **C4 merges first; C5 waits for it and wires the four secrets when it merges** (the first branch above, task 40.1). C4's PR check has a start test that starts the app with stand-in values for these four settings and a key generated on the spot. C5's start-up validation (no `"<secret>"` placeholder; the key parses as an RSA key in PEM form, D6) must accept them; where it is stricter, C5 adjusts that CI step in the same task.
 - **Files shared with C4:** CLAUDE.md, configuration.md § Hand-provisioned secrets, docs/operations, pm/progress.md and lessons.md. They merge as text at the rebase. Lesson numbers R-44 and R-45 are free as of writing; if C4 takes them first, whichever change merges second renumbers.
 
 ## Public API sketch

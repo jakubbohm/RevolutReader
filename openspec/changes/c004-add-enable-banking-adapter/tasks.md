@@ -128,7 +128,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 ## 17. [wiring] Slice 6 — Paging
 
 - [ ] 17.1 `ReadTransactions` reads through `TransactionPages` with `ReadTransactionPage`, passing `continuation_key` on. Verify: build passes; green
-- [ ] 17.2 `BankDriver.ListsInPages`: the capture's transactions in pages chained by made-up continuation keys, with `continuation_key: null` on the last page, as Revolut and the Mock ASPSP mark it. Written from the M1 page structure with a comment saying so (design.md § Bootstrap). Verify: the scenario runs against the app
+- [ ] 17.2 `BankDriver.ListsInPages`: as many different booked and pending transactions as the scenario names, in the capture's shape: the capture's 23 booked and pending ones, plus made-up ones in the same shape for the rest (the scenario needs 25). In pages chained by made-up continuation keys, with `continuation_key: null` on the last page, as Revolut and the Mock ASPSP mark it. Written from the M1 page structure with a comment saying so (design.md § Bootstrap). Verify: the scenario runs against the app
 
 ## 18. [close] Slice 6 — Transactions on every page are returned
 
@@ -263,11 +263,12 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 40. [wiring] Deployment
 
-- [ ] 40.1 Rebase onto `main`, then design.md D8.
-  - **If C4's `infra/` is there:** the four Key Vault secrets, referenced as Container Apps secrets, as the `EnableBanking__*` environment variables in Bicep (and `.bicepparam` if needed). Then the guided Key Vault task with the production values from the owner's files, each Azure change shown first and run on the owner's go, and the configuration.md rows dated.
-  - **Otherwise:** a follow-up for C4 in pm/progress.md naming the four variables.
+- [ ] 40.1 Rebase onto `main` once C4 has merged (C4 merges first, design.md D8), then:
+  - the four Key Vault secrets, referenced as Container Apps secrets, as the `EnableBanking__*` environment variables in Bicep (and `.bicepparam` if needed);
+  - C4's PR check's start test: its stand-in values for the four settings and its generated key pass C5's start-up validation; where they don't, adjust that CI step;
+  - the guided Key Vault task with the production values from the owner's files, each Azure change shown first and run on the owner's go, and the configuration.md rows dated.
 
-  Verify: `az bicep build` passes for the changed files, or the follow-up is recorded
+  Verify: `az bicep build` passes for the changed files; the PR check's start test passes on the PR
 
 ## 41. [close] Acceptance green
 
