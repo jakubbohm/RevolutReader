@@ -189,18 +189,19 @@ jobs:
           grep -q '<div id="root">' <<<"$page" || fail "${app_url}/ did not return the app's page."
           echo "${app_url}/ answered with the app's page."
 
-          # 3. The revision is Running, not Degraded, Failed or Stopped.
+          # 3. The revision is Running (or RunningAtMaxScale), not Degraded, Failed or Stopped.
           running=""
           for _ in $(seq 1 12); do
             running="$(show "$revision_id" properties.runningState)"
             case "$running" in
-              Running) break ;;
+              # Azure also returns RunningAtMaxScale, which its API references do not list.
+              Running | RunningAtMaxScale) break ;;
               Degraded | Failed | Stopped) fail "Revision ${latest} is ${running}." ;;
             esac
             sleep 5
           done
-          [ "$running" = "Running" ] || fail "Revision ${latest} is ${running}, not Running, a minute after its first answer."
-          echo "Revision ${latest} is Running."
+          [ "$running" = "Running" ] || [ "$running" = "RunningAtMaxScale" ] || fail "Revision ${latest} is ${running}, not Running, a minute after its first answer."
+          echo "Revision ${latest} is ${running}."
 
       - name: Summary
         if: ${{ !cancelled() && steps.check.outputs.url != '' }}
