@@ -73,7 +73,7 @@
   - **after the stack,** the latest revision must be ready and run that image, `/health` and `/` must answer at the app's address, and the revision must be Running. A stack can succeed while the app cannot start.
 
   The run's summary shows the image, the revision, the address and the time to the first answer.
-- **When the deploy is red,** GitHub emails the owner. The failed step says what happened: the image check names the package settings to change; a failed Azure login shows the subject to fix ([azure-prerequisites.md § Checks](../operations/azure-prerequisites.md#checks)); a failed stack shows Azure's error. If the check after the deploy fails, the new version did not start. The fix is a revert PR, whose merge deploys the previous code; nothing rolls back on its own.
+- **When the deploy is red,** GitHub emails the owner. The failed step says what happened: the image check names the package settings to change; a failed Azure login shows the subject to fix ([azure-prerequisites.md § Checks](../operations/azure-prerequisites.md#checks)); a failed stack shows Azure's error. If the check after the deploy fails, the new version did not start. The fix is a revert PR, whose merge deploys the previous code; nothing rolls back on its own. The commands, the first deployment and the checks: [docs/operations/deployment.md](../operations/deployment.md).
 - **No path or branch filters on a required workflow:** a required check that never runs stays "pending" and blocks the merge. To skip work, use a job-level `if:` (a job skipped that way reports success).
 - **No security scanning** (CodeQL, dependency review), on purpose ([divergences.md R-35](../software-factory/divergences.md)).
 
@@ -88,7 +88,7 @@
 
 ### Bicep layout (C4, 2026-11-06)
 
-Decided in c005 design.md D1, D10 and D13.
+Decided in c005 design.md D1, D10 and D13. The deployed resources, the preview before a PR and the commands: [docs/operations/deployment.md](../operations/deployment.md).
 
 - **One deployment stack,** `revolutreader` on `rg-revolutreader`, applied on every merge to `main`. One deployment creates everything in order, so a change that adds a shared resource and the feature part that uses it lands in one run.
 - **Three Bicep files in `infra/`:**
@@ -111,7 +111,8 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 | GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
 | Entra app registration (personal Microsoft accounts only, web redirect URIs; [entra-id.md](../operations/entra-id.md)) + 12-month client secret | by hand | M4; the secret in C6 |
 | Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
-| Public container package `ghcr.io/jakubbohm/revolutreader`. The first push creates it private; the deploy stops at its image check until the owner makes it public, once | CD pushes; made public by hand once | C4 |
+| Public container package `ghcr.io/jakubbohm/revolutreader`. The first push creates it private; the deploy stops at its image check until the owner makes it public, once ([deployment.md § The first deployment](../operations/deployment.md#the-first-deployment)) | CD pushes; made public by hand once | C4 |
+| The owner's Key Vault Secrets Officer role on the resource group, so the owner can write secret values. By hand because the Bicep would need the owner's account ID in the public repository ([azure-prerequisites.md](../operations/azure-prerequisites.md), item 7; [lessons.md R-50](../software-factory/lessons.md)) | by hand, once | C4 |
 | Log Analytics workspace (30 days, 0.1 GB daily cap), the environment's log destination (`platform.bicep`) | Bicep | C4 |
 | Key Vault (Azure roles), and the app's user-assigned identity with Key Vault Secrets User on it (`platform.bicep`) | Bicep | C4 |
 | Container Apps environment, workload profiles with Consumption only (`platform.bicep`) | Bicep | C4 |

@@ -57,7 +57,7 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 ## 4. Operations and project docs (D2, D9, D11, D15, D16)
 
-- [ ] 4.1 `docs/operations/deployment.md` (D16), in the shape of `azure-prerequisites.md`:
+- [x] 4.1 `docs/operations/deployment.md` (D16), in the shape of `azure-prerequisites.md`:
   - the identifiers, with the app's address marked "after the first deploy";
   - what the pipeline does;
   - the first deployment's steps;
@@ -67,7 +67,7 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
   - removing everything (M8).
 
   Verify: every command is PowerShell 7, and every `az` command names the subscription; no command prints a secret's value; every link resolves.
-- [ ] 4.2 Pointers to it:
+- [x] 4.2 Pointers to it:
   - `expiring-approvals.md`: § 2 step 4 and § 3 point to the guided task, and the list of what later steps add is brought up to date;
   - `azure-prerequisites.md`: the header points to the deployment page. D17's hand-made step is added as C4's addition to M3's setup: what and why, the command (it looks up the owner's ID when it runs, with the subscription named), the read-only check, and its removal at M8;
   - `CLAUDE.md`: the Bicep check command, the what-if as a pointer, and the `docs/operations/` line naming the deployment page.
@@ -75,7 +75,7 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
   - `docs/conventions/workflow.md` § 5's resource table: a row for D17's hand-made role; `docs/software-factory/lessons.md` R-50 (D16).
 
   Verify: links resolve; the Bicep command runs as written; no file in the change holds the owner's ID (a search for it finds nothing).
-- [ ] 4.3 `pm/roadmap.md` C4:
+- [x] 4.3 `pm/roadmap.md` C4:
   - the wake-up measurement moved to #18 (D9);
   - the outputs say the app reads its secrets from Key Vault from C5's merge on (D2);
   - the line "updated" in its header.

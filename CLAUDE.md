@@ -24,6 +24,8 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | Run the app | `aspire start` / `aspire stop` (Claude: through the aspire skills, never `dotnet run` on the AppHost). The app opens at the `web` resource's address (Vite, forwarding `/api` to the API); the API's own address serves no pages (C3) |
 | Image, local build | `docker build -t revolutreader:local .` (Docker running; the same Dockerfile the deploy builds) |
 | Image, quick start | see below (setting the throwaway key differs per shell) |
+| Bicep check | `az bicep lint --file infra/main.bicep` (lints the modules too; a warning counts as a finding: the PR check `image-and-infra` fails on it) |
+| Preview the next deploy (read-only, needs the owner's Azure login) | [docs/operations/deployment.md § Previewing a change to the Bicep](docs/operations/deployment.md#previewing-a-change-to-the-bicep-read-only) |
 
 - One change's acceptance tests (scenario classes are named `<Capability>Scenarios`; the change's `.tdd-state.md` lists its tests): whole classes with `dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/(<Capability1>Scenarios)|(<Capability2>Scenarios)/*"`, chosen tests of one class with `--treenode-filter "/*/*/<Class>/(<Test1>)|(<Test2>)"`.
 - TUnit runs on Microsoft.Testing.Platform: `dotnet test --filter` is not supported (it runs nothing); use `--treenode-filter`, whose segments are `/<assembly>/<namespace>/<class>/<test>`.
@@ -38,7 +40,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
 - [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes, design), testing.md. `.claude/rules/` and the tooling mirror them.
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
-- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4) and the ruleset on `main` (C2), with their identifiers; later the reinstatement guide (D1).
+- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4), the ruleset on `main` (C2) and the deployment (C4: the deployed resources, the first deploy, the Key Vault task, checks, rolling back), with their identifiers; later the reinstatement guide (D1).
 
 Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory/](docs/software-factory/) is what goes to the user's future software factory ([workflow.md § 10](docs/conventions/workflow.md#10-software-factory)): add a lesson whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; a divergence when the project runs a cut-down version; an inventory line when a step creates or substantially changes a reusable artifact. A handover package is built from it at the end of the project.
 

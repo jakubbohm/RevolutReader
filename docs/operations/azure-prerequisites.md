@@ -1,8 +1,8 @@
 # Azure prerequisites
 
-> What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run: the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)). The reinstatement guide (D1) and decommissioning (M8) build on this file.
+> What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, and C4's one addition (item 7): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-05 (M3).
+> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-06 (C4: the owner's Key Vault role).
 
 ## Identifiers (non-secret)
 
@@ -15,6 +15,7 @@
 | Deploy identity | user-assigned managed identity `id-revolutreader-deploy` in `rg-revolutreader`; client ID `9715a72e-26a5-473a-9db5-6f6b9b8e6f63`, principal (object) ID `ea62a45c-aed6-4ee4-aebd-ada94cd1b3f0` |
 | Federated credential | `github-production`: issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, subject `repo:jakubbohm@17472513/RevolutReader@1446365733:environment:production` |
 | GitHub environment | `production`, deployments from `main` only; variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP` holding the values above |
+| The owner's Key Vault role (C4) | Key Vault Secrets Officer for the owner's account on `rg-revolutreader`. The account's ID is looked up when the command runs and written nowhere |
 
 None of these is a credential: knowing them gives no access. They are public, here and in the CI logs.
 
@@ -39,6 +40,10 @@ None of these is a credential: knowing them gives no access. They are public, he
 
      A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below).
 6. **GitHub environment `production`** with a deployment branch policy allowing only `main`, so a job on any other branch never gets a token Azure accepts. Workflows triggered by pull requests from forks get no OIDC token at all.
+7. **The owner's access to secret values (C4,** c005 design.md D17). Owner of the subscription gives no access to the values in a vault that uses Azure roles, and the guided tasks (Enable Banking in C4, later C6 and C8) and every renewal write secrets. So the owner's account gets **Key Vault Secrets Officer on `rg-revolutreader`**, inherited by every vault in the group, including one the stack creates again.
+   - **Why by hand and not in the Bicep:** the Bicep would need the owner's account ID in the public repository. As a GitHub variable it would be unversioned, unreviewed and against [configuration.md](../conventions/configuration.md) (GitHub variables hold only what the workflow needs before Bicep runs). This is the one exception to "manual only for what cannot be automated" ([workflow.md § 5](../conventions/workflow.md#5-infrastructure), [lessons.md R-50](../software-factory/lessons.md)).
+   - **The ID is looked up when the command runs:** the object ID in an Azure access token for this subscription, so it is the account running the command, in the subscription's own directory. The command refuses unless that account holds Owner on the subscription. On 2026-11-06 the subscription had two user accounts with Owner, both from its creation, so the Owner list alone cannot pick the owner.
+   - It goes with the resource group at M8.
 
 ## Commands
 
@@ -92,6 +97,25 @@ gh variable set AZURE_RESOURCE_GROUP  --repo $repo --env production --body $rg
 
 The condition string in step 5 was checked on 2026-11-05: it equals the condition Azure stored, and it reaches the CLI unchanged through `az.cmd` in PowerShell 7.
 
+Step 7 (C4), run once by the owner, or by Claude on the owner's go, after the first deployment created the vault ([deployment.md § The first deployment](deployment.md#the-first-deployment)). It prints nothing:
+
+```powershell
+$sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$scope = "/subscriptions/$sub/resourceGroups/rg-revolutreader"
+
+# 7. The owner's access to secret values: the ID of the account running this, never written down
+$token   = az account get-access-token --subscription $sub --query accessToken --output tsv
+$payload = $token.Split('.')[1].Replace('-', '+').Replace('_', '/')
+$payload = $payload.PadRight($payload.Length + (4 - $payload.Length % 4) % 4, '=')
+$me      = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json).oid
+$owners  = @(az role assignment list --subscription $sub --scope "/subscriptions/$sub" --role Owner `
+    --query "[?principalType=='User'].principalId" --output tsv)
+if ($owners -notcontains $me) { throw 'The account running this is not an Owner of the subscription.' }
+az role assignment create --subscription $sub --assignee-object-id $me --assignee-principal-type User `
+    --role 'Key Vault Secrets Officer' --scope $scope --output none
+Remove-Variable token, payload, me, owners
+```
+
 ## Checks
 
 ```powershell
@@ -100,10 +124,14 @@ az role assignment list --subscription $sub --scope $scope `
 az identity federated-credential list --subscription $sub --resource-group $rg `
     --identity-name id-revolutreader-deploy --query "[].{name:name, subject:subject}" -o table
 gh variable list --repo $repo --env production
+
+# Step 7 (C4): one user holds Key Vault Secrets Officer on the resource group; no ID is printed
+az role assignment list --subscription $sub --scope $scope --role 'Key Vault Secrets Officer' `
+    --query "[].{role: roleDefinitionName, principalType: principalType, scope: scope}" --output table
 ```
 
 **The first real login is C4's first deploy.** If `azure/login` fails with `AADSTS700213` ("No matching federated identity record found"), the error message shows the subject GitHub sent: put exactly that into the federated credential (`az identity federated-credential update … --subject <subject>`) and record it in the table above.
 
 ## Removing it (M8)
 
-Delete the stack first, then the resource group; the deploy identity, its federated credential and its role assignments go with the group. The GitHub environment can stay or be deleted with `gh api -X DELETE "repos/$repo/environments/production"`. The two resource providers can stay registered: they cost nothing.
+Delete the stack first ([deployment.md § Removing everything](deployment.md#removing-everything-m8)), then the resource group; the deploy identity, its federated credential and its role assignments go with the group, and so does the owner's Key Vault role (step 7). The GitHub environment can stay or be deleted with `gh api -X DELETE "repos/$repo/environments/production"`. The two resource providers can stay registered: they cost nothing.

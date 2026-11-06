@@ -475,3 +475,14 @@ RevolutReader ([ADR-0006 § Consequences](../adr/0006-hosting-registry-and-job.m
 - **The workspace's key** is read inside the deployment (`listKeys()` in Bicep), so it never passes through the pipeline.
 
 *Generalizes:* a scale-to-zero app always sends its logs somewhere that outlives the copy, with a daily cap as a backstop and a look at the real volume soon after launch. Reverses toward an application monitoring service when request timings or traces are needed, toward ingestion-time filtering when the cap is reached on ordinary days, and to none only on a platform that keeps the logs of stopped copies itself.
+
+**R-50 · In a public repository, where does a person's access to secret values come from?** *(New)*
+Options: a role assignment in the Bicep, with the person's account ID in the parameter file · the ID in a CI variable that the parameter file reads · a role assigned once by hand, on a scope above what the stack manages · a directory group granted in the Bicep, which people join.
+RevolutReader ([azure-prerequisites.md](../operations/azure-prerequisites.md), item 7; [workflow.md § 5](../conventions/workflow.md#5-infrastructure); c005 design.md D17; 2026-11-06): **by hand, once: Key Vault Secrets Officer on the resource group, for the account that runs the command.**
+- **Why it is needed:** Owner of the subscription manages the vault but cannot read or write secret values in a vault that uses Azure roles. The guided tasks that put values in, and every renewal, need a data role.
+- **Why not in the Bicep:** the person's account ID would sit in the public repository. It is not a credential, but it is personal, and the owner did not want it there. A CI variable is unversioned and unreviewed, and would show in the logs if ever printed.
+- **On the resource group:** inherited by every vault in it, including one the stack deletes and creates again, and deleted with the group at decommissioning.
+- **The lookup at run time:** the object ID in an access token for the subscription (the `oid` claim), checked against the subscription's Owners. The Owner list alone was not enough: it held two user accounts (2026-11-06). The directory's own "signed-in user" lookup answered for the CLI's default directory, an employer one.
+- A deviation from "manual only for what cannot be automated", recorded as such; the deploy identity is allowed to assign the role but does not.
+
+*Generalizes:* keep personal identifiers out of a public repository: grant a person's data access once by hand, on a scope above what the stack manages, with a command that looks the ID up when it runs. Reverses to a directory group granted in the Bicep once more than one person needs access, and to an ordinary parameter when the repository is private.
