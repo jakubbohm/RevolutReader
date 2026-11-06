@@ -5,6 +5,10 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { generateAssets } from "@vite-pwa/assets-generator/api/generate-assets";
+import type {
+  AppleSplashScreenLink,
+  IconAsset,
+} from "@vite-pwa/assets-generator/api";
 import { generateHtmlMarkup } from "@vite-pwa/assets-generator/api/generate-html-markup";
 import { instructions } from "@vite-pwa/assets-generator/api/instructions";
 import {
@@ -28,6 +32,11 @@ const CORNER_PT = 24;
 /** `color-pwa-background`, light and dark; the icon is the same in both. */
 const LIGHT = "#f6f4ef";
 const DARK = "#111416";
+
+/** The tags' colour-scheme conditions, which follow the `screen and ` the tool's tags start with. */
+const SCREEN = "screen and ";
+const LIGHT_ONLY = "(prefers-color-scheme: light)";
+const DARK_ONLY = "(prefers-color-scheme: dark)";
 
 /** iPhone 11 to 17, the Air and the 16e (D10); no iPads. */
 const iPhones = AllAppleDeviceNames.filter((name) =>
@@ -77,11 +86,33 @@ const all = await instructions({
   resolveSvgName: (name) => name,
 });
 
+/**
+ * The tool marks only the dark image of a pair, so in dark mode both of its tags would match. This gives the light one
+ * the light condition, in the place where the tool puts the dark one, so each mode matches exactly one tag.
+ */
+function forItsMode(
+  image: IconAsset<AppleSplashScreenLink>,
+): IconAsset<AppleSplashScreenLink> {
+  const tag = image.linkObject;
+  if (!tag || !image.link) throw new Error(`${image.name}: no tag`);
+  if (tag.media.includes(DARK_ONLY)) return image;
+  if (!tag.media.startsWith(SCREEN))
+    throw new Error(`${image.name}: unexpected media "${tag.media}"`);
+
+  const media = `${SCREEN}${LIGHT_ONLY} and ${tag.media.slice(SCREEN.length)}`;
+  const link = image.link.replace(`media="${tag.media}"`, `media="${media}"`);
+  if (link === image.link)
+    throw new Error(`${image.name}: unexpected tag ${image.link}`);
+  return { ...image, link, linkObject: { ...tag, media } };
+}
+
 // The tool makes a landscape twin of every image; the app is portrait only.
 const portrait = Object.fromEntries(
-  Object.entries(all.appleSplashScreen).filter(([, image]) =>
-    image.linkObject?.media.includes("(orientation: portrait)"),
-  ),
+  Object.entries(all.appleSplashScreen)
+    .filter(([, image]) =>
+      image.linkObject?.media.includes("(orientation: portrait)"),
+    )
+    .map(([address, image]) => [address, forItsMode(image)]),
 );
 const launchImages = {
   ...all,
