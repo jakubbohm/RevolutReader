@@ -113,8 +113,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 17. [wiring] Slice 8 — Switching to a new version
 
-- [ ] 17.1 `PageCaching` applied to the static files and the page fallback through their shared options (design.md D5). Verify: green; against the API serving the real build (design.md D9), `curl -I` shows `no-cache` for `/`, `/no-such-page` and `/sw.js`, and the one-year rule for a file under `/assets/`
-- [ ] 17.2 `sw.ts` calls `skipWaiting()` on install and `clientsClaim()`; the plugin runs with `registerType: "autoUpdate"`; `main.tsx` starts `watchForUpdates` with the registration (design.md D9). Verify: `typecheck` and lint pass; green
+- [x] 17.1 `PageCaching` applied to the static files and the page fallback through their shared options (design.md D5). Verify: green; against the API serving the real build (design.md D9), `curl -I` shows `no-cache` for `/`, `/no-such-page` and `/sw.js`, and the one-year rule for a file under `/assets/`
+- [x] 17.2 `sw.ts` calls `skipWaiting()` on install and `clientsClaim()`; the plugin runs with `registerType: "autoUpdate"`; `main.tsx` starts `watchForUpdates` with the registration (design.md D9). Verify: `typecheck` and lint pass; green
 
 ## 18. [close] Slice 8 — A new version shows on the first open after a deploy
 

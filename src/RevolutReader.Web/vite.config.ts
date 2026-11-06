@@ -14,6 +14,8 @@ export default defineConfig({
       srcDir: "src",
       filename: "sw.ts",
       injectRegister: false,
+      // A new version takes over at once; the page reloads once when it does.
+      registerType: "autoUpdate",
       manifest: false,
       // The icons come in through the root PNG pattern below, so they aren't listed twice. The plugin adds the
       // manifest itself once there is one, so the patterns leave it out.
