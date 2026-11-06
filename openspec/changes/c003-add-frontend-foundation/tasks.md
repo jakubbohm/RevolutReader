@@ -128,8 +128,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 19. [wiring] Slice 9 — Icon, name and manifest
 
-- [ ] 19.1 `pwa-assets.config.ts` and an `icons` script make, from `public/app-icon.svg` (slice 2), `apple-touch-icon.png` (180, opaque), `icon-192.png`, `icon-512.png` and `icon-maskable-512.png`; the PNGs are committed (design.md D10). Verify: running `npm run icons` again changes no file
-- [ ] 19.2 The manifest and the `index.html` tags of design.md D10: `lang="cs"`, title, viewport with `viewport-fit=cover`, `apple-mobile-web-app-title`, `apple-touch-icon`, two `theme-color` metas. Verify: the built `manifest.webmanifest` holds name, short name, `lang`, `display`, `start_url`, colours and the three icons; `typecheck` and lint pass; green
+- [x] 19.1 `pwa-assets.config.ts` and an `icons` script make, from `public/app-icon.svg` (slice 2), `apple-touch-icon.png` (180, opaque), `icon-192.png`, `icon-512.png` and `icon-maskable-512.png`; the PNGs are committed (design.md D10). Verify: running `npm run icons` again changes no file
+- [x] 19.2 The manifest and the `index.html` tags of design.md D10: `lang="cs"`, title, viewport with `viewport-fit=cover`, `apple-mobile-web-app-title`, `apple-touch-icon`, two `theme-color` metas. Verify: the built `manifest.webmanifest` holds name, short name, `lang`, `display`, `start_url`, colours and the three icons; `typecheck` and lint pass; green
 
 ## 20. [close] Slice 9 — The Home Screen shows the app's icon and name
 
