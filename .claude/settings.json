@@ -7,7 +7,9 @@
       "ClaudeInChromeDomain(enablebanking.com)",
       "ClaudeInChromeDomain(tilisy-sandbox.enablebanking.com)",
       "ClaudeInChromeDomain(localhost)",
-      "ClaudeInChromeDomain(localhost:5310)"
+      "ClaudeInChromeDomain(localhost:5310)",
+      "mcp__claude-in-chrome__tabs_create_mcp",
+      "ClaudeInChromeDomain(localhost:57355)"
     ]
   },
   "hooks": {
