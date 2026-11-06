@@ -1,6 +1,8 @@
 {
   "recommendations": [
     "microsoft-aspire.aspire-vscode",
-    "ms-dotnettools.csharp"
+    "ms-dotnettools.csharp",
+    "esbenp.prettier-vscode",
+    "oxc.oxc-vscode"
   ]
 }

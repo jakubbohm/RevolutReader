@@ -39,7 +39,7 @@
   | Step | Commit | Type | Committed by |
   |---|---|---|---|
   | `[plan]` | change artifacts created or changed (propose, new, continue, ff; a spec or design fix after a dispute) | `docs` | Claude, when the user approves the artifacts |
-  | `[setup]` | one-time (C1): the solution, projects and build rules before the first `/tdd-apply`, so it starts from a green build | `build` | Claude, after the user approves the artifacts |
+  | `[setup]` | once per stack, before its first `/tdd-apply`, so the loop starts from a green build: C1 the solution, projects and build rules; C3 the frontend project and its tools | `build` | Claude, after the user approves the artifacts |
   | `[accept]` | the change's acceptance tests, failing | `test` | orchestrator, after the user's review |
   | `[red]` | one group's failing tests by the test-writer (also its fixes after a dispute) | `test` | orchestrator |
   | `[green]` | the implementer made that group pass | `feat` / `fix` | orchestrator |

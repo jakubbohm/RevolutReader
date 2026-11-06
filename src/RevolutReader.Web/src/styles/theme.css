@@ -1,0 +1,146 @@
+/*
+ * Tarjeta Papá: the app's Tailwind v4 theme.
+ * Translated from the design system "Tarjeta Papá" (tailwind/theme.css, artifact version 1793922592-cdbf,
+ * read 2026-11-06; link in docs/conventions/workflow.md § 8). Its tokens.json is the source: a token change
+ * arrives through the design loop of § 8 as a small direct PR to this file.
+ * Imported by src/index.css after Tailwind itself.
+ */
+
+@theme static {
+  --color-*: initial;
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-background: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-surface-muted: #edeae3;
+  --color-ink: #1b1f23;
+  --color-ink-muted: #5b6168;
+  --color-border: #e3dfd7;
+  --color-border-strong: #858b91;
+  --color-accent: #1f5f74;
+  --color-accent-pressed: #174b5c;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #e2eef1;
+  --color-incoming: #1c7543;
+  --color-incoming-soft: #e1f1e6;
+  --color-outgoing: var(--color-ink);
+  --color-pending: #865a06;
+  --color-pending-soft: #faf0da;
+  --color-info: var(--color-accent);
+  --color-info-soft: var(--color-accent-soft);
+  --color-warning: var(--color-pending);
+  --color-warning-soft: var(--color-pending-soft);
+  --color-danger: #b42318;
+  --color-danger-soft: #fbe7e5;
+  --color-focus: #1f5f74;
+  --color-scrim: rgba(15, 18, 20, 0.4);
+  --color-ms-surface: #ffffff;
+  --color-ms-text: #5e5e5e;
+  --color-ms-border: #8c8c8c;
+  --color-pwa-theme: #f6f4ef;
+  --color-pwa-background: #f6f4ef;
+  --text-amount-xl: 44px;
+  --text-amount-xl--line-height: 48px;
+  --text-amount-xl--font-weight: 600;
+  --text-amount-xl--letter-spacing: -0.02em;
+  --text-amount-lg: 32px;
+  --text-amount-lg--line-height: 38px;
+  --text-amount-lg--font-weight: 600;
+  --text-amount-lg--letter-spacing: -0.01em;
+  --text-title: 20px;
+  --text-title--line-height: 25px;
+  --text-title--font-weight: 600;
+  --text-headline: 17px;
+  --text-headline--line-height: 22px;
+  --text-headline--font-weight: 600;
+  --text-body: 16px;
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  --text-body-strong: 16px;
+  --text-body-strong--line-height: 22px;
+  --text-body-strong--font-weight: 500;
+  --text-subhead: 15px;
+  --text-subhead--line-height: 20px;
+  --text-subhead--font-weight: 400;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-footnote--font-weight: 400;
+  --text-section: 13px;
+  --text-section--line-height: 18px;
+  --text-section--font-weight: 600;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 500;
+  --spacing: 4px;
+  --spacing-gutter: 16px;
+  --spacing-row: 12px;
+  --spacing-section: 24px;
+  --spacing-touch: 44px;
+  --spacing-topbar: 52px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 24px;
+  --radius-full: 9999px;
+  --shadow-card:
+    0 1px 2px rgba(27, 31, 35, 0.06), 0 1px 1px rgba(27, 31, 35, 0.04);
+  --shadow-menu:
+    0 8px 24px rgba(27, 31, 35, 0.14), 0 2px 6px rgba(27, 31, 35, 0.08);
+  --shadow-sheet: 0 -8px 32px rgba(27, 31, 35, 0.12);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-sheet: 320ms;
+  --duration-spin: 900ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #111416;
+    --color-surface: #1a1e21;
+    --color-surface-muted: #262b2f;
+    --color-ink: #eceff1;
+    --color-ink-muted: #a2aab1;
+    --color-border: #2c3236;
+    --color-border-strong: #737c83;
+    --color-accent: #86c7da;
+    --color-accent-pressed: #a6d7e5;
+    --color-on-accent: #0c2a33;
+    --color-accent-soft: #16323b;
+    --color-incoming: #72d29c;
+    --color-incoming-soft: #15301f;
+    --color-pending: #edc06a;
+    --color-pending-soft: #352a12;
+    --color-danger: #ff8d84;
+    --color-danger-soft: #3a1a18;
+    --color-focus: #86c7da;
+    --color-scrim: rgba(0, 0, 0, 0.6);
+    --color-ms-surface: #2f2f2f;
+    --color-ms-text: #ffffff;
+    --color-ms-border: #2f2f2f;
+    --color-pwa-theme: #111416;
+    --color-pwa-background: #111416;
+    --shadow-card: none;
+    --shadow-menu: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  html,
+  body {
+    background: var(--color-background);
+    color: var(--color-ink);
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}

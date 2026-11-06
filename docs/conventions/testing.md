@@ -103,13 +103,20 @@ tests/
 ├─ RevolutReader.IntegrationTests/    our adapters against their fakes: the Enable Banking client against the
 │                                     fake bank server; later the database (Testcontainers)
 └─ manual-scenarios.md                scenarios checked by hand at handover
+
+src/RevolutReader.Web/src/            the frontend's tests sit next to its code (below)
 ```
 
 - **One project per test layer, named after the layer** (as DoseUp). `dotnet test` runs everything; CI selects a layer by project, never by tags on tests.
 - **Mirroring is mechanical** (as DoseUp): a test file sits at its target's path with the project swapped (`src/.../Balance.cs` ↔ `tests/RevolutReader.UnitTests/.../BalanceTests.cs`). Acceptance tests mirror the specs instead: one file per capability, one test per scenario. Unit tests are named after their behaviour task.
 - **Who may edit what** (the orchestrator's diff check enforces it; a hook that blocks the implementer is the second layer, § Test-first workflow): the test-writer owns `tests/`; the implementer may edit only `RevolutReader.AcceptanceTests/Drivers/` in the wiring and close steps, and `RevolutReader.IntegrationTests/Wiring/`, where it writes adapter edge-case tests after the implementation.
 - **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front.
-- **Frontend tests live next to the frontend code** (Vitest); folder and naming are decided in C3.
+- **Frontend tests live next to the frontend code** (Vitest with Testing Library and jsdom; decided in C3, c003 design.md D1):
+  - a unit test sits next to its target as `<file>.test.ts(x)`, e.g. `src/app/device.ts` ↔ `src/app/device.test.ts`;
+  - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx`, each test a `scenario("<capability>", "<exact scenario name>", …)`;
+  - the helpers live in `src/test/`: `setup.ts`, `scenario.ts`, `renderApp.tsx`.
+
+  The implementer may not edit `*.test.ts(x)`, as with every test file; `src/test/` belongs to the test-writer.
 
 ## Every scenario has exactly one test: the traceability check
 

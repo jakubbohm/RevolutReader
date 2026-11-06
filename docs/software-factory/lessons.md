@@ -265,6 +265,9 @@ RevolutReader ([c001 design.md § Bootstrap](../../openspec/changes/archive/2026
 - The zero-test baseline (exit code 8) is accepted once, for that first run only.
 - The test foundation is test code, so the test-writer writes it in the first acceptance group: the acceptance harness, the traceability check, the manual-scenario list and the anonymous-endpoint check. Its own tests pass from the start; only the scenarios stay red.
 - The traceability check gets self-tests on made-up specs, because a check that always passes looks the same as a working one.
+- **Once per stack, not once per project** ([c003 design.md § Bootstrap](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06):
+  - The frontend got its own `[setup]` commit (scaffold, tools, theme, test runner) before its first loop, and the docs the agents are spawned with landed in the same commit.
+  - The second run found a baseline C1 never had. Once the traceability check exists, a new change's delta specs make it report that change's own scenarios as unclaimed until the first group claims them. `/tdd-apply` now accepts exactly that one red.
 
 *Generalizes:* a test-first loop needs a green, empty starting point that is not behaviour. Create it once, outside the loop, under its own commit tag, and put the test infrastructure into the test-writer's first group. Reverses when the factory's project template already contains the test foundation: then the first change starts inside the loop.
 
@@ -366,3 +369,17 @@ RevolutReader ([ADR-0007-offline-balance](../adr/0007-offline-balance.md), 2026-
 - The design had already drawn cached transactions. Narrowing it took one round of the design loop: the design-system prompt, its list of changes, the canvas update.
 
 *Generalizes:* when the backend sleeps, store on the device the one value the user opens the app for, with the time it was read, and update it from every channel that already carries it (refresh, push). Keep the rest live, so less sensitive data rests on the device and nothing needs syncing. Reverses toward a fuller offline copy when users act offline or the list itself is the point of opening the app, and toward nothing stored when the server is always on or the data must never rest on a device.
+
+**R-40 · Which linter and TypeScript version does a new React + Vite frontend start with?** *(Divergence — relates to DoseUp's conventions; New: the TypeScript 7 finding)*
+Options: ESLint + typescript-eslint + Prettier on TypeScript 5.9 · the same on TypeScript 6.0 · the current Vite template: TypeScript 7 (the native compiler) + oxlint, with Prettier added.
+DoseUp: ESLint + Prettier (its conventions; no frontend code yet, checked 2026-11-06).
+RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [c003 design.md D3](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06): **TypeScript 7 + oxlint (`--deny-warnings`) + Prettier as is**, chosen by the user for knowledge building over the recommended ESLint on TypeScript 5.9.
+- **Facts (verified 2026-11-05/06):**
+  - create-vite 9.3.4's React template ships TypeScript ~7.0.2 and oxlint, and offers `--eslint` instead.
+  - TypeScript 7.0.2's package exports only a version file and "unstable" APIs, with no classic compiler API. So typescript-eslint 8.72.1 (TypeScript below 6.1) and openapi-typescript 7.13.0 (TypeScript 5.x) don't run on it.
+- **oxlint 1.91.0 carries the UI-library wall:**
+  - `no-restricted-imports` with a pattern group, plus an `overrides` entry that switches it off for the component folder;
+  - probed: imports in a feature folder fail the run, the same import in the component folder passes.
+- A generator that needs the classic compiler API (openapi-typescript, C6) runs with its own TypeScript 5 copy, kept to the generation script.
+
+*Generalizes:* start from the framework template's current toolchain when its linter can enforce the project's structural import rules, and check that every tool needing the compiler's API supports that compiler before adopting it. Pin the compiler and give an API-dependent generator its own pinned copy. Reverses to ESLint + typescript-eslint while type-aware lint rules matter more than speed, or until typescript-eslint supports TypeScript 7.
