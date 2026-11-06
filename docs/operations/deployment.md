@@ -2,7 +2,7 @@
 
 > How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-06 (C4, before the first deploy).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-06 (C4, the first two deploys recorded).
 
 ## Identifiers (non-secret)
 
@@ -13,10 +13,10 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | Deployment stack | `revolutreader`; deletes what the Bicep no longer declares; no deny settings |
 | Log Analytics workspace | `log-revolutreader` (30 days, 0.1 GB daily cap) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection) |
-| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; its IDs: after the first deploy |
+| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded`, principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
-| The app's address | after the first deploy |
+| The app's address | `https://tarjeta-papa.livelyground-53b2e5ad.germanywestcentral.azurecontainerapps.io` (the stack's output `appUrl`; plain HTTP is redirected to HTTPS). Azure generated the part after the app's name; a new environment gets a new one |
 | Image | `ghcr.io/jakubbohm/revolutreader:<commit SHA>`, package [settings](https://github.com/users/jakubbohm/packages/container/revolutreader/settings) |
 | Workflows | [deploy.yml](../../.github/workflows/deploy.yml) ("Deploy": jobs `image`, `deploy`); the PR check `image-and-infra` in [ci.yml](../../.github/workflows/ci.yml) |
 
@@ -29,7 +29,7 @@ On every merge to `main`, and when run by hand on `main` (Actions, Deploy, Run w
    1. **Image check:** the image must be pullable without a login, as Container Apps pulls it. If not, the job stops before touching Azure and shows the package's settings link.
    2. **Azure login** as `id-revolutreader-deploy`, through its federated credential; no stored secret.
    3. **Stack:** `infra/main.bicep` with `infra/main.bicepparam`, the image tag set to the commit SHA.
-   4. **Check after the deploy:** the latest revision is ready and runs this image, `/health` and `/` answer at the app's address within 3 minutes, and the revision is Running.
+   4. **Check after the deploy:** the latest revision is ready and runs this image, `/health` and `/` answer at the app's address within 3 minutes, and the revision is Running (Azure also reports RunningAtMaxScale).
    5. **Summary:** the image, the revision, the address and the time to the first answer, on the run's page.
 
 Deploys run one at a time, in the order of the merges. When one is red, see [workflow.md § 4](../conventions/workflow.md#4-cicd) for what each failed step means, and [Rolling back](#rolling-back) below.
@@ -55,16 +55,16 @@ The what-if shows the deploy identity as unchanged ("Ignore"): the stack does no
 
 ## The first deployment
 
-Done once, after the merge of the PR that added the deploy; again at a reinstatement (D1).
+Done once, after the merge of the PR that added the deploy (2026-11-06: PR [#21](https://github.com/jakubbohm/RevolutReader/pull/21), deploy run [42302387813](https://github.com/jakubbohm/RevolutReader/actions/runs/42302387813)); again at a reinstatement (D1).
 
-1. **The first run stops at the image check.** The `image` job pushes the image, which creates the package `revolutreader`, private. The `deploy` job fails at its first step, before any Azure step, with the settings link.
-2. **The owner makes the package public:** open the [package settings](https://github.com/users/jakubbohm/packages/container/revolutreader/settings), then Danger Zone, Change visibility, Public. This cannot be undone, and nothing in the image is private ([ADR-0006 § Decision](../adr/0006-hosting-registry-and-job.md#decision), item 3).
-3. **Re-run the failed job:** on the run's page, Re-run jobs, Re-run failed jobs. The image check now passes.
-4. **The first Azure login.** If `azure/login` fails with `AADSTS700213`, the federated credential's subject is wrong: fix it as [azure-prerequisites.md § Checks](azure-prerequisites.md#checks) says, with the owner's go, and re-run the failed job.
-5. **The stack** creates the workspace, the vault, the app's identity and its role, the environment and the container app. Creating the environment takes a few minutes.
-6. **The check after the deploy** passes, and the summary shows the app's address. Record the address and the identity's IDs in [Identifiers](#identifiers-non-secret).
-7. **The owner's access to the vault's secrets:** the hand-made role in [azure-prerequisites.md](azure-prerequisites.md), with the owner's go.
-8. **The Enable Banking values** into Key Vault: the guided task below, with the owner's go.
+1. **The package.** The `image` job's push creates the package `revolutreader`, linked to the repository. On 2026-11-06 it came out public at once, and the image check passed; the owner changed nothing. GitHub Docs say a new package starts private. The likely reason, which no source confirms: a package that a workflow pushes and links to a public repository takes the repository's visibility.
+2. **If the image check stops the run** (the package is private: e.g. one created again at a reinstatement, or GitHub changes this behaviour), the `deploy` job fails at its first step, before any Azure step, with the settings link. The owner makes the package public: open the [package settings](https://github.com/users/jakubbohm/packages/container/revolutreader/settings), then Danger Zone, Change visibility, Public. This cannot be undone, and nothing in the image is private ([ADR-0006 § Decision](../adr/0006-hosting-registry-and-job.md#decision), item 3).
+3. **Then re-run the failed job:** on the run's page, Re-run jobs, Re-run failed jobs. The image check now passes.
+4. **The first Azure login.** It succeeded on 2026-11-06 with the subject M3 set. If `azure/login` fails with `AADSTS700213`, the federated credential's subject is wrong: fix it as [azure-prerequisites.md § Checks](azure-prerequisites.md#checks) says, with the owner's go, and re-run the failed job.
+5. **The stack** creates the workspace, the vault, the app's identity and its role, the environment and the container app: exactly these six on 2026-11-06. Creating the environment takes a few minutes.
+6. **The check after the deploy** passes, and the summary shows the app's address. Record the address and the identity's IDs in [Identifiers](#identifiers-non-secret). On 2026-11-06 the first run's check failed only at its last step, on the state `RunningAtMaxScale`, which the Azure references do not list; [#22](https://github.com/jakubbohm/RevolutReader/pull/22) accepts it, and its deploy, run [42305043086](https://github.com/jakubbohm/RevolutReader/actions/runs/42305043086), passed every step.
+7. **The owner's access to the vault's secrets:** the hand-made role in [azure-prerequisites.md](azure-prerequisites.md), item 7, with the owner's go. Applied on 2026-11-06 (recorded there).
+8. **The Enable Banking values** into Key Vault: the guided task below, with the owner's go. Done on 2026-11-06 (recorded there).
 
 ## Guided task: the Enable Banking values into Key Vault
 
@@ -97,6 +97,8 @@ az keyvault secret set --subscription $sub --vault-name $vault --name 'EnableBan
 
 az keyvault secret list --subscription $sub --vault-name $vault --query '[].name' --output tsv
 ```
+
+**Done on 2026-11-06** by the owner, in the owner's own PowerShell 7 window, together with the role it needs (Claude Code's permission check had blocked Claude's role assignment even with the owner's go). Read back: the vault holds exactly `EnableBanking--AccountId`, `EnableBanking--ApplicationId`, `EnableBanking--PrivateKey` and `EnableBanking--SessionId`.
 
 **Replacing a value later** (a renewed session, a new key: [expiring-approvals.md](expiring-approvals.md)): run only its line again. Key Vault keeps the old value as an older version; the app follows the latest.
 
@@ -131,6 +133,8 @@ az keyvault secret list --subscription $sub --vault-name kv-revolutreader --quer
 ```
 
 The logs never hold bank data (CLAUDE.md); Claude reads them only to diagnose, read-only.
+
+**First run, 2026-11-06,** after the first two deploys, from Claude's machine: the stack read `succeeded` with six resources, its outputs at the top level (`outputs.appUrl.value`, as above); `/health` answered `Healthy` (HTTP 200, 0.35 s), `/` returned the page, and plain HTTP was redirected to HTTPS (301). Within minutes the workspace held the platform's events (`ContainerAppSystemLogs_CL`) and the app's start lines (`ContainerAppConsoleLogs_CL`); the log query above worked as written.
 
 ## Rolling back
 

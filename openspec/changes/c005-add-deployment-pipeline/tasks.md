@@ -92,23 +92,27 @@ Nothing is pushed before group 5. From group 5 on, these need the owner's go, an
 
 Starts on a new branch off the freshest `main`, `docs/c005-first-deployment`, in this worktree. PR 1's branch is deleted locally then.
 
-- [ ] 6.1 Run 1 stops at the image check (D3). Verify:
+- [x] 6.1 Run 1 stops at the image check (D3). Verify:
   - `image` is green, and the package `revolutreader` exists and is private;
   - `deploy` failed at the image check with the message and the link, before any Azure step: no login in its log, nothing new in `rg-revolutreader`.
-- [ ] 6.2 The owner makes the package public, then re-runs the failed job. Verify:
+
+  *Deviation: the push created the package public, so run 1 (42302387813) did not stop: the image check passed at once (anonymous token and manifest HTTP 200) and the job went on into Azure.*
+- [x] 6.2 The owner makes the package public, then re-runs the failed job. Verify:
   - the image check passes;
   - the login succeeds. If it fails, the subject is corrected with the owner's go (azure-prerequisites.md § Checks) and the job re-run;
   - the stack succeeds;
   - the check after the deploy passes, and the run's summary shows the image, the revision, the address and the time to the first answer.
-- [ ] 6.3 Live checks, read-only, and records. Verify and record:
+
+  *Deviation: no visibility change was needed (6.1). In run 1 the login and the stack succeeded, and the check after the deploy failed only at its last step, on the unlisted state `RunningAtMaxScale`. Fixed in a third PR, #22; its deploy, run 42305043086, passed every step.*
+- [x] 6.3 Live checks, read-only, and records. Verify and record:
   - `az stack group show` lists the five resources and the app identity's role assignment;
   - the revision reads `Running`;
   - `/health` and `/` answer at the address from Claude's machine;
   - a log query finds the app's start lines in the workspace (they can take a few minutes);
   - whether the new revision started a replica during the deploy (D8's reading);
   - the address and the deployed names go into `deployment.md`, and the first login's result into `azure-prerequisites.md` § Checks.
-- [ ] 6.4 The owner's role (D17), with the owner's go: the command from `azure-prerequisites.md`. Verify: its read-only check lists Key Vault Secrets Officer for a user on `rg-revolutreader`; the owner's ID was written to no file.
-- [ ] 6.5 The guided task (D15), with the owner's go: the four Enable Banking values into the vault. Then R-47 and R-48 updated with what the runs showed (D3's check, D8's reading). Verify: `az keyvault secret list` shows the four names; no value appeared in any output; no placeholder is left in `deployment.md`.
+- [x] 6.4 The owner's role (D17), with the owner's go: the command from `azure-prerequisites.md`. Verify: its read-only check lists Key Vault Secrets Officer for a user on `rg-revolutreader`; the owner's ID was written to no file. *Deviation: run by the owner, in the owner's own PowerShell 7 window, because Claude Code's permission classifier blocked the role assignment even with the owner's go.*
+- [x] 6.5 The guided task (D15), with the owner's go: the four Enable Banking values into the vault. Then R-47 and R-48 updated with what the runs showed (D3's check, D8's reading). Verify: `az keyvault secret list` shows the four names; no value appeared in any output; no placeholder is left in `deployment.md`. *Deviation: run by the owner together with 6.4, for the same reason.*
 
 ## 7. Close
 

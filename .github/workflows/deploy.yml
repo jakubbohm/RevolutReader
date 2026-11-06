@@ -80,9 +80,10 @@ jobs:
         with:
           persist-credentials: false
 
-      # Container Apps pulls the image without a login (c005 design.md D3). The first push creates
-      # the package private, so the first run stops here, before anything touches Azure, until the
-      # owner makes the package public. Later runs pass in about a second.
+      # Container Apps pulls the image without a login (c005 design.md D3). If the package is
+      # private (GitHub Docs say a new one starts private, though the first push here, 2026-11-06,
+      # came out public), the run stops here, before anything touches Azure, until the owner makes
+      # it public. A public package passes in about a second.
       - name: Image check
         run: |
           set -euo pipefail
@@ -95,7 +96,7 @@ jobs:
             {
               echo "### The image cannot be pulled without a login"
               echo
-              echo "$1 A new package starts private, so this is expected on the first deploy."
+              echo "$1 Most likely the package is private, e.g. one created again at a reinstatement."
               echo
               echo "1. Open the [package settings]($settings)."
               echo "2. Danger Zone, Change visibility, Public. This cannot be undone."
