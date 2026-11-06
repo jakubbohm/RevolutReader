@@ -298,9 +298,11 @@ Not added: Radix (no component needs it yet), an i18n library, a router, `idb` (
   - `pwa-assets.config.ts`, run with `npm run icons` (`pwa-assets-generator`), makes `apple-touch-icon.png` (180, opaque), `icon-192.png`, `icon-512.png` and `icon-maskable-512.png`. The art already keeps the maskable safe zone (the design's App icon README).
   - The PNGs are committed. The build never runs the tool, which depends on sharp's native binaries (decision 10).
 - **The launch images** (decision 12):
-  - the same script makes them for every iPhone the tool knows (iPhone 11 to 17, iPhone 13 Pro included), portrait, light and dark, into `public/launch/`;
-  - each is `color-pwa-background` (`#f6f4ef` light, `#111416` dark) with the icon in the middle, as artboard "Shell / Launch / Default";
-  - the tool prints the matching `<link rel="apple-touch-startup-image" media="…">` tags (its HTML output), and they go into `index.html` once;
+  - `npm run icons` makes them too, for every iPhone the tool knows from the iPhone 11 to the 17 and the Air (28 models, 10 screen sizes, the iPhone 13 Pro included), portrait, light and dark, into `public/launch/`;
+  - **as built (C3 slice 10):** a second step of that script, `launch-images.ts`, uses the tool's API instead of its config file, because the config can neither round the icon's corners nor skip the landscape images;
+  - each is `color-pwa-background` (`#f6f4ef` light, `#111416` dark) with the icon in the middle, 96 pt wide with `radius-sheet` corners, as artboard "Shell / Launch / Default";
+  - the script prints the matching `<link rel="apple-touch-startup-image" media="…">` tags (the tool's HTML output), and they go into `index.html` once;
+  - **the light tags carry `(prefers-color-scheme: light)`** (the owner, 2026-11-06). The tool marks only the dark ones, so in dark mode both tags of a pair would match, and no source says which one iOS takes. With both marked, exactly one matches in each mode. Checked on the iPhone (M5);
   - no iPad images.
 - **The manifest** (the plugin's `manifest` option), values from the design system's App icon README:
   - `name` and `short_name` "Tarjeta Papá", `lang: "cs"`, `display: "standalone"`, `start_url: "/"`, `scope: "/"`;

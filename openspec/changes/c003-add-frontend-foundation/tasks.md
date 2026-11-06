@@ -147,8 +147,8 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 22. [close] Slice 10 — The Home Screen app opens with its launch screen
 
-- [ ] 22.1 The images exist for the iPhone 13 Pro (1170 × 2532) in light and dark, and their tags carry the matching `media` conditions, dark ones included. The iPhone check stays the manual row (M5). Verify: both files and both tags are present
-- [ ] 22.2 Docs: lesson R-42 (iOS's launch screen needs one image per device). Verify: it links to design.md D10
+- [x] 22.1 The images exist for the iPhone 13 Pro (1170 × 2532) in light and dark, and their tags carry the matching `media` conditions, dark ones included. The iPhone check stays the manual row (M5). Verify: both files and both tags are present
+- [x] 22.2 Docs: lesson R-42 (iOS's launch screen needs one image per device). Verify: it links to design.md D10
 
 ## 23. [wiring] Local development
 
