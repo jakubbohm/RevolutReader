@@ -23,8 +23,11 @@ export function watchForUpdates(
   page: Page,
   network: Network,
 ): void {
-  void registration;
-  void page;
-  void network;
-  throw new Error("Not implemented: watchForUpdates");
+  page.addEventListener("visibilitychange", () => {
+    if (page.visibilityState !== "visible" || !network.onLine) return;
+    // A failed check changes nothing; the next return tries again.
+    void registration.update().catch(ignoreFailedCheck);
+  });
 }
+
+function ignoreFailedCheck(): void {}

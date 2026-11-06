@@ -106,10 +106,10 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 16. [unit] Slice 8 — The update watch
 
-- [ ] 16.1 An update check runs when the app comes back to the screen
-- [ ] 16.2 No update check runs while the phone is offline
-- [ ] 16.3 No update check runs when the app goes to the background
-- [ ] 16.4 A failed update check is ignored until the next return
+- [x] 16.1 An update check runs when the app comes back to the screen
+- [x] 16.2 No update check runs while the phone is offline
+- [x] 16.3 No update check runs when the app goes to the background
+- [x] 16.4 A failed update check is ignored until the next return
 
 ## 17. [wiring] Slice 8 — Switching to a new version
 
