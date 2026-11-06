@@ -112,7 +112,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 13. [close] Slice 4 — Pending transactions come back marked pending
 
-- [ ] 13.1 The scenario's test passes; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
+- [x] 13.1 The scenario's test passes; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
 
 ## 14. [unit] Slice 5 — Transaction mapping: other statuses
 
