@@ -69,7 +69,7 @@ Run with `/tdd-apply c003-add-frontend-foundation review=all`, the first change 
 
 ## 10. [close] Slice 5 — The start page opens at the root address
 
-- [ ] 10.1 The scenario's test passes, which also proves that the stand-in web root takes effect (design.md D6; if it does not, the fallback named there). Verify: green, including this scenario
+- [x] 10.1 The scenario's test passes, which also proves that the stand-in web root takes effect (design.md D6; if it does not, the fallback named there). Verify: green, including this scenario
 
 ## 11. [wiring] Slice 6 — The page fallback
 
