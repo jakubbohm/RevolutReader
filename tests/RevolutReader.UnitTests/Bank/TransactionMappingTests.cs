@@ -176,6 +176,30 @@ public sealed class TransactionMappingTests {
     TransactionMapping.Map(transactions).LeftOut.ShouldBe(leftOut);
   }
 
+  /// <param name="status">
+  /// Outside the API reference's closed set (BOOK, PDNG, CNCL, RJCT, HOLD, SCHD, OTHR): missing, empty or unknown. The
+  /// bank changed its answer (D4 "everything else"); leaving such a transaction out would hide it silently.
+  /// </param>
+  [Test]
+  [Arguments("missing")]
+  [Arguments("empty")]
+  [Arguments("unknown")]
+  public void A_transaction_with_a_status_the_bank_does_not_define_is_an_error(string status) {
+    string? bankStatus = status switch {
+      "missing" => null,
+      "empty" => "",
+      "unknown" => "XXXX",
+      _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Not a known case."),
+    };
+
+    // A missing status reaches the record as null, whatever its annotation: System.Text.Json does not enforce it.
+    EbTransaction transaction = BookedPayment() with { Status = bankStatus! };
+
+    BankReadException error = Should.Throw<BankReadException>(() => TransactionMapping.Map([transaction]));
+
+    ShouldCarryNoBankData(error, transaction, bankStatus);
+  }
+
   // The date
 
   [Test]
