@@ -116,9 +116,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 14. [unit] Slice 5 — Transaction mapping: other statuses
 
-- [ ] 14.1 Cancelled, rejected, on-hold, scheduled and other transactions are left out
-- [ ] 14.2 The transactions left out are counted
-- [ ] 14.3 A transaction with a status the bank does not define is an error (added 2026-11-07 by the user at the group 14 review: a missing, empty or unknown status means the bank changed its answer, so a `BankReadException` without bank data, not a silent leave-out; design.md D4)
+- [x] 14.1 Cancelled, rejected, on-hold, scheduled and other transactions are left out
+- [x] 14.2 The transactions left out are counted
+- [x] 14.3 A transaction with a status the bank does not define is an error (added 2026-11-07 by the user at the group 14 review: a missing, empty or unknown status means the bank changed its answer, so a `BankReadException` without bank data, not a silent leave-out; design.md D4)
 
 ## 15. [close] Slice 5 — Cancelled and rejected transactions are left out
 
