@@ -1,4 +1,5 @@
 using FastEndpoints;
+using RevolutReader.Api.Bank;
 using RevolutReader.Api.Pages;
 using RevolutReader.ServiceDefaults;
 
@@ -7,6 +8,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddFastEndpoints();
+builder.Services.AddEnableBanking();
 
 WebApplication app = builder.Build();
 

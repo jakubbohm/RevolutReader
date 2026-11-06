@@ -5,6 +5,9 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using WireMock.Matchers;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
 using WireMock.Server;
 using WireMock.Settings;
 
@@ -30,6 +33,8 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>The name the fake bank's own host reports its telemetry to, which no tracer listens to (<see cref="SilenceHostingTelemetry"/>).</summary>
   private const string UNHEARD_TELEMETRY = "RevolutReader.AcceptanceTests.FakeBank";
+
+  private const string JSON = "application/json";
 
   /// <summary>
   /// One application key per test run: generating an RSA key takes tens of milliseconds, and nothing in a test depends
@@ -88,8 +93,14 @@ public sealed class FakeBank : IDisposable {
     builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
   }
 
-  /// <summary><c>GET /accounts/{account}/balances</c> answers with these balances (the capture's shape).</summary>
-  public void AnswerBalances(string body) => throw new NotImplementedException();
+  /// <summary>
+  /// <c>GET /accounts/{account}/balances</c> answers with these balances (the capture's shape), only on this account's
+  /// path and only when the request carries a bearer token; any other request gets WireMock's 404.
+  /// </summary>
+  public void AnswerBalances(string body) =>
+    _server
+      .Given(SignedGet($"/accounts/{AccountId}/balances"))
+      .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", JSON).WithBody(body));
 
   /// <summary>
   /// <c>GET /accounts/{account}/transactions</c> answers with this page, only for this <c>date_from</c> and
@@ -107,6 +118,10 @@ public sealed class FakeBank : IDisposable {
   public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => throw new NotImplementedException();
 
   private static string MadeUpId() => Guid.NewGuid().ToString();
+
+  /// <summary>A <c>GET</c> of exactly <paramref name="path"/> that carries a bearer token (the application's JWT).</summary>
+  private static IRequestBuilder SignedGet(string path) =>
+    Request.Create().UsingGet().WithPath(new ExactMatcher(path)).WithHeader("Authorization", "Bearer *");
 
   /// <summary>
   /// Keeps the fake bank's own server out of every trace (for the guard <c>Conventions/BankTelemetryTests</c>, c004

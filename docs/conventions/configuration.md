@@ -31,7 +31,7 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 
 ## Binding
 
-- `IOptions<T>` with `BindConfiguration` + `ValidateDataAnnotations` + `ValidateOnStart`; the section is named after the options class; a shared validator rejects `"<secret>"`.
+- `IOptions<T>` with `BindConfiguration` + `ValidateDataAnnotations` + `ValidateOnStart`; the section is named after the options class; a shared validator rejects `"<secret>"`: `[NotSecretPlaceholder]` (`src/RevolutReader.Api/Configuration/`, built in C5), put on every secret next to `[Required]`. Its failure names the setting, never its value. A check that data annotations can't express (e.g. that the Enable Banking key is an RSA private key in PEM form) is an `IValidateOptions<T>` registered next to them, under the same rule.
 - Never inject `IConfiguration` / `IConfigurationSection` outside the composition root.
 
 ## Local development and tests

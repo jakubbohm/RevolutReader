@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Net;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RevolutReader.AcceptanceTests.Dsl;
 using RevolutReader.Api.Bank;
@@ -25,7 +28,29 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// <summary>The port, as the app copy wires it.</summary>
   private IBankAccount Account => services.GetRequiredService<IBankAccount>();
 
-  public void HasAvailableBalance(decimal amount, string currency) => throw new NotImplementedException();
+  /// <summary>
+  /// The balances answer of the Mock ASPSP capture <c>spikes/enable-banking-mock/evidence/2026-11-06-account1-balances.json</c>
+  /// (made-up data), copied with its shape and its other fields as captured; only the ITAV amount and currency are the
+  /// DSL's. The amount goes on the wire as a string, as the bank writes it.
+  /// </summary>
+  public void HasAvailableBalance(decimal amount, string currency) =>
+    Bank.AnswerBalances($$"""
+      {
+        "balances": [
+          {
+            "name": "Available balance calculated in the course of the business day",
+            "balance_amount": {
+              "currency": {{JsonString(currency)}},
+              "amount": {{JsonString(amount.ToString(CultureInfo.InvariantCulture))}}
+            },
+            "balance_type": "ITAV",
+            "last_change_date_time": null,
+            "reference_date": "2026-11-06",
+            "last_committed_transaction": null
+          }
+        ]
+      }
+      """);
 
   public void Lists(IReadOnlyList<TransactionAtBank> transactions) => throw new NotImplementedException();
 
@@ -41,11 +66,26 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   public void AnswersAfterTheRequestTimeout() => throw new NotImplementedException();
 
-  public Task<BalanceAnswer> ReadBalanceFor(UserAtDevice user) => throw new NotImplementedException();
+  public async Task<BalanceAnswer> ReadBalanceFor(UserAtDevice user) {
+    ArgumentNullException.ThrowIfNull(user);
+
+    return AnswerOf(await Account.ReadBalance(new PresentUser(IPAddress.Parse(user.IpAddress), user.Browser), CancellationToken.None));
+  }
 
   public Task<BalanceAnswer> ReadBalanceUnattended() => throw new NotImplementedException();
 
   public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day, UserAtDevice user) => throw new NotImplementedException();
 
   public IReadOnlyList<RequestAtBank> RequestsReceived() => throw new NotImplementedException();
+
+  /// <summary>The value is <see cref="BankOutcome.Read"/> with the balance; each failure is its own outcome, with no balance.</summary>
+  private static BalanceAnswer AnswerOf(BankResult<Balance> result) => result switch {
+    Balance balance => BalanceAnswer.Of(balance.Amount, balance.Currency),
+    BankAccessExpired => BalanceAnswer.AccessExpired,
+    BankRateLimited => BalanceAnswer.RateLimited,
+    BankUnavailable => BalanceAnswer.BankUnavailable,
+  };
+
+  /// <summary><paramref name="value"/> as a JSON string literal, quotes and escapes included.</summary>
+  private static string JsonString(string value) => JsonSerializer.Serialize(value);
 }

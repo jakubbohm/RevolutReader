@@ -23,6 +23,12 @@ public sealed class ApplicationToken {
 
   private readonly RSA _key;
 
+  /// <summary>
+  /// One signature at a time: .NET documents no thread safety for a shared <see cref="RSA"/> instance, and the token is a
+  /// singleton whose reads may run in parallel (C7 may read balance and transactions at once).
+  /// </summary>
+  private readonly Lock _signing = new();
+
   /// <param name="applicationId">The JWT's key id.</param>
   /// <param name="key">The application's private key; the caller owns it and keeps it alive.</param>
   public ApplicationToken(string applicationId, RSA key) {
@@ -53,9 +59,14 @@ public sealed class ApplicationToken {
     });
 
     string signingInput = $"{_encodedHeader}.{encodedPayload}";
-    byte[] signature = _key.SignData(Encoding.ASCII.GetBytes(signingInput), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
-    return $"{signingInput}.{Base64Url.EncodeToString(signature)}";
+    return $"{signingInput}.{Base64Url.EncodeToString(Sign(Encoding.ASCII.GetBytes(signingInput)))}";
+  }
+
+  /// <summary>RSASSA-PKCS1-v1_5 with SHA-256 (RS256), under <see cref="_signing"/>.</summary>
+  private byte[] Sign(byte[] data) {
+    lock (_signing)
+      return _key.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
   }
 
   /// <summary>A JSON object holding the members <paramref name="writeMembers"/> writes, as UTF-8, base64url-encoded.</summary>

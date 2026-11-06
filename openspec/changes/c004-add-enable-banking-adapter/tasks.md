@@ -51,15 +51,15 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 5. [wiring] Slice 1 — The balance read
 
-- [ ] 5.1 `EnableBankingOptions` and the `EnableBanking` section in `appsettings.json`:
+- [x] 5.1 `EnableBankingOptions` and the `EnableBanking` section in `appsettings.json`:
   - `ApiBaseUrl` `https://api.enablebanking.com` and `RequestTimeout` `00:00:15`;
   - the four secrets as `"<secret>"`;
   - each key with its provenance comment (design.md D6).
 
   Bound with `ValidateDataAnnotations`, `EnableBankingOptionsValidator` and `ValidateOnStart`. Verify: build passes; green (the harness's settings pass validation)
-- [ ] 5.2 `AddEnableBanking()` and `EnableBankingClient.ReadBalance`: a signed `GET /accounts/{account}/balances`, then `BalanceSelection`. `Program.cs` calls `AddEnableBanking()` (design.md § Public API sketch). Verify: build passes; green
-- [ ] 5.3 `BankDriver` and `FakeBank`: the balance answer copied from the capture (§ Bootstrap); `ReadBalance` through the app copy's `IBankAccount`, replacing the stubs. Verify: the scenario runs against the app
-- [ ] 5.4 Docs:
+- [x] 5.2 `AddEnableBanking()` and `EnableBankingClient.ReadBalance`: a signed `GET /accounts/{account}/balances`, then `BalanceSelection`. `Program.cs` calls `AddEnableBanking()` (design.md § Public API sketch). Verify: build passes; green
+- [x] 5.3 `BankDriver` and `FakeBank`: the balance answer copied from the capture (§ Bootstrap); `ReadBalance` through the app copy's `IBankAccount`, replacing the stubs. Verify: the scenario runs against the app
+- [x] 5.4 Docs:
   - README.md § Backend code: the union's shape as built, with the failure records next to it (D4), and the bank cases' status rows moved to C7;
   - configuration.md § Binding: the shared `"<secret>"` validator now exists.
 
