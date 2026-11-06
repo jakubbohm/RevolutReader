@@ -32,9 +32,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 2. [unit] Slice 1 — Settings validation
 
-- [ ] 2.1 A setting still holding the secret placeholder fails validation
-- [ ] 2.2 A private key that is not an RSA private key in PEM form fails validation, and the message does not contain the key (a public key fails too: the user, group 2 review)
-- [ ] 2.3 Complete settings pass validation
+- [x] 2.1 A setting still holding the secret placeholder fails validation
+- [x] 2.2 A private key that is not an RSA private key in PEM form fails validation, and the message does not contain the key (a public key fails too: the user, group 2 review)
+- [x] 2.3 Complete settings pass validation
 
 ## 3. [unit] Slice 1 — Application token
 
