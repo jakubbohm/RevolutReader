@@ -266,7 +266,7 @@ RevolutReader ([c001 design.md § Bootstrap](../../openspec/changes/archive/2026
 - The zero-test baseline (exit code 8) is accepted once, for that first run only.
 - The test foundation is test code, so the test-writer writes it in the first acceptance group: the acceptance harness, the traceability check, the manual-scenario list and the anonymous-endpoint check. Its own tests pass from the start; only the scenarios stay red.
 - The traceability check gets self-tests on made-up specs, because a check that always passes looks the same as a working one.
-- **Once per stack, not once per project** ([c003 design.md § Bootstrap](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06):
+- **Once per stack, not once per project** ([c003 design.md § Bootstrap](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06):
   - The frontend got its own `[setup]` commit (scaffold, tools, theme, test runner) before its first loop, and the docs the agents are spawned with landed in the same commit.
   - The second run found a baseline C1 never had. Once the traceability check exists, a new change's delta specs make it report that change's own scenarios as unclaimed until the first group claims them. `/tdd-apply` now accepts exactly that one red.
 
@@ -374,7 +374,7 @@ RevolutReader ([ADR-0007-offline-balance](../adr/0007-offline-balance.md), 2026-
 **R-40 · Which linter and TypeScript version does a new React + Vite frontend start with?** *(Divergence — relates to DoseUp's conventions; New: the TypeScript 7 finding)*
 Options: ESLint + typescript-eslint + Prettier on TypeScript 5.9 · the same on TypeScript 6.0 · the current Vite template: TypeScript 7 (the native compiler) + oxlint, with Prettier added.
 DoseUp: ESLint + Prettier (its conventions; no frontend code yet, checked 2026-11-06).
-RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [c003 design.md D3](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06): **TypeScript 7 + oxlint (`--deny-warnings`) + Prettier as is**, chosen by the user for knowledge building over the recommended ESLint on TypeScript 5.9.
+RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [c003 design.md D3](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **TypeScript 7 + oxlint (`--deny-warnings`) + Prettier as is**, chosen by the user for knowledge building over the recommended ESLint on TypeScript 5.9.
 - **Facts (verified 2026-11-05/06):**
   - create-vite 9.3.4's React template ships TypeScript ~7.0.2 and oxlint, and offers `--eslint` instead.
   - TypeScript 7.0.2's package exports only a version file and "unstable" APIs, with no classic compiler API. So typescript-eslint 8.72.1 (TypeScript below 6.1) and openapi-typescript 7.13.0 (TypeScript 5.x) don't run on it.
@@ -387,7 +387,7 @@ RevolutReader ([README.md § Formatting](../conventions/README.md#formatting), [
 
 **R-41 · How does an installed PWA pick up a new version when its server scales to zero?** *(New)*
 Options: the browser's default (the new service worker waits until every tab of the app is closed) · a banner that asks the user to reload · automatic: the new worker takes over at once and the page reloads once · the page always from the network first.
-RevolutReader ([c003 design.md D9](../../openspec/changes/c003-add-frontend-foundation/design.md), [D5](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06): **automatic with one reload, plus an update check whenever the app comes back to the screen while online.**
+RevolutReader ([c003 design.md D9](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), [D5](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **automatic with one reload, plus an update check whenever the app comes back to the screen while online.**
 - **Takeover:** `skipWaiting()` on install and `clientsClaim()` in the service worker; vite-plugin-pwa 2.0.0 with `registerType: "autoUpdate"` reloads the page once when the new worker takes over.
 - **The check on return:** the browser checks for a new service worker on a fresh open, but iOS keeps a Home Screen app in memory, so reopening it often isn't a fresh open. A small watch calls `registration.update()` on every `visibilitychange` to visible while `navigator.onLine`, and ignores a failed check; the next return tries again.
 - **Caching headers:** only the build's hashed files (`/assets/`) are kept a year (`immutable`); everything else, the page and `sw.js` included, is `no-cache`. With ASP.NET Core, one `StaticFileOptions.OnPrepareResponse` shared by the static files and the page fallback covers both, because both rewrite the path to `/index.html` before it runs.
@@ -399,7 +399,7 @@ RevolutReader ([c003 design.md D9](../../openspec/changes/c003-add-frontend-foun
 
 **R-42 · How does a Home Screen web app on iPhone get its launch screen?** *(New)*
 Options: none (iOS shows a blank screen while the app starts) · one image per iPhone screen size, light and dark, made by a tool and committed · images made at build time.
-RevolutReader ([c003 design.md D10](../../openspec/changes/c003-add-frontend-foundation/design.md), 2026-11-06): **one image per screen size, light and dark, generated by hand with `@vite-pwa/assets-generator` 2.0.0 and committed.** Android builds its launch screen from the manifest; iOS doesn't, and needs an `apple-touch-startup-image` link per device, matched by screen size, pixel ratio and orientation.
+RevolutReader ([c003 design.md D10](../../openspec/changes/archive/2026-11-06-c003-add-frontend-foundation/design.md), 2026-11-06): **one image per screen size, light and dark, generated by hand with `@vite-pwa/assets-generator` 2.0.0 and committed.** Android builds its launch screen from the manifest; iOS doesn't, and needs an `apple-touch-startup-image` link per device, matched by screen size, pixel ratio and orientation.
 - **Facts (2026-11-06):** the tool knows 28 iPhones from the 11 to the 17 and the Air, which come down to 10 portrait sizes. Light and dark make 20 images, about 142 KB.
 - **The tool's config file wasn't enough:** it can neither round the icon's corners nor skip the landscape images. A small script calls the tool's API instead, with the icon's size set per device so it's the design's 96 pt on every screen.
 - **Light and dark:** the tool marks only the dark tags with `(prefers-color-scheme: dark)`, so in dark mode both tags of a pair match. No source was found on which one iOS then takes, so the light tags got `(prefers-color-scheme: light)` too, and exactly one matches in each mode. One report says iOS keeps the launch image it saw when the app was added to the Home Screen. Both are checked on a real iPhone.
