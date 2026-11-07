@@ -281,7 +281,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
   Verify: the build and the full suite are green on the rebased branch
 - [x] 40.2 Bicep, in `infra/features.bicep` § "The bank (C5)": four Container Apps secrets referencing the Key Vault secrets `EnableBanking--ApplicationId`, `--PrivateKey`, `--SessionId`, `--AccountId` (already in `kv-revolutreader`, put there 2026-11-06 by docs/operations/deployment.md § Guided task), read with the app's identity, exposed as the `EnableBanking__*` environment variables (names in c005 design.md D15). `platform.bicep` outputs `keyVault.properties.vaultUri`, and `main.bicep` passes it to `features.bicep`. Verify: `az bicep lint --file infra/main.bicep` has no warning (any warning fails CI); the read-only preview in deployment.md runs and shows only these changes. *2026-11-07:* lint clean; `az stack group validate` passes. The what-if, compared line by line with the same what-if of `main`'s Bicep (both with the deployed image tag), differs only by the four Container Apps secrets and the four env entries. Its other lines (ingress, scale, probes, the environment, the role, the identity) appear for `main` too: properties Azure fills in that the Bicep doesn't declare
 - [x] 40.3 The PR check `image-and-infra` starts the image with made-up values for the four settings and a real throwaway RSA key: C5's start-up validation must accept them, and C5 adds no required setting without a value in `appsettings.json`. Verify: the check passes on the PR
-- [ ] 40.4 After the merge (the owner's go, outside the PR): the deploy is the first real start with the secrets. Verify: the app is running; if it stops at start, its log through deployment.md § Checks' query
+- 40.4 *Moved out of the change (the owner, 2026-11-07), so it could be archived in its own PR:* after the merge, the deploy is the first real start with the secrets. Verify: the app is running; if it stops at start, its log through deployment.md § Checks' query. Now a follow-up in pm/progress.md's C5 row
 
 ## 41. [close] Acceptance green
 
@@ -295,5 +295,5 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## Workflow follow-up
 
-- Open the PR `feat: add Enable Banking adapter (C5)` after the user's go; squash merge after review.
-- `/opsx:archive c004-add-enable-banking-adapter` (main spec `bank-reads`).
+- Open the PR `feat: add Enable Banking adapter (C5)` after the user's go; squash merge after review. *Opened as a draft, [#24](https://github.com/jakubbohm/RevolutReader/pull/24), 2026-11-07.*
+- `/opsx:archive c004-add-enable-banking-adapter` (main spec `bank-reads`). *Run in the same PR, before the merge (the owner, 2026-11-07), as for C1 and C3.*
