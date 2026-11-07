@@ -29,4 +29,17 @@ public sealed class BankErrorClassificationTests {
     [Matrix("NO_ACCOUNTS_ADDED", "ASPSP_ACCOUNT_NOT_ACCESSIBLE")] string errorCode,
     [Matrix(HttpStatusCode.UnprocessableEntity, HttpStatusCode.TooManyRequests, HttpStatusCode.ServiceUnavailable)] HttpStatusCode status) =>
     BankErrorClassification.Classify(status, errorCode).ShouldBe(BankErrorKind.AccessExpired);
+
+  // Rate limited: never retried (ADR-0001)
+
+  /// <param name="status"><c>429</c>, as the bank sends it with this code; <c>422</c> and <c>503</c>, which without the code would decide otherwise.</param>
+  [Test, MatrixDataSource]
+  public void The_banks_rate_limit_is_rate_limited(
+    [Matrix(HttpStatusCode.TooManyRequests, HttpStatusCode.UnprocessableEntity, HttpStatusCode.ServiceUnavailable)] HttpStatusCode status) =>
+    BankErrorClassification.Classify(status, "ASPSP_RATE_LIMIT_EXCEEDED").ShouldBe(BankErrorKind.RateLimited);
+
+  /// <param name="errorCode">No code: none at all, empty, or blank (D4: a blank code is no code, so the status decides).</param>
+  [Test, MatrixDataSource]
+  public void A_429_without_an_error_code_is_rate_limited([Matrix(null, "", "   ")] string? errorCode) =>
+    BankErrorClassification.Classify(HttpStatusCode.TooManyRequests, errorCode).ShouldBe(BankErrorKind.RateLimited);
 }
