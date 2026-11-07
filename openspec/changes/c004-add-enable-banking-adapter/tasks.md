@@ -285,9 +285,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 41. [close] Acceptance green
 
-- [ ] 41.1 All 13 acceptance tests, the telemetry guard, the traceability check and the full suite pass. Verify: green
-- [ ] 41.2 CLAUDE.md § Commands: the commands for Check 1 and Check 2; the "exit code 8" note rewritten (no test project is empty any more). Verify: each command was run once
-- [ ] 41.3 pm/progress.md:
+- [x] 41.1 All 13 acceptance tests, the telemetry guard, the traceability check and the full suite pass. Verify: green
+- [x] 41.2 CLAUDE.md § Commands: the commands for Check 1 and Check 2; the "exit code 8" note rewritten (no test project is empty any more). Verify: each command was run once
+- [x] 41.3 pm/progress.md:
   - the C5 row: outcome, deviations and follow-ups. The follow-ups are the balance-versus-app comparison moved to C7, the `entry_reference` question for C9, and the heads-ups for C7 from design.md D3;
   - the Q6 outcome's impact line points to ADR-0001's amendment.
 
