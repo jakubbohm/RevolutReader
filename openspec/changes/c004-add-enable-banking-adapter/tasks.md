@@ -174,7 +174,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 25. [close] Slice 9 — An expired bank session reads as access expired
 
-- [ ] 25.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 25.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 26. [unit] Slice 10 — Error classification: rate limit
 
