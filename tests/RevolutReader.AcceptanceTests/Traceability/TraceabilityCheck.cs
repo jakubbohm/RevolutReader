@@ -10,8 +10,8 @@ namespace RevolutReader.AcceptanceTests.Traceability;
 /// The Markdown is read the way OpenSpec 1.14.3 reads it (<c>core/parsers/requirement-blocks.js</c>,
 /// <c>core/specs-apply.js</c>): a main spec's requirements sit under <c>## Requirements</c>; a delta's sections are
 /// applied RENAMED → REMOVED → MODIFIED → ADDED; every level-4 heading inside a requirement is a scenario (an optional
-/// <c>Scenario:</c> prefix is not part of its name); fenced code is ignored, and <see cref="FencedScenarios"/> reports
-/// every scenario heading a fence hides. Where OpenSpec would refuse a delta (MODIFIED of a requirement that does not
+/// <c>Scenario:</c> prefix is not part of its name); fenced code is ignored, and <see cref="FencedHeadings"/> reports
+/// every scenario or requirement heading a fence hides. Where OpenSpec would refuse a delta (MODIFIED of a requirement that does not
 /// exist, ADDED of one that does), the delta's requirement wins, so its scenarios still need claims;
 /// <c>openspec validate</c> reports the delta itself.
 /// </remarks>
@@ -69,13 +69,16 @@ public static partial class TraceabilityCheck {
   }
 
   /// <summary>
-  /// Every scenario heading inside a fenced code block, which <see cref="RequiredScenarios"/> therefore requires no claim
-  /// for. Fences are read as OpenSpec reads them, more loosely than CommonMark: a line such as <c>```json``` example</c>
-  /// opens one, which drops every scenario up to the next fence line, and a fence never closed drops every scenario to
-  /// the end of the file, without a word; <c>openspec validate</c> does not notice either. A heading inside a properly
-  /// closed fence is reported too, so a spec that needs a heading in an example writes it some other way.
+  /// Every scenario or requirement heading inside a fenced code block. <see cref="RequiredScenarios"/> requires no claim
+  /// for a fenced scenario, and a scenario whose requirement heading is fenced is dropped, or counted under the
+  /// requirement above it, even when the fence closes before the scenario. Fences are read as OpenSpec reads them, more
+  /// loosely than CommonMark: a line such as <c>```json``` example</c> opens one, which hides everything up to the next
+  /// fence line, and a fence never closed hides everything to the end of the file, without a word; <c>openspec
+  /// validate</c> does not notice either. A heading inside a properly closed fence is reported too, so a spec that needs
+  /// such a heading in an example writes it some other way. A fenced section heading (<c>## </c>) is not reported: that
+  /// prefix is common in comments inside examples.
   /// </summary>
-  public static IReadOnlyList<string> FencedScenarios(IReadOnlyList<SpecFile> specs) {
+  public static IReadOnlyList<string> FencedHeadings(IReadOnlyList<SpecFile> specs) {
     ArgumentNullException.ThrowIfNull(specs);
 
     List<string> problems = [];
@@ -85,8 +88,13 @@ public static partial class TraceabilityCheck {
       string[] unfenced = UnfencedLines(spec.Markdown);
 
       for (int index = 0; index < lines.Length; index++) {
-        if (unfenced[index].Length == 0 && ScenarioHeading().Match(lines[index]) is { Success: true } scenario)
+        if (unfenced[index].Length != 0)
+          continue;
+
+        if (ScenarioHeading().Match(lines[index]) is { Success: true } scenario)
           problems.Add($"Inside a code fence, so no claim is required: {spec.Capability} / {ScenarioName(scenario)} ({Describe(spec)} line {index + 1})");
+        else if (RequirementHeading().Match(lines[index]) is { Success: true } requirement)
+          problems.Add($"Requirement heading inside a code fence, so its scenarios are dropped or counted under the requirement above it: {spec.Capability} / {HeadingName(requirement.Groups[1].Value)} ({Describe(spec)} line {index + 1})");
       }
     }
 

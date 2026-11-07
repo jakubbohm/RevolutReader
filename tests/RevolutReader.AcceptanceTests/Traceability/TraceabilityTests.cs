@@ -25,7 +25,7 @@ public sealed class TraceabilityTests {
       .. frontend.SelectMany(static file => file.Claims),
     ];
     IReadOnlyList<string> problems = [
-      .. TraceabilityCheck.FencedScenarios([.. mainSpecs, .. activeDeltas]),
+      .. TraceabilityCheck.FencedHeadings([.. mainSpecs, .. activeDeltas]),
       .. TraceabilityCheck.Problems(required, claims),
       .. frontend.SelectMany(static file => file.Unreadable).Select(static call => $"Unreadable scenario(...) call, its capability and name must be string literals: {call}"),
     ];
@@ -113,14 +113,17 @@ public sealed class TraceabilityTests {
     SpecFile main = MainSpec(Requirement("Feeding", "Cat is fed"), "```json\n{ \"bowl\": \"full\" }\n```\n\n", Requirement("Grooming", "Cat is brushed"));
 
     TraceabilityCheck.RequiredScenarios([main], []).ShouldBe([Required("Cat is fed"), Required("Cat is brushed")], ignoreOrder: true);
-    TraceabilityCheck.FencedScenarios([main]).ShouldBeEmpty();
+    TraceabilityCheck.FencedHeadings([main]).ShouldBeEmpty();
   }
 
   [Test]
   public void A_scenario_below_an_unclosed_fence_is_reported() {
     SpecFile main = MainSpec(Requirement("Feeding", "Cat is fed"), "```\nbowl.Fill();\n\n", Requirement("Grooming", "Cat is brushed"));
 
-    TraceabilityCheck.FencedScenarios([main]).ShouldBe(["Inside a code fence, so no claim is required: pets / Cat is brushed (openspec/specs/pets/spec.md line 21)"]);
+    TraceabilityCheck.FencedHeadings([main]).ShouldBe([
+      "Requirement heading inside a code fence, so its scenarios are dropped or counted under the requirement above it: pets / Grooming (openspec/specs/pets/spec.md line 18)",
+      "Inside a code fence, so no claim is required: pets / Cat is brushed (openspec/specs/pets/spec.md line 21)",
+    ]);
   }
 
   [Test]
@@ -130,7 +133,24 @@ public sealed class TraceabilityTests {
       "c002-add-bathing",
       Section("ADDED", string.Concat(Requirement("Grooming", "Cat is brushed"), "```json``` is the format of the answer.\n\n", Requirement("Bathing", "Cat is bathed"), "```json\n{}\n```\n")));
 
-    TraceabilityCheck.FencedScenarios([delta]).ShouldBe(["Inside a code fence, so no claim is required: pets / Cat is bathed (openspec/changes/c002-add-bathing/specs/pets/spec.md line 15)"]);
+    TraceabilityCheck.FencedHeadings([delta]).ShouldBe([
+      "Requirement heading inside a code fence, so its scenarios are dropped or counted under the requirement above it: pets / Bathing (openspec/changes/c002-add-bathing/specs/pets/spec.md line 12)",
+      "Inside a code fence, so no claim is required: pets / Cat is bathed (openspec/changes/c002-add-bathing/specs/pets/spec.md line 15)",
+    ]);
+  }
+
+  [Test]
+  public void A_requirement_heading_hidden_by_a_fence_that_closes_before_its_scenario_is_reported() {
+    // The stray line opens a fence that hides the requirement heading; the example's closing fence ends it before the
+    // scenario, which is then outside the fence but has no requirement above it, so it would need no claim.
+    SpecFile delta = Delta(
+      "c002-add-bathing",
+      Section("ADDED", "```json``` is the format of the answer.\n\n### Requirement: Bathing\nThe system SHALL answer:\n```json\n{}\n```\n\n#### Scenario: Cat is bathed\n- **WHEN** the owner asks\n- **THEN** the cat is looked after\n"));
+
+    TraceabilityCheck.RequiredScenarios([], [delta]).ShouldBeEmpty();
+    TraceabilityCheck.FencedHeadings([delta]).ShouldBe([
+      "Requirement heading inside a code fence, so its scenarios are dropped or counted under the requirement above it: pets / Bathing (openspec/changes/c002-add-bathing/specs/pets/spec.md line 5)",
+    ]);
   }
 
   [Test]
