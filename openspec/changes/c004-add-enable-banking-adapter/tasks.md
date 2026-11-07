@@ -193,8 +193,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 - [ ] 29.1 The bank's own error or timeout is bank unavailable
 - [ ] 29.2 A 5xx or 408 without an error code is bank unavailable
-- [ ] 29.3 Any other error code is unexpected
-- [ ] 29.4 Any other status without an error code is unexpected
+- [x] 29.3 Any other error code is unexpected
+- [x] 29.4 Any other status without an error code is unexpected
 
 ## 30. [wiring] Slice 11 — Bank errors and an unreachable bank
 
