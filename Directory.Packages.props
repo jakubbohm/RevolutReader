@@ -12,6 +12,17 @@
          listing every endpoint, in every environment. 9.0 maps it only when
          FastEndpoints:ExposeTestUrlCache is true; never set it. -->
     <PackageVersion Include="FastEndpoints" Version="9.0.0-beta.7" />
+    <!-- Sign-in (c007 design.md D2, D7, D9), versions verified on nuget.org on 2026-11-08. -->
+    <!-- The OpenAPI document, written by an explicit export check and never served (D9). FastEndpoints.OpenApi
+         builds on Microsoft.AspNetCore.OpenApi. No Microsoft.Extensions.ApiDescription.Server: its export at
+         build time starts the app, whose start-up checks refuse the placeholder secrets (c007 bootstrap). -->
+    <PackageVersion Include="FastEndpoints.OpenApi" Version="9.0.0-beta.7" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0-rc.3.26522.148" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0-rc.3.26522.148" />
+    <!-- The login cookie's encryption keys: a blob, encrypted by a Key Vault key (D7). -->
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.5" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.5" />
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
@@ -35,6 +46,8 @@
     <!-- Mvc.Testing is pinned directly: TUnit.AspNetCore is built up to net10.0 and would
          otherwise pull 10.0.14 into the net11.0 test host. -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.3.26522.148" />
+    <!-- The fake clock every app copy runs on (c007 design.md D6). -->
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <!-- The telemetry guard collects what the app exports (c004 design.md D5); same version as the other OpenTelemetry packages. -->
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
