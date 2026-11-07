@@ -137,6 +137,7 @@ Decided with the user (2026-11-06, explore). Grounded in the Screens design's er
   | **Rate limited** | "Příliš mnoho obnovení" | `ASPSP_RATE_LIMIT_EXCEEDED` (429). **Never retried** |
   | **Bank unavailable** | "Banka teď neodpovídá", with a retry | `ASPSP_ERROR`, `ASPSP_TIMEOUT` (5xx, 408); our own timeout; a network failure |
 
+- *Refined in the unattended run (decided on the user's behalf, 2026-11-07, from the test-writer's group 23 notes):* codes are compared exactly as the API reference writes them (upper case, ordinal); any other spelling is an unknown code, so unexpected. A blank `error` (empty or whitespace) counts as no code, so the status decides, as the user decided for an empty continuation key (D7). `BankErrorKind` lists `Unexpected` first, so a code path that slips and returns the enum's default fails as an exception instead of reading as access expired.
 - **Expired and revoked are one case:** one screen, one remedy (the owner links the account again). The log records the actual code.
 - **"Bank unavailable" is a result, not an exception:** an outside service the app expects to fail now and then, with its own screen in the design. Exceptions stay for bugs and infrastructure failures (docs/conventions/README.md § Backend code).
 - **Our own timeout per bank request is a setting** with a starting value (about 15 s), adjusted after C5's check against the real account measures how long reads take; without it `HttpClient` waits 100 s.
@@ -320,7 +321,7 @@ public static class PsuHeaders {
   public static IReadOnlyList<KeyValuePair<string, string>> For(ReadTrigger trigger);
 }
 
-public enum BankErrorKind { AccessExpired, RateLimited, Unavailable, Unexpected }
+public enum BankErrorKind { Unexpected, AccessExpired, RateLimited, Unavailable }   // Unexpected first: the default fails safe (D4)
 
 public static class BankErrorClassification {
   /// <summary>D4's table: the error code decides; the status only when the body has no code.</summary>
