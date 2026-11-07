@@ -12,7 +12,7 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 |---|---|
 | Deployment stack | `revolutreader`; deletes what the Bicep no longer declares; no deny settings |
 | Log Analytics workspace | `log-revolutreader` (30 days, 0.1 GB daily cap) |
-| Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection) |
+| Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
 | The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded`, principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |

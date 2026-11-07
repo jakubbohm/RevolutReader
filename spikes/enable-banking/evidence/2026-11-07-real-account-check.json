@@ -1,0 +1,67 @@
+{
+  "note": "Redacted: outcomes, counts, ages in days and durations only. No amounts, names, texts, references, ids or PSU header values.",
+  "run_utc": "2026-11-07T17:57:03Z",
+  "transactions_days": 89,
+  "psu_headers_sent": [
+    "Psu-Ip-Address",
+    "Psu-User-Agent"
+  ],
+  "reads": [
+    {
+      "read": "balance",
+      "trigger": "present user",
+      "outcome": "read",
+      "duration_ms": 760,
+      "transactions": null
+    },
+    {
+      "read": "transactions",
+      "trigger": "present user",
+      "outcome": "read",
+      "duration_ms": 1548,
+      "transactions": {
+        "count": 127,
+        "booked": 126,
+        "pending": 1
+      }
+    },
+    {
+      "read": "balance",
+      "trigger": "unattended",
+      "outcome": "read",
+      "duration_ms": 244,
+      "transactions": null
+    },
+    {
+      "read": "raw transaction pages",
+      "trigger": "present user",
+      "outcome": "read",
+      "duration_ms": 1395,
+      "transactions": null
+    }
+  ],
+  "raw_pages": {
+    "pages": 3,
+    "transactions": 127,
+    "by_status": {
+      "BOOK": 126,
+      "PDNG": 1
+    },
+    "pending": {
+      "count": 1,
+      "with_entry_reference": 1,
+      "with_transaction_date": 0,
+      "with_booking_date": 1,
+      "with_value_date": 0,
+      "oldest_age_days": 0
+    },
+    "booked": {
+      "count": 126,
+      "with_entry_reference": 126,
+      "with_transaction_date": 0,
+      "with_booking_date": 126,
+      "with_value_date": 126,
+      "oldest_age_days": 89
+    }
+  }
+}

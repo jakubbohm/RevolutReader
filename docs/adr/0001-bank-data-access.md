@@ -1,6 +1,6 @@
 # ADR-0001: Bank data access — consent, request limits, PSU headers and transaction history
 
-**Status:** Accepted (the user's decision, 2026-11-04); Decision item 3 and the background-job constraint superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone triggers the check, with the phone's PSU headers · **Date:** 2026-11-04 · **Roadmap:** M1 (verification); applied in F0-2, M3, C5, C7, C9, C10, M9 · **Questions:** Q5, Q6 (kickoff ch. 10); input to Q7
+**Status:** Accepted (the user's decision, 2026-11-04); Decision item 3 and the background-job constraint superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone triggers the check, with the phone's PSU headers; amended 2026-11-07 in C5: pending transactions confirmed and the real account checked through the bank adapter (Transaction history), the adapter's PSU-header form, fixed header pair and timeout (Consequences), the recent window of 31 days (Consequences) · **Date:** 2026-11-04 · **Roadmap:** M1 (verification); applied in F0-2, M3, C5, C7, C9, C10, M9 · **Questions:** Q5, Q6 (kickoff ch. 10); input to Q7
 
 > Recorded during M1. Findings were verified against the sources listed with each one on 2026-11-04. Revolut's values in Enable Banking were read via `GET /aspsps` on 2026-11-04 ([spike evidence](../../spikes/enable-banking/evidence/2026-11-04-aspsps-revolut.json)); the API session was authorised on 2026-11-04 in M1 ([session evidence](../../spikes/enable-banking/evidence/2026-11-04-session.json)).
 
@@ -55,9 +55,15 @@ The backend reads the balance and transactions of one Revolut account through En
   Source: [Enable Banking FAQ](https://enablebanking.com/docs/faq/), read 2026-11-04.
 - **History download (M1, 2026-11-04):**
   - 116 transactions since 2026-08-08 UTC, all settled, each with a unique `entry_reference`.
-  - No pending transactions were returned at that moment, so it is still unconfirmed whether Revolut returns pending transactions through Enable Banking.
+  - No pending transactions were returned at that moment, so it is still unconfirmed whether Revolut returns pending transactions through Enable Banking. *(Amended 2026-11-07, in C5: confirmed. The smoke test of 2026-11-06 returned 20 `BOOK` and 2 `PDNG` ([evidence](../../spikes/enable-banking/evidence/2026-11-06-smoke-test.json)), and Check 2 below found one pending transaction too.)*
   
   Evidence: [spike evidence](../../spikes/enable-banking/evidence/2026-11-04-history-export.json).
+- **Check 2, the real account through the app's bank adapter (C5, 2026-11-07):** one run with the owner's PSU headers, plus one unattended balance read. Counts only, nothing printed ([evidence](../../spikes/enable-banking/evidence/2026-11-07-real-account-check.json); c004 design.md D7).
+  - Every read succeeded, including the unattended one: the signed token, the PSU headers and the real answers work as the adapter expects.
+  - 89 days of transactions came in **3 pages** (127 transactions: 126 `BOOK`, 1 `PDNG`). Every page was followed to the one without a `continuation_key`, which is the first live test of paging.
+  - **Booked transactions:** all 126 have `entry_reference`, `booking_date` and `value_date`, none has `transaction_date`. So the adapter dates them by `booking_date`.
+  - **The pending transaction** (a sample of one) had `entry_reference` and `booking_date`, no `transaction_date` or `value_date`, and was 0 days old. Whether a pending transaction keeps its `entry_reference` when it settles still needs two runs days apart (a heads-up for C9).
+  - **Durations:** a balance read 244–760 ms; all three pages 1.4–1.5 s, about 0.5 s a page.
 
 ## Decision
 
@@ -91,10 +97,14 @@ Decided by the user, 2026-11-04:
 ## Consequences
 
 - **Consent:** no consent renewal feature is needed: the API session runs until 2027-05-03, beyond the operating period. The 30-day Control Panel link is renewed by hand every 30 days (roadmap M9); M1 could not show that API access is independent of it. Every expiring approval and how to restore it: [docs/operations/expiring-approvals.md](../operations/expiring-approvals.md). Expired and revoked sessions (`EXPIRED_SESSION`, `REVOKED_SESSION`) must be handled; the fallback is repeating the linking, which needs the account holder for SCA.
-- **Bank adapter:** it forwards PSU headers from the incoming request only on user-triggered reads (since ADR-0008, also on the phone-triggered check), takes the list of required headers from `GET /aspsps` (none for Revolut as of 2026-11-04; Enable Banking recommends sending all available, especially `Psu-Ip-Address` and `Psu-User-Agent`), and handles 429, expired and revoked sessions.
+- **Bank adapter:** it forwards PSU headers from the incoming request only on user-triggered reads (since ADR-0008, also on the phone-triggered check), takes the list of required headers from `GET /aspsps` (none for Revolut as of 2026-11-04; Enable Banking recommends sending all available, especially `Psu-Ip-Address` and `Psu-User-Agent`), and handles 429, expired and revoked sessions. *(Amended by the user, 2026-11-06, in C5's explore, and built in C5 ([c004 design.md D2, D4](../../openspec/changes/c004-add-enable-banking-adapter/design.md)):*
+  - *the PSU headers are an explicit parameter of every read, "present user" (with that user's address and browser) or "unattended" (none), and never copied from the incoming request, so the constraint is visible at every call site;*
+  - *the header set is fixed to `Psu-Ip-Address` and `Psu-User-Agent` instead of a `GET /aspsps` lookup: Revolut requires none, and if it ever does, the read fails visibly with `PSU_HEADER_NOT_PROVIDED`;*
+  - *429, expired and revoked sessions come back as results ("rate limited", "access expired"), never retried;*
+  - *each bank request has a 15 s timeout, kept after Check 2 measured the slowest request at under 1 s (the owner, 2026-11-07).)*
 - **Account detail (UC2):** the stored settled transactions, plus a live read of the balance and the recent window (Decision, item 6).
   - **A database is needed in v1.** This answers F0-2's "whether Cosmos DB is needed already in v1"; the storage technology stays F0-2's call, and M3 prepares access to it.
-  - The recent window must cover how long Revolut keeps transactions pending. It is set in C5 from real data, which also confirms whether Revolut returns pending transactions at all (none appeared in the history download).
+  - The recent window must cover how long Revolut keeps transactions pending. It is set in C5 from real data, which also confirms whether Revolut returns pending transactions at all (none appeared in the history download). *(Amended by the user, 2026-11-06, in C5's explore: **31 days**, sized by Revolut's longest holds (deposits and pre-authorisations, up to about 15 days in user reports), not by the M1 history, whose card payments settled within 2 days. A hold longer than 31 days drops off the list while pending; the balance stays right. The window is the caller's date, so C7 owns the setting ([c004 design.md D7](../../openspec/changes/c004-add-enable-banking-adapter/design.md)). Check 2's one pending transaction was 0 days old, so nothing contradicts it yet.)*
   - The history download found a unique `entry_reference` on all 116 settled transactions, so no fallback key is planned.
   - The history file is imported by the change that creates the transaction store; the file is then deleted.
 - **Bank data on disk:** until that import, the history sits in `spikes/enable-banking/secrets/` on the owner's machine (gitignored, never printed or committed).

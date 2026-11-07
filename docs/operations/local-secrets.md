@@ -23,6 +23,30 @@ The AppHost's own keys (`AppHost:*`, `Aspire:*`) are created by Aspire and are n
 
 **The backup vault** `jb-localdev-secrets-copy` (resource group `Shared`, the owner's subscription; Azure roles) keeps a copy of every local secret, so they survive a new or reinstalled laptop. All the owner's projects share it; the app and the tests never read it. Names are `RevolutReader--<store>--<key>`, with each `:` of the key written as `--`, because Key Vault names allow only letters, digits and dashes. The mapping is reversible, so restoring is mechanical. Writing to it needs the owner's Key Vault Secrets Officer role on it (assigned 2026-11-06) and, under CLAUDE.md, the owner's go.
 
+**The backup vault stays closed to the internet** (public network access off, checked 2026-11-07), because nothing reads it except the owner, now and then. So every step below that touches it (§ 3, the vault half of § 4, and § 5) runs between [opening and closing it](#opening-and-closing-the-backup-vault). The app's own vault, `kv-revolutreader`, is different: the running app reads it, so it stays open, guarded by its roles ([deployment.md § Identifiers](deployment.md#identifiers-non-secret)).
+
+### Opening and closing the backup vault
+
+Opening lets in only your current public IP address; closing removes it again. Both are changes in Azure, so the owner runs them.
+
+```powershell
+$sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$vault = 'jb-localdev-secrets-copy'
+$ip    = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 15)).Trim()
+
+# Open: allow this address, then turn public access on (the vault's default stays "deny everything else")
+az keyvault network-rule add --subscription $sub --name $vault --ip-address $ip --output none
+az keyvault update --subscription $sub --name $vault --public-network-access Enabled --output none
+```
+
+Run the step, in the same window (it reuses `$sub`, `$vault` and `$ip`). If its first command is still refused, wait a minute and run it again. Then close:
+
+```powershell
+# Close: public access off, then forget the address
+az keyvault update --subscription $sub --name $vault --public-network-access Disabled --output none
+az keyvault network-rule remove --subscription $sub --name $vault --ip-address $ip --output none
+```
+
 ## 1. The sandbox values into the user-secrets
 
 Run whenever the Mock ASPSP session is renewed ([expiring-approvals.md § 4](expiring-approvals.md#4-mock-aspsp-session-local-development)) or on a new machine without a backup. The values go in as JSON on the standard input, so none of them appears on a command line.
@@ -69,7 +93,7 @@ if (-not $session.session_id) { throw 'No session_id in session.json.' }
 
 ## 3. Back up to the vault
 
-The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway). It copies every `Parameters:enablebanking-*` and `RealAccountCheck:*` key that the user-secrets hold. Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
+The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway), between [opening and closing the vault](#opening-and-closing-the-backup-vault). It copies every `Parameters:enablebanking-*` and `RealAccountCheck:*` key that the user-secrets hold. Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
 
 ```powershell
 $sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -102,11 +126,11 @@ az keyvault secret list --subscription '7811bd13-d9ae-46bb-9355-3e3d885e544e' --
     --query "[?starts_with(name, 'RevolutReader--')].name" --output tsv
 ```
 
-Never `dotnet user-secrets list`: it prints the values.
+The vault listing needs the vault open ([above](#opening-and-closing-the-backup-vault)); the first command does not. Never `dotnet user-secrets list`: it prints the values.
 
 ## 5. Restore on a new machine
 
-Every `RevolutReader--AppHost--*` secret goes back into the AppHost's user-secrets. Reading the vault changes nothing in Azure. Each value is read as JSON, so the key's line breaks survive.
+Every `RevolutReader--AppHost--*` secret goes back into the AppHost's user-secrets, between [opening and closing the vault](#opening-and-closing-the-backup-vault). Reading the secrets changes nothing in Azure. Each value is read as JSON, so the key's line breaks survive.
 
 ```powershell
 $sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -128,4 +152,4 @@ Then list the names (§ 4) and run `aspire start`.
 
 ## Done
 
-- **2026-11-07:** § 1 run by Claude in C5's unattended run (the user's go of the evening before); § 4's local listing shows the four `Parameters:enablebanking-*` names. **For the owner:** § 3 (the backup copies), and § 2 with § 3 again before Check 2.
+- **2026-11-07:** § 1 run by Claude in C5's unattended run (the user's go of the evening before); § 4's local listing shows the four `Parameters:enablebanking-*` names. Then the owner ran § 3 (the backup copies), § 2 and § 3 again, and Check 2.
