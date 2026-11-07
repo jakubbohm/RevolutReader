@@ -51,7 +51,7 @@ Not expiring, but required: the Enable Banking Control Panel account (registered
      ```
      `-HistoryStart` is the first day of history to download (local date). Approve in the Revolut app. When the browser lands on the error page at `https://localhost/callback`, paste the full address into the script **straight away**.
   3. The script also downloads the transactions since `-HistoryStart` into `secrets/transactions-<date>.json`. Revolut returns transactions older than 90 days only within 5 minutes after the approval. If the database still holds the history, delete the file; if the database was lost, import it.
-  4. Replace the session ID and the account UID in Key Vault: the `SessionId` and `AccountId` lines of the guided task in [deployment.md](deployment.md#guided-task-the-enable-banking-values-into-key-vault), with its first lines that read `session.json`. The app picks up the new values within 30 minutes, with a restart.
+  4. Replace the session ID and the account UID in Key Vault: the `SessionId` and `AccountId` lines of the guided task in [deployment.md](deployment.md#guided-task-the-enable-banking-values-into-key-vault), with its first lines that read `session.json`. Azure restarts the app with the new values by itself within 30 minutes (see that task).
   5. Record the new end date in the spike README § Identifiers and in the overview above.
 - **Note:** account UIDs change with every session. Enable Banking's `identification_hash` identifies the same account across sessions, and stored transactions are keyed by `entry_reference` ([ADR-0001-bank-data-access § Decision](../adr/0001-bank-data-access.md#decision), item 6).
 

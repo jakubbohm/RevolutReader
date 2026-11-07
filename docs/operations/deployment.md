@@ -68,7 +68,7 @@ Done once, after the merge of the PR that added the deploy (2026-11-06: PR [#21]
 
 ## Guided task: the Enable Banking values into Key Vault
 
-Puts the four production values that C5's bank adapter reads into the vault (c005 design.md D15). Since C5 the container app reads them as Key Vault references (`infra/features.bicep` § The bank): Azure refuses to create or update the app while it cannot read one of them (e.g. one is missing), and a new value reaches the app within 30 minutes, with a restart.
+Puts the four production values that C5's bank adapter reads into the vault (c005 design.md D15). Since C5 the container app reads them as Key Vault references (`infra/features.bicep` § The bank): Azure refuses to create or update the app while it cannot read one of them (e.g. one is missing). A new value reaches the app by itself: the references name no version and the values reach the app as environment variables, so Azure fetches the latest version within 30 minutes and restarts the app with it. There is nothing to restart by hand ([Microsoft Learn: Manage secrets in Azure Container Apps § Key Vault secret URI and secret rotation](https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets#key-vault-secret-uri-and-secret-rotation), read 2026-11-07).
 
 | Key Vault secret | Setting the app reads (C5) | Value, from the owner's machine |
 |---|---|---|
