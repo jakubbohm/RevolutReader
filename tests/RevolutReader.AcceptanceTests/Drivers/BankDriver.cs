@@ -166,7 +166,20 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
     """);
 
-  public void ReportsOwnError() => throw new NotImplementedException();
+  /// <summary>
+  /// Every request: the bank reports an error of its own. Written from the API reference (<c>ErrorResponse</c>, error code
+  /// <c>ASPSP_ERROR</c>), not captured: the Mock ASPSP cannot fail on demand. The reference does not say which status
+  /// comes with the code; 502 Bad Gateway is chosen, as HTTP's status for an upstream server (here the bank behind Enable
+  /// Banking) failing. The message text is made up.
+  /// </summary>
+  public void ReportsOwnError() => Bank.AnswerError(HttpStatusCode.BadGateway, """
+    {
+      "code": 502,
+      "message": "Error interacting with the bank",
+      "error": "ASPSP_ERROR",
+      "detail": null
+    }
+    """);
 
   public void AnswersAfterTheRequestTimeout() => throw new NotImplementedException();
 

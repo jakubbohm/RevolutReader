@@ -11,7 +11,8 @@ namespace RevolutReader.Api.Bank;
 /// The bank port over Enable Banking's API (spec bank-reads, c004 design.md § Ports and contracts): read-only, for the one
 /// configured account; every request a <c>GET</c> signed with the application's token, carrying the user headers of who
 /// triggers the read (D2). An error answer becomes the read's failure case, or a <see cref="BankReadException"/> when no
-/// case fits (D4); an answer it cannot read is a <see cref="BankReadException"/> too. No exception quotes a URL or a body (D5).
+/// case fits (D4); a network failure is the bank unavailable; an answer it cannot read is a <see cref="BankReadException"/>.
+/// No exception quotes a URL or a body (D5).
 /// </summary>
 public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time) : IBankAccount {
   private const string BEARER = "Bearer";
@@ -70,7 +71,10 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
     foreach ((string name, string value) in PsuHeaders.For(trigger))
       request.Headers.Add(name, value);
 
-    using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
+    using HttpResponseMessage? response = await Send(request, cancellationToken);
+
+    if (response is null)
+      return new BankUnavailable();
 
     if (!response.IsSuccessStatusCode)
       return FailureOf<T>(response.StatusCode, await ErrorCodeOf(response, cancellationToken));
@@ -78,6 +82,20 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
     T? body = await ReadJson<T>(response.Content, cancellationToken);
 
     return body is not null && whole(body) ? body : throw new BankReadException($"The bank's answer lacks what a {typeof(T).Name} must hold.");
+  }
+
+  /// <summary>
+  /// The answer, its body read whole; <see langword="null"/> when the bank cannot be reached or the connection breaks
+  /// before the answer is read (a network failure: the bank unavailable, § Error model). The caller's own cancellation is
+  /// not a network failure: its <see cref="OperationCanceledException"/> passes on.
+  /// </summary>
+  private async Task<HttpResponseMessage?> Send(HttpRequestMessage request, CancellationToken cancellationToken) {
+    try {
+      return await http.SendAsync(request, cancellationToken);
+    }
+    catch (HttpRequestException) {
+      return null;
+    }
   }
 
   /// <summary>

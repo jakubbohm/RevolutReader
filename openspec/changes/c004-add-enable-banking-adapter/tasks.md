@@ -198,8 +198,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 30. [wiring] Slice 11 — Bank errors and an unreachable bank
 
-- [ ] 30.1 A network failure becomes bank unavailable. Edge case in `Wiring/EnableBanking/`: with the fake bank stopped, the read is bank unavailable. Verify: build passes; green; the edge test passes
-- [ ] 30.2 `BankDriver.ReportsOwnError`: `ASPSP_ERROR`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
+- [x] 30.1 A network failure becomes bank unavailable. Edge case in `Wiring/EnableBanking/`: with the fake bank stopped, the read is bank unavailable. Verify: build passes; green; the edge test passes
+- [x] 30.2 `BankDriver.ReportsOwnError`: `ASPSP_ERROR`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
 
 ## 31. [close] Slice 11 — A bank error reads as bank unavailable
 
