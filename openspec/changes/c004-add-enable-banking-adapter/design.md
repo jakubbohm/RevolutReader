@@ -401,7 +401,7 @@ public sealed class BankDsl(BankDriver driver) {
 //   TransactionSeen(string? Reference, string Status, DateOnly Date, decimal Amount, string Currency, string? Counterparty, Lines Details)
 
 // Drivers/FakeBank.cs: a WireMock.Net server per test, started before the app copy. Made-up account and session ids, an RSA key
-//   generated once per run, a 1 s request timeout; Configure(IWebHostBuilder) writes them into the app copy's settings.
+//   generated once per run, a 5 s request timeout (1 s until group 32: too tight under a full parallel run); Configure(IWebHostBuilder) writes them into the app copy's settings.
 //   Answers copied from the Mock ASPSP capture (§ Bootstrap); what the mock cannot produce (several pages, 429, an expired
 //   session, ASPSP_ERROR, a slow answer) written from the API reference and the M1 findings with a comment saying so. The transactions stub answers only
 //   for the expected date_from and continuation_key.

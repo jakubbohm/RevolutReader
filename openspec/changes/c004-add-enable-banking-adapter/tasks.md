@@ -6,7 +6,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 1. [acceptance] Acceptance tests
 
-- [x] 1.1 Foundation: `FakeBank`, a WireMock.Net server per test started before the app copy, and the bank settings every app copy gets. Those are its address, a made-up application id, session id and account id, an RSA key in PEM form generated once per run, and a 1 s request timeout. `AcceptanceTest.ConfigureWebHostBuilder` calls `FakeBank.Configure` next to the web root (design.md § Public API sketch). Verify: every acceptance test that was green stays green
+- [x] 1.1 Foundation: `FakeBank`, a WireMock.Net server per test started before the app copy, and the bank settings every app copy gets. Those are its address, a made-up application id, session id and account id, an RSA key in PEM form generated once per run, and a short request timeout (1 s at first; 5 s from group 32, when the timeout took effect and 1 s proved too tight for a busy full run). `AcceptanceTest.ConfigureWebHostBuilder` calls `FakeBank.Configure` next to the web root (design.md § Public API sketch). Verify: every acceptance test that was green stays green
 - [x] 1.2 Foundation: the port's types as signatures (`IBankAccount`, `ReadTrigger`, `PresentUser`, `Unattended`, `BankResult<T>` with its three failure records, `Balance`, `Transactions`, `BankTransaction`, `TransactionStatus`), exactly as design.md § Public API sketch. The generic union compiles here first (design.md § Risks). Verify: build passes
 - [x] 1.3 Guard: `Conventions/BankTelemetryTests`, as design.md D5 and § Public API sketch describe it. Verify: fails at runtime until group 37
 - [x] 1.4 Acceptance: bank-reads / The balance is the account's available balance
@@ -208,7 +208,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 ## 32. [wiring] Slice 12 — The request timeout
 
 - [ ] 32.1 The typed client's `Timeout` is `RequestTimeout`. Our timeout becomes bank unavailable, while the caller's own cancellation is passed on (edge case in `Wiring/EnableBanking/`). Verify: build passes; green; the edge test passes
-- [ ] 32.2 `BankDriver.AnswersAfterTheRequestTimeout`: an answer delayed past the harness's 1 s. Verify: the scenario runs against the app
+- [ ] 32.2 `BankDriver.AnswersAfterTheRequestTimeout`: an answer delayed past the harness's request timeout (5 s, see 1.1). Verify: the scenario runs against the app
 
 ## 33. [close] Slice 12 — A bank that answers too slowly reads as bank unavailable
 
