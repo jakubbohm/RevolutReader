@@ -45,7 +45,7 @@ public sealed class BankTelemetryTests : AcceptanceTest {
     Bank.Lists(TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 3), to: "Pekárna U Lípy", reference: "e-101"));
 
     (await Bank.ReadBalanceFor(_user)).Outcome.ShouldBe(BankOutcome.Read, "the balance read reached the bank");
-    (await Bank.ReadTransactionsFrom(new DateOnly(2026, 11, 1), _user)).Outcome.ShouldBe(BankOutcome.Read, "the transactions read reached the bank");
+    (await Bank.ReadTransactionsFor(_user, new DateOnly(2026, 11, 1))).Outcome.ShouldBe(BankOutcome.Read, "the transactions read reached the bank");
 
     string[] identifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId"), _user.IpAddress, _user.Browser];
 

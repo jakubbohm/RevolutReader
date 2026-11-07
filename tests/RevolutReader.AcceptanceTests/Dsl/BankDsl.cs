@@ -83,10 +83,10 @@ public sealed class BankDsl(BankDriver driver) {
   }
 
   /// <summary>The transactions from <paramref name="day"/>, inclusive, read for <see cref="DefaultUser"/>.</summary>
-  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day) => ReadTransactionsFrom(day, DefaultUser);
+  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day) => ReadTransactionsFor(DefaultUser, day);
 
-  /// <summary>The transactions from <paramref name="day"/>, inclusive, read for this present user.</summary>
-  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day, UserAtDevice user) => driver.ReadTransactionsFrom(day, user);
+  /// <summary>The transactions from <paramref name="from"/>, inclusive, read for this present user.</summary>
+  public Task<TransactionsAnswer> ReadTransactionsFor(UserAtDevice user, DateOnly from) => driver.ReadTransactionsFrom(from, user);
 
   // What the bank received (THEN)
 
