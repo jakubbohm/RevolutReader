@@ -1,5 +1,4 @@
 using System.Net;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RevolutReader.Api.Bank;
 using Shouldly;
@@ -24,14 +23,6 @@ namespace RevolutReader.IntegrationTests.Wiring.RealBank;
 [Explicit]
 [Category("RealBank")]
 public sealed class MockAspspCheck {
-  /// <summary>The AppHost's <c>UserSecretsId</c>, where the local secrets live (configuration.md § Local development and tests).</summary>
-  private const string APPHOST_USER_SECRETS_ID = "683c44fb-149f-4c9d-8503-0d836e0a1639";
-
-  private const string SECTION = "EnableBanking";
-
-  /// <summary>The address the sandbox application and production share (appsettings.json).</summary>
-  private const string API_BASE_URL = "https://api.enablebanking.com";
-
   /// <summary>Each setting of the section and the AppHost user-secret it comes from (the AppHost's parameters).</summary>
   private static readonly (string Setting, string UserSecret)[] _secrets = [
     ("ApplicationId", "Parameters:enablebanking-application-id"),
@@ -45,36 +36,36 @@ public sealed class MockAspspCheck {
 
   [Test]
   public async Task The_balance_reads_for_a_present_user_and_unattended() {
-    await using ServiceProvider services = Wiring(SandboxSettings());
+    await using ServiceProvider services = RealBankWiring.Wiring(RealBankWiring.SettingsFromUserSecrets(_secrets));
     IBankAccount account = services.GetRequiredService<IBankAccount>();
 
     foreach ((string who, ReadTrigger trigger) in Triggers()) {
       BankResult<Balance> result = await account.ReadBalance(trigger, CancellationToken.None);
 
-      Console.WriteLine($"Balance, {who}: {OutcomeOf(result.Value)}");
+      Console.WriteLine($"Balance, {who}: {RealBankWiring.OutcomeOf(result.Value)}");
       result.Value.ShouldBeOfType<Balance>($"the balance read for {who}");
     }
   }
 
   [Test]
   public async Task The_transactions_of_the_last_89_days_read_for_a_present_user_and_unattended() {
-    await using ServiceProvider services = Wiring(SandboxSettings());
+    await using ServiceProvider services = RealBankWiring.Wiring(RealBankWiring.SettingsFromUserSecrets(_secrets));
     IBankAccount account = services.GetRequiredService<IBankAccount>();
     DateOnly from = DateOnly.FromDateTime(TimeProvider.System.GetUtcNow().UtcDateTime).AddDays(-89);
 
     foreach ((string who, ReadTrigger trigger) in Triggers()) {
       BankResult<Transactions> result = await account.ReadTransactions(from, trigger, CancellationToken.None);
 
-      Console.WriteLine($"Transactions of the last 89 days, {who}: {OutcomeOf(result.Value)}{CountsOf(result.Value)}");
+      Console.WriteLine($"Transactions of the last 89 days, {who}: {RealBankWiring.OutcomeOf(result.Value)}{CountsOf(result.Value)}");
       result.Value.ShouldBeOfType<Transactions>($"the transactions read for {who}");
     }
   }
 
   [Test]
   public async Task An_unknown_account_is_an_error_naming_404_and_ACCOUNT_DOES_NOT_EXIST() {
-    Dictionary<string, string?> settings = SandboxSettings();
-    settings[$"{SECTION}:AccountId"] = Guid.NewGuid().ToString();
-    await using ServiceProvider services = Wiring(settings);
+    Dictionary<string, string?> settings = RealBankWiring.SettingsFromUserSecrets(_secrets);
+    settings[RealBankWiring.Key("AccountId")] = Guid.NewGuid().ToString();
+    await using ServiceProvider services = RealBankWiring.Wiring(settings);
 
     BankReadException error = await Should.ThrowAsync<BankReadException>(() => services.GetRequiredService<IBankAccount>().ReadBalance(_presentUser, CancellationToken.None));
 
@@ -85,45 +76,6 @@ public sealed class MockAspspCheck {
 
   /// <summary>Who triggers each read: a present user, then nobody.</summary>
   private static IEnumerable<(string Who, ReadTrigger Trigger)> Triggers() => [("a present user", _presentUser), ("unattended", new Unattended())];
-
-  /// <summary>
-  /// The <c>EnableBanking</c> section as <c>aspire start</c> gives it to the API: the four values from the AppHost's
-  /// user-secrets, the shared API address, the default request timeout. A missing value fails the check, naming the
-  /// user-secret, never a value.
-  /// </summary>
-  private static Dictionary<string, string?> SandboxSettings() {
-    IConfiguration userSecrets = new ConfigurationBuilder().AddUserSecrets(APPHOST_USER_SECRETS_ID).Build();
-    Dictionary<string, string?> settings = new() { [$"{SECTION}:ApiBaseUrl"] = API_BASE_URL };
-
-    foreach ((string setting, string userSecret) in _secrets) {
-      string? value = userSecrets[userSecret];
-
-      if (string.IsNullOrWhiteSpace(value))
-        throw new InvalidOperationException($"The AppHost's user-secrets have no {userSecret} (docs/operations/local-secrets.md sets it).");
-
-      settings[$"{SECTION}:{setting}"] = value;
-    }
-
-    return settings;
-  }
-
-  /// <summary>The app's own bank wiring over these settings.</summary>
-  private static ServiceProvider Wiring(Dictionary<string, string?> settings) {
-    ServiceCollection services = new();
-
-    services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
-    services.AddEnableBanking();
-
-    return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-  }
-
-  private static string OutcomeOf(object? value) => value switch {
-    Balance or Transactions => "read",
-    BankAccessExpired => "access expired",
-    BankRateLimited => "rate limited",
-    BankUnavailable => "bank unavailable",
-    _ => "no result",
-  };
 
   /// <summary>How many transactions came back, by status; nothing else about them.</summary>
   private static string CountsOf(object? value) => value is Transactions transactions

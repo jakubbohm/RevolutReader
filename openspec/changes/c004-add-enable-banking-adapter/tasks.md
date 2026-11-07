@@ -257,7 +257,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 39. [wiring] Check against the real account
 
-- [ ] 39.1 Check 2, `Wiring/RealBank/RealAccountCheck` (`[Explicit]`), as design.md D7 describes, reading the `RealAccountCheck:*` values.
+- [x] 39.1 Check 2, `Wiring/RealBank/RealAccountCheck` (`[Explicit]`), as design.md D7 describes, reading the `RealAccountCheck:*` values.
   - One present-user read with the owner's public IP: the balance, and 89 days of transactions (more than one page at Revolut's 50, the live paging test).
   - One unattended balance read.
   - The raw pages' field counts.
