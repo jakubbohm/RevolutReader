@@ -235,7 +235,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 38. [wiring] Local development
 
-- [ ] 38.1 AppHost: the four secret parameters, handed to the API as `EnableBanking__*` environment variables (design.md § Public API sketch). Verify: build passes; green
+- [x] 38.1 AppHost: the four secret parameters, handed to the API as `EnableBanking__*` environment variables (design.md § Public API sketch). Verify: build passes; green
 - [ ] 38.2 Guided (the owner): a new `docs/operations/local-secrets.md` with the PowerShell 7 commands, then the owner runs them.
   - They set the four `Parameters:enablebanking-*` user-secrets of the AppHost from the owner's sandbox files. The key goes in as the file's text; nothing is pasted by hand.
   - They copy each one to the backup vault `jb-localdev-secrets-copy` as `RevolutReader--AppHost--Parameters--<name>` (design.md D6).
@@ -243,9 +243,11 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
   - Every vault write is shown first and runs only on the owner's go (CLAUDE.md).
 
   Verify: the owner's listing shows the four user-secret names and the four vault copies, names only and never values
-- [ ] 38.3 `aspire start`: the API starts on the sandbox settings and its health check is healthy; then `aspire stop`. Verify: the `api` resource is healthy
-- [ ] 38.4 Check 1, `Wiring/RealBank/MockAspspCheck` (`[Explicit]`), as design.md D7 describes. It reads the balance and the transactions, both with PSU headers and unattended (one page: the mock does not page at 25). A made-up session id must come back as access expired. Verify: the owner runs it; it passes
-- [ ] 38.5 Docs:
+
+  *2026-11-07, unattended run:* the doc is written; the user-secrets part was run by Claude (the user's go), and the listing shows the four names. **Left for the owner:** the vault copies (local-secrets.md § 3), then this task is ticked.
+- [x] 38.3 `aspire start`: the API starts on the sandbox settings and its health check is healthy; then `aspire stop`. Verify: the `api` resource is healthy
+- [x] 38.4 Check 1, `Wiring/RealBank/MockAspspCheck` (`[Explicit]`), as design.md D7 describes. It reads the balance and the transactions, both with PSU headers and unattended (one page: the mock does not page at 25). A made-up account id must throw `BankReadException` naming 404 `ACCOUNT_DOES_NOT_EXIST` (corrected 2026-11-07, design.md D7: the reads never send the session id). Verify: it runs and passes (run by Claude in the unattended run, as the user allowed)
+- [x] 38.5 Docs:
   - configuration.md § Local development and tests: the backup vault and the `RealAccountCheck:*` keys;
   - configuration.md § Hand-provisioned secrets: four rows (`EnableBanking--ApplicationId`, `--PrivateKey`, `--SessionId`, `--AccountId` in `kv-revolutreader`), provisioned 2026-11-06 by docs/operations/deployment.md § Guided task (C4); written after the rebase (task 40.1);
   - docs/operations/expiring-approvals.md: a row for the Mock ASPSP session (180 days), and § 3 step 3 naming the application id as a secret;
