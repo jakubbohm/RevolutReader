@@ -102,3 +102,6 @@ output appIdentityId string = appIdentity.id
 
 @description('The vault that holds the hand-provisioned secrets.')
 output keyVaultName string = keyVault.name
+
+@description('The address of that vault, ending in a slash, for the app\'s Key Vault references.')
+output keyVaultUri string = keyVault.properties.vaultUri

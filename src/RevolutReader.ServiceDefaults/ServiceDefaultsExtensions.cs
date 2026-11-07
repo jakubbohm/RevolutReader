@@ -48,7 +48,8 @@ public static class ServiceDefaultsExtensions {
       .WithTracing(tracing => tracing.AddSource(builder.Environment.ApplicationName)
         // Health probes would flood the traces.
         .AddAspNetCoreInstrumentation(static options => options.Filter = static context => !context.Request.Path.StartsWithSegments(HEALTH_ENDPOINT_PATH, StringComparison.Ordinal))
-        .AddHttpClientInstrumentation());
+        // A request whose URL must not be exported (c004 design.md D5) is left out.
+        .AddHttpClientInstrumentation(static options => options.FilterHttpRequestMessage = static request => !HttpRequestTracing.IsExcluded(request)));
 
     builder.AddOpenTelemetryExporters();
 

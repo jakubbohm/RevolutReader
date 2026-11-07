@@ -17,6 +17,9 @@ param environmentId string
 @description('The app\'s user-assigned identity (platform.bicep), which reads Key Vault.')
 param appIdentityId string
 
+@description('The address of the vault that holds the hand-provisioned secrets (platform.bicep), ending in a slash.')
+param keyVaultUri string
+
 // The app: one container serving the API and the pages (ADR-0002-frontend-hosting). Its name is
 // the first part of its public address, on the daughter's Home Screen and, from C6, in Entra ID:
 // renaming it makes a new app with a new address.
@@ -42,6 +45,8 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
         allowInsecure: false
       }
       // No registry credentials: the image on ghcr.io is public and pulled anonymously (D3).
+      // Each feature's secrets, from its section below.
+      secrets: bankSecrets
     }
     template: {
       containers: [
@@ -52,6 +57,8 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
+          // Each feature's settings, from its section below.
+          env: bankSettings
           // GET /health touches neither the bank nor storage (spec service-health), and probe
           // requests are not billed. Short periods, because a wake from zero waits for both
           // probes; the startup probe still gives the app about 20 s. Liveness keeps the
@@ -93,7 +100,32 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
 }
 
 // ---- The bank (C5) ----
-// The four Enable Banking settings, as Key Vault references (c005 design.md D15).
+// The four Enable Banking settings, as Key Vault references (c005 design.md D15, c004 design.md D6).
+// Each Key Vault secret EnableBanking--<setting> becomes the Container Apps secret
+// enablebanking-<setting in lower case>, read with the app's identity, and reaches the app as the
+// environment variable EnableBanking__<setting>, overriding appsettings.json's "<secret>". No version
+// in the address, so a renewed value (a new session) reaches the app.
+var bankSecretSettings = [
+  'ApplicationId'
+  'PrivateKey'
+  'SessionId'
+  'AccountId'
+]
+
+var bankSecrets = [
+  for setting in bankSecretSettings: {
+    name: 'enablebanking-${toLower(setting)}'
+    keyVaultUrl: '${keyVaultUri}secrets/EnableBanking--${setting}'
+    identity: appIdentityId
+  }
+]
+
+var bankSettings = [
+  for setting in bankSecretSettings: {
+    name: 'EnableBanking__${setting}'
+    secretRef: 'enablebanking-${toLower(setting)}'
+  }
+]
 
 // ---- Sign-in (C6) ----
 

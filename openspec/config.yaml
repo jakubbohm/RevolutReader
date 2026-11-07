@@ -63,8 +63,9 @@ rules:
   specs:
     - The app is read-only toward the bank — no requirement may introduce a write operation against Enable Banking
     - A response requirement lists exactly the fields the UI shows; every other Enable Banking field stays out of the contract
-    - Error scenarios specify ProblemDetails with the status from the case → status table in docs/conventions/README.md
+    - Error scenarios specify ProblemDetails with the status from the case → status table in docs/conventions/README.md; a port's error scenarios name the result case instead (e.g. "the result is access expired")
     - Every scenario must be verifiable through a public channel (API, UI or a notification). Describe observable outcomes only, never implementation details
+    - A port that later changes build on (e.g. the bank adapter) gets its own capability; its public channel is its public interface, so its scenarios state the results it returns and the requests the outside service receives. A class used only inside its own change stays in design.md (c004 design.md D1)
     - One behaviour per scenario. GIVEN states preconditions as domain facts, not data-setup steps
     - Use concrete example values where they matter (amounts, dates, states) so the scenario maps 1:1 to a test; made-up values only, never real account data
     - Edge cases a user can observe are scenarios; internal invariants are not, they live only in unit tests

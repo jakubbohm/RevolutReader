@@ -1,0 +1,929 @@
+[
+  {
+    "http": 200,
+    "body": {
+      "transactions": [
+        {
+          "entry_reference": null,
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "8.90"
+          },
+          "creditor": {
+            "name": "Kavárna Na Rohu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "PDNG",
+          "booking_date": null,
+          "value_date": null,
+          "transaction_date": "2026-11-06",
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kavárna Na Rohu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b03",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "50.00"
+          },
+          "creditor": null,
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": {
+            "name": "Jan Novák",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "CRDT",
+          "status": "BOOK",
+          "booking_date": "2026-11-05",
+          "value_date": "2026-11-05",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kapesné listopad"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-p02",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "23.40"
+          },
+          "creditor": {
+            "name": "Lékárna Pod Věží",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "PDNG",
+          "booking_date": null,
+          "value_date": null,
+          "transaction_date": "2026-11-05",
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Lékárna Pod Věží"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b04",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "12.30"
+          },
+          "creditor": {
+            "name": "Pekárna U Lípy",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-04",
+          "value_date": "2026-11-05",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Pekárna U Lípy",
+            "Praha 2"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-c05",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "15.00"
+          },
+          "creditor": {
+            "name": "Kino Světlo",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "CNCL",
+          "booking_date": "2026-11-03",
+          "value_date": "2026-11-03",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kino Světlo"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b06",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "4.20"
+          },
+          "creditor": {
+            "name": "Trafika U Mostu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-03",
+          "value_date": "2026-11-04",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Trafika U Mostu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-r07",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "120.00"
+          },
+          "creditor": {
+            "name": "Elektro Jiskra",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "RJCT",
+          "booking_date": "2026-11-02",
+          "value_date": "2026-11-02",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Elektro Jiskra"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b08",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "31.75"
+          },
+          "creditor": null,
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-01",
+          "value_date": "2026-11-01",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b09",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "9.99"
+          },
+          "creditor": {
+            "name": "Hudba Online",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-31",
+          "value_date": "2026-10-31",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Hudba Online",
+            "Předplatné"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b10",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "18.60"
+          },
+          "creditor": {
+            "name": "Pizzerie Sole",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-30",
+          "value_date": "2026-10-31",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Pizzerie Sole"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b11",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "15.00"
+          },
+          "creditor": null,
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": {
+            "name": "Eva Nováková",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "CRDT",
+          "status": "BOOK",
+          "booking_date": "2026-10-29",
+          "value_date": "2026-10-29",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Vrácení za lístky"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b12",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "6.50"
+          },
+          "creditor": {
+            "name": "Kavárna Na Rohu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-28",
+          "value_date": "2026-10-28",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kavárna Na Rohu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b13",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "42.00"
+          },
+          "creditor": {
+            "name": "Sportovní hala Výšina",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-27",
+          "value_date": "2026-10-28",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Sportovní hala Výšina"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b14",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "3.10"
+          },
+          "creditor": {
+            "name": "Trafika U Mostu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-26",
+          "value_date": "2026-10-26",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Trafika U Mostu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b15",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "27.80"
+          },
+          "creditor": {
+            "name": "Potraviny U Kašny",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-25",
+          "value_date": "2026-10-25",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Potraviny U Kašny"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b16",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "11.40"
+          },
+          "creditor": {
+            "name": "Pekárna U Lípy",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-24",
+          "value_date": "2026-10-24",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Pekárna U Lípy"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b17",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "64.90"
+          },
+          "creditor": {
+            "name": "Obuv Krok",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-23",
+          "value_date": "2026-10-24",
+          "transaction_date": "2026-10-22",
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Obuv Krok"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b18",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "7.20"
+          },
+          "creditor": {
+            "name": "Kavárna Na Rohu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-21",
+          "value_date": "2026-10-21",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kavárna Na Rohu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b19",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "19.90"
+          },
+          "creditor": {
+            "name": "Knihkupectví Stránka",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-19",
+          "value_date": "2026-10-19",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Knihkupectví Stránka"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b20",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "5.60"
+          },
+          "creditor": {
+            "name": "Trafika U Mostu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-17",
+          "value_date": "2026-10-17",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Trafika U Mostu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b21",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "50.00"
+          },
+          "creditor": null,
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": {
+            "name": "Jan Novák",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "CRDT",
+          "status": "BOOK",
+          "booking_date": "2026-10-15",
+          "value_date": "2026-10-15",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kapesné říjen"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b22",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "22.30"
+          },
+          "creditor": {
+            "name": "Potraviny U Kašny",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-13",
+          "value_date": "2026-10-13",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Potraviny U Kašny"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b23",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "8.40"
+          },
+          "creditor": {
+            "name": "Pizzerie Sole",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-11",
+          "value_date": "2026-10-11",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Pizzerie Sole"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b24",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "13.00"
+          },
+          "creditor": {
+            "name": "Kino Světlo",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-09",
+          "value_date": "2026-10-09",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Kino Světlo"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        },
+        {
+          "entry_reference": "c004-b25",
+          "merchant_category_code": null,
+          "transaction_amount": {
+            "currency": "EUR",
+            "amount": "2.90"
+          },
+          "creditor": {
+            "name": "Trafika U Mostu",
+            "postal_address": null,
+            "organisation_id": null,
+            "private_id": null,
+            "contact_details": null
+          },
+          "creditor_account": null,
+          "creditor_agent": null,
+          "debtor": null,
+          "debtor_account": null,
+          "debtor_agent": null,
+          "bank_transaction_code": null,
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-10-07",
+          "value_date": "2026-10-07",
+          "transaction_date": null,
+          "balance_after_transaction": null,
+          "reference_number": null,
+          "reference_number_schema": null,
+          "remittance_information": [
+            "Trafika U Mostu"
+          ],
+          "debtor_account_additional_identification": null,
+          "creditor_account_additional_identification": null,
+          "exchange_rate": null,
+          "note": null,
+          "transaction_id": null
+        }
+      ],
+      "continuation_key": null
+    }
+  }
+]

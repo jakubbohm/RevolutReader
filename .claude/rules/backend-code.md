@@ -5,7 +5,7 @@ paths:
 
 # Backend code
 
-- **Expected failures are Result values** (a C# 15 `union` with nested record cases; built in C5); exceptions only for bugs and infrastructure failures. Inner code returns domain-side results or plain values — **only endpoints** translate into the HTTP result and ProblemDetails; the HTTP result type never travels inward.
+- **Expected failures are Result values** (a C# 15 `union` of sealed record cases, built in C5; a generic union such as `BankResult<T>` declares its failure records next to it, not nested); exceptions only for bugs and infrastructure failures. Inner code returns domain-side results or plain values — **only endpoints** translate into the HTTP result and ProblemDetails; the HTTP result type never travels inward.
 - **Every non-2xx response is ProblemDetails** (RFC 9457) for callers that accept JSON, with the status from the case → status table in the conventions — no ad-hoc error JSON. A change whose scenario produces a new case adds its row there.
 - **No default HTTP retries:** an outgoing `HttpClient` gets retries only when its own change decides a policy; the bank client never retries (a retried 429 burns the 4 unattended requests a day).
 - **FastEndpoints, thin:** an endpoint holds route, OpenAPI metadata, auth and the Result → ProblemDetails mapping, and injects a plain handler class with no FastEndpoints/HTTP references. No mediator, no pipeline behaviors around handlers.
