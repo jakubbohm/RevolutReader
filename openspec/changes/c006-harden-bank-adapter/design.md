@@ -7,12 +7,12 @@
 - **Only a value shaped like an Enable Banking code is a code** (`^[A-Z][A-Z_]{0,63}$`); otherwise the HTTP status decides, so a gateway's error page on a 5xx is "bank unavailable" (D3, D7).
 - **The browser name is cleaned when the header is built:** outside printable ASCII → `?`; a present user needs an address and a non-blank user agent (D5, D1 g).
 - **Every end of a read writes its one log line, with a `Reason`**; an unrecognised error value is logged as `unrecognised`, never quoted (D6, D8 a, D7).
-- **Application Insights,** workspace-based on the existing workspace, fed by the deployed app through `Azure.Monitor.OpenTelemetry.Exporter`, writing with the app's managed identity (local authentication off); local runs and tests export nothing new (D8 b). Ready queries in deployment.md (D8 c).
+- **Application Insights,** workspace-based on the existing workspace, fed by the deployed app through `Azure.Monitor.OpenTelemetry.Exporter` with its logs and traces, not its metrics (the platform's metrics cover them, D10), writing with the app's managed identity (local authentication off); local runs and tests export nothing new (D8 b). Ready queries in deployment.md (D8 c).
 - **Changed public interfaces:** `PresentUser` (checked when created), `PsuHeaders.For` (cleans), `TransactionPages.MOST_PAGES` (new), `EnableBankingErrorCode.HasCodeShape` (new), the two log lines (`Reason`); settings `APPLICATIONINSIGHTS_CONNECTION_STRING` and `AZURE_CLIENT_ID` (the standard names, empty locally); DSL fact `Bank.GatewayAnswersWithMaintenancePage()`.
 - **The workspace's daily cap matches the free allowance:** 0.16 GB a day (5 GB a month ÷ 31), up from 0.1 GB; Application Insights data counts against the same allowance (D9).
 - **Integration points:** Enable Banking (unchanged calls, a cleaned header); Azure: Application Insights, a `Monitoring Metrics Publisher` role for the app's identity, two environment variables, the workspace's cap; the deploy identity's role condition widened by hand, once (guided task).
 - **Hard to reverse:** nothing in code. The widened role condition stays until someone narrows it again by hand.
-- **Still open, to settle before `/tdd-apply`:** four choices (§ Open questions).
+- **Still open, to settle before `/tdd-apply`:** three choices (§ Open questions).
 
 ## Context
 
@@ -160,7 +160,7 @@ Decided with the user (2026-11-07, explore). Added to D1's scope at the user's r
 - **a. The log line says why.** Both read lines get a `Reason` field: for an unexpected end, the `BankReadException`'s message (fixed texts that quote nothing, c004 D5; their only variable parts are the status, a code-shaped error code after D7 and a page count); for any other exception (D1 e), only its type name, since a framework message could contain anything; `none` for every other outcome.
 - **b. Application Insights, fed by the app through Microsoft's Azure Monitor exporter:**
   1. a workspace-based Application Insights resource on the existing workspace `log-revolutreader`: the same billing (the first 5 GB a month per billing account free) and the same 0.1 GB daily cap (*raised to 0.16 GB by D9*);
-  2. `Azure.Monitor.OpenTelemetry.Exporter` (1.10.0, stable, read 2026-11-07) added to ServiceDefaults' OpenTelemetry setup, only when the Application Insights connection string is set (`APPLICATIONINSIGHTS_CONNECTION_STRING`): only the deployed app exports to Azure; local runs (the Aspire dashboard) and the tests are unchanged. It exports logs, traces and metrics. It only adds a destination: the instrumentation and the filters that keep the bank's requests out of the traces (c004 D5) stay as they are;
+  2. `Azure.Monitor.OpenTelemetry.Exporter` (1.10.0, stable, read 2026-11-07) added to ServiceDefaults' OpenTelemetry setup, only when the Application Insights connection string is set (`APPLICATIONINSIGHTS_CONNECTION_STRING`): only the deployed app exports to Azure; local runs (the Aspire dashboard) and the tests are unchanged. It exports logs, traces and metrics (*logs and traces only since D10*). It only adds a destination: the instrumentation and the filters that keep the bank's requests out of the traces (c004 D5) stay as they are;
   3. ingestion authorised by the app's managed identity (`id-revolutreader-app`, the user-assigned identity C4 created for Key Vault), not by the connection string's key: local authentication off on the resource, and the app's identity holds `Monitoring Metrics Publisher` on it, created by the deployment stack like the identity's Key Vault role. The connection string then only says where to send. *Added 2026-11-08 (the user, after the choice between this and the key was shown):* the deploy identity may create role assignments for four roles only ([azure-prerequisites.md](../../../docs/operations/azure-prerequisites.md) step 5, set up in M3), and `Monitoring Metrics Publisher` is not one of them. So a **guided manual task** adds it to that condition before the change's merge deploys: Claude writes the PowerShell block (delete the deploy identity's Role Based Access Control Administrator assignment and create it again with the role's ID added), the owner runs it (memory `azure-grants-run-by-owner`), Claude checks it read-only, and step 5 of azure-prerequisites.md lists five roles. Rejected: the connection string's key (no manual step, but anyone holding the connection string could send telemetry);
   4. the console output unchanged, as the safety net for a failure at start, before OpenTelemetry runs.
 - **c. Ready queries** in `docs/operations/deployment.md` § Checks, against the Application Insights tables: every bank read that did not end as read (who, outcome, status, error code, reason), and the same counted by reason, to spot new cases. The exact columns are confirmed once real data arrives.
@@ -184,6 +184,16 @@ Decided with the user (2026-11-08, after propose): "We should set up our data li
 - **Where the match is not exact:** the allowance belongs to the billing account, so any other workspace on the same billing account shares it (the subscription had none before C4, c005 D6); the cap stops collection with a short delay, so some overshoot is billed ([Microsoft Learn: daily cap](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/daily-cap)); a month that reaches the cap every day ends near 5 GB.
 - **Retention stays 30 days** for the workspace; the Application Insights tables follow it. Keeping them 90 days would cost nothing extra but was not asked for.
 - **Consequences:** deployment.md's resources table and workflow.md § 5 say 0.16 GB; the lesson mentions the change (c005's lesson R-49 records C4's 0.1 GB as it was).
+
+### D10 — Application Insights gets the app's logs and traces, not its metrics
+
+Decided with the user (2026-11-08, open question 2), after comparing what each source shows.
+
+- **What the platform already shows, free:** the Container Apps metrics page (requests, error requests, response time, replicas, CPU, memory, network in and out; Azure Monitor platform metrics, outside the workspace and its 5 GB).
+- **What the other sources cover:** traces give every request as a row in `AppRequests` (route, status, duration, exception); the adapter's one log line per read gives the bank reads (outcome, status, code, reason, duration).
+- **What the app's metrics would add:** .NET internals (garbage collection, heap size, thread pool, exception counts) and per-minute sums by route, which matter when hunting a leak or a slowdown inside the app, unlikely for an app that runs minutes at a time for one user. Their cost is small (an estimate, not measured: a few dozen series a minute while the app runs, a few MB on an active day), but so is their gain.
+- **The rule:** the Azure Monitor exporter is registered for traces and logs only (§ Public API sketch); the app's metrics stay local (the Aspire dashboard) and are not exported in production.
+- **Rejected: all three signals,** the more complete default for a long-lived app (D8 as first decided). Switching it on later is a one-line change in ServiceDefaults.
 
 ## Public API sketch
 
@@ -254,11 +264,13 @@ ServiceDefaults and settings (D8 b):
 ```csharp
 // RevolutReader.ServiceDefaults.ServiceDefaultsExtensions.AddOpenTelemetryExporters:
 //   OTLP when OTEL_EXPORTER_OTLP_ENDPOINT is set (unchanged; Aspire, locally);
-//   Azure Monitor when APPLICATIONINSIGHTS_CONNECTION_STRING is set (production):
-builder.Services.AddOpenTelemetry().UseAzureMonitorExporter(options => {
-  options.ConnectionString = connectionString;
-  options.Credential = new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(clientId));   // AZURE_CLIENT_ID
-});
+//   Azure Monitor when APPLICATIONINSIGHTS_CONNECTION_STRING is set (production), for logs and traces only (D10), so
+//   per signal rather than UseAzureMonitorExporter(), which registers metrics too:
+TokenCredential credential = new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(clientId));   // AZURE_CLIENT_ID
+builder.Services.AddOpenTelemetry()
+  .WithTracing(tracing => tracing.AddAzureMonitorTraceExporter(o => { o.ConnectionString = connectionString; o.Credential = credential; }))
+  .WithLogging(logging => logging.AddAzureMonitorLogExporter(o => { o.ConnectionString = connectionString; o.Credential = credential; }));
+//   (The exact per-signal methods are checked against Azure.Monitor.OpenTelemetry.Exporter 1.10.0 at implementation.)
 //   APPLICATIONINSIGHTS_CONNECTION_STRING set while AZURE_CLIENT_ID is empty → InvalidOperationException at start,
 //   naming AZURE_CLIENT_ID (never a value).
 ```
@@ -347,7 +359,7 @@ The modified requirements' existing scenarios stay as they are and stay green. T
 
 - [Revolut starts sending signed amounts] → every read holding such a transaction fails, and the log line's `Reason` names it; the fix is small (D2).
 - [20 pages are too few if Revolut shrinks its pages drastically] → reads of long periods fail with the cap's `Reason`; raise the constant (D4).
-- [Metrics fill the daily cap (0.16 GB, D9)] → the exporter sends the runtime, ASP.NET Core and HTTP-client metrics every minute while the app runs. Scaling to zero keeps that short, but a reached cap stops all collection until the reset. #17 checks the real ingestion in the first days; if metrics dominate, ServiceDefaults exports only logs and traces (a few lines).
+- [Telemetry fills the daily cap (0.16 GB, D9)] → logs and traces only (D10), from an app that scales to zero and serves one user; a reached cap would stop all collection until the reset. #17 checks the real ingestion in the first days.
 - [The exporter's offline storage cannot write in the chiseled, non-root container] → the exporter logs it to its self-diagnostics and sends without the buffer; the first deploy's check looks for missing telemetry. If needed, offline storage is turned off or pointed at a writable folder.
 - [The Azure Monitor exporter bypasses the bank's trace filter] → it only adds an exporter to the same pipeline; `BankTelemetryTests` checks what the app exports through the same pipeline.
 - [OTLP and Azure Monitor configured at once] → never in practice (Aspire sets OTLP locally, Bicep sets Application Insights in production); the implementer confirms they compose, or makes them exclusive.
@@ -365,6 +377,6 @@ Nothing to migrate: no stored data, no endpoint. Order: the guided role step, th
 Each would change a task, so none is decided on the user's behalf (memory `simplicity-vs-maturity-is-users-call`). Claude's lean is given; the choice is the user's.
 
 1. **An ADR for Application Insights?** The project rule records cross-cutting decisions as ADRs; C4 recorded the log destination only in its design and workflow.md § 5 (c005 D6), and this design follows that precedent (§ Cross-cutting effects). Yes adds an ADR task (and the progress line links it). Lean: no, as C4 did.
-2. **Export metrics too, or logs and traces only?** D8 exports all three. Metrics arrive every minute while the app runs and share the daily cap (0.16 GB, D9); a reached cap stops all collection until the reset. Logs and traces only is smaller and safer, without metrics. Lean: all three, watched in #17 (the mature default); logs and traces only if the user prefers the margin.
+2. ~~Export metrics too, or logs and traces only?~~ **Decided 2026-11-08: logs and traces only (D10).**
 3. **The two settings' names:** the standard names `APPLICATIONINSIGHTS_CONNECTION_STRING` and `AZURE_CLIENT_ID` (what Microsoft's libraries and docs use, read as `OTEL_EXPORTER_OTLP_ENDPOINT` is), or a project-style section such as `ApplicationInsights:ConnectionString` and `ManagedIdentity:ClientId` (configuration.md's usual shape, bound and validated like other options). Lean: the standard names.
 4. **The user's browser in exported request telemetry** (raised by PR #26): OpenTelemetry's ASP.NET Core instrumentation records each incoming request's browser (`user_agent.original`) on its server span. Today nothing exports spans in production; with D8 they reach Application Insights (`AppRequests`), so from C7 on the daughter's browser string is stored there for each request. PR #26 now treats the browser as personal data the guard keeps out of logs and traces for bank reads (c004 D5: "personal data with no use in the log"). Options: accept it (standard request telemetry, useful to tell the phone app from a browser), or strip `user_agent.original` from exported spans in ServiceDefaults (a few lines and a test, consistent with c004 D5). Lean: strip it, for consistency with D5; the user decides.
