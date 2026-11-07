@@ -178,8 +178,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 26. [unit] Slice 10 — Error classification: rate limit
 
-- [ ] 26.1 The bank's rate limit is rate limited
-- [ ] 26.2 A 429 without an error code is rate limited
+- [x] 26.1 The bank's rate limit is rate limited
+- [x] 26.2 A 429 without an error code is rate limited
 
 ## 27. [wiring] Slice 10 — The rate-limit answer
 
