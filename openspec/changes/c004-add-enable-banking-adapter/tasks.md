@@ -212,7 +212,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 33. [close] Slice 12 — A bank that answers too slowly reads as bank unavailable
 
-- [ ] 33.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 33.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 34. [unit] Slice 13 — Transaction pages: a failed page
 
