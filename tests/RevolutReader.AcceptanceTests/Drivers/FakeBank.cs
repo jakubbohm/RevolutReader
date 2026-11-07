@@ -114,20 +114,18 @@ public sealed class FakeBank : IDisposable {
   /// reference writes a date, <c>yyyy-MM-dd</c>) and <c>continuation_key</c> (none on the first page), and only on this
   /// account's path with a bearer token; any other request gets WireMock's 404.
   /// </summary>
-  public void AnswerTransactionsPage(DateOnly dateFrom, string? continuationKey, string body) {
-    IRequestBuilder request = SignedGet($"/accounts/{AccountId}/transactions")
-      .WithParam(DATE_FROM, new ExactMatcher(dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+  public void AnswerTransactionsPage(DateOnly dateFrom, string? continuationKey, string body) =>
+    _server.Given(TransactionsPage(dateFrom, continuationKey)).RespondWith(JsonAnswer(body));
 
-    request = continuationKey is null
-      ? request.WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
-      : request.WithParam(CONTINUATION_KEY, new ExactMatcher(continuationKey));
-
-    _server.Given(request).RespondWith(JsonAnswer(body));
-  }
+  /// <summary>
+  /// The same request as <see cref="AnswerTransactionsPage"/> matches, answered with this Enable Banking error
+  /// (<c>{ message, code, error, detail }</c>) instead of a page.
+  /// </summary>
+  public void AnswerTransactionsPageError(DateOnly dateFrom, string? continuationKey, HttpStatusCode status, string body) =>
+    _server.Given(TransactionsPage(dateFrom, continuationKey)).RespondWith(JsonAnswer(status, body));
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
-  public void AnswerError(HttpStatusCode status, string body) =>
-    _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", JSON).WithBody(body));
+  public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
 
   /// <summary>Every answer comes only after this delay.</summary>
   public void AnswerAfter(TimeSpan delay) => _server.AddGlobalProcessingDelay(delay);
@@ -152,8 +150,21 @@ public sealed class FakeBank : IDisposable {
   private static IRequestBuilder SignedGet(string path) =>
     Request.Create().UsingGet().WithPath(new ExactMatcher(path)).WithHeader("Authorization", "Bearer *");
 
+  /// <summary>A signed <c>GET</c> of this account's transactions for exactly this <c>date_from</c> and <c>continuation_key</c> (none: no such parameter).</summary>
+  private IRequestBuilder TransactionsPage(DateOnly dateFrom, string? continuationKey) {
+    IRequestBuilder request = SignedGet($"/accounts/{AccountId}/transactions")
+      .WithParam(DATE_FROM, new ExactMatcher(dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+
+    return continuationKey is null
+      ? request.WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
+      : request.WithParam(CONTINUATION_KEY, new ExactMatcher(continuationKey));
+  }
+
   /// <summary>200 with this JSON body.</summary>
-  private static IResponseBuilder JsonAnswer(string body) => Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", JSON).WithBody(body);
+  private static IResponseBuilder JsonAnswer(string body) => JsonAnswer(HttpStatusCode.OK, body);
+
+  /// <summary>This status with this JSON body.</summary>
+  private static IResponseBuilder JsonAnswer(HttpStatusCode status, string body) => Response.Create().WithStatusCode(status).WithHeader("Content-Type", JSON).WithBody(body);
 
   /// <summary>
   /// Keeps the fake bank's own server out of every trace (for the guard <c>Conventions/BankTelemetryTests</c>, c004

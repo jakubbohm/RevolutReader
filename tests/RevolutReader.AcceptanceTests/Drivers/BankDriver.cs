@@ -31,6 +31,23 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   private const string USER_AGENT = "Psu-User-Agent";
 
   /// <summary>
+  /// The bank's own error. Written from the API reference (<c>ErrorResponse</c>, error code <c>ASPSP_ERROR</c>), not
+  /// captured: the Mock ASPSP cannot fail on demand. The reference does not say which status comes with the code; 502 Bad
+  /// Gateway is chosen (<see cref="OWN_ERROR_STATUS"/>), as HTTP's status for an upstream server (here the bank behind
+  /// Enable Banking) failing. The message text is made up.
+  /// </summary>
+  private const string OWN_ERROR = """
+    {
+      "code": 502,
+      "message": "Error interacting with the bank",
+      "error": "ASPSP_ERROR",
+      "detail": null
+    }
+    """;
+
+  private const HttpStatusCode OWN_ERROR_STATUS = HttpStatusCode.BadGateway;
+
+  /// <summary>
   /// The booked and pending transactions of the Mock ASPSP capture <c>spikes/enable-banking-mock/evidence/2026-11-06-account1-transactions.json</c>
   /// (made-up data, design.md § Bootstrap), copied in its order with their values as captured; its one cancelled
   /// (<c>c004-c05</c>) and one rejected (<c>c004-r07</c>) transaction are left out, as a read leaves them out.
@@ -134,7 +151,18 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
   }
 
-  public void ListsFirstPageThenFails(DateOnly since) => throw new NotImplementedException();
+  /// <summary>
+  /// The first page from <paramref name="since"/>, then the bank's own error for the second (<see cref="OWN_ERROR"/>), each
+  /// answering only for <paramref name="since"/> as <c>date_from</c> and its own key. The first page holds the capture's
+  /// booked and pending transactions (<see cref="_captured"/>); its continuation key is made up, as the capture was a
+  /// single page (design.md § Bootstrap). The second page's error is written from the API reference.
+  /// </summary>
+  public void ListsFirstPageThenFails(DateOnly since) {
+    string keyOfPage2 = MadeUpContinuationKey(2);
+
+    Bank.AnswerTransactionsPage(since, continuationKey: null, PageJson(_captured, keyOfPage2));
+    Bank.AnswerTransactionsPageError(since, keyOfPage2, OWN_ERROR_STATUS, OWN_ERROR);
+  }
 
   /// <summary>
   /// Every request: the session has expired. Written from the API reference (<c>ErrorResponse</c>, error code
@@ -166,20 +194,8 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
     """);
 
-  /// <summary>
-  /// Every request: the bank reports an error of its own. Written from the API reference (<c>ErrorResponse</c>, error code
-  /// <c>ASPSP_ERROR</c>), not captured: the Mock ASPSP cannot fail on demand. The reference does not say which status
-  /// comes with the code; 502 Bad Gateway is chosen, as HTTP's status for an upstream server (here the bank behind Enable
-  /// Banking) failing. The message text is made up.
-  /// </summary>
-  public void ReportsOwnError() => Bank.AnswerError(HttpStatusCode.BadGateway, """
-    {
-      "code": 502,
-      "message": "Error interacting with the bank",
-      "error": "ASPSP_ERROR",
-      "detail": null
-    }
-    """);
+  /// <summary>Every request: the bank reports an error of its own (<see cref="OWN_ERROR"/>).</summary>
+  public void ReportsOwnError() => Bank.AnswerError(OWN_ERROR_STATUS, OWN_ERROR);
 
   /// <summary>
   /// Every request: the bank answers, with the DSL's default balance, but only a second after the harness's request

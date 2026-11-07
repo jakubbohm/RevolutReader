@@ -220,7 +220,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 35. [wiring] Slice 13 — The failed later page
 
-- [ ] 35.1 `BankDriver.ListsFirstPageThenFails`: the first page from the capture, then `ASPSP_ERROR`. Verify: the scenario runs against the app
+- [x] 35.1 `BankDriver.ListsFirstPageThenFails`: the first page from the capture, then `ASPSP_ERROR`. Verify: the scenario runs against the app
 
 ## 36. [close] Slice 13 — A failure on a later page fails the whole read
 
