@@ -207,8 +207,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 32. [wiring] Slice 12 — The request timeout
 
-- [ ] 32.1 The typed client's `Timeout` is `RequestTimeout`. Our timeout becomes bank unavailable, while the caller's own cancellation is passed on (edge case in `Wiring/EnableBanking/`). Verify: build passes; green; the edge test passes
-- [ ] 32.2 `BankDriver.AnswersAfterTheRequestTimeout`: an answer delayed past the harness's request timeout (5 s, see 1.1). Verify: the scenario runs against the app
+- [x] 32.1 The typed client's `Timeout` is `RequestTimeout`. Our timeout becomes bank unavailable, while the caller's own cancellation is passed on (edge case in `Wiring/EnableBanking/`). Verify: build passes; green; the edge test passes
+- [x] 32.2 `BankDriver.AnswersAfterTheRequestTimeout`: an answer delayed past the harness's request timeout (5 s, see 1.1). Verify: the scenario runs against the app
 
 ## 33. [close] Slice 12 — A bank that answers too slowly reads as bank unavailable
 

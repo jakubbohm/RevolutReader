@@ -85,15 +85,19 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
   }
 
   /// <summary>
-  /// The answer, its body read whole; <see langword="null"/> when the bank cannot be reached or the connection breaks
-  /// before the answer is read (a network failure: the bank unavailable, § Error model). The caller's own cancellation is
-  /// not a network failure: its <see cref="OperationCanceledException"/> passes on.
+  /// The answer, its body read whole; <see langword="null"/> when the bank cannot be reached, the connection breaks before
+  /// the answer is read, or the answer takes longer than our request timeout (all the bank unavailable, § Error model). The
+  /// caller's own cancellation is none of these: its <see cref="OperationCanceledException"/> passes on.
   /// </summary>
   private async Task<HttpResponseMessage?> Send(HttpRequestMessage request, CancellationToken cancellationToken) {
     try {
       return await http.SendAsync(request, cancellationToken);
     }
     catch (HttpRequestException) {
+      return null;
+    }
+    catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) {
+      // The client's Timeout (EnableBankingOptions.RequestTimeout) ran out, not the caller's patience.
       return null;
     }
   }

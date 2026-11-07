@@ -181,7 +181,16 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
     """);
 
-  public void AnswersAfterTheRequestTimeout() => throw new NotImplementedException();
+  /// <summary>
+  /// Every request: the bank answers, with the DSL's default balance, but only a second after the harness's request
+  /// timeout (<see cref="FakeBank.RequestTimeout"/>, 5 s). The answer would be a success, so only the timeout can end the
+  /// read otherwise; the read ends at the timeout, so the test waits about 5 s, not 6. Not captured: the Mock ASPSP cannot
+  /// be slowed down.
+  /// </summary>
+  public void AnswersAfterTheRequestTimeout() {
+    HasAvailableBalance(BankDsl.DEFAULT_BALANCE, TransactionAtBank.DEFAULT_CURRENCY);
+    Bank.AnswerAfter(FakeBank.RequestTimeout + TimeSpan.FromSeconds(1));
+  }
 
   public async Task<BalanceAnswer> ReadBalanceFor(UserAtDevice user) {
     ArgumentNullException.ThrowIfNull(user);

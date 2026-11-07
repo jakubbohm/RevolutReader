@@ -19,7 +19,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// The fake Enable Banking every test app copy talks to (testing.md § Fake bank, c004 design.md D1, D6): a WireMock.Net
 /// server per test, started before the app copy, in front of the app's real Enable Banking client. Every app copy gets
 /// its settings (<see cref="Configure"/>), so the app starts whether or not the test reads the bank: the server's address,
-/// made-up application, session and account ids, an RSA key generated once per test run, and a 1 s request timeout. No
+/// made-up application, session and account ids, an RSA key generated once per test run, and a 5 s request timeout. No
 /// real secret and no real account data, ever.
 /// <para>
 /// The answers are set per test, by <see cref="BankDriver"/>. They are copied from the Mock ASPSP capture
@@ -50,8 +50,12 @@ public sealed class FakeBank : IDisposable {
 
   private readonly WireMockServer _server;
 
-  /// <summary>Short, so the slow-answer scenario needs only a second (D6); production uses 15 s.</summary>
-  public static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(1);
+  /// <summary>
+  /// Shorter than production's 15 s, so the slow-answer scenario stays bearable, yet long enough that no other test runs
+  /// into it: with 1 s, an app copy's first request on a busy machine (the full suite, three test projects at once) took
+  /// over a second and read as bank unavailable (the orchestrator's decision, 2026-11-07).
+  /// </summary>
+  public static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(5);
 
   /// <summary>The RSA private key the app signs its requests with, as PEM text; one per test run.</summary>
   public static string PrivateKey => _privateKey.Value;
@@ -126,7 +130,7 @@ public sealed class FakeBank : IDisposable {
     _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", JSON).WithBody(body));
 
   /// <summary>Every answer comes only after this delay.</summary>
-  public void AnswerAfter(TimeSpan delay) => throw new NotImplementedException();
+  public void AnswerAfter(TimeSpan delay) => _server.AddGlobalProcessingDelay(delay);
 
   /// <summary>
   /// The headers of every request the bank received, answered or not, in the order received, from the server's request

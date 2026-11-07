@@ -11,7 +11,8 @@ public static class EnableBankingRegistration {
 
   /// <summary>
   /// Options bound and validated at start; the application's key and <see cref="ApplicationToken"/> as singletons; the typed
-  /// client with <c>BaseAddress</c> = <see cref="EnableBankingOptions.ApiBaseUrl"/>; <see cref="IBankAccount"/> →
+  /// client with <c>BaseAddress</c> = <see cref="EnableBankingOptions.ApiBaseUrl"/> and <c>Timeout</c> =
+  /// <see cref="EnableBankingOptions.RequestTimeout"/>; <see cref="IBankAccount"/> →
   /// <see cref="EnableBankingClient"/>; <see cref="TimeProvider.System"/> unless one is registered. Called from Program.cs.
   /// </summary>
   public static IServiceCollection AddEnableBanking(this IServiceCollection services) {
@@ -28,7 +29,12 @@ public static class EnableBankingRegistration {
     services.AddSingleton(static provider => new ApplicationToken(Settings(provider).ApplicationId, provider.GetRequiredKeyedService<RSA>(SECTION)));
     services.TryAddSingleton(TimeProvider.System);
 
-    services.AddHttpClient<IBankAccount, EnableBankingClient>(static (provider, http) => http.BaseAddress = Settings(provider).ApiBaseUrl);
+    services.AddHttpClient<IBankAccount, EnableBankingClient>(static (provider, http) => {
+      EnableBankingOptions settings = Settings(provider);
+
+      http.BaseAddress = settings.ApiBaseUrl;
+      http.Timeout = settings.RequestTimeout;
+    });
 
     return services;
   }

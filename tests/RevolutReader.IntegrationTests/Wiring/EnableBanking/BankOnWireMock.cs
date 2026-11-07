@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
@@ -30,8 +31,12 @@ public sealed class BankOnWireMock : IDisposable {
   /// <summary>The port, as the app wires it.</summary>
   public IBankAccount Account => _services.GetRequiredService<IBankAccount>();
 
+  /// <summary>The client's request timeout unless a test sets its own: long, so no other test runs into it.</summary>
+  public static TimeSpan DefaultRequestTimeout { get; } = TimeSpan.FromSeconds(5);
+
   /// <param name="apiBaseUrl">The client's Enable Banking address; the WireMock.Net server's unless given.</param>
-  public BankOnWireMock(Uri? apiBaseUrl = null) {
+  /// <param name="requestTimeout">The client's request timeout; <see cref="DefaultRequestTimeout"/> unless given.</param>
+  public BankOnWireMock(Uri? apiBaseUrl = null, TimeSpan? requestTimeout = null) {
     IConfiguration configuration = new ConfigurationBuilder()
       .AddInMemoryCollection(new Dictionary<string, string?> {
         [$"{SECTION}:ApiBaseUrl"] = apiBaseUrl?.ToString() ?? _server.Url,
@@ -39,7 +44,7 @@ public sealed class BankOnWireMock : IDisposable {
         [$"{SECTION}:PrivateKey"] = _privateKey.Value,
         [$"{SECTION}:SessionId"] = Guid.NewGuid().ToString(),
         [$"{SECTION}:AccountId"] = AccountId,
-        [$"{SECTION}:RequestTimeout"] = "00:00:05",
+        [$"{SECTION}:RequestTimeout"] = (requestTimeout ?? DefaultRequestTimeout).ToString("c", CultureInfo.InvariantCulture),
       })
       .Build();
 
