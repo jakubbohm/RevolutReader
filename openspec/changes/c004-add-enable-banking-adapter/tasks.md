@@ -216,7 +216,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 34. [unit] Slice 13 — Transaction pages: a failed page
 
-- [ ] 34.1 A failure on a later page ends the read with that failure, and no further page is requested
+- [x] 34.1 A failure on a later page ends the read with that failure, and no further page is requested
 
 ## 35. [wiring] Slice 13 — The failed later page
 

@@ -116,6 +116,34 @@ public sealed class TransactionPagesTests {
     bank.KeysAskedFor.ShouldBe([null, KEY_OF_PAGE_2], "no page is asked for with the empty key");
   }
 
+  /// <param name="failure">
+  /// Each of the bank's expected failures, on page 2 of 3 (spec bank-reads, "A failure on a later page fails the whole
+  /// read"; D7). The read ends with that failure, no partial list; page 2 is not asked for again (never retried,
+  /// ADR-0001), and page 3 is never asked for.
+  /// </param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("bank unavailable")]
+  public async Task A_failure_on_a_later_page_ends_the_read_with_that_failure_and_no_further_page_is_requested(string failure) {
+    BankResult<EbTransactionPage> failedPage = failure switch {
+      "access expired" => new BankAccessExpired(),
+      "rate limited" => new BankRateLimited(),
+      "bank unavailable" => new BankUnavailable(),
+      _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+    };
+    PagesAtBank bank = new(
+      firstPage: new([Booked("e-101")], KEY_OF_PAGE_2),
+      (KEY_OF_PAGE_2, new([Booked("e-102")], KEY_OF_PAGE_3)),
+      (KEY_OF_PAGE_3, new([Booked("e-103")], ContinuationKey: null)));
+    bank.Fails(KEY_OF_PAGE_2, failedPage);
+
+    BankResult<JoinedPages> result = await TransactionPages.ReadAll(bank.Read);
+
+    result.Value.ShouldBe(failedPage.Value, "the read is that page's failure, with no partial list");
+    bank.KeysAskedFor.ShouldBe([null, KEY_OF_PAGE_2], "nothing is asked for after the failed page");
+  }
+
   /// <summary>The read's value; fails when the read came back as one of the failures instead.</summary>
   private static JoinedPages Joined(BankResult<JoinedPages> result) => result.Value.ShouldBeOfType<JoinedPages>();
 
@@ -141,13 +169,21 @@ public sealed class TransactionPagesTests {
 
     private readonly List<string?> _keysAskedFor = [];
 
+    private readonly Dictionary<string, BankResult<EbTransactionPage>> _failures = new(StringComparer.Ordinal);
+
     public IReadOnlyList<string?> KeysAskedFor => _keysAskedFor;
+
+    /// <summary>The page asked for with <paramref name="continuationKey"/> comes back as <paramref name="failure"/> instead, every time.</summary>
+    public void Fails(string continuationKey, BankResult<EbTransactionPage> failure) => _failures[continuationKey] = failure;
 
     public Task<BankResult<EbTransactionPage>> Read(string? continuationKey) {
       _keysAskedFor.Add(continuationKey);
 
       if (_keysAskedFor.Count > MOST_REQUESTS_A_TEST_NEEDS)
         throw new InvalidOperationException($"More than {MOST_REQUESTS_A_TEST_NEEDS} pages asked for: the read loops.");
+
+      if (continuationKey is not null && _failures.TryGetValue(continuationKey, out BankResult<EbTransactionPage> failure))
+        return Task.FromResult(failure);
 
       EbTransactionPage page = continuationKey is null
         ? firstPage
