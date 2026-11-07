@@ -28,12 +28,18 @@ public static class BankErrorClassification {
       or "ASPSP_PSU_ACTION_REQUIRED" or "NO_ACCOUNTS_ADDED" or "ASPSP_ACCOUNT_NOT_ACCESSIBLE" => BankErrorKind.AccessExpired,
     // The bank's request limit: never retried (ADR-0001).
     "ASPSP_RATE_LIMIT_EXCEEDED" => BankErrorKind.RateLimited,
+    // The bank's own error or timeout: a result the screen offers a retry for.
+    "ASPSP_ERROR" or "ASPSP_TIMEOUT" => BankErrorKind.Unavailable,
     _ => BankErrorKind.Unexpected,
   };
 
-  /// <summary>An answer without a code: 429 is the rate limit; any other status decides nothing yet, so it is unexpected.</summary>
-  private static BankErrorKind ByStatus(HttpStatusCode status) => status switch {
-    HttpStatusCode.TooManyRequests => BankErrorKind.RateLimited,
+  /// <summary>
+  /// An answer without a code: 429 is the rate limit; any server error (5xx) and 408 are the bank unavailable; any other
+  /// status is unexpected.
+  /// </summary>
+  private static BankErrorKind ByStatus(HttpStatusCode status) => (int)status switch {
+    429 => BankErrorKind.RateLimited,
+    408 or (>= 500 and <= 599) => BankErrorKind.Unavailable,
     _ => BankErrorKind.Unexpected,
   };
 }
