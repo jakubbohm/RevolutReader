@@ -1,10 +1,28 @@
 import { expect, test } from "vitest";
+import { NavigationRoute } from "workbox-routing";
 import { SERVER_ONLY } from "./serverOnly";
 
-/** Whether the service worker leaves a navigation to the server: Workbox's NavigationRoute tests path plus query. */
+/** A stand-in for the service worker's page fallback: the same Workbox route and list, with a dummy handler. */
+const pageFallback = new NavigationRoute(
+  () => Promise.resolve(new Response()),
+  { denylist: SERVER_ONLY },
+);
+
+/** What Workbox hands a route's match callback. */
+type MatchOptions = Parameters<NavigationRoute["match"]>[0];
+
+/**
+ * Whether the service worker leaves a navigation to the server: asks Workbox's own NavigationRoute, built with the
+ * same list the service worker passes in sw.ts (the test builds its own route because sw.ts exports nothing).
+ */
 function leftToServer(address: string): boolean {
-  const url = new URL(address, "https://app.example");
-  return SERVER_ONLY.some((pattern) => pattern.test(url.pathname + url.search));
+  const navigation: MatchOptions = {
+    url: new URL(address, "https://app.example"),
+    request: { mode: "navigate" } as Request,
+    event: {} as MatchOptions["event"],
+    sameOrigin: true,
+  };
+  return !pageFallback.match(navigation);
 }
 
 test.each([
