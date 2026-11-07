@@ -212,5 +212,5 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 
 - [`lessons.md`](../software-factory/lessons.md): only decisions where this project **diverges** from DoseUp, **reverses** one of its own decisions, or answers a question DoseUp never faced (**new**). The full version, the one that fits a real, long-lived project, is always the default.
 - [`divergences.md`](../software-factory/divergences.md): where this project runs a cut-down version of that full version, what it gives up and when it would switch back. It stays with the project.
-- [`creating-handover-package.md`](../software-factory/creating-handover-package.md): the inventory of reusable artifacts, and how to build the handover package at the end of the project (M8).
+- [`creating-handover-package.md`](../software-factory/creating-handover-package.md): where the package goes (the standalone Software Factory), the inventory of reusable artifacts, how to build the handover package at the end of the project (M8), and how the factory takes it in.
 - Add the lesson, and the divergence if there is one, in the same change or session that makes the decision. A step that creates or substantially changes a reusable artifact updates the inventory. Entry formats are in the files.

@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1 — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target — see the change log in `pm/progress.md`)
 
 ---
 
@@ -304,10 +304,10 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### M8 — Decommissioning
 
 - **Type:** Manual
-- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including the stored account data (the app uses no shared resources, F0-2); purge the deleted Key Vault, which Azure otherwise keeps with its secrets for the retention period; delete the resource group and the identity GitHub Actions deploys with; delete the Entra app registration; remove access for the allowed accounts. Then build the software-factory handover package and hand it over to DoseUp.
+- **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including the stored account data (the app uses no shared resources, F0-2); purge the deleted Key Vault, which Azure otherwise keeps with its secrets for the retention period; delete the resource group and the identity GitHub Actions deploys with; delete the Entra app registration; remove access for the allowed accounts. Then build the software-factory handover package for the standalone Software Factory ([creating-handover-package.md § The target](../docs/software-factory/creating-handover-package.md#the-target)).
 - **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1.
 - **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3 and M4; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
-- **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over to DoseUp; `pm/progress.md` closed.
+- **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over: to the factory's consolidation if the factory does not exist yet, otherwise to the factory; `pm/progress.md` closed.
 - **Open questions:** —
 
 ### T1 — Explore making the API's FastEndpoints classes internal
