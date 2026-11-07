@@ -12,7 +12,7 @@ public static class EnableBankingRegistration {
   /// <summary>
   /// Options bound and validated at start; the application's key and <see cref="ApplicationToken"/> as singletons; the typed
   /// client with <c>BaseAddress</c> = <see cref="EnableBankingOptions.ApiBaseUrl"/> and <c>Timeout</c> =
-  /// <see cref="EnableBankingOptions.RequestTimeout"/>; <see cref="IBankAccount"/> →
+  /// <see cref="EnableBankingOptions.RequestTimeout"/>, without the factory's default logging (D5); <see cref="IBankAccount"/> →
   /// <see cref="EnableBankingClient"/>; <see cref="TimeProvider.System"/> unless one is registered. Called from Program.cs.
   /// </summary>
   public static IServiceCollection AddEnableBanking(this IServiceCollection services) {
@@ -29,12 +29,16 @@ public static class EnableBankingRegistration {
     services.AddSingleton(static provider => new ApplicationToken(Settings(provider).ApplicationId, provider.GetRequiredKeyedService<RSA>(SECTION)));
     services.TryAddSingleton(TimeProvider.System);
 
-    services.AddHttpClient<IBankAccount, EnableBankingClient>(static (provider, http) => {
-      EnableBankingOptions settings = Settings(provider);
+    services
+      .AddHttpClient<IBankAccount, EnableBankingClient>(static (provider, http) => {
+        EnableBankingOptions settings = Settings(provider);
 
-      http.BaseAddress = settings.ApiBaseUrl;
-      http.Timeout = settings.RequestTimeout;
-    });
+        http.BaseAddress = settings.ApiBaseUrl;
+        http.Timeout = settings.RequestTimeout;
+      })
+      // The factory's own logging writes each request's URL, whose path holds the account id (D5); the client logs one
+      // line per read instead.
+      .RemoveAllLoggers();
 
     return services;
   }

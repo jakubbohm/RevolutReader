@@ -228,10 +228,10 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 37. [wiring] Logs and traces without identifiers
 
-- [ ] 37.1 The bank client's default logging is removed (`RemoveAllLoggers()`). Each request carries `HttpRequestTracing.Exclude`, which ServiceDefaults' HTTP-client trace filter drops (design.md D5). Verify: build passes; green
-- [ ] 37.2 One log line per read (`LoggerMessage`): which read, present user or unattended, HTTP status, `error` code, duration, pages, and the number left out. Never the PSU values, amounts, names, texts or ids (design.md D5). Verify: build passes; green
-- [ ] 37.3 The guard `Conventions/BankTelemetryTests` passes. If it fails on the exported trace, apply design.md § Risks' fallback. Verify: green, guard included
-- [ ] 37.4 Docs: lesson R-51 (R-45 to R-50 were taken in `main` by #20 and C4, design.md D8), and inventory lines for the guard test and the fake bank driver. Verify: they link to design.md D5 and D1
+- [x] 37.1 The bank client's default logging is removed (`RemoveAllLoggers()`). Each request carries `HttpRequestTracing.Exclude`, which ServiceDefaults' HTTP-client trace filter drops (design.md D5). Verify: build passes; green
+- [x] 37.2 One log line per read (`LoggerMessage`): which read, present user or unattended, HTTP status, `error` code, duration, pages, and the number left out. Never the PSU values, amounts, names, texts or ids (design.md D5). Verify: build passes; green
+- [x] 37.3 The guard `Conventions/BankTelemetryTests` passes. If it fails on the exported trace, apply design.md § Risks' fallback. Verify: green, guard included
+- [x] 37.4 Docs: lesson R-51 (R-45 to R-50 were taken in `main` by #20 and C4, design.md D8), and inventory lines for the guard test and the fake bank driver. Verify: they link to design.md D5 and D1
 
 ## 38. [wiring] Local development
 
