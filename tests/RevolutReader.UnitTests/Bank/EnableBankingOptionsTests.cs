@@ -7,11 +7,11 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// The Enable Banking settings are checked at start-up (c004 design.md D6, § Error model; configuration.md § Binding):
-/// no secret may still hold the declared placeholder, the API address must be an absolute http or https address whose
-/// path ends in "/" (a bare host's does), and the private key must be an RSA private key in PEM form (a public key fails
-/// too). A failure names the setting, never its value. Each test runs both checks the app runs at
-/// start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs them, and
-/// <see cref="EnableBankingOptionsValidator"/>. Every value here is made up; every key is generated in the test.
+/// no secret may still hold the declared placeholder, the API address must be an absolute https address (plain http only
+/// on this machine) whose path ends in "/" (a bare host's does) and that has no query or fragment, and the private key
+/// must be an RSA private key in PEM form (a public key fails too). A failure names the setting, never its value. Each
+/// test runs both checks the app runs at start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs
+/// them, and <see cref="EnableBankingOptionsValidator"/>. Every value here is made up; every key is generated in the test.
 /// </summary>
 public sealed class EnableBankingOptionsTests {
   private const string PLACEHOLDER = "<secret>";
@@ -71,15 +71,23 @@ public sealed class EnableBankingOptionsTests {
   [Arguments("https://proxy.example/eb")] // its last path segment would be dropped
   [Arguments("api.enablebanking.com")] // no scheme: binds as a relative address
   [Arguments("ftp://api.enablebanking.com")] // not HTTP
+  [Arguments("https://proxy.example/eb/?tenant=x")] // its query would be dropped
+  [Arguments("https://api.enablebanking.com/#x")] // its fragment would be dropped
   public void An_api_address_requests_cannot_be_resolved_against_fails_validation(string address) =>
     Failures(Settings(apiBaseUrl: new Uri(address, UriKind.RelativeOrAbsolute)))
       .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.ApiBaseUrl), StringComparison.Ordinal), "a failure naming ApiBaseUrl");
 
   [Test]
+  public void A_plain_http_api_address_off_this_machine_fails_validation() =>
+    Failures(Settings(apiBaseUrl: new Uri("http://api.enablebanking.com")))
+      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.ApiBaseUrl), StringComparison.Ordinal), "a failure naming ApiBaseUrl");
+
+  [Test]
   [Arguments("https://api.enablebanking.com")]
   [Arguments("http://127.0.0.1:5000")]
+  [Arguments("http://localhost:5000")]
   [Arguments("https://proxy.example/eb/")]
-  public void An_absolute_http_api_address_with_no_path_or_a_path_ending_in_a_slash_passes_validation(string address) =>
+  public void An_https_api_address_or_an_http_one_on_this_machine_with_no_path_or_a_path_ending_in_a_slash_and_no_query_or_fragment_passes_validation(string address) =>
     Failures(Settings(apiBaseUrl: new Uri(address))).ShouldBeEmpty();
 
   /// <summary>Complete, valid settings, except for the values given.</summary>
