@@ -149,8 +149,8 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 20. [wiring] Slice 7 — PSU headers on every request
 
-- [ ] 20.1 `EnableBankingClient` adds `PsuHeaders.For(trigger)` to every request, every page included. Verify: build passes; green
-- [ ] 20.2 `BankDriver` `ReadBalanceFor`, `ReadBalanceUnattended` and `RequestsReceived` (from the fake bank's request log). Verify: the scenario runs against the app
+- [x] 20.1 `EnableBankingClient` adds `PsuHeaders.For(trigger)` to every request, every page included. Verify: build passes; green
+- [x] 20.2 `BankDriver` `ReadBalanceFor`, `ReadBalanceUnattended` and `RequestsReceived` (from the fake bank's request log). Verify: the scenario runs against the app
 
 ## 21. [close] Slice 7 — A read for a present user carries the user's address and browser
 

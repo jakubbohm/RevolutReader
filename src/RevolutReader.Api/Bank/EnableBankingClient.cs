@@ -8,7 +8,8 @@ namespace RevolutReader.Api.Bank;
 
 /// <summary>
 /// The bank port over Enable Banking's API (spec bank-reads, c004 design.md § Ports and contracts): read-only, for the one
-/// configured account; every request a <c>GET</c> signed with the application's token.
+/// configured account; every request a <c>GET</c> signed with the application's token, carrying the user headers of who
+/// triggers the read (D2).
 /// </summary>
 public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time) : IBankAccount {
   private const string BEARER = "Bearer";
@@ -24,7 +25,7 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
 
   /// <summary><c>GET /accounts/{account}/balances</c>, then the available balance (D3).</summary>
   public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) =>
-    BalanceSelection.Available(await Get<EbBalances>($"{AccountPath}/balances", cancellationToken));
+    BalanceSelection.Available(await Get<EbBalances>($"{AccountPath}/balances", trigger, cancellationToken));
 
   /// <summary>Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read.</summary>
   public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) =>
@@ -45,12 +46,19 @@ public sealed class EnableBankingClient(HttpClient http, IOptions<EnableBankingO
     if (continuationKey is not null)
       query += $"&continuation_key={Uri.EscapeDataString(continuationKey)}";
 
-    return await Get<EbTransactionPage>($"{AccountPath}/transactions?{query}", cancellationToken);
+    return await Get<EbTransactionPage>($"{AccountPath}/transactions?{query}", trigger, cancellationToken);
   }
 
-  /// <summary>A signed <c>GET</c> of <paramref name="pathAndQuery"/>, its JSON body read as <typeparamref name="T"/>.</summary>
-  private async Task<T> Get<T>(string pathAndQuery, CancellationToken cancellationToken) where T : class {
+  /// <summary>
+  /// A signed <c>GET</c> of <paramref name="pathAndQuery"/> with the user headers of <paramref name="trigger"/>
+  /// (<see cref="PsuHeaders"/>), its JSON body read as <typeparamref name="T"/>.
+  /// </summary>
+  private async Task<T> Get<T>(string pathAndQuery, ReadTrigger trigger, CancellationToken cancellationToken) where T : class {
     using HttpRequestMessage request = SignedGet(pathAndQuery);
+
+    foreach ((string name, string value) in PsuHeaders.For(trigger))
+      request.Headers.Add(name, value);
+
     using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
 
     response.EnsureSuccessStatusCode();

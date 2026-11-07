@@ -5,11 +5,13 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using WireMock;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
 using WireMock.Settings;
+using WireMock.Types;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
 
@@ -125,8 +127,19 @@ public sealed class FakeBank : IDisposable {
   /// <summary>Every answer comes only after this delay.</summary>
   public void AnswerAfter(TimeSpan delay) => throw new NotImplementedException();
 
-  /// <summary>The requests the bank received, in order, from the server's request log.</summary>
-  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => throw new NotImplementedException();
+  /// <summary>
+  /// The headers of every request the bank received, answered or not, in the order received, from the server's request
+  /// log. Names are looked up ignoring case, as HTTP compares them; a header sent more than once has its values joined
+  /// with <c>", "</c>.
+  /// </summary>
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => [
+    .. _server.LogEntries
+      .Select(static entry => entry.RequestMessage)
+      .OfType<IRequestMessage>()
+      .OrderBy(static request => request.DateTime)
+      .Select(static request => (request.Headers ?? new Dictionary<string, WireMockList<string>>())
+        .ToDictionary(static header => header.Key, static header => string.Join(", ", header.Value), StringComparer.OrdinalIgnoreCase)),
+  ];
 
   private static string MadeUpId() => Guid.NewGuid().ToString();
 

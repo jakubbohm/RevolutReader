@@ -25,6 +25,11 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// <summary>As the API reference writes a calendar date.</summary>
   private const string DATE = "yyyy-MM-dd";
 
+  /// <summary>The user headers (c004 design.md D2); any header with the prefix makes a request carry user headers.</summary>
+  private const string USER_HEADER_PREFIX = "Psu-";
+  private const string USER_IP_ADDRESS = "Psu-Ip-Address";
+  private const string USER_AGENT = "Psu-User-Agent";
+
   /// <summary>
   /// The booked and pending transactions of the Mock ASPSP capture <c>spikes/enable-banking-mock/evidence/2026-11-06-account1-transactions.json</c>
   /// (made-up data, design.md § Bootstrap), copied in its order with their values as captured; its one cancelled
@@ -145,7 +150,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     return AnswerOf(await Account.ReadBalance(Present(user), CancellationToken.None));
   }
 
-  public Task<BalanceAnswer> ReadBalanceUnattended() => throw new NotImplementedException();
+  public async Task<BalanceAnswer> ReadBalanceUnattended() => AnswerOf(await Account.ReadBalance(new Unattended(), CancellationToken.None));
 
   public async Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day, UserAtDevice user) {
     ArgumentNullException.ThrowIfNull(user);
@@ -156,7 +161,11 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     return AnswerOf(await Account.ReadTransactions(day, Present(user), CancellationToken.None));
   }
 
-  public IReadOnlyList<RequestAtBank> RequestsReceived() => throw new NotImplementedException();
+  /// <summary>
+  /// Every request the fake bank received, in order, by its user headers: none when it carries no <c>Psu-*</c> header at
+  /// all; otherwise <c>Psu-Ip-Address</c> and <c>Psu-User-Agent</c>, each missing one <see langword="null"/>.
+  /// </summary>
+  public IReadOnlyList<RequestAtBank> RequestsReceived() => [.. Bank.RequestHeadersReceived().Select(RequestOf)];
 
   /// <summary>The value is <see cref="BankOutcome.Read"/> with the balance; each failure is its own outcome, with no balance.</summary>
   private static BalanceAnswer AnswerOf(BankResult<Balance> result) => result switch {
@@ -189,6 +198,11 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     new Lines(transaction.PaymentDetails));
 
   private static PresentUser Present(UserAtDevice user) => new(IPAddress.Parse(user.IpAddress), user.Browser);
+
+  private static RequestAtBank RequestOf(IReadOnlyDictionary<string, string> headers) =>
+    headers.Keys.Any(static name => name.StartsWith(USER_HEADER_PREFIX, StringComparison.OrdinalIgnoreCase))
+      ? new RequestAtBank(new UserHeaders(headers.GetValueOrDefault(USER_IP_ADDRESS), headers.GetValueOrDefault(USER_AGENT)))
+      : RequestAtBank.WithoutUserHeaders;
 
   /// <summary>
   /// A DSL transaction at the bank. Every field the DSL gives is set from it, and every field it does not give is absent.
