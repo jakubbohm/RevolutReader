@@ -183,7 +183,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 27. [wiring] Slice 10 — The rate-limit answer
 
-- [ ] 27.1 `BankDriver.ReportsRequestLimitReached`: 429 `ASPSP_RATE_LIMIT_EXCEEDED`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
+- [x] 27.1 `BankDriver.ReportsRequestLimitReached`: 429 `ASPSP_RATE_LIMIT_EXCEEDED`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
 
 ## 28. [close] Slice 10 — A reached request limit reads as rate limited, with no second request
 

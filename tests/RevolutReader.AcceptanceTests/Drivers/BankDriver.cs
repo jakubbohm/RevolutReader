@@ -152,7 +152,19 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
     """);
 
-  public void ReportsRequestLimitReached() => throw new NotImplementedException();
+  /// <summary>
+  /// Every request: the bank's request limit is reached. Written from the API reference (<c>ErrorResponse</c>, error code
+  /// <c>ASPSP_RATE_LIMIT_EXCEEDED</c>, with 429), not captured: the Mock ASPSP cannot reach its limit on demand. The
+  /// message text is made up.
+  /// </summary>
+  public void ReportsRequestLimitReached() => Bank.AnswerError(HttpStatusCode.TooManyRequests, """
+    {
+      "code": 429,
+      "message": "Request limit reached",
+      "error": "ASPSP_RATE_LIMIT_EXCEEDED",
+      "detail": null
+    }
+    """);
 
   public void ReportsOwnError() => throw new NotImplementedException();
 
