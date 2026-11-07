@@ -8,8 +8,9 @@ namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 /// <summary>
 /// A server on a free loopback port that starts every answer and breaks the connection before it ends: it reads the
 /// request, sends a success status with headers that promise a 1000-byte JSON body, sends a few bytes of it, and closes
-/// the connection. WireMock.Net cannot do this: its "malformed chunk" fault still ends the answer properly. Disposing it
-/// stops the server and waits for it, so a fault in the server fails the test that used it instead of going unobserved.
+/// the connection. WireMock.Net cannot do this: its "malformed chunk" fault still ends the answer properly. A client that
+/// hangs up ends only its own connection. Disposing it stops the server and waits for it, so any other fault in the server
+/// fails the test that used it instead of going unobserved; disposing it again does nothing.
 /// </summary>
 public sealed class ConnectionBreakingServer : IAsyncDisposable {
   private static readonly byte[] _endOfHeaders = "\r\n\r\n"u8.ToArray();
@@ -34,17 +35,39 @@ public sealed class ConnectionBreakingServer : IAsyncDisposable {
   private async Task ServeAsync(CancellationToken stopping) {
     try {
       while (true) {
-        using TcpClient connection = await _listener.AcceptTcpClientAsync(stopping);
-        NetworkStream stream = connection.GetStream();
+        TcpClient connection;
 
-        await ReadRequestHeaders(stream, stopping);
-        await stream.WriteAsync(_startOfAnAnswer, stopping);
+        try {
+          connection = await _listener.AcceptTcpClientAsync(stopping);
+        }
+        catch (SocketException hangUp) when (hangUp.SocketErrorCode == SocketError.ConnectionReset) {
+          // Reset before it was accepted; it is gone, so the next accept takes the next connection or sees the stopping.
+          continue;
+        }
+
+        using (connection)
+          await Answer(connection.GetStream(), stopping);
       }
     }
     catch (OperationCanceledException) when (stopping.IsCancellationRequested) {
       // Disposed: the server stops.
     }
   }
+
+  /// <summary>Answers one connection; the client hanging up ends only this connection.</summary>
+  private static async Task Answer(NetworkStream stream, CancellationToken stopping) {
+    try {
+      await ReadRequestHeaders(stream, stopping);
+      await stream.WriteAsync(_startOfAnAnswer, stopping);
+    }
+    catch (IOException failure) when (failure.InnerException is SocketException hangUp && IsHangUp(hangUp)) {
+      // The client hung up: the server goes on to the next connection.
+    }
+  }
+
+  /// <summary>The other side reset or aborted the connection, or shut it down (a broken pipe, on Linux).</summary>
+  private static bool IsHangUp(SocketException failure) =>
+    failure.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted or SocketError.Shutdown;
 
   /// <summary>Reads until the end of the request's headers, so closing sends the client our bytes, not a reset.</summary>
   private static async Task ReadRequestHeaders(NetworkStream stream, CancellationToken stopping) {
@@ -65,11 +88,16 @@ public sealed class ConnectionBreakingServer : IAsyncDisposable {
 
   #region IAsyncDisposable
 
+  private int _disposed;
+
   /// <summary>
-  /// Stops the server and waits for it, rethrowing what faulted it; frees the port only then, so the loop never calls a
-  /// stopped listener.
+  /// Stops the server and waits for it, rethrowing what faulted it (a client hanging up never does); frees the port only
+  /// then, so the loop never calls a stopped listener. Disposing again does nothing.
   /// </summary>
   public async ValueTask DisposeAsync() {
+    if (Interlocked.Exchange(ref _disposed, 1) == 1)
+      return;
+
     await _stopping.CancelAsync();
 
     try {
