@@ -136,7 +136,21 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   public void ListsFirstPageThenFails(DateOnly since) => throw new NotImplementedException();
 
-  public void ReportsExpiredSession() => throw new NotImplementedException();
+  /// <summary>
+  /// Every request: the session has expired. Written from the API reference (<c>ErrorResponse</c>, error code
+  /// <c>EXPIRED_SESSION</c>), not captured: the Mock ASPSP cannot expire a session on demand. The reference does not say
+  /// which status comes with the code; 422 is chosen, the status of every error the mock did answer
+  /// (<c>spikes/enable-banking-mock/evidence/2026-11-04-error-responses.json</c>) and the one design.md D4 cites for
+  /// session errors. The message text is made up.
+  /// </summary>
+  public void ReportsExpiredSession() => Bank.AnswerError(HttpStatusCode.UnprocessableEntity, """
+    {
+      "code": 422,
+      "message": "Session has expired",
+      "error": "EXPIRED_SESSION",
+      "detail": null
+    }
+    """);
 
   public void ReportsRequestLimitReached() => throw new NotImplementedException();
 

@@ -168,9 +168,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 24. [wiring] Slice 9 — Error answers
 
-- [ ] 24.1 `EnableBankingClient` reads the error body, classifies it and returns the case. An unexpected kind throws `BankReadException` carrying only the status and the code. Verify: build passes; green
-- [ ] 24.2 `BankDriver.ReportsExpiredSession`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
-- [ ] 24.3 Edge cases in `tests/RevolutReader.IntegrationTests/Wiring/EnableBanking/`, against WireMock.Net. An error body without an `error` code falls back to the status. An unreadable error body throws, and the message does not contain the body. Verify: those tests pass
+- [x] 24.1 `EnableBankingClient` reads the error body, classifies it and returns the case. An unexpected kind throws `BankReadException` carrying only the status and the code. Verify: build passes; green
+- [x] 24.2 `BankDriver.ReportsExpiredSession`, written from the API reference with a comment saying so. Verify: the scenario runs against the app
+- [x] 24.3 Edge cases in `tests/RevolutReader.IntegrationTests/Wiring/EnableBanking/`, against WireMock.Net. An error body without an `error` code falls back to the status. An unreadable error body throws, and the message does not contain the body. Also, decided on the user's behalf in the unattended run (2026-11-07, D4's "a body that cannot be parsed"): a success answer that cannot be read (not JSON, no `balances` or `transactions` list, a transaction without an amount) throws `BankReadException` without quoting the body. Verify: those tests pass
 
 ## 25. [close] Slice 9 — An expired bank session reads as access expired
 

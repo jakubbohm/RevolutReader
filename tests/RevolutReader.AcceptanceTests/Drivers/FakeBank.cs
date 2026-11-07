@@ -122,7 +122,8 @@ public sealed class FakeBank : IDisposable {
   }
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
-  public void AnswerError(HttpStatusCode status, string body) => throw new NotImplementedException();
+  public void AnswerError(HttpStatusCode status, string body) =>
+    _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", JSON).WithBody(body));
 
   /// <summary>Every answer comes only after this delay.</summary>
   public void AnswerAfter(TimeSpan delay) => throw new NotImplementedException();

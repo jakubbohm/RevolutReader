@@ -15,9 +15,10 @@ public static class BalanceSelection {
     EbBalance available = balances.Balances.FirstOrDefault(static balance => string.Equals(balance.BalanceType, AVAILABLE, StringComparison.Ordinal))
       ?? throw new BankReadException($"The bank's balances hold no available ({AVAILABLE}) balance.");
 
-    if (!WireAmount.TryParse(available.BalanceAmount.Amount, out decimal amount))
-      throw new BankReadException($"The bank's available ({AVAILABLE}) balance has an amount that is not a decimal number.");
+    // The amount may be missing at the bank, whatever its annotation: System.Text.Json does not enforce it.
+    if (available.BalanceAmount is not { } balanceAmount || !WireAmount.TryParse(balanceAmount.Amount, out decimal amount))
+      throw new BankReadException($"The bank's available ({AVAILABLE}) balance has no amount, or one that is not a decimal number.");
 
-    return new Balance(amount, available.BalanceAmount.Currency);
+    return new Balance(amount, balanceAmount.Currency);
   }
 }
