@@ -7,8 +7,9 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// The Enable Banking settings are checked at start-up (c004 design.md D6, § Error model; configuration.md § Binding):
-/// no secret may still hold the declared placeholder, and the private key must be an RSA private key in PEM form (a
-/// public key fails too). A failure names the setting, never its value. Each test runs both checks the app runs at
+/// no secret may still hold the declared placeholder, the API address must be an absolute http or https address whose
+/// path ends in "/" (a bare host's does), and the private key must be an RSA private key in PEM form (a public key fails
+/// too). A failure names the setting, never its value. Each test runs both checks the app runs at
 /// start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs them, and
 /// <see cref="EnableBankingOptionsValidator"/>. Every value here is made up; every key is generated in the test.
 /// </summary>
@@ -66,9 +67,24 @@ public sealed class EnableBankingOptionsTests {
   public void Complete_settings_pass_validation(string pemLabel) =>
     Failures(Settings(privateKey: RsaKeyPem(pemLabel))).ShouldBeEmpty();
 
+  [Test]
+  [Arguments("https://proxy.example/eb")] // its last path segment would be dropped
+  [Arguments("api.enablebanking.com")] // no scheme: binds as a relative address
+  [Arguments("ftp://api.enablebanking.com")] // not HTTP
+  public void An_api_address_requests_cannot_be_resolved_against_fails_validation(string address) =>
+    Failures(Settings(apiBaseUrl: new Uri(address, UriKind.RelativeOrAbsolute)))
+      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.ApiBaseUrl), StringComparison.Ordinal), "a failure naming ApiBaseUrl");
+
+  [Test]
+  [Arguments("https://api.enablebanking.com")]
+  [Arguments("http://127.0.0.1:5000")]
+  [Arguments("https://proxy.example/eb/")]
+  public void An_absolute_http_api_address_with_no_path_or_a_path_ending_in_a_slash_passes_validation(string address) =>
+    Failures(Settings(apiBaseUrl: new Uri(address))).ShouldBeEmpty();
+
   /// <summary>Complete, valid settings, except for the values given.</summary>
-  private static EnableBankingOptions Settings(string? applicationId = null, string? privateKey = null, string? sessionId = null, string? accountId = null) => new() {
-    ApiBaseUrl = _apiBaseUrl,
+  private static EnableBankingOptions Settings(Uri? apiBaseUrl = null, string? applicationId = null, string? privateKey = null, string? sessionId = null, string? accountId = null) => new() {
+    ApiBaseUrl = apiBaseUrl ?? _apiBaseUrl,
     ApplicationId = applicationId ?? MADE_UP_APPLICATION_ID,
     PrivateKey = privateKey ?? _rsaKey.Value,
     SessionId = sessionId ?? MADE_UP_SESSION_ID,

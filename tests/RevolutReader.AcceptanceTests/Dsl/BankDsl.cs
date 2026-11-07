@@ -14,8 +14,14 @@ public sealed class BankDsl(BankDriver driver) {
 
   private bool _balanceAnswerGiven;
 
-  /// <summary>The present user a read is for unless the scenario names one: an iPhone at a documentation address (RFC 5737).</summary>
-  public static UserAtDevice DefaultUser { get; } = new("203.0.113.7", "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X)");
+  /// <summary>
+  /// The present user a read is for unless the scenario names one: an iPhone at a documentation address (RFC 5737). Its
+  /// address and browser differ from those of every user a scenario names, so a read that goes out for this user instead
+  /// of the named one fails that scenario.
+  /// </summary>
+  public static UserAtDevice DefaultUser { get; } = new(
+    "198.51.100.23",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1");
 
   // What the bank holds or reports (GIVEN)
 
@@ -77,7 +83,10 @@ public sealed class BankDsl(BankDriver driver) {
   }
 
   /// <summary>The transactions from <paramref name="day"/>, inclusive, read for <see cref="DefaultUser"/>.</summary>
-  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day) => driver.ReadTransactionsFrom(day, DefaultUser);
+  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day) => ReadTransactionsFrom(day, DefaultUser);
+
+  /// <summary>The transactions from <paramref name="day"/>, inclusive, read for this present user.</summary>
+  public Task<TransactionsAnswer> ReadTransactionsFrom(DateOnly day, UserAtDevice user) => driver.ReadTransactionsFrom(day, user);
 
   // What the bank received (THEN)
 

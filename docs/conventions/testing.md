@@ -131,7 +131,7 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
   | Frontend test (rules only the browser can show) | a `scenario(...)` helper in Vitest, with string literals so the check can read them | `scenario("account-detail", "Amounts formatted in Czech", () => …)` |
   | Manual at handover (device-only behaviour, e.g. how a push notification appears on iOS) | a row in `tests/manual-scenarios.md`: capability, scenario, why manual, the handover step that checks it (M5, M7), date last checked | the file doubles as the handover checklist |
 
-- **The check fails when:** a scenario has no claim; a scenario is claimed twice; a claim names a scenario that does not exist (renamed or removed); two scenarios in one capability share a name.
+- **The check fails when:** a scenario has no claim; a scenario is claimed twice; a claim names a scenario that does not exist (renamed or removed); two scenarios in one capability share a name; a scenario heading sits inside a code fence, where it would otherwise need no claim: inside an example, below a fence left unclosed, or below a line OpenSpec reads as a fence, such as ```` ```json``` ```` at the start of a line.
 - **It checks existence, not results.** While a change is being implemented, its new acceptance tests exist and fail ([workflow.md § 6](workflow.md#6-openspec)).
 - **Frontend claims** (c003 design.md D7): the check reads every `scenario(` call in `src/RevolutReader.Web/src/**/*.test.ts` and `*.test.tsx`.
   - A call whose capability and name are string literals (single or double quotes; line breaks allowed between the arguments) is a claim.

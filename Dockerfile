@@ -3,10 +3,14 @@
 # Build from the repository root: `docker build -t revolutreader:local .`. The build context is an
 # allowlist (.dockerignore).
 #
-# The tags are exact. The SDK tag must hold the SDK that global.json pins (rollForward: disable):
-# the move to .NET 11 GA changes global.json and both .NET tags here together.
+# The .NET tags name exact .NET versions. The SDK tag must hold the SDK that global.json pins
+# (rollForward: disable): the move to .NET 11 GA changes global.json and both .NET tags here
+# together. The Node tag names only the major version (c005 design.md D12), as CI's frontend job
+# does. No tag is a digest, so the images behind them (a Node patch, the OS layers) can change
+# between a PR's image-and-infra check and the build on main.
 
-# 1. The frontend: the major Node version that src/RevolutReader.Web/.node-version pins.
+# 1. The frontend: the major Node version that src/RevolutReader.Web/.node-version pins. Node only
+# builds the static files; it is not in the image that runs.
 FROM node:24-slim AS web
 WORKDIR /src/src/RevolutReader.Web
 # The lock file first, so the install is cached until the dependencies change.

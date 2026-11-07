@@ -7,6 +7,7 @@ import {
   precacheAndRoute,
 } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
+import { SERVER_ONLY } from "./app/serverOnly";
 
 declare let self: ServiceWorkerGlobalScope;
 
@@ -18,9 +19,6 @@ clientsClaim();
 
 /** The app's page, precached with the build. */
 const START_PAGE = "index.html";
-
-/** Navigations the app's page never answers: the API and the health probe stay the server's. */
-const SERVER_ONLY = [/^\/api(\/|$)/, /^\/health$/];
 
 // The precache list is written in at build time by vite-plugin-pwa; files of an older build are removed.
 precacheAndRoute(self.__WB_MANIFEST);

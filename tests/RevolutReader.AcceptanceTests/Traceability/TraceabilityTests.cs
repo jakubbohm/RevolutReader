@@ -15,7 +15,9 @@ public sealed class TraceabilityTests {
   [Test]
   public void Every_scenario_is_claimed_exactly_once() {
     string root = RepositoryRoot();
-    IReadOnlyList<SpecScenario> required = TraceabilityCheck.RequiredScenarios(SpecDiscovery.MainSpecs(root), SpecDiscovery.ActiveDeltas(root));
+    IReadOnlyList<SpecFile> mainSpecs = SpecDiscovery.MainSpecs(root);
+    IReadOnlyList<SpecFile> activeDeltas = SpecDiscovery.ActiveDeltas(root);
+    IReadOnlyList<SpecScenario> required = TraceabilityCheck.RequiredScenarios(mainSpecs, activeDeltas);
     FrontendClaims[] frontend = [.. ClaimDiscovery.FrontendTestFiles(root).Select(file => ClaimDiscovery.FromFrontendTest(File.ReadAllText(Path.Combine(root, file)), file))];
     IReadOnlyList<ScenarioClaim> claims = [
       .. ClaimDiscovery.FromAttributes(typeof(TraceabilityTests).Assembly),
@@ -23,6 +25,7 @@ public sealed class TraceabilityTests {
       .. frontend.SelectMany(static file => file.Claims),
     ];
     IReadOnlyList<string> problems = [
+      .. TraceabilityCheck.FencedScenarios([.. mainSpecs, .. activeDeltas]),
       .. TraceabilityCheck.Problems(required, claims),
       .. frontend.SelectMany(static file => file.Unreadable).Select(static call => $"Unreadable scenario(...) call, its capability and name must be string literals: {call}"),
     ];
@@ -103,6 +106,31 @@ public sealed class TraceabilityTests {
       Section("MODIFIED", Requirement("Nutrition", "Cat is fed", "Cat is fed at 7:00")));
 
     TraceabilityCheck.RequiredScenarios([main], [delta]).ShouldBe([Required("Cat is fed"), Required("Cat is fed at 7:00")], ignoreOrder: true);
+  }
+
+  [Test]
+  public void A_closed_fence_hides_no_scenario() {
+    SpecFile main = MainSpec(Requirement("Feeding", "Cat is fed"), "```json\n{ \"bowl\": \"full\" }\n```\n\n", Requirement("Grooming", "Cat is brushed"));
+
+    TraceabilityCheck.RequiredScenarios([main], []).ShouldBe([Required("Cat is fed"), Required("Cat is brushed")], ignoreOrder: true);
+    TraceabilityCheck.FencedScenarios([main]).ShouldBeEmpty();
+  }
+
+  [Test]
+  public void A_scenario_below_an_unclosed_fence_is_reported() {
+    SpecFile main = MainSpec(Requirement("Feeding", "Cat is fed"), "```\nbowl.Fill();\n\n", Requirement("Grooming", "Cat is brushed"));
+
+    TraceabilityCheck.FencedScenarios([main]).ShouldBe(["Inside a code fence, so no claim is required: pets / Cat is brushed (openspec/specs/pets/spec.md line 21)"]);
+  }
+
+  [Test]
+  public void A_scenario_below_a_line_read_as_a_fence_is_reported() {
+    // CommonMark reads the first line as text with inline code; OpenSpec opens a fence there, closed only by the example's.
+    SpecFile delta = Delta(
+      "c002-add-bathing",
+      Section("ADDED", string.Concat(Requirement("Grooming", "Cat is brushed"), "```json``` is the format of the answer.\n\n", Requirement("Bathing", "Cat is bathed"), "```json\n{}\n```\n")));
+
+    TraceabilityCheck.FencedScenarios([delta]).ShouldBe(["Inside a code fence, so no claim is required: pets / Cat is bathed (openspec/changes/c002-add-bathing/specs/pets/spec.md line 15)"]);
   }
 
   [Test]
