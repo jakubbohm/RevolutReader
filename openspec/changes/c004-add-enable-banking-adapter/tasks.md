@@ -158,7 +158,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 22. [close] Slice 8 — An unattended read carries no user headers
 
-- [ ] 22.1 The scenario's test passes with what slice 7 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
+- [x] 22.1 The scenario's test passes with what slice 7 built; if it fails, route it as tdd-apply § 4 says. Verify: green, including this scenario
 
 ## 23. [unit] Slice 9 — Error classification: access expired
 
