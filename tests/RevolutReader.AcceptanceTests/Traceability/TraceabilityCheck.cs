@@ -10,9 +10,10 @@ namespace RevolutReader.AcceptanceTests.Traceability;
 /// The Markdown is read the way OpenSpec 1.14.3 reads it (<c>core/parsers/requirement-blocks.js</c>,
 /// <c>core/specs-apply.js</c>): a main spec's requirements sit under <c>## Requirements</c>; a delta's sections are
 /// applied RENAMED → REMOVED → MODIFIED → ADDED; every level-4 heading inside a requirement is a scenario (an optional
-/// <c>Scenario:</c> prefix is not part of its name); fenced code is ignored. Where OpenSpec would refuse a delta
-/// (MODIFIED of a requirement that does not exist, ADDED of one that does), the delta's requirement wins, so its
-/// scenarios still need claims; <c>openspec validate</c> reports the delta itself.
+/// <c>Scenario:</c> prefix is not part of its name); fenced code is ignored, and <see cref="FencedHeadings"/> reports
+/// every scenario or requirement heading a fence hides. Where OpenSpec would refuse a delta (MODIFIED of a requirement that does not
+/// exist, ADDED of one that does), the delta's requirement wins, so its scenarios still need claims;
+/// <c>openspec validate</c> reports the delta itself.
 /// </remarks>
 public static partial class TraceabilityCheck {
   private const string MAIN_SPEC_SECTION = "Requirements";
@@ -67,7 +68,43 @@ public static partial class TraceabilityCheck {
     return problems;
   }
 
+  /// <summary>
+  /// Every scenario or requirement heading inside a fenced code block. <see cref="RequiredScenarios"/> requires no claim
+  /// for a fenced scenario, and a scenario whose requirement heading is fenced is dropped, or counted under the
+  /// requirement above it, even when the fence closes before the scenario. Fences are read as OpenSpec reads them, more
+  /// loosely than CommonMark: a line such as <c>```json``` example</c> opens one, which hides everything up to the next
+  /// fence line, and a fence never closed hides everything to the end of the file, without a word; <c>openspec
+  /// validate</c> does not notice either. A heading inside a properly closed fence is reported too, so a spec that needs
+  /// such a heading in an example writes it some other way. A fenced section heading (<c>## </c>) is not reported: that
+  /// prefix is common in comments inside examples.
+  /// </summary>
+  public static IReadOnlyList<string> FencedHeadings(IReadOnlyList<SpecFile> specs) {
+    ArgumentNullException.ThrowIfNull(specs);
+
+    List<string> problems = [];
+
+    foreach (SpecFile spec in specs) {
+      string[] lines = Lines(spec.Markdown);
+      string[] unfenced = UnfencedLines(spec.Markdown);
+
+      for (int index = 0; index < lines.Length; index++) {
+        if (unfenced[index].Length != 0)
+          continue;
+
+        if (ScenarioHeading().Match(lines[index]) is { Success: true } scenario)
+          problems.Add($"Inside a code fence, so no claim is required: {spec.Capability} / {ScenarioName(scenario)} ({Describe(spec)} line {index + 1})");
+        else if (RequirementHeading().Match(lines[index]) is { Success: true } requirement)
+          problems.Add($"Requirement heading inside a code fence, so its scenarios are dropped or counted under the requirement above it: {spec.Capability} / {HeadingName(requirement.Groups[1].Value)} ({Describe(spec)} line {index + 1})");
+      }
+    }
+
+    return problems;
+  }
+
   private static string Describe(SpecScenario scenario) => $"{scenario.Capability} / {scenario.Name}";
+
+  private static string Describe(SpecFile spec) =>
+    spec.ChangeId.Length == 0 ? $"openspec/specs/{spec.Capability}/spec.md" : $"openspec/changes/{spec.ChangeId}/specs/{spec.Capability}/spec.md";
 
   private static List<Requirement> RequirementsOf(SortedDictionary<string, List<Requirement>> capabilities, string capability) {
     if (!capabilities.TryGetValue(capability, out List<Requirement>? requirements)) {
@@ -155,7 +192,7 @@ public static partial class TraceabilityCheck {
 
       Match scenario = ScenarioHeading().Match(line);
       if (name is not null && scenario.Success)
-        scenarios.Add(ScenarioPrefix().Replace(HeadingName(scenario.Groups[1].Value), string.Empty).Trim());
+        scenarios.Add(ScenarioName(scenario));
     }
 
     if (name is not null)
@@ -192,9 +229,14 @@ public static partial class TraceabilityCheck {
   /// <summary>A heading's text without an ATX closing run of <c>#</c> (<c>### Requirement: Foo ###</c> is <c>Foo</c>).</summary>
   private static string HeadingName(string text) => ClosingHashes().Replace(text, string.Empty).Trim();
 
+  /// <summary>A scenario heading's name, without an optional <c>Scenario:</c> prefix.</summary>
+  private static string ScenarioName(Match scenario) => ScenarioPrefix().Replace(HeadingName(scenario.Groups[1].Value), string.Empty).Trim();
+
+  private static string[] Lines(string markdown) => markdown.TrimStart(BYTE_ORDER_MARK).ReplaceLineEndings("\n").Split('\n');
+
   /// <summary>The lines of a Markdown text, with every line of a fenced code block (fences included) blanked.</summary>
   private static string[] UnfencedLines(string markdown) {
-    string[] lines = markdown.TrimStart(BYTE_ORDER_MARK).ReplaceLineEndings("\n").Split('\n');
+    string[] lines = Lines(markdown);
     char fenceMarker = default;
     int fenceLength = 0; // 0: outside a fenced block
 

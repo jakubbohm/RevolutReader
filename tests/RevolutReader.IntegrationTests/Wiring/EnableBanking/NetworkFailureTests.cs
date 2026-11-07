@@ -22,7 +22,7 @@ public sealed class NetworkFailureTests {
   /// <summary>The answer starts (a success status, a promised body) and the connection closes after a few bytes of the body.</summary>
   [Test]
   public async Task A_connection_that_breaks_while_the_answer_comes_in_is_bank_unavailable() {
-    using ConnectionBreakingServer server = new();
+    await using ConnectionBreakingServer server = new();
     using BankOnWireMock bank = new(apiBaseUrl: server.Address);
 
     (await bank.Account.ReadBalance(new Unattended(), CancellationToken.None)).Value.ShouldBeOfType<BankUnavailable>();

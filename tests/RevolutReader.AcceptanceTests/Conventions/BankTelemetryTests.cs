@@ -12,11 +12,17 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 
 /// <summary>
 /// No account identifiers in logs or traces (c004 design.md D5; CLAUDE.md: never log account identifiers). The bank's
-/// paths carry the account id, and the user headers carry the user's address; the HTTP client's default logging and the
-/// HTTP-client trace instrumentation record a request's URL. So the test's app copy reads the bank once for its balance
-/// and once for its transactions, for a present user, and nothing it logs (message, structured value or scope value)
-/// or exports as a trace (activity name, tag, event or status) may contain the configured account id, the session id or
-/// the user's IP address.
+/// paths carry the account id, and the user headers carry the user's address and browser (personal data with no use in
+/// the log, D5); the HTTP client's default logging and the HTTP-client trace instrumentation record a request's URL. So
+/// the test's app copy reads the bank once for its balance and once for its transactions, for a present user, and
+/// nothing it logs (message, structured value or scope value) or exports as a trace (activity name, tag, event or
+/// status) may contain the configured account id, the session id, or the user's IP address or browser.
+/// <para>
+/// The present user is the guard's own, with an address and a browser no other test uses: the app copies of tests running
+/// in parallel export into this test's collection too (<see cref="ExportedActivities"/>), and the server activity of
+/// every request an app copy answers records that request's browser (<c>user_agent.original</c>, OpenTelemetry's
+/// ASP.NET Core instrumentation). A shared value would fail this test whenever such a request ran at the same time.
+/// </para>
 /// <para>
 /// A rule, not a scenario: no public channel shows logs. "Exported" is what OpenTelemetry's in-memory exporter receives
 /// from the app's own tracing setup. TUnit's own trace additions (its HTTP activity source and correlation processor,
@@ -27,21 +33,24 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// </para>
 /// </summary>
 public sealed class BankTelemetryTests : AcceptanceTest {
+  /// <summary>The guard's own present user: a documentation address (RFC 5737) and a made-up browser, both used nowhere else.</summary>
+  private static readonly UserAtDevice _user = new("192.0.2.71", "Mozilla/5.0 (RevolutReader telemetry guard; made up)");
+
   private readonly CapturedLogs _logs = new();
   private readonly ExportedActivities _traces = new();
 
   [Test]
-  public async Task Bank_reads_leave_no_account_id_session_id_or_user_address_in_logs_or_traces() {
+  public async Task Bank_reads_leave_no_account_id_session_id_or_user_headers_in_logs_or_traces() {
     Bank.HasAvailableBalance(1234.56m);
     Bank.Lists(TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 3), to: "Pekárna U Lípy", reference: "e-101"));
 
-    (await Bank.ReadBalance()).Outcome.ShouldBe(BankOutcome.Read, "the balance read reached the bank");
-    (await Bank.ReadTransactionsFrom(new DateOnly(2026, 11, 1))).Outcome.ShouldBe(BankOutcome.Read, "the transactions read reached the bank");
+    (await Bank.ReadBalanceFor(_user)).Outcome.ShouldBe(BankOutcome.Read, "the balance read reached the bank");
+    (await Bank.ReadTransactionsFor(_user, new DateOnly(2026, 11, 1))).Outcome.ShouldBe(BankOutcome.Read, "the transactions read reached the bank");
 
-    string[] identifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId"), BankDsl.DefaultUser.IpAddress];
+    string[] identifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId"), _user.IpAddress, _user.Browser];
 
-    _logs.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session or the user's address");
-    _traces.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account, the session or the user's address");
+    _logs.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session, or the user's address or browser");
+    _traces.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account, the session, or the user's address or browser");
   }
 
   protected override void ConfigureTestOptions(WebApplicationTestOptions options) {

@@ -6,4 +6,6 @@
 - [Git Bash rewrites /paths for az](git-bash-az-path-conversion.md) — use MSYS_NO_PATHCONV=1 for --scope /subscriptions/...
 - [Every az command names the subscription](az-always-explicit-subscription.md) — always --subscription 7811bd13-…; never the default (employer tenant), never --tenant alone, never az account set
 - [Azure grants are run by the owner](azure-grants-run-by-owner.md) — the classifier blocks Claude's role assignments even with a go; hand over the exact PowerShell block, then check read-only
+- [Orchestrate, subagents implement](orchestrate-with-subagents.md) — in long fix rounds the main session explains, decides with the user and verifies; subagents edit; state to a scratchpad file before compaction
+- [Git Bash sed breaks CRLF](git-bash-sed-crlf.md) — sed -i rewrites .cs files as LF; use the Edit tool, then the whitespace check
 - [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup

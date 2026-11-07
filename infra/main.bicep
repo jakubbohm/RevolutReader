@@ -25,7 +25,9 @@ module features 'features.bicep' = {
     environmentId: platform.outputs.environmentId
     appIdentityId: platform.outputs.appIdentityId
     // Taking platform's outputs makes this module wait for the whole platform module, the identity's
-    // Key Vault role included, so a fresh deploy never creates the app before it may read its secrets.
+    // Key Vault role included. That orders the creation only: a new role can take up to 10 minutes
+    // to take effect, and a new vault starts empty, so a fresh deploy's first run can fail at the
+    // app on its secrets (docs/operations/deployment.md § The first deployment).
     keyVaultUri: platform.outputs.keyVaultUri
   }
 }
