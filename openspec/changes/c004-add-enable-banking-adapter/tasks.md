@@ -224,7 +224,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 36. [close] Slice 13 — A failure on a later page fails the whole read
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 36.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 37. [wiring] Logs and traces without identifiers
 
