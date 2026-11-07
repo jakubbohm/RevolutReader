@@ -154,7 +154,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 21. [close] Slice 7 — A read for a present user carries the user's address and browser
 
-- [ ] 21.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 21.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 22. [close] Slice 8 — An unattended read carries no user headers
 
