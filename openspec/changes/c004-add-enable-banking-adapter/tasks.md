@@ -162,9 +162,9 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 23. [unit] Slice 9 — Error classification: access expired
 
-- [ ] 23.1 Expired, revoked, closed and unknown sessions are access expired
-- [ ] 23.2 The bank needing the account holder is access expired
-- [ ] 23.3 No accounts added, or the account no longer accessible, is access expired
+- [x] 23.1 Expired, revoked, closed and unknown sessions are access expired
+- [x] 23.2 The bank needing the account holder is access expired
+- [x] 23.3 No accounts added, or the account no longer accessible, is access expired
 
 ## 24. [wiring] Slice 9 — Error answers
 
