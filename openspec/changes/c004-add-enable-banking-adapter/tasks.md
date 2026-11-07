@@ -187,7 +187,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 28. [close] Slice 10 — A reached request limit reads as rate limited, with no second request
 
-- [ ] 28.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 28.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 29. [unit] Slice 11 — Error classification: bank unavailable
 
