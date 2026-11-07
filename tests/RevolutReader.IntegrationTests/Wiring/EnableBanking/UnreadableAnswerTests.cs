@@ -18,7 +18,7 @@ public sealed class UnreadableAnswerTests {
 
   /// <param name="body">
   /// Not JSON; JSON of another shape; no list of balances, a null list, or a gap in it; the available balance without an
-  /// amount; a JSON null.
+  /// amount, or with an amount but no currency, or a null one; a JSON null.
   /// </param>
   [Test]
   [Arguments($"<html><body>maintenance {MARKER}</body></html>")]
@@ -27,6 +27,8 @@ public sealed class UnreadableAnswerTests {
   [Arguments($$"""{ "balances": null, "note": "{{MARKER}}" }""")]
   [Arguments($$"""{ "balances": [null], "note": "{{MARKER}}" }""")]
   [Arguments($$"""{ "balances": [{ "name": "{{MARKER}}", "balance_type": "ITAV" }] }""")]
+  [Arguments($$"""{ "balances": [{ "name": "{{MARKER}}", "balance_amount": { "amount": "1234.56" }, "balance_type": "ITAV" }] }""")]
+  [Arguments($$"""{ "balances": [{ "name": "{{MARKER}}", "balance_amount": { "currency": null, "amount": "1234.56" }, "balance_type": "ITAV" }] }""")]
   [Arguments("null")]
   public async Task A_balances_answer_that_cannot_be_read_is_an_error_that_does_not_quote_it(string body) {
     using BankOnWireMock bank = new();
@@ -39,8 +41,9 @@ public sealed class UnreadableAnswerTests {
 
   /// <param name="body">
   /// Not JSON; JSON of another shape; no list of transactions, a null list, or a gap in it; a booked transaction without
-  /// its amount (in the Mock ASPSP capture's shape, its other fields made up). Each is the last page
-  /// (<c>continuation_key: null</c>), so no other rule, such as a repeated key, can end the read instead.
+  /// its amount, with an amount but no currency or a null one, or with a null line among its payment details (in the Mock
+  /// ASPSP capture's shape, its other fields made up). Each is the last page (<c>continuation_key: null</c>), so no other
+  /// rule, such as a repeated key, can end the read instead.
   /// </param>
   [Test]
   [Arguments($"<html><body>maintenance {MARKER}</body></html>")]
@@ -60,6 +63,60 @@ public sealed class UnreadableAnswerTests {
           "value_date": "2026-11-03",
           "transaction_date": null,
           "remittance_information": ["Pekárna {{MARKER}}"]
+        }
+      ],
+      "continuation_key": null
+    }
+    """)]
+  [Arguments($$"""
+    {
+      "transactions": [
+        {
+          "entry_reference": "e-{{MARKER}}",
+          "transaction_amount": { "amount": "12.30" },
+          "creditor": { "name": "Pekárna {{MARKER}}" },
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-03",
+          "value_date": "2026-11-03",
+          "transaction_date": null,
+          "remittance_information": ["Pekárna {{MARKER}}"]
+        }
+      ],
+      "continuation_key": null
+    }
+    """)]
+  [Arguments($$"""
+    {
+      "transactions": [
+        {
+          "entry_reference": "e-{{MARKER}}",
+          "transaction_amount": { "currency": null, "amount": "12.30" },
+          "creditor": { "name": "Pekárna {{MARKER}}" },
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-03",
+          "value_date": "2026-11-03",
+          "transaction_date": null,
+          "remittance_information": ["Pekárna {{MARKER}}"]
+        }
+      ],
+      "continuation_key": null
+    }
+    """)]
+  [Arguments($$"""
+    {
+      "transactions": [
+        {
+          "entry_reference": "e-{{MARKER}}",
+          "transaction_amount": { "currency": "EUR", "amount": "12.30" },
+          "creditor": { "name": "Pekárna {{MARKER}}" },
+          "credit_debit_indicator": "DBIT",
+          "status": "BOOK",
+          "booking_date": "2026-11-03",
+          "value_date": "2026-11-03",
+          "transaction_date": null,
+          "remittance_information": ["Pekárna {{MARKER}}", null]
         }
       ],
       "continuation_key": null

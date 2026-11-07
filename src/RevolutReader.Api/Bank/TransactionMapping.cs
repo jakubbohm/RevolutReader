@@ -69,9 +69,18 @@ public static class TransactionMapping {
     DateOnly date = transaction.TransactionDate ?? transaction.BookingDate ?? transaction.ValueDate
       ?? throw new BankReadException("A transaction has no date: neither a transaction, a booking nor a value date.");
 
-    // The amount may be missing at the bank, whatever its annotation: System.Text.Json does not enforce it.
+    // The amount, its currency and a line of details may be missing at the bank, whatever their annotations:
+    // System.Text.Json does not enforce them.
     if (transaction.TransactionAmount is not { } transactionAmount || !WireAmount.TryParse(transactionAmount.Amount, out decimal amount))
       throw new BankReadException("A transaction has no amount, or one that is not a decimal number.");
+
+    if (transactionAmount.Currency is null)
+      throw new BankReadException("A transaction has no currency.");
+
+    IReadOnlyList<string> paymentDetails = transaction.RemittanceInformation ?? [];
+
+    if (paymentDetails.Any(static line => line is null))
+      throw new BankReadException("A transaction has a line of payment details that is null.");
 
     (decimal signedAmount, EbParty? counterparty) = transaction.CreditDebitIndicator switch {
       MONEY_SPENT => (-amount, transaction.Creditor),
@@ -86,7 +95,7 @@ public static class TransactionMapping {
       signedAmount,
       transactionAmount.Currency,
       counterparty?.Name,
-      transaction.RemittanceInformation ?? []);
+      paymentDetails);
   }
 }
 
