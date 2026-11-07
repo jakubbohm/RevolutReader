@@ -203,7 +203,7 @@ Run with `/tdd-apply c004-add-enable-banking-adapter review=all` (roadmap C5). T
 
 ## 31. [close] Slice 11 — A bank error reads as bank unavailable
 
-- [ ] 31.1 The scenario's test passes. Verify: green, including this scenario
+- [x] 31.1 The scenario's test passes. Verify: green, including this scenario
 
 ## 32. [wiring] Slice 12 — The request timeout
 
