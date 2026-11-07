@@ -12,7 +12,8 @@
 - **The workspace's daily cap matches the free allowance:** 0.16 GB a day (5 GB a month ÷ 31), up from 0.1 GB; Application Insights data counts against the same allowance (D9).
 - **Integration points:** Enable Banking (unchanged calls, a cleaned header); Azure: Application Insights, a `Monitoring Metrics Publisher` role for the app's identity, two environment variables, the workspace's cap; the deploy identity's role condition widened by hand, once (guided task).
 - **Hard to reverse:** nothing in code. The widened role condition stays until someone narrows it again by hand.
-- **Still open, to settle before `/tdd-apply`:** three choices (§ Open questions).
+- **A new ADR, ADR-0009-application-telemetry,** holds the telemetry decisions (D8 b, D9, D10) and C4's workspace (D11).
+- **Still open, to settle before `/tdd-apply`:** two choices (§ Open questions).
 
 ## Context
 
@@ -195,6 +196,15 @@ Decided with the user (2026-11-08, open question 2), after comparing what each s
 - **The rule:** the Azure Monitor exporter is registered for traces and logs only (§ Public API sketch); the app's metrics stay local (the Aspire dashboard) and are not exported in production.
 - **Rejected: all three signals,** the more complete default for a long-lived app (D8 as first decided). Switching it on later is a one-line change in ServiceDefaults.
 
+### D11 — The telemetry decisions get an ADR: ADR-0009-application-telemetry
+
+Decided with the user (2026-11-08, open question 1). The project rule records decisions with a lasting, cross-cutting effect as ADRs (workflow.md § 2); C4 had kept the log destination in its design and workflow.md § 5 only (c005 D6).
+
+- **What it holds:** the context (a scale-to-zero app whose output would vanish with a stopped copy; the platform's own metrics; the free 5 GB a month); the decision: the Log Analytics workspace as the environment's log destination (from c005 D6), Application Insights on it fed by the app's in-app exporter with logs and traces only, written with the app's managed identity and local authentication off, and the daily cap matched to the free allowance; the alternatives rejected in D8 and D10; the consequences (the deploy identity's fifth role, the settings, #17).
+- **Number:** 0009, the next free one on 2026-11-08 (C6's worktree has none newer); if another ADR lands first, the next free number when written.
+- **Where it is linked:** `docs/adr/README.md` (the index), workflow.md § 5, `pm/progress.md` (C11's notes), the lesson. D8–D10 stay in this design as the trail of how it was decided.
+- **Rejected: no ADR,** as C4 did. Simpler, but the telemetry setup spans decisions in two changes and outlives both; an archived design is a folder few will open, also for the D1 reinstatement guide.
+
 ## Public API sketch
 
 The adapter (`src/RevolutReader.Api/Bank/`). Only what changes; everything else stays as c004 design.md § Public API sketch has it.
@@ -349,7 +359,7 @@ The modified requirements' existing scenarios stay as they are and stay green. T
 - **By hand, once, before the merge** (guided task, D8 b): the deploy identity's role condition gets `Monitoring Metrics Publisher`; without it the deploy fails at the new role assignment.
 - **Settings:** the two top-level keys in `appsettings.json` with provenance comments (§ Public API sketch). The configuration rule ("no cloud credential in the configuration path") is untouched: the credential authorises sending telemetry, never reading a setting.
 - **Bank calls** (ADR-0001 § Decision): the same requests; the user agent is still the user's real browser, with the characters HTTP cannot carry replaced.
-- **ADRs:** none new. D3 changes c004 design.md D4's table for error answers, recorded here. D8 revisits c005 design.md D6; like that decision, the log destination stays a design-level decision recorded in the change and in workflow.md § 5.
+- **ADRs:** **ADR-0009-application-telemetry** (new, D11): where the app's telemetry goes and how it is bounded (D8 b, D9, D10, and c005 design.md D6's workspace, which never had an ADR); added to `docs/adr/README.md`; workflow.md § 5 and `pm/progress.md` link it. D3 changes c004 design.md D4's table for error answers, recorded here: a rule of the adapter, not a cross-cutting decision.
 - **Conventions:** workflow.md § 5 (Application Insights in v1, the resource list, the 0.16 GB cap); configuration.md (the two settings and their standard names).
 - **Operations:** deployment.md (the resources table with Application Insights and the 0.16 GB cap, the identity's roles, § Checks: the two ready queries); azure-prerequisites.md step 5 (five roles, and the command that widened the condition).
 - **Software factory:** a lesson in lessons.md (R-53, or the next free number when written): sending a .NET app's telemetry to Application Insights (the in-app exporter against the platform's managed agent and the vendor's all-in-one package), writing with the app's identity, and the deploy identity's role condition that has to grow with it. No inventory line: no reusable artifact.
@@ -376,7 +386,7 @@ Nothing to migrate: no stored data, no endpoint. Order: the guided role step, th
 
 Each would change a task, so none is decided on the user's behalf (memory `simplicity-vs-maturity-is-users-call`). Claude's lean is given; the choice is the user's.
 
-1. **An ADR for Application Insights?** The project rule records cross-cutting decisions as ADRs; C4 recorded the log destination only in its design and workflow.md § 5 (c005 D6), and this design follows that precedent (§ Cross-cutting effects). Yes adds an ADR task (and the progress line links it). Lean: no, as C4 did.
+1. ~~An ADR for Application Insights?~~ **Decided 2026-11-08: yes, ADR-0009-application-telemetry (D11).**
 2. ~~Export metrics too, or logs and traces only?~~ **Decided 2026-11-08: logs and traces only (D10).**
 3. **The two settings' names:** the standard names `APPLICATIONINSIGHTS_CONNECTION_STRING` and `AZURE_CLIENT_ID` (what Microsoft's libraries and docs use, read as `OTEL_EXPORTER_OTLP_ENDPOINT` is), or a project-style section such as `ApplicationInsights:ConnectionString` and `ManagedIdentity:ClientId` (configuration.md's usual shape, bound and validated like other options). Lean: the standard names.
 4. **The user's browser in exported request telemetry** (raised by PR #26): OpenTelemetry's ASP.NET Core instrumentation records each incoming request's browser (`user_agent.original`) on its server span. Today nothing exports spans in production; with D8 they reach Application Insights (`AppRequests`), so from C7 on the daughter's browser string is stored there for each request. PR #26 now treats the browser as personal data the guard keeps out of logs and traces for bank reads (c004 D5: "personal data with no use in the log"). Options: accept it (standard request telemetry, useful to tell the phone app from a browser), or strip `user_agent.original` from exported spans in ServiceDefaults (a few lines and a test, consistent with c004 D5). Lean: strip it, for consistency with D5; the user decides.
