@@ -142,3 +142,10 @@ Here ([workflow.md § 5, Bicep layout](../conventions/workflow.md#bicep-layout-c
 Given up: a merge whose Bicep no longer declares the vault or the storage account deletes it. Only the owner's review guards against that; the vault stays recoverable for 90 days, and the stored transactions can be imported again from the M1 history file.
 
 *Switch back when:* more features come onto the shared layer, a second environment or another contributor arrives, or the stack holds data that cannot be imported again.
+
+**R-52 · The app's Key Vault is open to the internet, guarded by roles alone**
+Full version: the app's environment in its own virtual network, a private endpoint for the vault, public network access off, decided together with the environment ([lessons.md R-52](lessons.md)).
+Here ([deployment.md § Identifiers](../operations/deployment.md#identifiers-non-secret), kept by the owner 2026-11-07): **`kv-revolutreader` keeps public network access on.** Container Apps cannot pass a closed vault's firewall, and its environment was created without its own network, which cannot be added later. Only the app's identity and the owner have a role on the vault.
+Given up: a second line of defence. A stolen credential with a role on the vault could read the four Enable Banking values from anywhere, and later the allowlist and the push keys too.
+
+*Switch back when:* the app outlives its planned ~2 months, the vault holds more than the bank link's secrets and a few keys, or the environment is rebuilt anyway (a reinstatement, D1). Then create the environment with its own network and close the vault.

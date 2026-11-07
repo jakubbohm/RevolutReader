@@ -28,7 +28,8 @@ $invariant = [cultureinfo]::InvariantCulture
 
 # 1. Start the authorisation, unless one is already waiting for its address
 if ($New -or -not (Test-Path -LiteralPath $statePath)) {
-    $validUntil = [DateTimeOffset]::UtcNow.AddDays(10).ToString("yyyy-MM-dd'T'HH:mm:ss.ffffffzzz", $invariant)
+    # 180 days, the Mock ASPSP's maximum_consent_validity: one session covers local development (c004 design.md D6).
+    $validUntil = [DateTimeOffset]::UtcNow.AddDays(180).ToString("yyyy-MM-dd'T'HH:mm:ss.ffffffzzz", $invariant)
     $state = [guid]::NewGuid().ToString()
     $auth = Invoke-EbApi -Method POST -Path '/auth' -Body ([ordered]@{
         access       = [ordered]@{ valid_until = $validUntil; balances = $true; transactions = $true }

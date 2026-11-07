@@ -35,9 +35,13 @@
     <!-- Mvc.Testing is pinned directly: TUnit.AspNetCore is built up to net10.0 and would
          otherwise pull 10.0.14 into the net11.0 test host. -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.3.26522.148" />
+    <!-- The telemetry guard collects what the app exports (c004 design.md D5); same version as the other OpenTelemetry packages. -->
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="TUnit" Version="1.80.0" />
     <PackageVersion Include="TUnit.AspNetCore" Version="1.80.0" />
+    <!-- The fake bank: a local HTTP server in front of our real Enable Banking client (testing.md § Fake bank, verified 2026-11-06). -->
+    <PackageVersion Include="WireMock.Net" Version="2.21.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tooling (repo-wide via Directory.Build.props)">

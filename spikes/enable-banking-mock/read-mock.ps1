@@ -18,7 +18,8 @@ $date = Get-Date -Format 'yyyy-MM-dd'
 
 function Save-Evidence([string] $Name, $Value) {
     $path = Join-Path $PSScriptRoot "evidence/$date-$Name.json"
-    $Value | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8
+    # -InputObject, not the pipeline: a list with a single page must stay a list (fixed in c004).
+    ConvertTo-Json -InputObject $Value -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8
     Write-Host "  saved $path"
 }
 

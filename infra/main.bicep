@@ -24,6 +24,9 @@ module features 'features.bicep' = {
     image: 'ghcr.io/jakubbohm/revolutreader:${imageTag}'
     environmentId: platform.outputs.environmentId
     appIdentityId: platform.outputs.appIdentityId
+    // Taking platform's outputs makes this module wait for the whole platform module, the identity's
+    // Key Vault role included, so a fresh deploy never creates the app before it may read its secrets.
+    keyVaultUri: platform.outputs.keyVaultUri
   }
 }
 

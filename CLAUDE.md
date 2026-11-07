@@ -4,7 +4,7 @@ A read-only PWA in which the owner's daughter sees the balance and transactions 
 
 ## Commands
 
-Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06; the image rows in C4, 2026-11-06).
+Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06; the image rows in C4, 2026-11-06; the bank check rows in C5, 2026-11-07).
 
 | Purpose | Command |
 |---|---|
@@ -15,6 +15,8 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | One change's acceptance tests | see below (the filter contains a pipe) |
 | All acceptance scenarios | `dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/*Scenarios/*"` |
 | Traceability check alone | `dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/TraceabilityTests/*"` |
+| Check 1: the bank adapter against Enable Banking's Mock ASPSP (explicit, never in the default run; needs the local secrets, [local-secrets.md](docs/operations/local-secrets.md)) | `dotnet test --project tests/RevolutReader.IntegrationTests --treenode-filter "/*/*/MockAspspCheck/*" --output Detailed` |
+| Check 2: the bank adapter against the real account, once (explicit; needs the `RealAccountCheck:*` secrets; makes 1 of Revolut's 4 unattended reads a day; writes a counts-only file to `spikes/enable-banking/evidence/`) | `dotnet test --project tests/RevolutReader.IntegrationTests --treenode-filter "/*/*/RealAccountCheck/*" --output Detailed` |
 | Fix formatting / check it | `dotnet format whitespace RevolutReader.slnx` / add `--verify-no-changes` |
 | Frontend install | `npm --prefix src/RevolutReader.Web ci` |
 | Frontend tests / one file | `npm --prefix src/RevolutReader.Web test` / add `-- src/scenarios/<capability>.test.tsx` |
@@ -29,7 +31,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 
 - One change's acceptance tests (scenario classes are named `<Capability>Scenarios`; the change's `.tdd-state.md` lists its tests): whole classes with `dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/(<Capability1>Scenarios)|(<Capability2>Scenarios)/*"`, chosen tests of one class with `--treenode-filter "/*/*/<Class>/(<Test1>)|(<Test2>)"`.
 - TUnit runs on Microsoft.Testing.Platform: `dotnet test --filter` is not supported (it runs nothing); use `--treenode-filter`, whose segments are `/<assembly>/<namespace>/<class>/<test>`.
-- Exit code 8 means zero tests ran: a layer run on an empty project (the unit and integration projects until C5) exits 8; the full `dotnet test` still exits 0 when another project ran tests.
+- Exit code 8 means zero tests ran, e.g. a `--treenode-filter` that matches nothing. Every test project has tests since C5; the explicit bank checks run only when a filter selects them alone.
 - One change's frontend scenario tests: its `src/scenarios/<capability>.test.tsx` files, listed after `--`. Vitest exits 1 when it finds no test file.
 - Image quick start, with made-up Enable Banking values (c005 design.md D14): first a throwaway key, in Bash `export EnableBanking__PrivateKey="$(openssl genpkey -quiet -algorithm RSA -pkeyopt rsa_keygen_bits:2048)"`, in PowerShell 7 `$env:EnableBanking__PrivateKey = [System.Security.Cryptography.RSA]::Create(2048).ExportPkcs8PrivateKeyPem()`; then, in either shell, `docker run -d --rm --name revolutreader-local -p 8080:8080 -e EnableBanking__ApplicationId=00000000-0000-0000-0000-000000000000 -e EnableBanking__PrivateKey -e EnableBanking__SessionId=00000000-0000-0000-0000-000000000000 -e EnableBanking__AccountId=00000000-0000-0000-0000-000000000000 revolutreader:local`. The pages and the API answer at `http://localhost:8080`; `docker logs revolutreader-local` shows the app's output, `docker stop revolutreader-local` removes it.
 
