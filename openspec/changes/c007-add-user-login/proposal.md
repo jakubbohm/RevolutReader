@@ -39,7 +39,7 @@ Roadmap step **C6** (`pm/roadmap.md`), use case **UC1** (kickoff ch. 5): a signe
   - the account menu in the top bar (name, email, "Odhlásit se"), the app's first Radix component.
 
   The screen is chosen from the first answer to "who is signed in?". Until C7, the frame stays empty while the server wakes or the phone is offline (D5).
-- **The generated API client** (D9): the OpenAPI document is exported at build time and committed, and the TypeScript types are generated from it (openapi-typescript on its own TypeScript 5) and committed too. The page calls the API through openapi-fetch. The drift check runs in the existing CI jobs.
+- **The generated API client** (D9): the OpenAPI document is exported by an explicit check that starts an app copy, and committed, and the TypeScript types are generated from it (openapi-typescript on its own TypeScript 5) and committed too. The page calls the API through openapi-fetch. The drift check runs in the existing CI jobs.
 - **Local development** (D2): Vite runs over HTTPS and keeps the browser's address when it forwards `/api`. The AppHost gets two new secret parameters.
 - **Guided steps for the owner** (D11), each a ready PowerShell 7 block run with the owner's go:
   - the Entra redirect URIs moved under `/api/auth/` and the production one added;
@@ -111,7 +111,7 @@ The other capabilities keep their requirements. `service-health`'s `GET /health`
   - unit tests for the allowlist, the forged-request rule, the settings and the session;
   - frontend scenario tests.
 - **Packages:**
-  - backend: `Microsoft.AspNetCore.Authentication.OpenIdConnect`, `Microsoft.AspNetCore.OpenApi` and `Microsoft.Extensions.ApiDescription.Server` (11.0.0-rc.3); `FastEndpoints.OpenApi` 9.0.0-beta.7; `Azure.Extensions.AspNetCore.DataProtection.Blobs` 1.5.5; `Azure.Extensions.AspNetCore.DataProtection.Keys` 1.6.5; `Azure.Identity` 1.21.0;
+  - backend: `Microsoft.AspNetCore.Authentication.OpenIdConnect` and `Microsoft.AspNetCore.OpenApi` (11.0.0-rc.3); `FastEndpoints.OpenApi` 9.0.0-beta.7; `Azure.Extensions.AspNetCore.DataProtection.Blobs` 1.5.5; `Azure.Extensions.AspNetCore.DataProtection.Keys` 1.6.5; `Azure.Identity` 1.21.0;
   - tests: `Microsoft.Extensions.TimeProvider.Testing` 10.11.0;
   - frontend: `openapi-fetch` 0.17.0 and `@radix-ui/react-dropdown-menu` 2.2.1;
   - tools folder: `openapi-typescript` 7.13.0 and `typescript` 5.9.3 (all versions checked 2026-11-07).

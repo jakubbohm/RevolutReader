@@ -9,7 +9,7 @@
 - **Waiting and offline screens move to C7,** hooked onto the app's first request (D5).
 - **Tests sign in through a fake Microsoft** (WireMock.Net: discovery, keys, token endpoint), so the whole sign-in runs production code; the fake clock enters the harness (D6).
 - **Cookie keys:** a blob in the new storage account, encrypted by a Key Vault key. Production only; the owner adds the fifth grantable role (D7).
-- **Allowlist:** one comma-separated secret (D8). **API client:** exported at build time and generated with TypeScript 5 in `tools/api-client/`; drift checked in the existing CI jobs (D9). **Forwarded headers** from the ingress (D10). **Guided steps** for the owner (D11). **UI:** three sign-in boards and the account menu (D12).
+- **Allowlist:** one comma-separated secret (D8). **API client:** exported by an explicit check that starts an app copy (the build-time export failed at bootstrap) and generated with TypeScript 5 in `tools/api-client/`; drift checked in the existing CI jobs (D9). **Forwarded headers** from the ingress (D10). **Guided steps** for the owner (D11). **UI:** three sign-in boards and the account menu (D12).
 - **New public interfaces:**
   - `GET /api/me`, `GET /api/auth/login`, `POST /api/auth/logout`;
   - the `SignIn` and `DataProtection` settings;
@@ -66,6 +66,12 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 1. **Packages** (versions in proposal.md § Impact), added to `Directory.Packages.props` and referenced, with no code using them yet. In `tools/api-client/`, `package.json` and `package-lock.json` with openapi-typescript and TypeScript 5.9.3, and `npm ci` passing.
 2. **Build-time OpenAPI export, proven on the current API:** `Microsoft.Extensions.ApiDescription.Server` writes `src/RevolutReader.Api/openapi.json` on `dotnet build` through FastEndpoints.OpenApi, with no `MapOpenApi()`, so nothing is served. The check is that `dotnet build` writes a document listing `GET /health` and the start-up checks don't break the build.
    - **If build-time export fails** (FastEndpoints 9 beta, or the start-up checks): the fallback is an explicit test in the integration project that starts an app copy in-process, reads its document and writes the file. It runs from the regenerate script, never from `dotnet test`. Bootstrap records which way it went.
+   - **Outcome (bootstrap, 2026-11-08): the fallback.** The build-time export starts the app with `appsettings.json`'s placeholder secrets, and the bank settings' start-up check refused them, so the build failed. FastEndpoints' own exporter (`ExportOpenApiDocsAndExitAsync`) starts the app too. Getting past the checks would take a build-only branch in Program.cs. So `Microsoft.Extensions.ApiDescription.Server` is not used. Instead:
+     - `tests/RevolutReader.IntegrationTests/Wiring/OpenApi/OpenApiExport.cs` (`[Explicit]`) starts an app copy in `Production` with made-up values for every secret checked at start, reads FastEndpoints' `v1` document through `IOpenApiDocumentProvider`, and writes `src/RevolutReader.Api/openapi.json` with LF line endings;
+     - the command is `dotnet test --project tests/RevolutReader.IntegrationTests --treenode-filter "/*/*/OpenApiExport/*"`;
+     - FastEndpoints' default JWT bearer scheme is switched off (`EnableJWTBearerAuth = false`), because the app signs in with a cookie;
+     - the document is OpenAPI 3.2.0, and openapi-typescript 7.13.0 reads it (a trial run, not committed);
+     - `openapi.json` is not committed in setup: task 6.1 commits it with `schema.d.ts`. Today's document describes `GET /health` as answering 204 No Content, but it answers 200 with the text `Healthy`. Task 6.1 corrects that description.
 3. **Microsoft's logo:** `ms-symbollockup_mssymbol_19.svg` from Microsoft Learn's "Sign in with Microsoft: Branding guidelines", downloaded and committed unchanged as `src/RevolutReader.Web/public/microsoft-logo.svg` (the design system's MicrosoftSignInButton guideline; docs/conventions/workflow.md § 8, files copied as they are).
 4. **The button's Czech label:** checked against Microsoft's own Czech wording, as the design system asks. If Microsoft's wording differs from "Přihlásit se účtem Microsoft", Claude reports it at the acceptance gate and the user decides. A different label means a spec fix (`[plan]`).
 5. The setup build and the full suite are green. The only accepted red is the traceability check reporting this change's 19 new scenarios as not claimed; group 1 claims them. The modified "The top bar shows the app name" keeps its existing claim.
@@ -232,12 +238,12 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 
 ### D9 — The generated API client
 
-- **`openapi.json`** is written by `dotnet build` into `src/RevolutReader.Api/` (build-time generation, `Microsoft.Extensions.ApiDescription.Server`, FastEndpoints.OpenApi) and committed. It is never served by the running app: no `MapOpenApi()`, no new open address. Bootstrap proves the export (§ Bootstrap, item 2).
-- **The TypeScript types:** `tools/api-client/` holds its own `package.json` (openapi-typescript 7.13.0, TypeScript 5.9.3) and lock file. Its script `generate` writes `src/RevolutReader.Web/src/api/schema.d.ts`; `regenerate` runs `dotnet build` on the API first, then `generate`. Both outputs are committed.
+- **`openapi.json`** is written into `src/RevolutReader.Api/` by the explicit export check `OpenApiExport` (FastEndpoints.OpenApi; the build-time export failed at bootstrap, § Bootstrap item 2) and committed. It is never served by the running app: no `MapOpenApi()`, no new open address. A change that adds a setting checked at start gives the export check a made-up value for it.
+- **The TypeScript types:** `tools/api-client/` holds its own `package.json` (openapi-typescript 7.13.0, TypeScript 5.9.3) and lock file. Its script `generate` writes `src/RevolutReader.Web/src/api/schema.d.ts`; `regenerate` runs the export check first, then `generate`. Both outputs are committed.
 - **The generated file** is left out of Prettier and oxlint, whose rules it doesn't follow.
 - **The client:** `src/RevolutReader.Web/src/api/client.ts` creates one openapi-fetch client on relative paths. `readSession()` and `signOut()` use it. `GET /api/auth/login` is a page navigation, not a fetch, so `startSignIn()` sets the location.
 - **Drift checks in the existing CI jobs,** so there is no new required check and no ruleset change:
-  - `build-and-test`, after `dotnet build`: `git diff --exit-code -- src/RevolutReader.Api/openapi.json`;
+  - `build-and-test`, after `dotnet build`: the export check, then `git diff --exit-code -- src/RevolutReader.Api/openapi.json`;
   - `frontend`: `npm --prefix tools/api-client ci`, `npm --prefix tools/api-client run generate`, then `git diff --exit-code -- src/RevolutReader.Web/src/api/schema.d.ts`.
 - **The contract in C6:**
   - `GET /api/me` → 200 `MeResponse { name, email }`, 401 and 403 problem descriptions;
@@ -544,7 +550,7 @@ None new. Microsoft's service is an external system reached by ASP.NET's own Ope
 - **[Sign-in fails in the iPhone Home Screen app]** (ADR-0003) → checked right after the merge (D1); the fallbacks are a follow-up change.
 - **[.NET 11's built-in CSRF check rejects Microsoft's cross-site return POST]** (its enforcement is described differently; a .NET issue reports a 400 on login/logout) → the acceptance driver posts with real cross-site headers, so a rejection shows up red in the first sign-in slice. Fallbacks, in order: exempt the return path from the built-in check, or switch to `response_mode=query` (a GET, which no CSRF check touches; the one-time, PKCE-bound code then appears in the address).
 - **[The ingress doesn't keep the `Host` header]** → the deployed sign-in sends Microsoft the wrong return address, and Microsoft rejects it (unregistered). The deployed check after the merge shows it; `X-Forwarded-Host` limited to the app's address fixes it (D10).
-- **[Build-time OpenAPI export doesn't work with FastEndpoints 9 beta or the start-up checks]** → bootstrap proves it before anything depends on it; the fallback is the in-process export (§ Bootstrap, item 2).
+- **[Build-time OpenAPI export doesn't work with FastEndpoints 9 beta or the start-up checks]** → happened at bootstrap (the start-up checks); the in-process export check is used instead (§ Bootstrap, item 2). Its remaining risk: a setting checked at start that the export check lacks fails `regenerate` and the CI drift step, with the validation message naming the setting.
 - **[Aspire doesn't serve Vite over HTTPS by itself]** → `WithHttpsDeveloperCertificate()` (experimental). If the certificate isn't trusted, `dotnet dev-certs https --trust` (the owner).
 - **[The cookie handler doesn't take the app's `TimeProvider`]** → the 30-day scenarios fail in their slice; the app then sets the handler's `TimeProvider` explicitly from the registered one.
 - **[The fifth role is missing at merge]** → the deploy fails at the role assignment and the old revision keeps running. The guided step comes before the merge, with a read-back (D11).

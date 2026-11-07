@@ -3,7 +3,7 @@
 Before this list: design.md § Bootstrap, committed as `[setup]`, covering:
 
 - the packages and `tools/api-client/`;
-- the build-time OpenAPI export proven on today's API (or its fallback);
+- the OpenAPI export proven on today's API (it went the fallback way: the explicit export check `OpenApiExport`, design.md § Bootstrap item 2);
 - Microsoft's logo file;
 - the Czech button label checked.
 
@@ -88,7 +88,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 5. [wiring] Slice 2 — Signing in through Microsoft
 
-- [ ] 5.1 `SignInOptions` and the `SignIn` section in `appsettings.json`: `Authority`, `ClientId`, and the two secrets as `"<secret>"`, each key with its provenance comment (design.md D11). Bound with `ValidateDataAnnotations`, `SignInOptionsValidator` and `ValidateOnStart`. Verify: build passes; green (the harness's settings pass)
+- [ ] 5.1 `SignInOptions` and the `SignIn` section in `appsettings.json`: `Authority`, `ClientId`, and the two secrets as `"<secret>"`, each key with its provenance comment (design.md D11). Bound with `ValidateDataAnnotations`, `SignInOptionsValidator` and `ValidateOnStart`. The export check `OpenApiExport` (`RevolutReader.IntegrationTests/Wiring/OpenApi/`) gets made-up values for the new settings (design.md D9). Verify: build passes; green (the harness's settings pass); the export check passes
 - [ ] 5.2 OpenID Connect in `AddSignIn()`, as design.md D2–D4 describe:
   - authority, client id and secret, code flow with `form_post` and PKCE;
   - `CallbackPath` `/api/auth/signin-oidc`;
@@ -103,9 +103,9 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 6. [wiring] Slice 2 — The generated API client
 
-- [ ] 6.1 `GET /api/me`'s OpenAPI description (200 `MeResponse`, 401 and 403 problem descriptions); `tools/api-client`'s `generate` and `regenerate` scripts. Regenerate the TS client: `openapi.json` and `src/RevolutReader.Web/src/api/schema.d.ts` committed; `schema.d.ts` left out of Prettier and oxlint. Verify: `npm --prefix tools/api-client run regenerate` leaves no diff; frontend checks green
+- [ ] 6.1 `GET /api/me`'s OpenAPI description (200 `MeResponse`, 401 and 403 problem descriptions), and `GET /health`'s corrected to 200 with the text `Healthy` (today's document says 204, design.md § Bootstrap item 2); `tools/api-client`'s `generate` and `regenerate` scripts (`regenerate` runs the export check `OpenApiExport`, then `generate`). Regenerate the TS client: `openapi.json` and `src/RevolutReader.Web/src/api/schema.d.ts` committed; `schema.d.ts` left out of Prettier and oxlint. Verify: `npm --prefix tools/api-client run regenerate` leaves no diff; frontend checks green
 - [ ] 6.2 `src/RevolutReader.Web/src/api/client.ts`: one openapi-fetch client on the page's origin. Verify: typecheck passes
-- [ ] 6.3 CI drift steps (design.md D9): in `build-and-test` after `dotnet build`, and in `frontend` after `npm --prefix tools/api-client ci` and `run generate`, each a `git diff --exit-code` on its generated file. Verify: locally, an edited `openapi.json` makes the step's command fail, and reverting makes it pass; the workflow file passes `actionlint` if installed, else review
+- [ ] 6.3 CI drift steps (design.md D9): in `build-and-test` after `dotnet build` and the export check, and in `frontend` after `npm --prefix tools/api-client ci` and `run generate`, each a `git diff --exit-code` on its generated file. Verify: locally, an edited `openapi.json` makes the step's command fail, and reverting makes it pass; the workflow file passes `actionlint` if installed, else review
 - [ ] 6.4 Docs:
   - README.md § API contract: the tools folder, its scripts and the drift steps;
   - `CLAUDE.md` § Commands: "Regenerate the API client";
