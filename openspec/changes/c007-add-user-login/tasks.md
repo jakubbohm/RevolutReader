@@ -265,7 +265,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 31. [wiring] Slice 13 — The button starts the sign-in
 
-- [ ] 31.1 The button calls `startSignIn()` and shows its loading state while the page leaves. Verify: the scenario runs against the app
+- [x] 31.1 The button calls `startSignIn()` and shows its loading state while the page leaves. Verify: the scenario runs against the app
 
 ## 32. [close] Slice 13 — Tapping the sign-in button starts the Microsoft sign-in
 

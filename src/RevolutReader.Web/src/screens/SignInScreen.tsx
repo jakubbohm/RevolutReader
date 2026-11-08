@@ -1,19 +1,28 @@
-import type { JSX } from "react";
+import { useState, type JSX } from "react";
+import { startSignIn } from "../app/session";
 import { MicrosoftSignInButton } from "../components/MicrosoftSignInButton";
 
 export interface SignInScreenProps {
   /** Shown right after signing out from the account menu, with its note above the button (c007, slice 17). */
   signedOut: boolean;
-  /** Starts the sign-in at Microsoft. */
-  onSignIn?: () => void;
 }
 
 /**
  * The screen when nobody is signed in (spec sign-in, laid out as the Screens board "Sign-in / Start", light and dark;
  * c007 design.md D12): no top bar; the app icon and its Spanish name with one line about the app, centred; the
- * Microsoft sign-in button and its muted line at the bottom, above the home-indicator inset.
+ * Microsoft sign-in button and its muted line at the bottom, above the home-indicator inset. Tapping the button starts
+ * the sign-in, and the button shows it is loading while the page leaves for Microsoft; a second tap does nothing.
  */
-export function SignInScreen({ onSignIn }: SignInScreenProps): JSX.Element {
+export function SignInScreen(_props: SignInScreenProps): JSX.Element {
+  const [leaving, setLeaving] = useState(false);
+
+  function signIn(): void {
+    if (leaving) return;
+
+    setLeaving(true);
+    startSignIn();
+  }
+
   return (
     <main className="flex min-h-dvh flex-col bg-background pt-[calc(env(safe-area-inset-top,0px)_+_var(--spacing-topbar))] pr-[calc(env(safe-area-inset-right,0px)_+_var(--spacing-gutter))] pb-[calc(env(safe-area-inset-bottom,0px)_+_var(--spacing-section))] pl-[calc(env(safe-area-inset-left,0px)_+_var(--spacing-gutter))]">
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
@@ -33,7 +42,7 @@ export function SignInScreen({ onSignIn }: SignInScreenProps): JSX.Element {
         </p>
       </div>
       <div className="flex flex-col items-center gap-3 text-center">
-        <MicrosoftSignInButton onClick={onSignIn} />
+        <MicrosoftSignInButton onClick={signIn} loading={leaving} />
         <p className="text-footnote text-ink-muted">
           Použij účet Microsoft, který ti táta povolil.
         </p>
