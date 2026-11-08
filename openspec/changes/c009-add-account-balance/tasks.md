@@ -256,16 +256,16 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 34. [unit] Slice 14 — Back online
 
-- [ ] 34.1 Coming back online asks for a refresh
-- [ ] 34.2 Back online while who is signed in was unanswered asks it again, not the balance
+- [x] 34.1 Coming back online asks for a refresh
+- [x] 34.2 Back online while who is signed in was unanswered asks it again, not the balance
 
 ## 35. [wiring] Slice 14 — Back online
 
-- [ ] 35.1 `watchRefreshTriggers` gains the `online` event; `useAccountScreen` repeats what was under way, and the offline banner's "Zkusit znovu" does it at once. Verify: the scenario runs against the app
+- [x] 35.1 `watchRefreshTriggers` gains the `online` event; `useAccountScreen` repeats what was under way, and the offline banner's "Zkusit znovu" does it at once. Verify: the scenario runs against the app
 
 ## 36. [close] Slice 14 — Coming back online loads what was waiting
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including app-shell / Coming back online loads what was waiting
+- [x] 36.1 The scenario's test passes. Verify: green, including app-shell / Coming back online loads what was waiting
 
 ## 37. [unit] Slice 15 — Waiting for the server
 

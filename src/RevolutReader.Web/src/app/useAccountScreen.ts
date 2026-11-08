@@ -11,20 +11,25 @@ const OFFLINE: Problem = { kind: "offline" };
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
-  /** "Obnovit": reads the balance again, unless a read is under way. */
+  /** "Obnovit": the screen's refresh signal (`repeat`). */
   refresh: () => void;
-  /** "Zkusit znovu". Repeats nothing yet: retrying comes with its own slice (c009 tasks.md slice 22). */
+  /** "Zkusit znovu": repeats what was under way, at once (`repeat`). */
   retry: () => void;
   /** "Odhlásit se" in the account menu. */
   signOut: () => void;
 }
 
 /**
- * The account screen's sequence (c009 design.md D2, D3, D4): at start, the balance the phone keeps, shown at once until
- * a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
- * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. "Obnovit" and every return to the screen (`watchRefreshTriggers`) read the balance again
- * for a signed-in user. One read at a time: a refresh asked for while a read is under way, the first one included, is
- * ignored, not queued. What it learns becomes `Facts`, and the screen is what `shown` makes of them.
+ * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, shown at once
+ * until a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
+ * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen.
+ * What it learns becomes `Facts`, and the screen is what `shown` makes of them.
+ *
+ * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
+ * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
+ * again, and the balance only after it; for a signed-in user, it reads the balance again. One question and one read at a
+ * time: a repeat while one is under way is ignored, not queued. Each new question or read clears the screen's problem,
+ * and its outcome sets the next (D7 c).
  *
  * "Odhlásit se" signs out; once the server has confirmed it, the sign-in screen shows with its note that the sign-out
  * happened. A sign-out that failed (a server error, offline) leaves the visitor on the account screen, still signed in,
@@ -36,85 +41,113 @@ export function useAccountScreen(): AccountScreenModel {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
-  /** Set the moment a balance read starts, so a second one asked for in the same turn sees it (state would not yet). */
+  /** Whether the screen is on the page, for answers that come after it left. */
+  const onPage = useRef(false);
+  /** Set the moment the question starts, so a second one asked for in the same turn sees it (state would not yet). */
+  const askUnderWay = useRef(false);
+  /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
 
-  /** Reads the balance as `as`, unless a read is under way: then nothing is sent, and the answer is `null`. */
-  const readOnce = useCallback(
-    async (as: "first" | "refresh"): Promise<BalanceRead | null> => {
-      if (readUnderWay.current) return null;
+  /** Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. */
+  const readTheBalance = useCallback(
+    async (as: "first" | "refresh"): Promise<void> => {
+      if (readUnderWay.current) return;
       readUnderWay.current = true;
       setReading(as);
+      setProblem(null);
 
+      let read: BalanceRead;
       try {
-        return await readBalance();
+        read = await readBalance();
       } finally {
         readUnderWay.current = false;
       }
+      if (!onPage.current) return;
+
+      setReading("no");
+      if (read.kind === "read") {
+        setBalance(read.balance);
+        // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
+        void storeBalance(read.balance);
+      }
+      if (read.kind === "offline") setProblem(OFFLINE);
     },
     [],
   );
 
-  /**
-   * What a read brought: the read is over; a balance it read replaces the one shown and the one the phone keeps, and no
-   * answer means offline.
-   */
-  const takeIn = useCallback((read: BalanceRead): void => {
-    setReading("no");
-    if (read.kind === "read") {
-      setBalance(read.balance);
-      // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
-      void storeBalance(read.balance);
+  /** Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. */
+  const askOnce = useCallback(async (): Promise<Session | null> => {
+    if (askUnderWay.current) return null;
+    askUnderWay.current = true;
+
+    try {
+      return await readSession();
+    } finally {
+      askUnderWay.current = false;
     }
-    if (read.kind === "offline") setProblem(OFFLINE);
   }, []);
 
+  /**
+   * Who is signed in, as the server answered: it replaces the screen's problem (offline, or none), and for a signed-in
+   * user the balance is read next.
+   */
+  const takeInAnswer = useCallback(
+    async (answer: Session): Promise<void> => {
+      if (!onPage.current) return;
+
+      setSession(answer);
+      setProblem(answer.kind === "offline" ? OFFLINE : null);
+      if (answer.kind === "signed-in") await readTheBalance("first");
+    },
+    [readTheBalance],
+  );
+
+  /** Asks who is signed in and takes in the answer, unless the question is under way. */
+  const askWhoIsSignedIn = useCallback(async (): Promise<void> => {
+    const answer = await askOnce();
+    if (answer !== null) await takeInAnswer(answer);
+  }, [askOnce, takeInAnswer]);
+
   useEffect(() => {
-    let showing = true;
+    onPage.current = true;
 
     // What the phone keeps shows at once, before any answer (D2); a failing store reads as none.
     async function loadStored(): Promise<void> {
       const kept = await loadStoredBalance();
-      if (showing) setStored(kept);
+      if (onPage.current) setStored(kept);
     }
 
     async function start(): Promise<void> {
-      const answer = await readSession();
-      if (!showing) return;
-      setSession(answer);
-      if (answer.kind === "offline") setProblem(OFFLINE);
-      if (answer.kind !== "signed-in") return;
-
-      const read = await readOnce("first");
-      if (showing && read !== null) takeIn(read);
+      const answer = await askOnce();
+      if (answer !== null) await takeInAnswer(answer);
     }
 
     void loadStored();
     void start();
 
     return () => {
-      showing = false;
+      onPage.current = false;
     };
-  }, [readOnce, takeIn]);
+  }, [askOnce, takeInAnswer]);
 
   const signedIn = session !== "waiting" && session.kind === "signed-in";
+  const unanswered =
+    session === "waiting" ||
+    session.kind === "offline" ||
+    session.kind === "unexpected";
+  const hasRead = balance !== null;
 
-  /** Reads the balance again and takes in what it brought, unless a read is under way. */
-  const readAgain = useCallback(async (): Promise<void> => {
-    const read = await readOnce("refresh");
-    if (read !== null) takeIn(read);
-  }, [readOnce, takeIn]);
+  /**
+   * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; the balance read for a
+   * signed-in user, as the first read until one succeeded. Nothing for a visitor on the sign-in or no-access screen.
+   */
+  const repeat = useCallback((): void => {
+    if (signedIn) void readTheBalance(hasRead ? "refresh" : "first");
+    else if (unanswered) void askWhoIsSignedIn();
+  }, [signedIn, unanswered, hasRead, readTheBalance, askWhoIsSignedIn]);
 
-  // While signed in, every return to the screen reads the balance again (D3): no throttle, and a return during a read
-  // is ignored like any refresh then.
-  useEffect(() => {
-    if (!signedIn) return undefined;
-    return watchRefreshTriggers(() => void readAgain());
-  }, [signedIn, readAgain]);
-
-  function refresh(): void {
-    if (signedIn) void readAgain();
-  }
+  // Every return to the screen and coming back online repeat what was under way: no throttle.
+  useEffect(() => watchRefreshTriggers(repeat), [repeat]);
 
   async function signOutFromMenu(): Promise<void> {
     try {
@@ -139,10 +172,8 @@ export function useAccountScreen(): AccountScreenModel {
 
   return {
     shown: shown(facts),
-    refresh,
-    retry: doNothingYet,
+    refresh: repeat,
+    retry: repeat,
     signOut: () => void signOutFromMenu(),
   };
 }
-
-function doNothingYet(): void {}
