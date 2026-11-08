@@ -93,7 +93,7 @@ Decided in c005 design.md D1, D10 and D13. The deployed resources, the preview b
 - **One deployment stack,** `revolutreader` on `rg-revolutreader`, applied on every merge to `main`. One deployment creates everything in order, so a change that adds a shared resource and the feature part that uses it lands in one run.
 - **Three Bicep files in `infra/`:**
   - [`main.bicep`](../../infra/main.bicep): the stack's entry point. It calls the other two and passes names and IDs between them; its outputs are `appName`, `appUrl` and `keyVaultName`.
-  - [`platform.bicep`](../../infra/platform.bicep): the shared infrastructure. The log workspace, Key Vault, the app's identity and its roles, the Container Apps environment; later the storage account (C6). A feature PR changes it only when it adds something shared.
+  - [`platform.bicep`](../../infra/platform.bicep): the shared infrastructure. The log workspace and Application Insights on it (C12), Key Vault, the app's identity and its roles, the Container Apps environment; later the storage account (C6). A feature PR changes it only when it adds something shared.
   - [`features.bicep`](../../infra/features.bicep): the container app at the top, then one section per feature (the bank C5, sign-in C6, the account detail C7, push C8). A section holds the feature's resources and the settings and secrets it adds to the app, so they sit next to what they point to.
 - **[`main.bicepparam`](../../infra/main.bicepparam)** holds the production values: the region, and the image tag from the environment variable `IMAGE_TAG`, which the deploy sets. Nothing personal or secret, since the repository is public.
 - **[`bicepconfig.json`](../../infra/bicepconfig.json)** makes every linter rule that is on by default an error. Bicep's own compiler warnings exit with success, so the PR check fails on any warning line itself (§ 4).
@@ -101,25 +101,26 @@ Decided in c005 design.md D1, D10 and D13. The deployed resources, the preview b
 
 ### Resources (decided in F0-2, 2026-11-05)
 
-Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md). The hand-made part, with identifiers and commands: [docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md).
+Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/adr/](../adr/README.md); the log workspace and Application Insights: [ADR-0009-application-telemetry](../adr/0009-application-telemetry.md). The hand-made part, with identifiers and commands: [docs/operations/azure-prerequisites.md](../operations/azure-prerequisites.md).
 
 | Resource | Who creates it | When |
 |---|---|---|
 | Resource providers the deploy identity cannot register (Key Vault; Logic Apps too, registered in M3 and unused since ADR-0008) | by hand | M3 |
 | Resource group (the stack's scope) | by hand | M3 |
-| Deploy identity: user-assigned managed identity in the resource group, federated credential for GitHub Actions, Contributor + role assignments limited to the app's data roles, on the resource group | by hand | M3 |
+| Deploy identity: user-assigned managed identity in the resource group, federated credential for GitHub Actions, Contributor + role assignments limited to a list of roles (five since C12: [azure-prerequisites.md](../operations/azure-prerequisites.md), item 5), on the resource group | by hand | M3; widened in C12 |
 | GitHub environment `production` (deploys from `main` only) with the values the workflow needs before Bicep runs | by hand | M3 |
 | Entra app registration (personal Microsoft accounts only, web redirect URIs; [entra-id.md](../operations/entra-id.md)) + 12-month client secret | by hand | M4; the secret in C6 |
 | Hand-provisioned Key Vault values: Enable Banking key and session, the client secret, the account allowlist, the VAPID keys | by hand, guided | C4, C6, C8 |
 | Public container package `ghcr.io/jakubbohm/revolutreader`. The first push (2026-11-06) created it public, linked to the repository. If a package is ever private (e.g. created again at a reinstatement), the deploy stops at its image check until the owner makes it public ([deployment.md § The first deployment](../operations/deployment.md#the-first-deployment)) | CD pushes; made public by hand only if it is private | C4 |
 | The owner's Key Vault Secrets Officer role on the resource group, so the owner can write secret values. By hand because the Bicep would need the owner's account ID in the public repository ([azure-prerequisites.md](../operations/azure-prerequisites.md), item 7; [lessons.md R-50](../software-factory/lessons.md)) | by hand, once | C4 |
-| Log Analytics workspace (30 days, 0.1 GB daily cap), the environment's log destination (`platform.bicep`) | Bicep | C4 |
+| Log Analytics workspace (30 days; daily cap 0.16 GB since C12, matched to the free 5 GB a month, was 0.1 GB), the environment's log destination (`platform.bicep`) | Bicep | C4 |
+| Application Insights, workspace-based on that workspace, local authentication off, with Monitoring Metrics Publisher for the app's identity, so the app writes its logs and traces with its own identity (`platform.bicep`); the connection string and the identity's client ID as two settings on the container app (`features.bicep`) | Bicep | C12 |
 | Key Vault (Azure roles), and the app's user-assigned identity with Key Vault Secrets User on it (`platform.bicep`) | Bicep | C4 |
 | Container Apps environment, workload profiles with Consumption only (`platform.bicep`) | Bicep | C4 |
 | Container app `tarjeta-papa` (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress, probes on `/health`), with the app's identity and, from C5, Key Vault-backed secrets (`features.bicep`) | Bicep | C4 |
 | Storage account (shared-key access off): a blob container for the Data Protection keys (C6), then tables (C7 or its first slice) | Bicep | C6 |
 
-No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. No Application Insights in v1: the logs go to the workspace only (c005 design.md D6).
+No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. **Application Insights in v1** since C12, reversing C4's "not yet" (c005 design.md D6): the deployed app sends its logs and traces there, and its console output still goes to the workspace ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)).
 
 ## 6. OpenSpec
 
@@ -128,6 +129,7 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
 - **Each change starts on its own branch** off the freshest `main`, created before any artifact is drafted (proposal rule in `openspec/config.yaml`).
 - **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the roadmap step (e.g., C6) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
 - **Apply is test-first through `/tdd-apply <change>`,** not `/opsx:apply` ([testing.md § Test-first workflow](testing.md#test-first-workflow)); `openspec/config.yaml` shapes `tasks.md` into the task groups it expects.
+- **The archive is part of the change's own PR** (the user, 2026-11-08): `/opsx:archive` runs on the change branch once its tasks are done, guided tasks included, and is committed `[archive]` before the PR is marked ready, so the main specs change in the same squash merge as the code. Never a follow-up after the merge, never a PR of its own.
 - **Tooling-only changes** (the user, 2026-11-05; the first is C2, `c002-add-ci-pipeline` design.md D1) change how the repository accepts or ships code (CI, the ruleset on `main`, process files), not what the app does. A change that touches the app's behaviour is never tooling-only.
   - It sets `skip_specs: true` in its `.openspec.yaml` and has no specs and no scenarios.
   - Proposal, design and tasks are reviewed before anything is built, as for any change.

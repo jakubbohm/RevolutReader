@@ -7,9 +7,10 @@ namespace RevolutReader.UnitTests.Bank;
 /// A transactions read follows every page (spec bank-reads, "Every page is read"; c004 design.md D7): it asks for the
 /// next page with the continuation key the last one returned, until a page comes back without one
 /// (<c>continuation_key: null</c>, as Revolut and the Mock ASPSP mark the last page, § Bootstrap), also after an empty
-/// page, and joins the pages in order. A key that comes back again would loop forever, so it is an error. The fake bank
-/// here answers each key with its page and records the keys it was asked for: which page was requested with which key is
-/// the contract. Keys and transactions are made up.
+/// page, and joins the pages in order. A key that comes back again would loop forever, so it is an error, and so is a
+/// 20th page that still carries a key: a read requests at most 20 pages (c006 design.md D4). The fake bank here answers
+/// each key with its page and records the keys it was asked for: which page was requested with which key is the contract.
+/// Keys and transactions are made up.
 /// </summary>
 public sealed class TransactionPagesTests {
   private const string KEY_OF_PAGE_2 = "ck-page-2-7d1e";
@@ -144,8 +145,55 @@ public sealed class TransactionPagesTests {
     bank.KeysAskedFor.ShouldBe([null, KEY_OF_PAGE_2], "nothing is asked for after the failed page");
   }
 
+  // The cap: at most 20 pages (spec bank-reads, "Every page is read"; c006 design.md D4)
+
+  /// <summary>
+  /// Every page carries a new key, so the repeated-key check never stops the read; the bank would end a page later, with a
+  /// 21st page without a key, so only the cap can. The cap is named by its number; the message quotes nothing from the
+  /// pages (c004 design.md D5).
+  /// </summary>
+  [Test]
+  public async Task A_read_whose_20th_page_still_carries_a_key_is_an_error_naming_the_cap_and_no_21st_page_is_requested() {
+    PagesAtBank bank = PagesInARow(TransactionPages.MOST_PAGES + 1);
+
+    BankReadException error = await Should.ThrowAsync<BankReadException>(() => TransactionPages.ReadAll(bank.Read));
+
+    // Pages 1 to 20: the first with no key, then each with its own; never the 21st page's key.
+    bank.KeysAskedFor.ShouldBe([null, .. Enumerable.Range(2, 19).Select(KeyOfPage)], "no 21st page is requested");
+    error.Message.ShouldContain("20");
+
+    string text = error.ToString();
+
+    bank.BankData().ShouldAllBe(value => !text.Contains(value, StringComparison.Ordinal), "the error carries neither a key nor a transaction's data (D5)");
+  }
+
+  [Test]
+  public async Task A_read_of_exactly_20_pages_the_last_without_a_key_returns_the_transactions_of_every_page() {
+    PagesAtBank bank = PagesInARow(20);
+
+    JoinedPages joined = Joined(await TransactionPages.ReadAll(bank.Read));
+
+    joined.Transactions.Select(static transaction => transaction.EntryReference).ShouldBe([.. Enumerable.Range(1, 20).Select(ReferenceOnPage)]);
+  }
+
   /// <summary>The read's value; fails when the read came back as one of the failures instead.</summary>
   private static JoinedPages Joined(BankResult<JoinedPages> result) => result.Value.ShouldBeOfType<JoinedPages>();
+
+  /// <summary>
+  /// A bank with <paramref name="pages"/> pages in a row, one transaction each (<see cref="ReferenceOnPage"/>); each page
+  /// but the last carries the next page's own key (<see cref="KeyOfPage"/>), the last none.
+  /// </summary>
+  private static PagesAtBank PagesInARow(int pages) {
+    EbTransactionPage Page(int number) => new([Booked(ReferenceOnPage(number))], number == pages ? null : KeyOfPage(number + 1));
+
+    return new(firstPage: Page(1), [.. Enumerable.Range(2, pages - 1).Select(number => (KeyOfPage(number), Page(number)))]);
+  }
+
+  /// <summary>The made-up reference of the one transaction on the page with this number: <c>e-001</c>, <c>e-002</c>, …</summary>
+  private static string ReferenceOnPage(int number) => $"e-{number:000}";
+
+  /// <summary>The made-up key of the page with this number (2 and up), different for every page.</summary>
+  private static string KeyOfPage(int number) => $"ck-page-{number}-b3f0";
 
   /// <summary>A booked payment with this reference; the pages pass transactions on without mapping them.</summary>
   private static EbTransaction Booked(string reference) => new(
@@ -162,10 +210,11 @@ public sealed class TransactionPagesTests {
 
   /// <summary>
   /// The fake bank: the first page for no key, each further page for its key, and a record of the keys asked for, in
-  /// order. A key it has no page for, or more requests than a test could need (a loop), fails the test instead of hanging it.
+  /// order. A key it has no page for, or more requests than a test could need (a loop; the cap's tests set up at most 21
+  /// pages), fails the test instead of hanging it.
   /// </summary>
   private sealed class PagesAtBank(EbTransactionPage firstPage, params (string Key, EbTransactionPage Page)[] next) {
-    private const int MOST_REQUESTS_A_TEST_NEEDS = 10;
+    private const int MOST_REQUESTS_A_TEST_NEEDS = 30;
 
     private readonly List<string?> _keysAskedFor = [];
 

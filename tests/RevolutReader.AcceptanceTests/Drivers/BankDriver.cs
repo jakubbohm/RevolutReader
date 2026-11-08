@@ -48,6 +48,25 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   private const HttpStatusCode OWN_ERROR_STATUS = HttpStatusCode.BadGateway;
 
   /// <summary>
+  /// A gateway's maintenance page: what a proxy or load balancer in front of Enable Banking answers during an outage,
+  /// with 503 (<see cref="MAINTENANCE_PAGE_STATUS"/>), as <c>text/html</c>, and no Enable Banking error body, so no error
+  /// code (spec bank-reads § Bank unavailable, c006 design.md D3). Written from a typical gateway page, made up and with
+  /// no vendor's name, not captured: the Mock ASPSP cannot produce it.
+  /// </summary>
+  private const string MAINTENANCE_PAGE = """
+    <!DOCTYPE html>
+    <html>
+    <head><title>503 Service Temporarily Unavailable</title></head>
+    <body>
+    <h1>503 Service Temporarily Unavailable</h1>
+    <p>The service is down for maintenance. Please try again later.</p>
+    </body>
+    </html>
+    """;
+
+  private const HttpStatusCode MAINTENANCE_PAGE_STATUS = HttpStatusCode.ServiceUnavailable;
+
+  /// <summary>
   /// The booked and pending transactions of the Mock ASPSP capture <c>spikes/enable-banking-mock/evidence/2026-11-06-account1-transactions.json</c>
   /// (made-up data, design.md § Bootstrap), copied in its order with their values as captured; its one cancelled
   /// (<c>c004-c05</c>) and one rejected (<c>c004-r07</c>) transaction are left out, as a read leaves them out.
@@ -196,6 +215,9 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   /// <summary>Every request: the bank reports an error of its own (<see cref="OWN_ERROR"/>).</summary>
   public void ReportsOwnError() => Bank.AnswerError(OWN_ERROR_STATUS, OWN_ERROR);
+
+  /// <summary>Every request: a gateway in front of the bank answers that the service is unavailable, with its own maintenance page (<see cref="MAINTENANCE_PAGE"/>).</summary>
+  public void GatewayAnswersWithMaintenancePage() => Bank.AnswerHtmlPage(MAINTENANCE_PAGE_STATUS, MAINTENANCE_PAGE);
 
   /// <summary>
   /// Every request: the bank answers, with the DSL's default balance, but only a second after the harness's request

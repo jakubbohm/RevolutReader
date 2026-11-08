@@ -34,6 +34,20 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 - `IOptions<T>` with `BindConfiguration` + `ValidateDataAnnotations` + `ValidateOnStart`; the section is named after the options class; a shared validator rejects `"<secret>"`: `[NotSecretPlaceholder]` (`src/RevolutReader.Api/Configuration/`, built in C5), put on every secret next to `[Required]`. Its failure names the setting, never its value. A check that data annotations can't express (e.g. that the Enable Banking key is an RSA private key in PEM form) is an `IValidateOptions<T>` registered next to them, under the same rule.
 - Never inject `IConfiguration` / `IConfigurationSection` outside the composition root.
 
+## Telemetry settings
+
+The deployed app sends its logs and traces to Application Insights ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)), driven by two settings (C12, c006 design.md D12):
+
+| Setting | What it holds | Production | Local and tests |
+|---|---|---|---|
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Where to send: the Application Insights connection string, under the name Microsoft's libraries document | an environment variable on the container app, from the Application Insights resource (`features.bicep`) | empty: nothing is exported to Azure |
+| `AZURE_CLIENT_ID` | The client ID of the app's user-assigned identity, which signs the telemetry in, under the name Azure.Identity uses | an environment variable on the container app, from `id-revolutreader-app` (`features.bicep`) | empty |
+
+- **Standard names, so not a section:** both are declared at the top level of `appsettings.json`, empty, with provenance comments. Any reader who knows Azure recognises them; a project-style section would have needed a small settings class and names nobody outside the project knows.
+- **Read in ServiceDefaults,** as `OTEL_EXPORTER_OTLP_ENDPOINT` is, not bound to an options class. The Azure Monitor exporter is added only when the connection string is set, and the app refuses to start when it is set without the client ID; the message names the setting, never a value.
+- **Neither is a secret:** local authentication is off on Application Insights, so the connection string only says where to send. Writing needs the app's identity and its role there.
+- **The one rule still holds:** the managed-identity credential authorises sending telemetry, never reading a setting.
+
 ## Local development and tests
 
 - Local secrets live **only** in the AppHost's user-secrets as Aspire parameters — never in per-service or per-test-project secret files.

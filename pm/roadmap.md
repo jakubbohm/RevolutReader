@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target; 2026-11-08: C11 bank-read retries, C9's one-check-at-a-time design — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design — see the change log in `pm/progress.md`)
 
 ---
 
@@ -37,24 +37,25 @@
 | 10 | C4 | OpenSpec | `cNNN-add-deployment-pipeline` | C3, M3 | — |
 | 11 | M4 | Manual | Entra ID | F0-2 | — |
 | 12 | C5 | OpenSpec | `cNNN-add-enable-banking-adapter` | C1, M1 | — |
-| 13 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
-| 14 | C11 | OpenSpec | `cNNN-add-bank-read-retries` | C5 | — |
-| 15 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
+| 13 | C12 | OpenSpec | `c006-harden-bank-adapter` (runs alongside C6) | C5 | — |
+| 14 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
+| 15 | C11 | OpenSpec | `cNNN-add-bank-read-retries` | C5, C12 | — |
+| 16 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C12, C6; findings on Q6 | decides Q7 |
 | ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7 deployed via C4 | |
-| 16 | M5 | Manual | Handover v1 | v1 | — |
-| 17 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
-| 18 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
+| 17 | M5 | Manual | Handover v1 | v1 | — |
+| 18 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
+| 19 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 19 | M7 | Manual | Handover v2 | v2 | — |
+| 20 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 20 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 21 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| 21 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 22 | M8 | Manual | Decommissioning | end of operation; D1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C7 (v1) → C8 → C9 (v2).
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C7 (v1) → C8 → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -207,6 +208,16 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Outputs:** archived change; the adapter with tests, including handling of expired consent and rate-limit responses.
 - **Open questions:** — (applies the findings on Q5, Q6)
 
+### C12 — `c006-harden-bank-adapter`
+
+- **Type:** OpenSpec change
+- **Goal:** Fix what a code review (2026-11-07) and its assessment found in C5's adapter before C7 builds on it: paging capped at 20 pages, a negative amount is an error, a gateway's error page reads as "bank unavailable", the browser name cleaned before it is sent, the present user checked, a log line with a reason for every read, error values quoted only when shaped like a code. Make every failed bank read easy to find: Application Insights fed by the app with its own identity, and ready queries.
+- **Depends on:** C5. Runs alongside C6 in its own worktree; done before C7.
+- **Inputs:** the review's findings and their assessment ([openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md](../openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md) D1–D8, decided in explore); c004 and c005 design.md; ADR-0001-bank-data-access.
+- **Outputs:** archived change; the `bank-reads` spec updated; Application Insights in the deployment; the deploy identity's role condition widened by hand (guided task).
+- **Open questions:** — (applies Q6 through ADR-0001)
+- **Notes:** added 2026-11-07 with the user's approval (change log in `pm/progress.md`). The review's ten minor findings are fixed directly on `fix/review-findings`; this branch is rebased after that merges, before `/tdd-apply`.
+
 ### C6 — `cNNN-add-user-login` (UC1)
 
 - **Type:** OpenSpec change
@@ -220,7 +231,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 
 - **Type:** OpenSpec change
 - **Goal:** The bank adapter retries a failed request a few times within about 2 s, so that a one-off network failure does not end as "bank unavailable" ([#27](https://github.com/jakubbohm/RevolutReader/issues/27)). It retries network failures and the bank's own errors (`ASPSP_ERROR`, `ASPSP_TIMEOUT`), each HTTP request on its own (a failed transactions page retries that page only). It never retries rate limited (429), access expired or any other error. A read is "bank unavailable" only after its last attempt fails.
-- **Depends on:** C5. Placed before C7, so that C7 and C9 build on it.
+- **Depends on:** C5 and C12: the hardened adapter decides which error answers count as the bank's own errors (c006 design.md D3), which is what this step retries. Placed before C7, so that C7 and C9 build on it.
 - **Inputs:** issue #27 (the proposal and what to decide); the `bank-reads` spec; c004 design.md D4 and c001 design.md D5 (archived with their changes); [README.md § Backend code](../docs/conventions/README.md#backend-code); [ADR-0001-bank-data-access](../docs/adr/0001-bank-data-access.md).
 - **Outputs:** archived change; `bank-reads` with the changed "Bank unavailable" requirement and retry scenarios ("Rate limited, never retried" unchanged); README.md § Backend code narrowed from "the bank client never retries" to the policy this change decides (no other client gets retries by default); a dated note in ADR-0001; software-factory lesson R-30 updated.
 - **Open questions:** — (applies Q6: no retry may use up the 4 unattended reads a day)

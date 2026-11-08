@@ -12,8 +12,10 @@ namespace RevolutReader.Api.Bank;
 /// The bank port over Enable Banking's API (spec bank-reads, c004 design.md § Ports and contracts): read-only, for the one
 /// configured account; every request a <c>GET</c> signed with the application's token, carrying the user headers of who
 /// triggers the read (D2). An error answer becomes the read's failure case, or a <see cref="BankReadException"/> when no
-/// case fits (D4); a network failure is the bank unavailable; an answer it cannot read is a <see cref="BankReadException"/>.
-/// No exception quotes a URL or a body, and each read logs one line without identifiers or bank data (D5).
+/// case fits (D4), decided by its <c>error</c> value only when that has the shape of a code, otherwise by its status
+/// (c006 design.md D3, D7); a network failure is the bank unavailable; a success answer it cannot read is a
+/// <see cref="BankReadException"/>. No exception quotes a URL, a body or an error value of another shape, and each read
+/// logs one line without identifiers or bank data (D5).
 /// </summary>
 public sealed partial class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time, ILogger<EnableBankingClient> logger)
   : IBankAccount {
@@ -25,6 +27,9 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   /// <summary>No status or no error code, in the log line.</summary>
   private const string NONE = "none";
 
+  /// <summary>An error value that does not have the shape of a code, in the log line: never quoted (c006 design.md D7).</summary>
+  private const string UNRECOGNISED = "unrecognised";
+
   /// <summary>
   /// The API reference's names: snake_case. Lenient about missing or null members: each reader checks what it reads, so
   /// a malformed transaction a read leaves out does not fail it (D3).
@@ -34,61 +39,79 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   /// <summary>The configured account's path, relative to the API address.</summary>
   private string AccountPath => $"accounts/{Uri.EscapeDataString(options.Value.AccountId)}";
 
-  /// <summary><c>GET /accounts/{account}/balances</c>, then the available balance (D3); one log line.</summary>
+  /// <summary>
+  /// <c>GET /accounts/{account}/balances</c>, then the available balance (D3); one log line, whatever ends the read (c006
+  /// design.md D6): an exception passes on unchanged after it.
+  /// </summary>
   public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) {
     ReadRecord record = new(time);
+    BankResult<Balance> result;
 
     try {
-      BankResult<Balance> result = (await Get<EbBalances>($"{AccountPath}/balances", trigger, HoldsBalances, record, cancellationToken)) switch {
+      result = (await Get<EbBalances>($"{AccountPath}/balances", trigger, HoldsBalances, record, cancellationToken)) switch {
         EbBalances balances => BalanceSelection.Available(balances),
         BankAccessExpired expired => expired,
         BankRateLimited rateLimited => rateLimited,
         BankUnavailable unavailable => unavailable,
       };
-
-      BalanceReadEnded(LevelOf(result), trigger, OutcomeOf(result), record);
-
-      return result;
     }
-    catch (BankReadException) {
-      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, record);
+    catch (BankReadException exception) {
+      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, exception.Message, record);
 
       throw;
     }
     catch (OperationCanceledException) {
-      BalanceReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, record);
+      BalanceReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, NONE, record);
 
       throw;
     }
+    catch (Exception exception) {
+      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, ReasonOf(exception), record);
+
+      throw;
+    }
+
+    BalanceReadEnded(LevelOf(result), trigger, OutcomeOf(result), NONE, record);
+
+    return result;
   }
 
-  /// <summary>Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read; one log line.</summary>
+  /// <summary>
+  /// Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read; one log
+  /// line, whatever ends the read (c006 design.md D6): an exception passes on unchanged after it.
+  /// </summary>
   public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
     ReadRecord record = new(time);
     int leftOut = 0;
+    BankResult<Transactions> result;
 
     try {
-      BankResult<Transactions> result = (await TransactionPages.ReadAll(continuationKey => ReadPage(from, continuationKey, trigger, record, cancellationToken))) switch {
+      result = (await TransactionPages.ReadAll(continuationKey => ReadPage(from, continuationKey, trigger, record, cancellationToken))) switch {
         JoinedPages joined => KeptOf(joined, out leftOut),
         BankAccessExpired expired => expired,
         BankRateLimited rateLimited => rateLimited,
         BankUnavailable unavailable => unavailable,
       };
-
-      TransactionsReadEnded(LevelOf(result), trigger, OutcomeOf(result), record, leftOut);
-
-      return result;
     }
-    catch (BankReadException) {
-      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, record, leftOut);
+    catch (BankReadException exception) {
+      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, exception.Message, record, leftOut);
 
       throw;
     }
     catch (OperationCanceledException) {
-      TransactionsReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, record, leftOut);
+      TransactionsReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, NONE, record, leftOut);
 
       throw;
     }
+    catch (Exception exception) {
+      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, ReasonOf(exception), record, leftOut);
+
+      throw;
+    }
+
+    TransactionsReadEnded(LevelOf(result), trigger, OutcomeOf(result), NONE, record, leftOut);
+
+    return result;
   }
 
   /// <summary>
@@ -132,11 +155,11 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
     record.Answered(response.StatusCode);
 
     if (!response.IsSuccessStatusCode) {
-      string? errorCode = await ErrorCodeOf(response, cancellationToken);
+      ErrorValue error = await ErrorValueOf(response, cancellationToken);
 
-      record.ErrorCodeIs(errorCode);
+      record.ErrorCodeIs(error.Logged);
 
-      return FailureOf<T>(response.StatusCode, errorCode);
+      return FailureOf<T>(response.StatusCode, error);
     }
 
     T? body = await ReadJson<T>(response.Content, cancellationToken);
@@ -183,32 +206,38 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   }
 
   /// <summary>
-  /// The <c>error</c> code of an error answer; <see langword="null"/> when it has none: no body, a JSON <c>null</c>, or
-  /// a blank or missing <c>error</c> (D4). A body that is not such JSON is a <see cref="BankReadException"/> naming only
-  /// the status.
+  /// The <c>error</c> value of an error answer (c006 design.md D3, D7). No value: a body that is not JSON of the error
+  /// answer's shape (none at all, a JSON <c>null</c>, a gateway's HTML page, plain text, an array), or a missing,
+  /// <c>null</c> or blank <c>error</c>. A text of the code shape is a code; any other value, a text or not, is of another
+  /// shape. What the body holds never makes it throw.
   /// </summary>
-  private static async Task<string?> ErrorCodeOf(HttpResponseMessage response, CancellationToken cancellationToken) {
+  private static async Task<ErrorValue> ErrorValueOf(HttpResponseMessage response, CancellationToken cancellationToken) {
     byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-
-    if (body.All(static character => character is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'))
-      return null;
+    JsonElement error;
 
     try {
-      string? errorCode = JsonSerializer.Deserialize<EbError>(body, _json)?.Error;
-
-      return string.IsNullOrWhiteSpace(errorCode) ? null : errorCode;
+      error = JsonSerializer.Deserialize<EbError>(body, _json)?.Error ?? default;
     }
     catch (JsonException) {
-      throw new BankReadException(string.Create(CultureInfo.InvariantCulture, $"Enable Banking answered {(int)response.StatusCode} with an error body that is not JSON in the shape of an error answer."));
+      return ErrorValue.None;
     }
+
+    return error.ValueKind switch {
+      JsonValueKind.Undefined or JsonValueKind.Null => ErrorValue.None,
+      JsonValueKind.String => ErrorValue.Of(error.GetString()),
+      _ => ErrorValue.OfAnotherShape,
+    };
   }
 
-  /// <summary>D4's case for an error answer; one a read has no case for is a <see cref="BankReadException"/> naming its status and code.</summary>
-  private static BankResult<T> FailureOf<T>(HttpStatusCode status, string? errorCode) => BankErrorClassification.Classify(status, errorCode) switch {
+  /// <summary>
+  /// D4's case for an error answer, by its code, or by its status when it carried none (c006 design.md D3); one a read has
+  /// no case for is a <see cref="BankReadException"/> naming its status and code, or that its value was unrecognised (D7).
+  /// </summary>
+  private static BankResult<T> FailureOf<T>(HttpStatusCode status, ErrorValue error) => BankErrorClassification.Classify(status, error.Code) switch {
     BankErrorKind.AccessExpired => new BankAccessExpired(),
     BankErrorKind.RateLimited => new BankRateLimited(),
     BankErrorKind.Unavailable => new BankUnavailable(),
-    BankErrorKind.Unexpected => throw new BankReadException(status, errorCode),
+    BankErrorKind.Unexpected => throw (error.IsUnrecognised ? BankReadException.ForUnrecognisedErrorValue(status) : new BankReadException(status, error.Code)),
     _ => throw new UnreachableException("Not a kind of error answer."),
   };
 
@@ -233,30 +262,40 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   };
 
   /// <summary>The balance read's one log line (<see cref="LogBalanceRead"/>), its values worked out only when the level is on.</summary>
-  private void BalanceReadEnded(LogLevel level, ReadTrigger trigger, string outcome, ReadRecord record) {
+  private void BalanceReadEnded(LogLevel level, ReadTrigger trigger, string outcome, string reason, ReadRecord record) {
     if (!logger.IsEnabled(level))
       return;
 
     string who = WhoOf(trigger);
 
-    LogBalanceRead(logger, level, who, outcome, record.Status, record.ErrorCode, record.Milliseconds);
+    LogBalanceRead(logger, level, who, outcome, record.Status, record.ErrorCode, reason, record.Milliseconds);
   }
 
   /// <summary>The transactions read's one log line (<see cref="LogTransactionsRead"/>), its values worked out only when the level is on.</summary>
-  private void TransactionsReadEnded(LogLevel level, ReadTrigger trigger, string outcome, ReadRecord record, int leftOut) {
+  private void TransactionsReadEnded(LogLevel level, ReadTrigger trigger, string outcome, string reason, ReadRecord record, int leftOut) {
     if (!logger.IsEnabled(level))
       return;
 
     string who = WhoOf(trigger);
 
-    LogTransactionsRead(logger, level, who, outcome, record.Status, record.ErrorCode, record.Requests, leftOut, record.Milliseconds);
+    LogTransactionsRead(logger, level, who, outcome, record.Status, record.ErrorCode, reason, record.Requests, leftOut, record.Milliseconds);
   }
 
-  /// <summary>Who triggers the read, as the log line says it: never the user's address or browser (D5).</summary>
-  private static string WhoOf(ReadTrigger trigger) => trigger switch {
+  /// <summary>
+  /// Who triggers the read, as the log line says it: never the user's address or browser (D5). An empty
+  /// <see cref="ReadTrigger"/> ends the read as an exception, and its line is still written (c006 design.md D6).
+  /// </summary>
+  private static string WhoOf(ReadTrigger trigger) => trigger.Value switch {
     PresentUser => "a present user",
     Unattended => "nobody (unattended)",
+    _ => "an empty trigger",
   };
+
+  /// <summary>
+  /// The reason an exception other than <see cref="BankReadException"/> gives in the log line: its type name only, never
+  /// its message, which could hold anything (c006 design.md D8 a).
+  /// </summary>
+  private static string ReasonOf(Exception exception) => exception.GetType().Name;
 
   private static string OutcomeOf<T>(BankResult<T> result) => result.Value switch {
     BankAccessExpired => Outcome.ACCESS_EXPIRED,
@@ -270,15 +309,36 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
 
   /// <summary>
   /// The balance read's line: who triggered it, how it ended, the answer's HTTP status (or why there was none), the
-  /// Enable Banking error code, the time taken. The trace id comes with the logging scope (the host's default activity
-  /// tracking, D5).
+  /// Enable Banking error code, the reason for an unexpected end (c006 design.md D8 a: the
+  /// <see cref="BankReadException"/>'s message, another exception's type name, <c>none</c> otherwise), the time taken. The
+  /// trace id comes with the logging scope (the host's default activity tracking, D5).
   /// </summary>
-  [LoggerMessage(EventId = 1, Message = "Bank balance read for {Who}: {Outcome}; HTTP status {Status}, error code {ErrorCode}, {DurationMs} ms")]
-  private static partial void LogBalanceRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, long durationMs);
+  [LoggerMessage(EventId = 1, Message = "Bank balance read for {Who}: {Outcome}; HTTP status {Status}, error code {ErrorCode}, reason {Reason}, {DurationMs} ms")]
+  private static partial void LogBalanceRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, string reason, long durationMs);
 
   /// <summary>The transactions read's line: as the balance read's, with the status of the last page, the pages requested and how many transactions were left out (D3).</summary>
-  [LoggerMessage(EventId = 2, Message = "Bank transactions read for {Who}: {Outcome}; HTTP status {Status} on the last page, error code {ErrorCode}, {Pages} pages, {LeftOut} left out, {DurationMs} ms")]
-  private static partial void LogTransactionsRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, int pages, int leftOut, long durationMs);
+  [LoggerMessage(EventId = 2, Message = "Bank transactions read for {Who}: {Outcome}; HTTP status {Status} on the last page, error code {ErrorCode}, reason {Reason}, {Pages} pages, {LeftOut} left out, {DurationMs} ms")]
+  private static partial void LogTransactionsRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, string reason, int pages, int leftOut, long durationMs);
+
+  /// <summary>
+  /// What an error answer carried as its <c>error</c> value (c006 design.md D3, D7): a code (<see cref="Code"/>, a value of
+  /// the code shape, quoted as received), no value, or a value of another shape (<see cref="IsUnrecognised"/>), which
+  /// counts as no code and is never quoted.
+  /// </summary>
+  private readonly record struct ErrorValue(string? Code, bool IsUnrecognised) {
+    public static ErrorValue None => default;
+
+    public static ErrorValue OfAnotherShape => new(Code: null, IsUnrecognised: true);
+
+    /// <summary>As the log line says it: the code as received, <c>none</c> or <c>unrecognised</c>.</summary>
+    public string Logged => Code ?? (IsUnrecognised ? UNRECOGNISED : NONE);
+
+    /// <summary>A blank text is no value, a text of the code shape a code, any other text a value of another shape.</summary>
+    public static ErrorValue Of(string? text) =>
+      string.IsNullOrWhiteSpace(text) ? None
+        : EnableBankingErrorCode.HasCodeShape(text) ? new(Code: text, IsUnrecognised: false)
+        : OfAnotherShape;
+  }
 
   /// <summary>How a read ended, as the log line says it.</summary>
   private static class Outcome {
@@ -312,7 +372,7 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
       ErrorCode = NONE;
     }
 
-    public void ErrorCodeIs(string? errorCode) => ErrorCode = errorCode ?? NONE;
+    public void ErrorCodeIs(string errorCode) => ErrorCode = errorCode;
 
     public void NotAnswered(string why) {
       Status = $"{NONE} ({why})";
