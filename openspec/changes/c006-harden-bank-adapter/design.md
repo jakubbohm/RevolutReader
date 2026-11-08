@@ -51,7 +51,7 @@ The test-writer may add only signatures to production code. So, as in C1, C3 and
 2. **Packages** (verified on nuget.org, 2026-11-08), in `Directory.Packages.props`, referenced by `RevolutReader.ServiceDefaults`:
    - `Azure.Monitor.OpenTelemetry.Exporter` 1.10.0 (stable; needs `OpenTelemetry.Extensions.Hosting` ≥ 1.18.0, the project has 1.20.1);
    - `Azure.Identity` 1.21.0, for the managed-identity credential.
-3. The setup build and the full suite are green. The only accepted red is the traceability check reporting this change's two new scenarios as not claimed; group 1 claims them.
+3. The setup build and the full suite are green. The only accepted red is the traceability check reporting this change's two new scenarios as not claimed; group 1 claims them. *Steps 2 and 3 done (2026-11-08): the build has no warning; backend 252 of 253, the one red being that traceability check, naming exactly the two new scenarios; frontend 31 of 31.*
 
 ## Decisions
 
