@@ -6,9 +6,9 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation: the fake bank's answer for a gateway's maintenance page (503, `text/html`, no Enable Banking error code), written from a typical gateway page with a comment saying the Mock ASPSP cannot produce it, and the DSL fact `Bank.GatewayAnswersWithMaintenancePage()` (design.md § Public API sketch). Verify: build passes; every acceptance test that was green stays green
-- [ ] 1.2 Acceptance: bank-reads / A browser name with an accent reaches the bank with a question mark
-- [ ] 1.3 Acceptance: bank-reads / A gateway's error page reads as bank unavailable
+- [x] 1.1 Foundation: the fake bank's answer for a gateway's maintenance page (503, `text/html`, no Enable Banking error code), written from a typical gateway page with a comment saying the Mock ASPSP cannot produce it, and the DSL fact `Bank.GatewayAnswersWithMaintenancePage()` (design.md § Public API sketch). Verify: build passes; every acceptance test that was green stays green
+- [x] 1.2 Acceptance: bank-reads / A browser name with an accent reaches the bank with a question mark
+- [x] 1.3 Acceptance: bank-reads / A gateway's error page reads as bank unavailable
 
 ## 2. [unit] Present user
 

@@ -83,6 +83,15 @@ public sealed class BankReadsScenarios : AcceptanceTest {
     Bank.RequestsReceived().ShouldBe([RequestAtBank.WithoutUserHeaders]);
   }
 
+  [Test, Scenario("bank-reads", "A browser name with an accent reaches the bank with a question mark")]
+  public async Task A_browser_name_with_an_accent_reaches_the_bank_with_a_question_mark() {
+    UserAtDevice user = new("203.0.113.7", "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) Čtečka/1.0");
+
+    await Bank.ReadBalanceFor(user);
+
+    Bank.RequestsReceived().ShouldBe([RequestAtBank.WithUserHeadersOf(user with { Browser = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) ?te?ka/1.0" })]);
+  }
+
   [Test, Scenario("bank-reads", "An expired bank session reads as access expired")]
   public async Task An_expired_bank_session_reads_as_access_expired() {
     Bank.ReportsExpiredSession();
@@ -108,6 +117,13 @@ public sealed class BankReadsScenarios : AcceptanceTest {
   [Test, Scenario("bank-reads", "A bank that answers too slowly reads as bank unavailable")]
   public async Task A_bank_that_answers_too_slowly_reads_as_bank_unavailable() {
     Bank.AnswersAfterTheRequestTimeout();
+
+    (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.BankUnavailable);
+  }
+
+  [Test, Scenario("bank-reads", "A gateway's error page reads as bank unavailable")]
+  public async Task A_gateways_error_page_reads_as_bank_unavailable() {
+    Bank.GatewayAnswersWithMaintenancePage();
 
     (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.BankUnavailable);
   }
