@@ -302,20 +302,20 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 44. [unit] Slice 18 — The bank's failures on the screen
 
-- [ ] 44.1 A bank failure keeps the balance shown and adds its banner
-- [ ] 44.2 A new read clears the banner of the one before
+- [x] 44.1 A bank failure keeps the balance shown and adds its banner
+- [x] 44.2 A new read clears the banner of the one before
 
 ## 45. [wiring] Slice 18 — The bank banners
 
-- [ ] 45.1 The three bank banners with their wording (design.md D5); "Zkusit znovu" on "Banka teď neodpovídá" reads the balance again. Verify: the scenario runs against the app
+- [x] 45.1 The three bank banners with their wording (design.md D5); "Zkusit znovu" on "Banka teď neodpovídá" reads the balance again. Verify: the scenario runs against the app
 
 ## 46. [close] Slice 18 — A bank that does not answer shows a banner with a retry
 
-- [ ] 46.1 The scenario's test passes. Verify: green, including account-balance / A bank that does not answer shows a banner with a retry
+- [x] 46.1 The scenario's test passes. Verify: green, including account-balance / A bank that does not answer shows a banner with a retry
 
 ## 47. [close] Slice 19 — Too many refreshes shows a warning with no action
 
-- [ ] 47.1 The scenario's test passes. Verify: green, including account-balance / Too many refreshes shows a warning with no action
+- [x] 47.1 The scenario's test passes. Verify: green, including account-balance / Too many refreshes shows a warning with no action
 
 ## 48. [unit] Slice 20 — A bank failure with nothing to show
 

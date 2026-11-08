@@ -89,6 +89,13 @@ export function useAccountScreen(): AccountScreenModel {
         void storeBalance(read.balance);
       }
       if (read.kind === "offline") setProblem(OFFLINE);
+      // A failure at the bank keeps the balance shown, with its banner (D5).
+      if (
+        read.kind === "bank unavailable" ||
+        read.kind === "bank rate limited" ||
+        read.kind === "bank access expired"
+      )
+        setProblem({ kind: read.kind });
     },
     [],
   );
