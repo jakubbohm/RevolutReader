@@ -1,4 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -165,19 +168,39 @@ public sealed class BankAnswersTests {
   // The API description
 
   /// <summary>
-  /// What the endpoint's API description declares (<see cref="IProducesResponseTypeMetadata"/>): a 400 (no present user), a
-  /// 429 and a 503 problem description, one 503 for both 503 cases, and nothing else. A problem result puts no status into
-  /// the API description by itself, so C7a's and C7b's endpoints declare them with this, inside FastEndpoints'
+  /// What the endpoint's API description declares (<see cref="IProducesResponseTypeMetadata"/>): a 400 problem description
+  /// (no present user), a 429 and a 503 bank problem, one 503 for both 503 cases, and nothing else. A problem result puts no
+  /// status into the API description by itself, so C7a's and C7b's endpoints declare them with this, inside FastEndpoints'
   /// <c>Description(…, clearDefaults: true)</c>.
   /// </summary>
   [Test]
-  public void The_bank_problems_are_declared_as_a_400_a_429_and_a_503_problem_description_and_nothing_else() {
+  public void The_bank_problems_are_declared_as_a_400_problem_description_and_a_429_and_a_503_bank_problem_and_nothing_else() {
     IList<object> metadata = MetadataDeclaredBy(static builder => builder.ProducesBankProblems());
 
     metadata.ShouldAllBe(item => item is IProducesResponseTypeMetadata, "nothing but response descriptions");
     metadata.OfType<IProducesResponseTypeMetadata>()
       .Select(static declared => (declared.StatusCode, declared.Type, ContentTypes: string.Join(' ', declared.ContentTypes)))
-      .ShouldBe([(400, typeof(ProblemDetails), PROBLEM_JSON), (429, typeof(ProblemDetails), PROBLEM_JSON), (503, typeof(ProblemDetails), PROBLEM_JSON)], ignoreOrder: true);
+      .ShouldBe([(400, typeof(ProblemDetails), PROBLEM_JSON), (429, typeof(BankProblem), PROBLEM_JSON), (503, typeof(BankProblem), PROBLEM_JSON)], ignoreOrder: true);
+  }
+
+  /// <summary>
+  /// The bank problem's shape in the API description, as the OpenAPI generator reads it (JSON schema from the web
+  /// serializer defaults): a <c>type</c> it always has, which can only be one of the three bank types the answers carry.
+  /// So the generated client types name them, and a type renamed on one side only fails the frontend's type check once an
+  /// endpoint declares it (the user, 2026-11-08, the review's #3).
+  /// </summary>
+  [Test]
+  public void A_bank_problems_type_is_one_of_the_three_bank_types_and_always_there() {
+    JsonNode schema = JsonSerializerOptions.Web.GetJsonSchemaAsNode(typeof(BankProblem));
+
+    JsonNode? type = schema["properties"]?["type"];
+    type.ShouldNotBeNull("the bank problem describes its type");
+    JsonArray? allowed = type["enum"] as JsonArray;
+    allowed.ShouldNotBeNull("the type is one of a fixed list");
+    allowed.Select(static value => value?.GetValue<string>()).ShouldBe([ACCESS_EXPIRED_TYPE, RATE_LIMITED_TYPE, BANK_UNAVAILABLE_TYPE], ignoreOrder: true);
+    JsonArray? required = schema["required"] as JsonArray;
+    required.ShouldNotBeNull("the bank problem always has its type");
+    required.Select(static name => name?.GetValue<string>()).ShouldContain("type");
   }
 
   /// <summary>A read's result: <see cref="_balance"/>, or the failure named.</summary>
