@@ -106,6 +106,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 - [x] 6.5 Keeping a transaction again leaves one transaction with the latest values
 - [x] 6.6 Keeping more than 100 transactions at once keeps them all
 - [x] 6.7 Keeping nothing changes nothing
+- [ ] 6.8 Keeping the same reference twice in one call keeps the later one (added 2026-11-08: Table Storage refuses a batch that names one key twice)
 
 ## 7. [wiring] Slice 2 — Storage
 

@@ -549,7 +549,7 @@ export function useTransactionList(options: { enabled: boolean }): {
 **`ITransactionStore`** (new; the in-memory fake `InMemoryTransactionStore` serves the unit tests):
 
 - **`ReadAll`:** every kept transaction, newest day first, then by `Position` ascending; an empty store answers an empty list. Every field comes back as kept: the amount to the cent, an empty details list as empty, a missing counterparty or type code as null, a reference with `/`, `#`, `?` or `\` unchanged.
-- **`Keep`:** inserts or replaces each transaction by its reference, so keeping the same transaction again leaves one row with the latest values; an empty list does nothing; more than 100 at once works (Table Storage's batch limit is 100 per partition). Not atomic across batches: a failure part-way leaves some written, and the next live read writes them all again.
+- **`Keep`:** inserts or replaces each transaction by its reference, so keeping the same transaction again leaves one row with the latest values, and a list naming one reference twice keeps the later one (Table Storage refuses a batch that names a key twice; added in group 6); an empty list does nothing; more than 100 at once works (Table Storage's batch limit is 100 per partition). Not atomic across batches: a failure part-way leaves some written, and the next live read writes them all again.
 - **Concurrency:** two `Keep` calls with the same rows end with one row each (last write wins; the values are the same).
 - **Failures:** an exception, never a result (D5).
 - **Real adapter:** `TableTransactionStore` on `Azure.Data.Tables` through `Aspire.Azure.Data.Tables`, Azurite locally and in tests, the deployed table with the app's managed identity in Azure.
