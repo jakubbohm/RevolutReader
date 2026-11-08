@@ -140,7 +140,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   public void Lists(IReadOnlyList<TransactionAtBank> transactions) {
     ArgumentNullException.ThrowIfNull(transactions);
 
-    _listedPage = PageJson(transactions.Select(Wire), continuationKey: null);
+    _listedPage = LastPageOf(transactions);
   }
 
   /// <summary>
@@ -287,6 +287,13 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// the page this test handed that key out for. A key the test never handed out fails the test.
   /// </summary>
   public IReadOnlyList<int> PagesRequested() => [.. Bank.ContinuationKeysReceived().Select(PageOf)];
+
+  /// <summary>
+  /// One page in the capture's shape: these transactions, in this order, each as <see cref="Lists"/> writes it, and no next
+  /// page (<c>continuation_key: null</c>). Also for <see cref="TransactionsDriver"/>, which has the fake bank answer it for
+  /// any day (c010).
+  /// </summary>
+  internal static string LastPageOf(IEnumerable<TransactionAtBank> transactions) => PageJson(transactions.Select(Wire), continuationKey: null);
 
   /// <summary>The value is <see cref="BankOutcome.Read"/> with the balance; each failure is its own outcome, with no balance.</summary>
   private static BalanceAnswer AnswerOf(BankResult<Balance> result) => result switch {

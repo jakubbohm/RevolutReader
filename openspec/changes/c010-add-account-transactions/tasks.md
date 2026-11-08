@@ -124,9 +124,9 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 8. [wiring] Slice 2 — The newest page's endpoint
 
-- [ ] 8.1 `AddTransactions()` and `NewestTransactionsEndpoint` (`GET /api/transactions`): C13's `PresentUserFromRequest.Read`, else `BankAnswers.NoPresentUser()`; the handler's result through `BankAnswers.From`; the description 200, 401, 403, 500 plus `ProducesBankProblems()` (design.md D10). `Program.cs`: `AddTransactionStore()` and `AddTransactions()` after `AddEnableBanking()`. Verify: build passes; green except this change's scenarios
-- [ ] 8.2 `ScenarioCalendar`, `TransactionsDriver.AskForNewest` and `Keep`, and the DSL's methods replace their stubs (design.md D12; the DSL was written in full at the acceptance gate). Verify: the scenario runs against the app
-- [ ] 8.3 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`; `openapi.json` and `schema.d.ts` committed. Verify: a second run leaves no diff; frontend checks green
+- [x] 8.1 `AddTransactions()` and `NewestTransactionsEndpoint` (`GET /api/transactions`): C13's `PresentUserFromRequest.Read`, else `BankAnswers.NoPresentUser()`; the handler's result through `BankAnswers.From`; the description 200, 401, 403, 500 plus `ProducesBankProblems()` (design.md D10). `Program.cs`: `AddTransactionStore()` and `AddTransactions()` after `AddEnableBanking()`. Verify: build passes; green except this change's scenarios
+- [x] 8.2 `ScenarioCalendar`, `TransactionsDriver.AskForNewest` and `Keep`, and the DSL's methods replace their stubs (design.md D12; the DSL was written in full at the acceptance gate). Verify: the scenario runs against the app
+- [x] 8.3 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`; `openapi.json` and `schema.d.ts` committed. Verify: a second run leaves no diff; frontend checks green
 
 ## 9. [close] Slice 2 — The newest transactions come live with the koruna rate
 

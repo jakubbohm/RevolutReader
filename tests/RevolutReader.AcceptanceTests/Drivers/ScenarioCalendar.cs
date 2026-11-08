@@ -16,24 +16,34 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item><see cref="TodayIs"/> names the scenario's today, before any date is shifted; until then it is the one the
 /// calendar was made with.</item>
 /// </list>
-/// Filled in by the wiring groups; until then every method throws.
+/// The mapping is a fixed number of days, set when the scenario's today is named: whatever moves the clock (this
+/// calendar, or <c>SignInDsl.DaysPass</c>), the scenario's today moves with it, and a date already written stays the
+/// scenario's same date.
 /// </summary>
 public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider clock) {
-  /// <summary>The scenario's today, mapped onto the clock's today.</summary>
-  private DateOnly ScenarioToday => scenarioToday;
-
   /// <summary>The app copy's clock.</summary>
-  private FakeTimeProvider Clock => clock;
+  private readonly FakeTimeProvider _clock = clock;
+
+  /// <summary>How many days the clock's dates are ahead of the scenario's.</summary>
+  private int _daysAhead = DaysAhead(scenarioToday, clock);
 
   /// <summary>The scenario's today is <paramref name="today"/>, mapped onto the clock's today as it is now.</summary>
-  public void TodayIs(DateOnly today) => throw new NotImplementedException();
+  public void TodayIs(DateOnly today) => _daysAhead = DaysAhead(today, _clock);
 
   /// <summary>The clock's date for <paramref name="scenarioDate"/>: as many days from the clock's today as it is from the scenario's.</summary>
-  public DateOnly ToClock(DateOnly scenarioDate) => throw new NotImplementedException();
+  public DateOnly ToClock(DateOnly scenarioDate) => scenarioDate.AddDays(_daysAhead);
 
   /// <summary>The scenario's date for <paramref name="clockDate"/>, the inverse of <see cref="ToClock"/>.</summary>
-  public DateOnly FromClock(DateOnly clockDate) => throw new NotImplementedException();
+  public DateOnly FromClock(DateOnly clockDate) => clockDate.AddDays(-_daysAhead);
 
   /// <summary>Moves the clock forward by <paramref name="days"/> whole days; the scenario's today moves with it.</summary>
-  public void PassDays(int days) => throw new NotImplementedException();
+  public void PassDays(int days) {
+    ArgumentOutOfRangeException.ThrowIfNegative(days);
+
+    _clock.Advance(TimeSpan.FromDays(days));
+  }
+
+  /// <summary>The days from <paramref name="scenarioDay"/> to the clock's today: the UTC date of its time, as the app takes today.</summary>
+  private static int DaysAhead(DateOnly scenarioDay, FakeTimeProvider clock) =>
+    DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber - scenarioDay.DayNumber;
 }

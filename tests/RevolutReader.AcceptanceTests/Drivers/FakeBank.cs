@@ -30,7 +30,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer, an answer for the first request only, a connection that
 /// breaks while the answer comes in) is written from the API reference and the M1 findings, and a gateway's maintenance
 /// page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected
-/// <c>date_from</c> and <c>continuation_key</c>.
+/// <c>date_from</c> and <c>continuation_key</c>; for the transactions through the API, where the app chooses the day, a
+/// first page answers for any <c>date_from</c> (c010).
 /// </para>
 /// </summary>
 public sealed class FakeBank : IDisposable {
@@ -46,6 +47,16 @@ public sealed class FakeBank : IDisposable {
   /// <summary>The transactions query's parameters (API reference).</summary>
   private const string DATE_FROM = "date_from";
   private const string CONTINUATION_KEY = "continuation_key";
+
+  /// <summary>As the API reference writes a calendar date.</summary>
+  private const string DATE = "yyyy-MM-dd";
+
+  /// <summary>
+  /// The priority of the page every first transactions request gets when nothing else the test set up answers it
+  /// (<see cref="AnswerTransactionsForAnyDayByDefault"/>, c010): below every other answer, which keeps the default, 0, or
+  /// takes <see cref="ONE_OFF_PRIORITY"/>, so any answer the test sets up wins, whether before or after it.
+  /// </summary>
+  private const int TRANSACTIONS_FALLBACK_PRIORITY = 1;
 
   /// <summary>
   /// The priority of an answer for the first matching request only (<see cref="AnswerOnce"/>): above every other answer
@@ -66,6 +77,10 @@ public sealed class FakeBank : IDisposable {
   private readonly WireMockServer _server;
   private readonly ArrivalLog _arrivals;
   private readonly AnswerBreaker _breaker;
+
+  /// <summary>The ids of the two answers for any day (c010), so setting one up again replaces it (WireMock.Net keeps one mapping per id).</summary>
+  private readonly Guid _transactionsForAnyDay = Guid.NewGuid();
+  private readonly Guid _transactionsForAnyDayByDefault = Guid.NewGuid();
 
   /// <summary>
   /// Shorter than production's 15 s, so the slow-answer scenario stays bearable, yet long enough that no other test runs
@@ -172,6 +187,33 @@ public sealed class FakeBank : IDisposable {
   public void AnswerTransactionsPageErrorOnce(DateOnly dateFrom, string? continuationKey, HttpStatusCode status, string body) =>
     AnswerOnce(TransactionsPage(dateFrom, continuationKey), JsonAnswer(status, body));
 
+  /// <summary>
+  /// <c>GET /accounts/{account}/transactions</c> without a <c>continuation_key</c> answers with this page whatever its
+  /// <c>date_from</c> (c010: the app chooses the day, the scenario only what the bank lists), only on this account's path
+  /// with a bearer token; it replaces what this method set up before.
+  /// </summary>
+  public void AnswerTransactionsForAnyDay(string body) =>
+    _server.Given(FirstTransactionsPageForAnyDay()).WithGuid(_transactionsForAnyDay).RespondWith(JsonAnswer(body));
+
+  /// <summary>
+  /// The same request as <see cref="AnswerTransactionsForAnyDay"/> matches is answered with this page when nothing else the
+  /// test set up answers it (<see cref="TRANSACTIONS_FALLBACK_PRIORITY"/>); setting it up again replaces it.
+  /// </summary>
+  public void AnswerTransactionsForAnyDayByDefault(string body) =>
+    _server.Given(FirstTransactionsPageForAnyDay()).WithGuid(_transactionsForAnyDayByDefault).AtPriority(TRANSACTIONS_FALLBACK_PRIORITY).RespondWith(JsonAnswer(body));
+
+  /// <summary>
+  /// The <c>date_from</c> of every request for this account's transactions the bank received, answered or not, in the order
+  /// received (<see cref="ArrivalLog"/>). A request without a <c>date_from</c> the API reference's way, <c>yyyy-MM-dd</c>,
+  /// fails the step.
+  /// </summary>
+  public IReadOnlyList<DateOnly> TransactionDaysReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request =>
+      DateOnly.TryParseExact(request.DateFrom, DATE, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day)
+        ? day
+        : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.")),
+  ];
+
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
 
@@ -238,6 +280,10 @@ public sealed class FakeBank : IDisposable {
       : request.WithParam(CONTINUATION_KEY, new ExactMatcher(continuationKey));
   }
 
+  /// <summary>A signed <c>GET</c> of this account's transactions without a <c>continuation_key</c>, whatever its <c>date_from</c> (c010).</summary>
+  private IRequestBuilder FirstTransactionsPageForAnyDay() =>
+    SignedGet(TransactionsPath).WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY));
+
   /// <summary>200 with this JSON body.</summary>
   private static IResponseBuilder JsonAnswer(string body) => JsonAnswer(HttpStatusCode.OK, body);
 
@@ -281,18 +327,23 @@ public sealed class FakeBank : IDisposable {
     public Task Record(HttpContext context, RequestDelegate next) {
       HttpRequest request = context.Request;
       string? continuationKey = request.Query.TryGetValue(CONTINUATION_KEY, out StringValues keys) ? keys.FirstOrDefault() : null;
+      string? dateFrom = request.Query.TryGetValue(DATE_FROM, out StringValues days) ? days.FirstOrDefault() : null;
 
       _requests.Enqueue(new RequestArrived(
         request.Path.Value ?? string.Empty,
         continuationKey,
-        request.Headers.ToDictionary(static header => header.Key, static header => string.Join(", ", (IEnumerable<string?>)header.Value), StringComparer.OrdinalIgnoreCase)));
+        request.Headers.ToDictionary(static header => header.Key, static header => string.Join(", ", (IEnumerable<string?>)header.Value), StringComparer.OrdinalIgnoreCase),
+        dateFrom));
 
       return next(context);
     }
   }
 
-  /// <summary>A request as it arrived: its path, its decoded <c>continuation_key</c> (none: <see langword="null"/>) and its headers.</summary>
-  private sealed record RequestArrived(string Path, string? ContinuationKey, IReadOnlyDictionary<string, string> Headers);
+  /// <summary>
+  /// A request as it arrived: its path, its decoded <c>continuation_key</c> (none: <see langword="null"/>), its headers,
+  /// and its decoded <c>date_from</c> (none: <see langword="null"/>; c010).
+  /// </summary>
+  private sealed record RequestArrived(string Path, string? ContinuationKey, IReadOnlyDictionary<string, string> Headers, string? DateFrom);
 
   /// <summary>
   /// Breaks the connection while an answer comes in, once armed (<see cref="BreakTheNextAnswer"/>): a middleware in front

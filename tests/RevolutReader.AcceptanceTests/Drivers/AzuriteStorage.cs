@@ -1,6 +1,5 @@
 using DotNet.Testcontainers.Builders;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Testcontainers.Azurite;
 using TUnit.Core.Interfaces;
 
@@ -48,18 +47,17 @@ public sealed class AzuriteStorage : IAsyncInitializer, IAsyncDisposable {
   }
 
   /// <summary>
-  /// Writes the store's settings into the app copy, as the last configuration source, so they win over
-  /// <c>appsettings.json</c>: this container's connection string, and a table name no other app copy uses.
+  /// Writes the store's settings into the app copy, so they win over <c>appsettings.json</c>: this container's connection
+  /// string, and a table name no other app copy uses. As host settings (<c>UseSetting</c>), which the factory hands to the
+  /// app's builder before Program.cs runs: Program.cs checks the connection while it registers the store (c010 design.md
+  /// D11), and a configuration source added with <c>ConfigureAppConfiguration</c> only arrives when the app is built,
+  /// after that check.
   /// </summary>
   public void Configure(IWebHostBuilder builder) {
     ArgumentNullException.ThrowIfNull(builder);
 
-    Dictionary<string, string?> settings = new() {
-      [CONNECTION_STRING] = ConnectionString,
-      [TABLE_NAME] = UniqueTableName(),
-    };
-
-    builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
+    builder.UseSetting(CONNECTION_STRING, ConnectionString);
+    builder.UseSetting(TABLE_NAME, UniqueTableName());
   }
 
   /// <summary>A valid table name (3 to 63 letters and digits, starting with a letter, D11) no other app copy uses: <c>t</c> and a new GUID's 32 hex digits.</summary>
