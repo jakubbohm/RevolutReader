@@ -197,9 +197,9 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 23. [unit] Slice 10 — Refresh triggers
 
-- [ ] 23.1 Coming back to the screen asks for a refresh
-- [ ] 23.2 Leaving the screen asks for nothing
-- [ ] 23.3 After the stop function, nothing asks for a refresh
+- [x] 23.1 Coming back to the screen asks for a refresh
+- [x] 23.2 Leaving the screen asks for nothing
+- [x] 23.3 After the stop function, nothing asks for a refresh
 
 ## 24. [wiring] Slice 10 — Return to the app
 
