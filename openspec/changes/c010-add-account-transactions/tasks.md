@@ -130,7 +130,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 9. [close] Slice 2 — The newest transactions come live with the koruna rate
 
-- [ ] 9.1 The scenario's test passes, including the answer's exact shape. Verify: green, including account-transactions / The newest transactions come live with the koruna rate
+- [ ] 9.1 The scenario's test passes, including the answer's exact shape. Verify: green, including account-transactions / The newest transactions come live with the koruna rate. Closes with slice 4 (group 15), not here: the scenario's transactions are card payments, and their `kind` comes from slice 4's `TransactionKinds` and JSON names (found at group 8: every other field already matches)
 
 ## 10. [unit] Slice 3 — Transaction text
 
