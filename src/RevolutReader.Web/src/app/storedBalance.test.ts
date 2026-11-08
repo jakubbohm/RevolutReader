@@ -1,3 +1,4 @@
+import { IDBFactory } from "fake-indexeddb";
 import { expect, test, vi } from "vitest";
 import {
   keptBalance,
@@ -123,4 +124,23 @@ test("After forgetting, loading gives none", async () => {
 
   expect(await loadStoredBalance()).toBeNull();
   expect(await keptBalance(), "nothing kept where D4 names it").toBeNull();
+});
+
+// A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there
+// (`emptyThePhone`), so here the storage starts from a phone with no database at all, and the app's own storage code
+// creates it, as on a first launch. A fresh copy of the module (and of idb-keyval) opens against the new phone.
+test("On a phone with no database yet, a stored balance loads back, kept where D4 names it", async () => {
+  const phone = globalThis.indexedDB;
+  globalThis.indexedDB = new IDBFactory();
+  try {
+    vi.resetModules();
+    const stored = await import("./storedBalance");
+
+    await stored.storeBalance(LATER);
+
+    expect(await stored.loadStoredBalance()).toEqual(LATER);
+    expect(await keptBalance(), "kept where D4 names it").toEqual(LATER);
+  } finally {
+    globalThis.indexedDB = phone;
+  }
 });
