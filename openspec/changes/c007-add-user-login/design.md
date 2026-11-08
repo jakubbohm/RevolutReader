@@ -116,7 +116,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 - **Authentication and authorization are separate:**
   - any valid sign-in through Microsoft's personal-account service gets the login cookie;
   - every API request then checks the allowlist through the authorization policy `AllowedUser` (signed in, and the `email` claim on the list, ignoring case). It is both the default policy (what FastEndpoints applies to an endpoint without its own settings) and the fallback policy (anything else without metadata).
-  - **Only requests that matched an address are checked** (the user, 2026-11-08, at slice 1). ASP.NET applies the fallback policy also to a request that matches no endpoint, so an anonymous request to an unknown `/api` address would answer 401 instead of api-errors' 404. `UseAuthorization` therefore runs only when an endpoint matched (`UseWhen`). An unknown address answers 404 to everyone, and every real address stays protected by default. Rejected: changing api-errors to 401 for anonymous callers (a typo would read as "sign in"); dropping the fallback policy (a future endpoint not built with FastEndpoints would be open, and `AnonymousEndpointsTests` couldn't see it).
+  - **Only requests that matched an address are checked** (the user, 2026-11-08, at slice 1). ASP.NET applies the fallback policy also to a request that matches no endpoint, so an anonymous request to an unknown `/api` address would answer 401 instead of api-errors' 404. So a refusal counts only when an endpoint matched: `UnmatchedRequestsPass`, an `IAuthorizationMiddlewareResultHandler` (ASP.NET's documented hook for authorization results), passes a request that matched no endpoint on unchanged and hands every other result to ASP.NET's default handler. An unknown address answers 404 to everyone, and every real address stays protected by default. *(Slice 1: the first idea, `UseAuthorization` inside `UseWhen`, isn't enough on its own: `WebApplication` then adds an unconditional authorization step of its own at the start of the pipeline, and suppressing it takes ASP.NET's internal property name.)* Rejected: changing api-errors to 401 for anonymous callers (a typo would read as "sign in"); dropping the fallback policy (a future endpoint not built with FastEndpoints would be open, and `AnonymousEndpointsTests` couldn't see it).
 - **Answers:**
 
   | Who | `GET /api/me` and every other protected endpoint |
@@ -355,7 +355,7 @@ public static class SignInRegistration {
   /// default and fallback policies; ProblemDetails' 403 email extension; TimeProvider.System if none registered.
   /// </summary>
   public static IServiceCollection AddSignIn(this IServiceCollection services);
-  /// <summary>UseForwardedHeaders (first), then after UseAppPages: UseAuthentication, UseAuthorization (only when an endpoint matched, D3), UseCrossSiteWriteProtection.</summary>
+  /// <summary>UseForwardedHeaders (first), then after UseAppPages: UseAuthentication, UseAuthorization (a refusal counts only when an endpoint matched, D3), UseCrossSiteWriteProtection.</summary>
   public static WebApplication UseSignIn(this WebApplication app);
 }
 
@@ -389,7 +389,7 @@ public static class DataProtectionKeysRegistration {
 }
 
 // Program.cs order: UseForwardedHeaders → UseStatusCodePages → UseAppPages (fallback .AllowAnonymous()) →
-// UseAuthentication → UseAuthorization (only when an endpoint matched, D3) → UseCrossSiteWriteProtection → UseFastEndpoints.
+// UseAuthentication → UseAuthorization (UnmatchedRequestsPass, D3) → UseCrossSiteWriteProtection → UseFastEndpoints.
 ```
 
 ```csharp
@@ -473,7 +473,7 @@ export function signOut(): Promise<void>;                  // POST /api/auth/log
 | Rule (spec, ADR or convention) | Enforced by |
 |---|---|
 | Every API address requires an allowed, signed-in account; health and pages stay open | the `AllowedUser` default and fallback policies; `AllowAnonymous` on health, the page fallback, login and logout; guarded by `AnonymousEndpointsTests` |
-| An unknown API address answers 404 to everyone, signed in or not (api-errors) | `UseAuthorization` only when an endpoint matched (D3); guarded by api-errors' scenario |
+| An unknown API address answers 404 to everyone, signed in or not (api-errors) | `UnmatchedRequestsPass`, the authorization result handler (D3); guarded by api-errors' and app-delivery's scenarios |
 | On the allowlist ignoring case; no email → not allowed | `Allowlist.Allows`, applied by `AllowedUserHandler` |
 | The allowlist setting parses; no address in messages or logs | `SignInOptionsValidator`, `Allowlist.Parse`; guarded by `SignInTelemetryTests` |
 | 401 for anonymous, 403 with the own email for strangers | cookie events (`OnRedirectToLogin`, `OnRedirectToAccessDenied`), `UseStatusCodePages`, `CustomizeProblemDetails` |
