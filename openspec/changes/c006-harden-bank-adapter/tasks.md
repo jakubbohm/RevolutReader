@@ -32,8 +32,8 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 5. [unit] Transaction pages: the cap
 
-- [ ] 5.1 A read whose 20th page still carries a key is an error naming the cap, and no 21st page is requested
-- [ ] 5.2 A read of exactly 20 pages, the last without a key, returns the transactions of every page
+- [x] 5.1 A read whose 20th page still carries a key is an error naming the cap, and no 21st page is requested
+- [x] 5.2 A read of exactly 20 pages, the last without a key, returns the transactions of every page
 
 ## 6. [unit] Error code shape
 
