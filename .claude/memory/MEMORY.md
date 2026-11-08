@@ -17,3 +17,5 @@
 - [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup
 - [Tickets are GitHub issues](tickets-are-github-issues.md) — no Jira in this project; "ticket"/"Jira ticket" means a GitHub issue here; never touch the employer's Atlassian site
 - [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up
+- [gh api --slurp excludes --jq](gh-api-slurp-excludes-jq.md) — slurped pages go to a file and are shaped with node; --jq alone runs per page
+- [Workflow script syntax check](workflow-script-syntax-check.md) — wrap the body in an async function before node --check; a saved workflow appears in the skill list by its meta.name
