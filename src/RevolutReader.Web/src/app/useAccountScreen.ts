@@ -3,7 +3,11 @@ import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
 import { shown, type Facts, type Problem, type Shown } from "./screenState";
 import { readSession, signOut, type Session } from "./session";
-import { loadStoredBalance, storeBalance } from "./storedBalance";
+import {
+  forgetStoredBalance,
+  loadStoredBalance,
+  storeBalance,
+} from "./storedBalance";
 
 /** The phone is offline: what the phone said, or a request that got no answer (D2). */
 const OFFLINE: Problem = { kind: "offline" };
@@ -42,9 +46,11 @@ export interface AccountScreenModel {
  * time: a repeat while one is under way is ignored, not queued. Each new question or read clears the screen's problem,
  * and its outcome sets the next (D7 c).
  *
- * "Odhlásit se" signs out; once the server has confirmed it, the sign-in screen shows with its note that the sign-out
- * happened. A sign-out that failed (a server error, offline) leaves the visitor on the account screen, still signed in,
- * so the note never claims a sign-out that did not happen (c007 design.md D2).
+ * "Odhlásit se" signs out; once the server has confirmed it, the balance the phone keeps is forgotten and the sign-in
+ * screen shows with its note that the sign-out happened. A sign-out that failed (a server error, offline) leaves the
+ * visitor on the account screen, still signed in, so the note never claims a sign-out that did not happen (c007
+ * design.md D2). A 401 or 403 to who is signed in or to a balance read forgets the balance too, and shows the sign-in
+ * screen (without the note) or the no-access screen (D4, D5 c).
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -68,16 +74,37 @@ export function useAccountScreen(): AccountScreenModel {
   const latestQuestion = useRef(0);
   /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
+  /** How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped. */
+  const loginsEnded = useRef(0);
+
+  /**
+   * The device has no allowed login any more (D4, D5 c): a sign-out the server confirmed, or a 401 or 403 to who is
+   * signed in or to a balance read. The balance the phone keeps is forgotten before `next`, the sign-in or no-access
+   * screen, shows; what the screen held goes with it, and a read still under way is dropped when it lands.
+   */
+  const endLogin = useCallback(async (next: Session): Promise<void> => {
+    loginsEnded.current += 1;
+    await forgetStoredBalance();
+    if (!onPage.current) return;
+
+    setSession(next);
+    setBalance(null);
+    setStored(null);
+    setReading("no");
+    setProblem(null);
+  }, []);
 
   /**
    * Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. A refresh
    * with no answer after `REFRESH_LIMIT_MS` is aborted, and so ends as offline (D3); the first read has no limit: the
-   * first load shows the waking-up screens instead (D2).
+   * first load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor
+   * kept (D4); one that finds the login ended (401, 403) ends it here too.
    */
   const readTheBalance = useCallback(
     async (as: "first" | "refresh"): Promise<void> => {
       if (readUnderWay.current) return;
       readUnderWay.current = true;
+      const login = loginsEnded.current;
       setReading(as);
       setProblem(null);
 
@@ -97,7 +124,18 @@ export function useAccountScreen(): AccountScreenModel {
         clearTimeout(limitTimer);
         readUnderWay.current = false;
       }
-      if (!onPage.current) return;
+      if (!onPage.current || login !== loginsEnded.current) return;
+
+      // The login has ended (D5 c): a 401 leads to the sign-in screen, with no note that a sign-out happened; a 403 to
+      // the no-access screen, naming the account.
+      if (read.kind === "signed out") {
+        await endLogin({ kind: "signed-out", justSignedOut: false });
+        return;
+      }
+      if (read.kind === "refused") {
+        await endLogin({ kind: "refused", email: read.email });
+        return;
+      }
 
       setReading("no");
       if (read.kind === "read") {
@@ -115,7 +153,7 @@ export function useAccountScreen(): AccountScreenModel {
       )
         setProblem({ kind: read.kind });
     },
-    [],
+    [endLogin],
   );
 
   /**
@@ -140,11 +178,16 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * Who is signed in, as the server answered: it replaces the screen's problem (offline, unexpected, or none), and for a
-   * signed-in user the balance is read next.
+   * signed-in user the balance is read next. Nobody signed in (401) or a refused account (403): the device has no
+   * allowed login, so the balance it keeps is forgotten first (D4).
    */
   const takeInAnswer = useCallback(
     async (answer: Session): Promise<void> => {
       if (!onPage.current) return;
+      if (answer.kind === "signed-out" || answer.kind === "refused") {
+        await endLogin(answer);
+        return;
+      }
 
       setSession(answer);
       setProblem(
@@ -154,7 +197,7 @@ export function useAccountScreen(): AccountScreenModel {
       );
       if (answer.kind === "signed-in") await readTheBalance("first");
     },
-    [readTheBalance],
+    [endLogin, readTheBalance],
   );
 
   /** Asks who is signed in and takes in the answer, unless the question is under way. */
@@ -258,7 +301,8 @@ export function useAccountScreen(): AccountScreenModel {
       return;
     }
 
-    setSession({ kind: "signed-out", justSignedOut: true });
+    // Confirmed: the balance the phone keeps is forgotten before the signed-out screen shows (D4).
+    await endLogin({ kind: "signed-out", justSignedOut: true });
   }
 
   const facts: Facts = {

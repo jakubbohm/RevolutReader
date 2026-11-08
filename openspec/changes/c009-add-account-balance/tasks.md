@@ -360,32 +360,32 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 57b. [unit] Slice 24 — A read that lands after the sign-out (added during the apply, 2026-11-08)
 
-- [ ] 57b.1 A balance read that lands after a sign-out the server confirmed is neither shown nor kept on the phone
+- [x] 57b.1 A balance read that lands after a sign-out the server confirmed is neither shown nor kept on the phone
 
 ## 58. [wiring] Slice 24 — Forgetting on sign-out
 
-- [ ] 58.1 After a sign-out the server confirmed, `useAccountScreen` forgets the stored balance before the sign-in screen shows. Verify: the scenario runs against the app
+- [x] 58.1 After a sign-out the server confirmed, `useAccountScreen` forgets the stored balance before the sign-in screen shows. Verify: the scenario runs against the app
 
 ## 59. [close] Slice 24 — Signing out forgets the balance on the phone
 
-- [ ] 59.1 The scenario's test passes. Verify: green, including account-balance / Signing out forgets the balance on the phone
+- [x] 59.1 The scenario's test passes. Verify: green, including account-balance / Signing out forgets the balance on the phone
 
 ## 60. [wiring] Slice 25 — Forgetting when the login has ended
 
-- [ ] 60.1 A 401 or 403 to who is signed in or to a balance read forgets the stored balance. Verify: the scenario runs against the app
-- [ ] 60.2 Docs: ADR-0007's note gains the deletion on 401 and 403 (extending item 4). Verify: it matches design.md D4
+- [x] 60.1 A 401 or 403 to who is signed in or to a balance read forgets the stored balance. Verify: the scenario runs against the app
+- [x] 60.2 Docs: ADR-0007's note gains the deletion on 401 and 403 (extending item 4). Verify: it matches design.md D4
 
 ## 61. [close] Slice 25 — A login that has ended forgets the balance on the phone
 
-- [ ] 61.1 The scenario's test passes. Verify: green, including account-balance / A login that has ended forgets the balance on the phone
+- [x] 61.1 The scenario's test passes. Verify: green, including account-balance / A login that has ended forgets the balance on the phone
 
 ## 62. [wiring] Slice 26 — A login that ends while the app is open
 
-- [ ] 62.1 A 401 to a balance read shows the sign-in screen without the signed-out note; a 403, the no-access screen naming the account. Verify: the scenario runs against the app
+- [x] 62.1 A 401 to a balance read shows the sign-in screen without the signed-out note; a 403, the no-access screen naming the account. Verify: the scenario runs against the app
 
 ## 63. [close] Slice 26 — A login that ends while the app is open shows the sign-in screen
 
-- [ ] 63.1 The scenario's test passes. Verify: green, including sign-in / A login that ends while the app is open shows the sign-in screen
+- [x] 63.1 The scenario's test passes. Verify: green, including sign-in / A login that ends while the app is open shows the sign-in screen
 
 ## 64. [unit] Slice 27 — A failed sign-out
 

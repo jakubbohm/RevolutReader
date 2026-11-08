@@ -52,4 +52,4 @@ The design follows the same rule: the design system's "What the phone stores" se
   - **The library** is `idb-keyval` 6.3.0 (Apache-2.0); the tests run the same code on `fake-indexeddb`.
   - **No owner and no expiry:** every allowed user sees the same account, and the freshness line dates the record ("Aktualizováno 3. 11. v 14:05").
   - **A failing store reads as nothing stored,** and a failed write or delete is ignored; a record of the wrong shape reads as nothing.
-  - **Item 4 extended** (follows in C7a's slice 25): the record is also deleted whenever the server answers that the device has no allowed login (401 or 403, to who is signed in or to a balance read), so a device without a login holds no bank data. A failed sign-out keeps it.
+  - **Item 4 extended:** the record is also deleted whenever the server answers that the device has no allowed login (401 or 403, to who is signed in or to a balance read), so a device without a login holds no bank data. A balance read that lands after a confirmed sign-out is neither shown nor kept. A failed sign-out keeps it.
