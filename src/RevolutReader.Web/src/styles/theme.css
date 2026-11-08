@@ -150,6 +150,11 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+  /* Tailwind v4's Preflight resets buttons to the default cursor; the design system gives every control a pointer. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* A plain box-shadow from the variable, so the dark value (none included) applies. Not combined with ring-* or shadow-<colour>. */

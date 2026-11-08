@@ -40,7 +40,7 @@ export function Button({
       onClick={tap}
       disabled={disabled}
       aria-busy={loading || undefined}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-control bg-accent px-gutter text-body-strong text-on-accent transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-pressed disabled:bg-surface-muted disabled:text-ink-muted motion-reduce:active:scale-100 ${block ? "w-full" : ""}`}
+      className={`inline-flex h-12 items-center justify-center gap-2 rounded-control bg-accent px-gutter text-body-strong text-on-accent transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-pressed disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-muted aria-busy:cursor-progress motion-reduce:active:scale-100 ${block ? "w-full" : ""}`}
     >
       {loading ? (
         <LoaderCircle
