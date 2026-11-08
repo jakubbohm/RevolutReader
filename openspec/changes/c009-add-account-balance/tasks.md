@@ -173,13 +173,13 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 18. [wiring] Slice 8 — The balance on the screen
 
-- [ ] 18.1 `Button`'s `secondary` and `ghost` variants and its leading icon; `BalanceHeader`; `Skeleton` (`balance`), as design.md D10 describes. Verify: lint, typecheck and the unit tests pass
-- [ ] 18.2 `session.ts`: `unknown` becomes `unexpected` and `offline` (the existing sign-in behaviour unchanged); `balance.ts`, `format.ts` and `screenState.ts` as sketched. Verify: groups 14–16 pass; the existing frontend tests stay green
-- [ ] 18.3 `useAccountScreen`, first part: `GET /api/me`, then the balance for a signed-in user. `AccountScreen` renders what `shown` says; `App` uses the hook; the freshness line re-renders every minute. Verify: the scenario runs against the app
+- [x] 18.1 `Button`'s `secondary` and `ghost` variants and its leading icon; `BalanceHeader`; `Skeleton` (`balance`), as design.md D10 describes. Verify: lint, typecheck and the unit tests pass
+- [x] 18.2 `session.ts`: `unknown` becomes `unexpected` and `offline` (the existing sign-in behaviour unchanged); `balance.ts`, `format.ts` and `screenState.ts` as sketched. Verify: groups 14–16 pass; the existing frontend tests stay green
+- [x] 18.3 `useAccountScreen`, first part: `GET /api/me`, then the balance for a signed-in user. `AccountScreen` renders what `shown` says; `App` uses the hook; the freshness line re-renders every minute. Verify: the scenario runs against the app
 
 ## 19. [close] Slice 8 — The account screen shows the balance, its koruna value and when it was read
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including account-balance / The account screen shows the balance, its koruna value and when it was read
+- [x] 19.1 The scenario's test passes. Verify: green, including account-balance / The account screen shows the balance, its koruna value and when it was read
 
 ## 20. [unit] Slice 9 — Refresh
 
@@ -211,9 +211,9 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 26. [unit] Slice 11 — Offline, nothing stored
 
-- [ ] 26.1 With the phone offline, asking who is signed in sends nothing and reads as offline
-- [ ] 26.2 Asking who is signed in with no answer reads as offline
-- [ ] 26.3 A server error or a hosting error page to who is signed in reads as unexpected, not offline
+- [x] 26.1 With the phone offline, asking who is signed in sends nothing and reads as offline
+- [x] 26.2 Asking who is signed in with no answer reads as offline
+- [x] 26.3 A server error or a hosting error page to who is signed in reads as unexpected, not offline
 - [ ] 26.4 Offline with nothing stored, the whole screen says so, with no header and no banner
 
 ## 27. [wiring] Slice 11 — The offline screen

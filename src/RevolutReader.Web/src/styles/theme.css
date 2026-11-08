@@ -180,3 +180,19 @@
 @utility animate-fade-in {
   animation: fade-in var(--duration-fast) var(--ease-standard);
 }
+
+/*
+ * The placeholders' slow pulse while data loads (design system Skeleton): 1.4 s, opacity only. None under reduced
+ * motion: a pulse that never ends is motion, unlike a single fade.
+ */
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@utility animate-skeleton-pulse {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

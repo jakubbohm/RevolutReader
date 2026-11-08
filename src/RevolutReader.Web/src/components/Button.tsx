@@ -5,8 +5,11 @@ export interface ButtonProps {
   /** The label: a Czech verb. */
   children: ReactNode;
   onClick?: () => void;
-  /** `primary` (the default): the single main action on a screen; `ghost`: a low-emphasis action, such as "Obnovit". */
-  variant?: "primary" | "ghost";
+  /**
+   * `primary` (the default): the single main action on a screen; `secondary`: a neutral alternative, such as "Zkusit
+   * znovu"; `ghost`: a low-emphasis action, such as "Obnovit".
+   */
+  variant?: "primary" | "secondary" | "ghost";
   /** A Lucide icon before the label, 20 px; the spinner takes its place while loading. */
   icon?: LucideIcon;
   /** Full width, as the single main action at the bottom of a screen. */
@@ -23,12 +26,15 @@ const BASE =
 /** Each variant's fill and text, at rest and pressed. */
 const VARIANTS = {
   primary: "bg-accent text-on-accent active:bg-accent-pressed",
+  secondary:
+    "border border-border-strong bg-surface text-ink active:bg-surface-muted",
   ghost: "bg-transparent text-accent active:bg-accent-soft",
 } as const;
 
 /**
  * The app's button (design system Button, c007 design.md D12, c009 D10), 48 pt tall, `radius-control`. Primary: the
- * single main action on a screen, in `color-accent` with `color-on-accent` text, pressed `color-accent-pressed`. Ghost:
+ * single main action on a screen, in `color-accent` with `color-on-accent` text, pressed `color-accent-pressed`.
+ * Secondary: `color-surface` with a `color-border-strong` outline and ink text, pressed `color-surface-muted`. Ghost:
  * transparent with `color-accent` text, pressed `color-accent-soft`. Pressed fades in over `duration-fast` with a 0.98
  * scale; under reduced motion the fill still fades, but nothing scales. Disabled is `color-surface-muted` with
  * `color-ink-muted` text; the focus ring is 2 px `color-focus`, offset 2 px.

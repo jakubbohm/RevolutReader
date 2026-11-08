@@ -1,5 +1,6 @@
-import { api } from "../api/client";
+import { api, wasAnswered } from "../api/client";
 import type { components } from "../api/schema";
+import { emailOfRefusal } from "./session";
 
 /** The balance as the API answers it and as the phone keeps it (c009 design.md D1, D4): `readAt` in ISO 8601. */
 export type Balance =
@@ -64,16 +65,14 @@ export async function readBalance(options?: {
     }
     if (response.status === 401) return { kind: "signed out" };
     if (response.status === 403)
-      return { kind: "refused", email: emailOf(error) };
+      return { kind: "refused", email: emailOfRefusal(error) };
 
     const problemType = typeOf(error);
     return problemType !== null && isBankProblemType(problemType)
       ? readOfBankProblem[problemType]
       : UNEXPECTED;
   } catch (failure) {
-    // A success whose body is not JSON (a captive portal's page, say) is an answer, so unexpected; every other failure
-    // means no answer came: the request failed, broke off, or was aborted.
-    return failure instanceof SyntaxError ? UNEXPECTED : OFFLINE;
+    return wasAnswered(failure) ? UNEXPECTED : OFFLINE;
   }
 }
 
@@ -89,13 +88,6 @@ function balanceOf(body: unknown): Balance | null {
     return null;
 
   return { amount, readAt, czkPerEur };
-}
-
-/** The refused account's email, the problem's `email` extension; `null` when the body names none. */
-function emailOf(body: unknown): string | null {
-  if (typeof body !== "object" || body === null || !("email" in body))
-    return null;
-  return typeof body.email === "string" ? body.email : null;
 }
 
 /** The problem's `type`, when the body is an object with one as text; `null` otherwise (a plain-text page, say). */

@@ -50,14 +50,22 @@ export type Shown =
       signingOut: boolean;
     };
 
-type AccountScreen = Extract<Shown, { screen: "account" }>;
+/** The account screen, as `shown` describes it. */
+export type ShownAccount = Extract<Shown, { screen: "account" }>;
 
 /**
- * What the screen shows for these facts; pure (c009 design.md D2, D5, D7). The account screen: the menu once the server
+ * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7). Nobody signed in: the sign-in
+ * screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the server
  * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
  * with no header, the empty frame.
  */
 export function shown(facts: Facts): Shown {
+  const { session } = facts;
+  if (session !== "waiting" && session.kind === "signed-out")
+    return { screen: "sign-in", justSignedOut: session.justSignedOut };
+  if (session !== "waiting" && session.kind === "refused")
+    return { screen: "no access", email: session.email };
+
   const header = headerOf(facts);
 
   return {
@@ -71,7 +79,7 @@ export function shown(facts: Facts): Shown {
 }
 
 /** The menu's account: only once `GET /api/me` has named the user (D2), never from what the phone keeps. */
-function accountOf(session: Facts["session"]): AccountScreen["account"] {
+function accountOf(session: Facts["session"]): ShownAccount["account"] {
   if (session === "waiting" || session.kind !== "signed-in") return null;
   return { name: session.name, email: session.email };
 }
@@ -81,7 +89,7 @@ function accountOf(session: Facts["session"]): AccountScreen["account"] {
  * the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen
  * stays instead, never a placeholder); otherwise none.
  */
-function headerOf(facts: Facts): AccountScreen["header"] {
+function headerOf(facts: Facts): ShownAccount["header"] {
   if (facts.balance !== null)
     return { balance: facts.balance, refreshing: facts.reading === "refresh" };
   if (facts.reading === "first" && !facts.wokeUp) return "placeholder";

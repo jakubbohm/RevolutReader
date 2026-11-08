@@ -1,39 +1,63 @@
-import { api } from "../api/client";
+import { api, wasAnswered } from "../api/client";
 
-/** Who the server says is signed in, as the page picks its screen from it (c007 design.md D3, D5). */
+/** Who the server says is signed in, as the page picks its screen from it (c007 design.md D3, D5; c009 D2, D5). */
 export type Session =
-  | { kind: "unknown" }
   | { kind: "signed-out"; justSignedOut: boolean }
   | { kind: "refused"; email: string | null }
-  | { kind: "signed-in"; name: string; email: string };
+  | { kind: "signed-in"; name: string; email: string }
+  /** Any other answer: an error status, a plain-text hosting page, or a success that is not a session. */
+  | { kind: "unexpected" }
+  /** The phone says it is offline (nothing sent), or no answer came. */
+  | { kind: "offline" };
+
+const UNEXPECTED: Session = { kind: "unexpected" };
 
 /**
- * Asks the server who is signed in (`GET /api/me`, design.md D3): 200 → signed in, with the name and email; 401 →
- * signed out; 403 → refused, with the email its problem description names (the contract's refused problem), or none.
- * Anything else, a server error or no answer at all (offline, the request failed), reads as unknown, so the page keeps
- * its empty frame (D5). Never throws.
+ * Asks the server who is signed in (`GET /api/me`, c007 design.md D3; c009 D2, D5); never throws.
+ * - The phone says it is offline: nothing is sent, and the session is offline.
+ * - 200 with a name and an email: signed in; any other 200 body is unexpected.
+ * - 401: signed out; 403: refused, with the email its problem description names (the contract's refused problem), or
+ *   none.
+ * - No answer (the request failed): offline. An answer with an error status never is: any other status, a plain-text
+ *   hosting page among them, is unexpected.
  */
 export async function readSession(): Promise<Session> {
+  if (!navigator.onLine) return { kind: "offline" };
+
   try {
     const { data, error, response } = await api.GET("/api/me");
 
-    if (data !== undefined)
-      return { kind: "signed-in", name: data.name, email: data.email };
+    if (response.status === 200) return signedInOf(data) ?? UNEXPECTED;
     if (response.status === 401)
       return { kind: "signed-out", justSignedOut: false };
     if (response.status === 403)
-      return {
-        kind: "refused",
-        email:
-          error !== undefined && "email" in error
-            ? (error.email ?? null)
-            : null,
-      };
+      return { kind: "refused", email: emailOfRefusal(error) };
 
-    return { kind: "unknown" };
-  } catch {
-    return { kind: "unknown" };
+    return UNEXPECTED;
+  } catch (failure) {
+    return wasAnswered(failure) ? UNEXPECTED : { kind: "offline" };
   }
+}
+
+/**
+ * The refused account's email, the 403 problem's `email` extension (c007 design.md D3), for any API address that
+ * refuses; `null` when the body names none.
+ */
+export function emailOfRefusal(body: unknown): string | null {
+  if (typeof body !== "object" || body === null || !("email" in body))
+    return null;
+  return typeof body.email === "string" ? body.email : null;
+}
+
+/** Signed in, when the body names the user: a name and an email, as text. */
+function signedInOf(body: unknown): Session | null {
+  if (typeof body !== "object" || body === null) return null;
+  if (!("name" in body && "email" in body)) return null;
+
+  const { name, email } = body;
+  return typeof name === "string" && typeof email === "string"
+    ? { kind: "signed-in", name, email }
+    : null;
 }
 
 /**
