@@ -387,7 +387,8 @@ public static WebApplication UseCrossSiteWriteProtection(this WebApplication app
 // ---- src/RevolutReader.Api/DataProtection/ ----
 
 /// <summary>The DataProtection section (D7): all empty (default key store) or all set (Blob + Key Vault).</summary>
-public sealed class DataProtectionKeysOptions { public string? KeysBlobUri { get; init; } public string? KeyVaultKeyUri { get; init; } public string? IdentityClientId { get; init; } }
+public sealed class DataProtectionKeysOptions { public Uri? KeysBlobUri { get; init; } public Uri? KeyVaultKeyUri { get; init; } public string? IdentityClientId { get; init; } }
+// Uri? (not string?): the analyzer rule CA1056 asks for Uri on *Uri properties, and an empty appsettings value binds to null.
 public static class DataProtectionKeysRegistration {
   /// <summary>Throws at registration when the settings are partly set; the message names the settings, not their values.</summary>
   public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, DataProtectionKeysOptions options);
