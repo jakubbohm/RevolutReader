@@ -49,10 +49,17 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>
   /// The priority of an answer for the first matching request only (<see cref="AnswerOnce"/>): above every other answer
-  /// (WireMock.Net: a lower value is a higher priority; every other answer keeps the default, 0), so it wins whether the
-  /// scenario sets it up before or after them.
+  /// (WireMock.Net: a lower value is a higher priority; every other answer keeps the default, 0, but a fallback, at
+  /// <see cref="FALLBACK_PRIORITY"/>), so it wins whether the scenario sets it up before or after them.
   /// </summary>
   private const int ONE_OFF_PRIORITY = -1;
+
+  /// <summary>
+  /// The priority of a fallback answer (<see cref="AnswerBalancesByDefault"/>): below every other answer (every other
+  /// answer keeps the default, 0, or <see cref="ONE_OFF_PRIORITY"/>), so any answer the test sets up wins, whether before
+  /// or after it.
+  /// </summary>
+  private const int FALLBACK_PRIORITY = 1;
 
   /// <summary>The state a one-off answer's WireMock.Net scenario moves to once it has answered; it never answers again.</summary>
   private const string ANSWERED = "answered";
@@ -95,6 +102,9 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>Where the server listens; the app copy's Enable Banking API address.</summary>
   public Uri Address { get; }
+
+  /// <summary>The path of this account's balances, as the server receives it.</summary>
+  private string BalancesPath => $"/accounts/{AccountId}/balances";
 
   /// <summary>The path of this account's transactions, as the server receives it.</summary>
   private string TransactionsPath => $"/accounts/{AccountId}/transactions";
@@ -147,7 +157,13 @@ public sealed class FakeBank : IDisposable {
   /// <c>GET /accounts/{account}/balances</c> answers with these balances (the capture's shape), only on this account's
   /// path and only when the request carries a bearer token; any other request gets WireMock's 404.
   /// </summary>
-  public void AnswerBalances(string body) => _server.Given(SignedGet($"/accounts/{AccountId}/balances")).RespondWith(JsonAnswer(body));
+  public void AnswerBalances(string body) => _server.Given(SignedGet(BalancesPath)).RespondWith(JsonAnswer(body));
+
+  /// <summary>
+  /// The same request as <see cref="AnswerBalances"/> matches is answered with these balances when nothing else the test set
+  /// up answers it (<see cref="FALLBACK_PRIORITY"/>): any answer the test sets up wins, before or after this one.
+  /// </summary>
+  public void AnswerBalancesByDefault(string body) => _server.Given(SignedGet(BalancesPath)).AtPriority(FALLBACK_PRIORITY).RespondWith(JsonAnswer(body));
 
   /// <summary>
   /// <c>GET /accounts/{account}/transactions</c> answers with this page, only for this <c>date_from</c> (as the API

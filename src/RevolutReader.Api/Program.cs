@@ -1,5 +1,6 @@
 using FastEndpoints;
 using FastEndpoints.OpenApi;
+using RevolutReader.Api.Account;
 using RevolutReader.Api.Bank;
 using RevolutReader.Api.DataProtection;
 using RevolutReader.Api.Hosting;
@@ -16,6 +17,7 @@ builder.Services.AddFastEndpoints();
 // never serves it. No JWT bearer scheme: the app signs in with a cookie (ADR-0003).
 builder.Services.OpenApiDocument(static options => options.EnableJWTBearerAuth = false);
 builder.Services.AddEnableBanking();
+builder.Services.AddBalance();
 builder.Services.AddSignIn();
 // Where the login cookie's keys live is chosen while registering services, so the composition root hands over the
 // configuration: the DataProtection section and AZURE_CLIENT_ID (c007 design.md D7).

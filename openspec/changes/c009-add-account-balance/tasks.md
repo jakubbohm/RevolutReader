@@ -84,17 +84,17 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 3. [wiring] Slice 1 — The balance endpoint
 
-- [ ] 3.1 `AccountBalance`, `ReadBalanceHandler` and `AddBalance()` in `src/RevolutReader.Api/Account/`, registered in `Program.cs` after `AddEnableBanking()`. Verify: build passes; the unit tests of group 2 pass
-- [ ] 3.2 `BalanceEndpoint` (`GET /api/balance`, default policy) and `BalanceResponse`: the present user from C13's `PresentUserFromRequest`, then the handler, then 200. Its OpenAPI description: 200, 401, 403 and 500, plus C13's `ProducesBankProblems()` (400, 429, 503). `BalanceDriver.AskForBalance` and `Now` replace their stubs. Verify: the scenario runs against the app
-- [ ] 3.3 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`; `openapi.json` and `schema.d.ts` committed. Verify: a second run leaves no diff; frontend checks green
+- [x] 3.1 `AccountBalance`, `ReadBalanceHandler` and `AddBalance()` in `src/RevolutReader.Api/Account/`, registered in `Program.cs` after `AddEnableBanking()`. Verify: build passes; the unit tests of group 2 pass
+- [x] 3.2 `BalanceEndpoint` (`GET /api/balance`, default policy) and `BalanceResponse`: the present user from C13's `PresentUserFromRequest`, then the handler, then 200. Its OpenAPI description: 200, 401, 403 and 500, plus C13's `ProducesBankProblems()` (400, 429, 503). `BalanceDriver.AskForBalance` and `Now` replace their stubs. Verify: the scenario runs against the app
+- [x] 3.3 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`; `openapi.json` and `schema.d.ts` committed. Verify: a second run leaves no diff; frontend checks green
 
 ## 4. [close] Slice 1 — The balance comes with the time it was read and the koruna rate
 
-- [ ] 4.1 The scenario's test passes, including the exact shape of the answer. Verify: green, including account-balance / The balance comes with the time it was read and the koruna rate
+- [x] 4.1 The scenario's test passes, including the exact shape of the answer. Verify: green, including account-balance / The balance comes with the time it was read and the koruna rate
 
 ## 5. [close] Slice 2 — The bank sees the signed-in user's address and browser
 
-- [ ] 5.1 The scenario's test passes: the address arrives through `X-Forwarded-For` as from the ingress, the browser as `User-Agent`. If it does not, a `[wiring]` task is added here first (design.md § Risks). Verify: green, including account-balance / The bank sees the signed-in user's address and browser
+- [x] 5.1 The scenario's test passes: the address arrives through `X-Forwarded-For` as from the ingress, the browser as `User-Agent`. If it does not, a `[wiring]` task is added here first (design.md § Risks). Verify: green, including account-balance / The bank sees the signed-in user's address and browser
 
 ## 6. [wiring] Slice 3 — A request naming no browser
 
