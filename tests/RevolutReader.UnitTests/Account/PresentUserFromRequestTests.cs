@@ -1,0 +1,115 @@
+using System.Net;
+using System.Net.Sockets;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+using RevolutReader.Api.Account;
+using RevolutReader.Api.Bank;
+using Shouldly;
+
+namespace RevolutReader.UnitTests.Account;
+
+/// <summary>
+/// The present user is read from the request a signed-in user's open or refresh sent (roadmap C13; the user's choice 1,
+/// 2026-11-08): the client address as the forwarded headers left it on the connection (c007 design.md D10) and the
+/// <c>User-Agent</c> header as ASP.NET reads it. An IPv4 address in IPv6 form becomes plain IPv4 (c004 design.md D2, the
+/// heads-up for C7); any other address, an IPv6 one too, is kept as it is. The browser name is kept as given, a header
+/// sent on two lines as both values joined with a comma: cleaning it is the bank header's job (c006 design.md D5). No
+/// client address, or a missing, empty or whitespace <c>User-Agent</c>, gives no present user (<see langword="null"/>):
+/// the endpoint then answers 400 and never reads unattended in its place, which would count against the bank's 4 reads a
+/// day without the user (ADR-0001). The addresses are documentation addresses (RFC 5737, RFC 3849); the browsers are made
+/// up.
+/// </summary>
+public sealed class PresentUserFromRequestTests {
+  private const string IPHONE_BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X)";
+
+  private static readonly IPAddress _documentationAddress = IPAddress.Parse("203.0.113.7");
+
+  /// <param name="userAgent">
+  /// A plain browser name, and one with accented letters, which stay accented here: the question marks belong to the bank
+  /// header (c006 design.md D5), not to the user.
+  /// </param>
+  [Test]
+  [Arguments(IPHONE_BROWSER)]
+  [Arguments("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) Čtečka/1.0")]
+  public void The_client_address_and_the_browser_name_are_taken_as_given(string userAgent) {
+    PresentUser? user = PresentUserFromRequest.Read(Request(IPAddress.Parse("203.0.113.7"), userAgent));
+
+    user.ShouldNotBeNull();
+    user.IpAddress.ShouldBe(_documentationAddress);
+    user.UserAgent.ShouldBe(userAgent);
+  }
+
+  /// <summary>
+  /// As a server listening on IPv6 can report an IPv4 visitor. The bank gets <c>203.0.113.7</c>, not
+  /// <c>::ffff:203.0.113.7</c> (c004 design.md D2).
+  /// </summary>
+  [Test]
+  public void An_IPv4_address_in_IPv6_form_becomes_plain_IPv4() {
+    PresentUser? user = PresentUserFromRequest.Read(Request(IPAddress.Parse("::ffff:203.0.113.7"), IPHONE_BROWSER));
+
+    user.ShouldNotBeNull();
+    user.IpAddress.ShouldBe(_documentationAddress);
+    user.IpAddress.AddressFamily.ShouldBe(AddressFamily.InterNetwork);
+  }
+
+  /// <param name="address">
+  /// An IPv6 address (RFC 3849), and the old IPv4-compatible form (RFC 4291 § 2.5.5.1), which is not the IPv4-mapped one
+  /// and so is kept too.
+  /// </param>
+  [Test]
+  [Arguments("2001:db8::7")]
+  [Arguments("::203.0.113.7")]
+  public void Any_other_IPv6_address_is_kept_as_it_is(string address) {
+    PresentUser? user = PresentUserFromRequest.Read(Request(IPAddress.Parse(address), IPHONE_BROWSER));
+
+    user.ShouldNotBeNull();
+    user.IpAddress.ShouldBe(IPAddress.Parse(address));
+  }
+
+  [Test]
+  public void No_client_address_gives_no_present_user() =>
+    PresentUserFromRequest.Read(Request(address: null, IPHONE_BROWSER)).ShouldBeNull();
+
+  [Test]
+  public void A_missing_User_Agent_gives_no_present_user() =>
+    PresentUserFromRequest.Read(Request(_documentationAddress, StringValues.Empty)).ShouldBeNull();
+
+  /// <param name="userAgent">The header sent with an empty value, or with nothing but white space (spaces, a tab).</param>
+  [Test]
+  [Arguments("")]
+  [Arguments(" ")]
+  [Arguments("   ")]
+  [Arguments("\t")]
+  [Arguments(" \t ")]
+  public void An_empty_or_whitespace_User_Agent_gives_no_present_user(string userAgent) =>
+    PresentUserFromRequest.Read(Request(_documentationAddress, userAgent)).ShouldBeNull();
+
+  /// <summary>As ASP.NET reads a header sent on two lines: both values, joined by a comma with no space after it.</summary>
+  [Test]
+  public void A_User_Agent_sent_on_two_lines_gives_one_browser_name_with_both_values_joined_by_a_comma() {
+    PresentUser? user = PresentUserFromRequest.Read(Request(_documentationAddress, new StringValues([IPHONE_BROWSER, "Ctecka/1.0"])));
+
+    user.ShouldNotBeNull();
+    user.UserAgent.ShouldBe("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X),Ctecka/1.0");
+  }
+
+  [Test]
+  public void A_null_context_is_rejected() {
+    ArgumentNullException error = Should.Throw<ArgumentNullException>(() => PresentUserFromRequest.Read(null!));
+
+    error.ParamName.ShouldBe("context");
+  }
+
+  /// <summary>
+  /// A request as the app sees it after the forwarded headers: from <paramref name="address"/> (<see langword="null"/>: no
+  /// client address), with these <c>User-Agent</c> values, one per line the header was sent on (none: not sent).
+  /// </summary>
+  private static DefaultHttpContext Request(IPAddress? address, StringValues userAgent) {
+    DefaultHttpContext context = new();
+    context.Connection.RemoteIpAddress = address;
+    if (userAgent.Count > 0)
+      context.Request.Headers.UserAgent = userAgent;
+
+    return context;
+  }
+}
