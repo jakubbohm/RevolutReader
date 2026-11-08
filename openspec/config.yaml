@@ -36,6 +36,11 @@ context: |
   c001-add-backend-foundation); NNN is the next number across openspec/changes/ and the
   archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first rule.
 
+  Change size (docs/conventions/workflow.md § 6): a change has at most 12 new or changed
+  scenarios (one acceptance task each). While exploring an idea, estimate how many scenarios
+  it needs and say so; above 12, propose splitting it into smaller changes, each a slice a
+  user can see where possible, before /opsx:propose.
+
   Testing (docs/conventions/testing.md): TUnit + Shouldly. Every scenario is an executable
   specification with exactly one claim: an API acceptance test by default, a frontend test for
   rules only the browser shows, or a row in tests/manual-scenarios.md for device-only
@@ -61,6 +66,7 @@ rules:
     - Create the change's branch before drafting any artifact — once GitHub exists (M2) `git fetch origin` then `git switch -c <type>/<change-id> origin/main`; before M2 `git switch -c <type>/<change-id> main` — where <type> is the Conventional Commit type the eventual PR title will carry; never draft a change on main
     - Cite the use case (UC1–UC3, kickoff ch. 5), the roadmap step id (e.g. C6) and every open question (Q1–Q10) the change applies or decides
     - Include a Non-goals section
+    - "Count the new and changed scenarios the TL;DR lists. More than 12: stop after the proposal and propose a split to the user before writing specs, design or tasks (docs/conventions/workflow.md § 6), unless the user has decided to keep the change whole and the proposal says why"
   specs:
     - The app is read-only toward the bank — no requirement may introduce a write operation against Enable Banking
     - A response requirement lists exactly the fields the UI shows; every other Enable Banking field stays out of the contract
@@ -72,6 +78,7 @@ rules:
     - Edge cases a user can observe are scenarios; internal invariants are not, they live only in unit tests
     - "Scenario names must read on their own as a checklist (e.g. 'Balance shown in CZK when the bank answers'), unique within the capability, because the human reviews the list of names first"
     - Keep each scenario to 3–6 lines; if it needs more, it is probably two behaviours
+    - "Once every delta spec is written, count the new and changed scenarios again. More than 12: stop before design and tasks and propose a split to the user (docs/conventions/workflow.md § 6), unless the user has decided to keep the change whole and the proposal says why"
   design:
     - "Start with '## TL;DR' (max ~10 lines): the key decisions with one-line reasons; new or changed public interfaces, one line each (name + purpose, no signatures); integration points (other components, external systems such as Enable Banking, schema changes). Point out anything that is hard to reverse"
     - Write the TL;DR last and keep it consistent with the rest of the artifact; update it whenever the artifact changes
