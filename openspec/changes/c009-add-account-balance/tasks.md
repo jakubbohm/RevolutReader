@@ -147,17 +147,17 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 15. [unit] Slice 8 — Reading the balance
 
-- [ ] 15.1 A balance answer reads as the balance
-- [ ] 15.2 A success whose body is not a balance reads as unexpected
-- [ ] 15.3 The access-expired problem reads as bank access expired
-- [ ] 15.4 The rate-limited problem reads as bank rate limited
-- [ ] 15.5 The bank-unavailable problem reads as bank unavailable
-- [ ] 15.6 A 503 with any other `type` reads as unexpected
-- [ ] 15.7 A 401 reads as signed out, and a 403 as refused with the email its problem names
-- [ ] 15.8 A hosting error page in plain text reads as unexpected
-- [ ] 15.9 With the phone offline, nothing is sent and the read is offline
-- [ ] 15.10 A request that gets no answer reads as offline
-- [ ] 15.11 An aborted read reads as offline
+- [x] 15.1 A balance answer reads as the balance
+- [x] 15.2 A success whose body is not a balance reads as unexpected
+- [x] 15.3 The access-expired problem reads as bank access expired
+- [x] 15.4 The rate-limited problem reads as bank rate limited
+- [x] 15.5 The bank-unavailable problem reads as bank unavailable
+- [x] 15.6 A 503 with any other `type` reads as unexpected
+- [x] 15.7 A 401 reads as signed out, and a 403 as refused with the email its problem names
+- [x] 15.8 A hosting error page in plain text reads as unexpected
+- [x] 15.9 With the phone offline, nothing is sent and the read is offline
+- [x] 15.10 A request that gets no answer reads as offline
+- [x] 15.11 An aborted read reads as offline
 
 ## 16. [unit] Slice 8 — What the screen shows, the balance
 
