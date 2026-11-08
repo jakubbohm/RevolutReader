@@ -1,5 +1,6 @@
-import type { JSX } from "react";
+import { useEffect, type JSX } from "react";
 import { needsInstallHint, type Device } from "./app/device";
+import { keepServerAwake, pingServer } from "./app/keepAwake";
 import { useAccountScreen } from "./app/useAccountScreen";
 import { InstallHint } from "./components/InstallHint";
 import { AccountScreen } from "./screens/AccountScreen";
@@ -17,10 +18,14 @@ export function App({ device }: AppProps): JSX.Element {
 
 /**
  * The screen the account screen's sequence picks (`useAccountScreen`, c007 design.md D3; c009 D2): the sign-in screen
- * when nobody is signed in, the no-access screen for a refused account, otherwise the account screen.
+ * when nobody is signed in, the no-access screen for a refused account, otherwise the account screen. Whichever shows,
+ * the app keeps the server awake while it is on screen (c009 design.md D9): the sign-in screen too, so its button does
+ * not meet a sleeping server.
  */
 function Screens(): JSX.Element {
   const { shown, refresh, retry, signOut } = useAccountScreen();
+
+  useEffect(() => keepServerAwake(pingServer), []);
 
   switch (shown.screen) {
     case "sign-in":

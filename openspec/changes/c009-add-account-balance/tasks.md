@@ -421,30 +421,30 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 71. [unit] Slice 30 — Keeping the server awake
 
-- [ ] 71.1 Coming on screen asks the health check at once
-- [ ] 71.2 On screen, it asks again every 4 minutes
-- [ ] 71.3 Off screen, it asks nothing, and asks at once on coming back
-- [ ] 71.4 With the phone offline, it asks nothing
-- [ ] 71.5 After the stop function, it asks nothing
+- [x] 71.1 Coming on screen asks the health check at once
+- [x] 71.2 On screen, it asks again every 4 minutes
+- [x] 71.3 Off screen, it asks nothing, and asks at once on coming back
+- [x] 71.4 With the phone offline, it asks nothing
+- [x] 71.5 After the stop function, it asks nothing
 
 ## 72. [wiring] Slice 30 — The keep-alive
 
-- [ ] 72.1 `keepServerAwake` and `pingServer`, started on every screen but the install hint. Vite's dev server forwards `/health` as it forwards `/api` (`vite.config.ts`). Verify: the scenario runs against the app; with `aspire start --isolated`, `GET /health` through the dev server answers `Healthy`
-- [ ] 72.2 Docs: ADR-0006, a dated note: the keep-alive while on screen, why visible only, and that the first open after a quiet spell still waits about 20 s (#18). Verify: it matches design.md D9
+- [x] 72.1 `keepServerAwake` and `pingServer`, started on every screen but the install hint. Vite's dev server forwards `/health` as it forwards `/api` (`vite.config.ts`). Verify: the scenario runs against the app; with `aspire start --isolated`, `GET /health` through the dev server answers `Healthy`
+- [x] 72.2 Docs: ADR-0006, a dated note: the keep-alive while on screen, why visible only, and that the first open after a quiet spell still waits about 20 s (#18). Verify: it matches design.md D9
 
 ## 73. [close] Slice 30 — The app keeps the server awake while it is on the screen
 
-- [ ] 73.1 The scenario's test passes. Verify: green, including app-shell / The app keeps the server awake while it is on the screen
+- [x] 73.1 The scenario's test passes. Verify: green, including app-shell / The app keeps the server awake while it is on the screen
 
 ## 74. [unit] Slice 31 — The idle cap
 
-- [ ] 74.1 After 30 minutes without a tap or key press, it stops asking
-- [ ] 74.2 A tap after the stop asks at once and starts the 4-minute rhythm again
-- [ ] 74.3 A key press counts as use, like a tap
+- [x] 74.1 After 30 minutes without a tap or key press, it stops asking
+- [x] 74.2 A tap after the stop asks at once and starts the 4-minute rhythm again
+- [x] 74.3 A key press counts as use, like a tap
 
 ## 75. [close] Slice 31 — The app lets the server sleep after 30 minutes without use
 
-- [ ] 75.1 The scenario's test passes. Verify: green, including app-shell / The app lets the server sleep after 30 minutes without use
+- [x] 75.1 The scenario's test passes. Verify: green, including app-shell / The app lets the server sleep after 30 minutes without use
 
 ## 76. [close] Acceptance green
 
