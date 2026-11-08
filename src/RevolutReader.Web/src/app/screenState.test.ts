@@ -185,6 +185,30 @@ test("From 1.5 s with nothing stored, the waking-up screen is the whole screen",
   });
 });
 
+const slowWakes: { label: string; changes: Partial<Facts>; shows: object }[] = [
+  {
+    label: "a balance stored, in the list's place",
+    changes: { stored: STORED, balance: STORED, wait: "slow" },
+    shows: { header: { balance: STORED, refreshing: false } },
+  },
+  {
+    label: "nothing stored, the whole screen",
+    changes: { wait: "slow" },
+    shows: { header: null, banner: null },
+  },
+];
+
+test.each(slowWakes)(
+  "From 30 s, the waking-up screen is the slow one: $label",
+  ({ changes, shows }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      ...shows,
+      body: "waking slow",
+    });
+  },
+);
+
 const afterAWake: { label: string; changes: Partial<Facts>; shows: object }[] =
   [
     {
