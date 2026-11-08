@@ -298,7 +298,8 @@ public static class BalanceRegistration {
 // Drivers/BalanceDriver.cs — the signed-in browser (the HttpClient SignInDriver signs in with, cookies kept) asks
 //   GET /api/balance with X-Forwarded-For = the user's address and User-Agent = the user's browser, as the ingress and
 //   the browser send them. It returns a BalanceReading only when the answer's exact shape fits: a 200 has exactly
-//   amount, readAt and czkPerEur; a problem has the status its title belongs to and application/problem+json; a 500
+//   amount, readAt and czkPerEur; a problem has the status its case belongs to (the driver's own table, as ApiDriver's)
+//   and application/problem+json; a 500
 //   has no members but type, title, status and traceId (nothing about the failure). readAt is compared as an instant.
 public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimeProvider clock) {
   public Task<BalanceReading> AskForBalance(UserAtDevice user);
@@ -307,10 +308,12 @@ public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimePro
   public DateTimeOffset Now { get; }            // the app's clock; it does not move by itself
 }
 
-// Dsl/BalanceReading.cs — what GET /api/balance answered, compared by value.
-public sealed record BalanceReading(decimal? Amount, DateTimeOffset? ReadAt, decimal? CzkPerEur, int? Status, ProblemDescription? Problem) {
+// Dsl/BalanceReading.cs — what GET /api/balance answered, compared by value. A failure names only its problem
+//   description: the status each case belongs to stays in the driver, as in ApiDriver (testing.md: no status codes in
+//   test cases; the user, 2026-11-08, at the acceptance gate).
+public sealed record BalanceReading(decimal? Amount, DateTimeOffset? ReadAt, decimal? CzkPerEur, ProblemDescription? Problem) {
   public static BalanceReading Of(decimal amount, DateTimeOffset readAt, decimal czkPerEur);
-  public static BalanceReading Failed(int status, ProblemDescription problem);
+  public static BalanceReading Failed(ProblemDescription problem);
 }
 
 // Dsl/ProblemDescription.cs gains Type: the app's own type (/problems/…), null for a plain status's RFC 9110 type, so
