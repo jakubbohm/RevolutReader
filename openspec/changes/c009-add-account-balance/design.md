@@ -554,6 +554,7 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
    - offline in DevTools: the offline screen, then the stored balance on reopening;
    - the API stopped: the waking-up screen, then the slow one;
    - the keep-alive's `/health` asks in the network panel.
+   - reduced motion emulated in DevTools: the waking-up bar stands still (a static half-tone bar) and the balance placeholder does not pulse; these are CSS rules the tests cannot see (the user, 2026-11-08, task 37.5).
 3. **Before the merge** (workflow.md § 6, a change's path): the push and a draft PR on the owner's go, the owner's `/code-review xhigh --comment`, `/triage-review <PR>`, then the archive on the branch.
 4. **After the merge:**
    - the deploy runs;

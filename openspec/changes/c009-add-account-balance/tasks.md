@@ -273,7 +273,7 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 - [ ] 37.2 From 1.5 s with a stored balance, the waking-up screen stands in the list's place
 - [ ] 37.3 From 1.5 s with nothing stored, the waking-up screen is the whole screen
 - [ ] 37.4 After a wake, the waking-up screen stays until the balance arrives, never a placeholder
-- [ ] 37.5 The waking-up screen is announced as a status, and its bar stands still under reduced motion
+- [ ] 37.5 The waking-up screen is announced as a status, with an indeterminate bar (its stillness under reduced motion is a CSS rule, checked by hand in the local check: design.md § Migration plan step 2)
 
 ## 38. [wiring] Slice 15 — The waking-up screen
 
