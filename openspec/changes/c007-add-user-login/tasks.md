@@ -215,15 +215,15 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 21. [close] Slice 8 — A sign-in cancelled at Microsoft leaves the visitor signed out
 
-- [ ] 21.1 The scenario's test passes. Verify: green, including sign-in / A sign-in cancelled at Microsoft leaves the visitor signed out
+- [x] 21.1 The scenario's test passes. Verify: green, including sign-in / A sign-in cancelled at Microsoft leaves the visitor signed out
 
 ## 22. [wiring] Slice 9 — A work or school account
 
-- [ ] 22.1 `FakeMicrosoft` answers a token issued by a made-up work tenant (`Visitor.WorkAccount`). The scenario should already pass through the issuer check and slice 8's events; if not, fix the handler's settings here. Verify: the scenario runs against the app
+- [x] 22.1 `FakeMicrosoft` answers a token issued by a made-up work tenant (`Visitor.WorkAccount`). The scenario should already pass through the issuer check and slice 8's events; if not, fix the handler's settings here. Verify: the scenario runs against the app
 
 ## 23. [close] Slice 9 — An account from a work or school directory is not signed in
 
-- [ ] 23.1 The scenario's test passes. Verify: green, including sign-in / An account from a work or school directory is not signed in
+- [x] 23.1 The scenario's test passes. Verify: green, including sign-in / An account from a work or school directory is not signed in
 
 ## 24. [wiring] Slice 10 — The login's lifetime
 
