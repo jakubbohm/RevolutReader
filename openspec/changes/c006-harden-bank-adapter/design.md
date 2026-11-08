@@ -13,7 +13,8 @@
 - **Integration points:** Enable Banking (unchanged calls, a cleaned header); Azure: Application Insights, a `Monitoring Metrics Publisher` role for the app's identity, two environment variables, the workspace's cap; the deploy identity's role condition widened by hand, once (guided task).
 - **Hard to reverse:** nothing in code. The widened role condition stays until someone narrows it again by hand.
 - **A new ADR, ADR-0009-application-telemetry,** holds the telemetry decisions (D8 b, D9, D10) and C4's workspace (D11).
-- **Still open, to settle before `/tdd-apply`:** one choice (§ Open questions).
+- **Personal data:** kept out of everything public (the repository, PRs, CI logs, evidence); private telemetry in Application Insights may hold the users' browser names, so request traces export unchanged (D13). Bank data and account identifiers stay out of all logs (CLAUDE.md).
+- **Open questions:** none left (§ Open questions, all four decided 2026-11-08).
 
 ## Context
 
@@ -205,11 +206,21 @@ Decided with the user (2026-11-08, open question 3: "ok" to Claude's lean).
 - **Side effect, kept in mind for C6:** Azure.Identity's `DefaultAzureCredential` picks up `AZURE_CLIENT_ID` on its own, so C6's storage access could use the same identity without more wiring; this change itself uses an explicit `ManagedIdentityCredential`.
 - **Rejected: a project-style section** (`ApplicationInsights:ConnectionString`, `ManagedIdentity:ClientId`, environment variables with `__`), the shape of the `EnableBanking` section: consistent with the project's options, at the cost of a small settings class, and names nobody outside the project knows.
 
+### D13 — Personal data stays out of what is public; private telemetry may hold it
+
+Decided with the user (2026-11-08, open question 4): "we need to strip out the personal data from any public logs, which is typically whatever is on the GitHub repo, because that's public. I don't need to have my personal data stripped out from the Azure Application Insights, as those are only visible and accessible to me."
+
+- **The rule:** personal data (the users' browser names and IP addresses, their email addresses, and the like) never goes anywhere public: the repository's files, PR texts, GitHub Actions logs (public, since the repository is), issues and spike evidence. The private telemetry in Application Insights and the workspace, readable only through the owner's Azure access, may hold it.
+- **So:** request traces are exported unchanged; `user_agent.original` reaches `AppRequests`. No stripping code, no test for it.
+- **Unchanged:** bank data and account identifiers stay out of every log, private ones included (CLAUDE.md; c004 D5's guard). The adapter's own log line still names no user address or browser, and PR #26's guard still checks that for bank reads: stricter than this rule needs, harmless, so it stays.
+- **Where it lives:** ADR-0009 (D11) states it for telemetry; the memory `public-vs-private-personal-data` keeps it for every session.
+- **Rejected: stripping the browser from exported traces** (Claude's lean, for consistency with c004 D5): not needed for data only the owner can read, and it would hide which device made a request.
+
 ### D11 — The telemetry decisions get an ADR: ADR-0009-application-telemetry
 
 Decided with the user (2026-11-08, open question 1). The project rule records decisions with a lasting, cross-cutting effect as ADRs (workflow.md § 2); C4 had kept the log destination in its design and workflow.md § 5 only (c005 D6).
 
-- **What it holds:** the context (a scale-to-zero app whose output would vanish with a stopped copy; the platform's own metrics; the free 5 GB a month); the decision: the Log Analytics workspace as the environment's log destination (from c005 D6), Application Insights on it fed by the app's in-app exporter with logs and traces only, written with the app's managed identity and local authentication off, and the daily cap matched to the free allowance; the alternatives rejected in D8 and D10; the consequences (the deploy identity's fifth role, the settings, #17).
+- **What it holds:** the context (a scale-to-zero app whose output would vanish with a stopped copy; the platform's own metrics; the free 5 GB a month); the decision: the Log Analytics workspace as the environment's log destination (from c005 D6), Application Insights on it fed by the app's in-app exporter with logs and traces only, written with the app's managed identity and local authentication off, and the daily cap matched to the free allowance; what the private telemetry may hold (D13: personal data such as browser names yes, bank data and account identifiers no) and that nothing personal goes anywhere public; the alternatives rejected in D8, D10 and D13; the consequences (the deploy identity's fifth role, the settings, #17).
 - **Number:** 0009, the next free one on 2026-11-08 (C6's worktree has none newer); if another ADR lands first, the next free number when written.
 - **Where it is linked:** `docs/adr/README.md` (the index), workflow.md § 5, `pm/progress.md` (C11's notes), the lesson. D8–D10 stay in this design as the trail of how it was decided.
 - **Rejected: no ADR,** as C4 did. Simpler, but the telemetry setup spans decisions in two changes and outlives both; an archived design is a folder few will open, also for the D1 reinstatement guide.
@@ -398,4 +409,4 @@ Each would change a task, so none is decided on the user's behalf (memory `simpl
 1. ~~An ADR for Application Insights?~~ **Decided 2026-11-08: yes, ADR-0009-application-telemetry (D11).**
 2. ~~Export metrics too, or logs and traces only?~~ **Decided 2026-11-08: logs and traces only (D10).**
 3. ~~The two settings' names?~~ **Decided 2026-11-08: the standard names (D12).**
-4. **The user's browser in exported request telemetry** (raised by PR #26): OpenTelemetry's ASP.NET Core instrumentation records each incoming request's browser (`user_agent.original`) on its server span. Today nothing exports spans in production; with D8 they reach Application Insights (`AppRequests`), so from C7 on the daughter's browser string is stored there for each request. PR #26 now treats the browser as personal data the guard keeps out of logs and traces for bank reads (c004 D5: "personal data with no use in the log"). Options: accept it (standard request telemetry, useful to tell the phone app from a browser), or strip `user_agent.original` from exported spans in ServiceDefaults (a few lines and a test, consistent with c004 D5). Lean: strip it, for consistency with D5; the user decides.
+4. **The user's browser in exported request telemetry** (raised by PR #26): OpenTelemetry's ASP.NET Core instrumentation records each incoming request's browser (`user_agent.original`) on its server span. Today nothing exports spans in production; with D8 they reach Application Insights (`AppRequests`), so from C7 on the daughter's browser string is stored there for each request. PR #26 now treats the browser as personal data the guard keeps out of logs and traces for bank reads (c004 D5: "personal data with no use in the log"). Options: accept it (standard request telemetry, useful to tell the phone app from a browser), or strip `user_agent.original` from exported spans in ServiceDefaults (a few lines and a test, consistent with c004 D5). Lean: strip it, for consistency with D5; the user decides. **Decided 2026-11-08: keep it (D13).**
