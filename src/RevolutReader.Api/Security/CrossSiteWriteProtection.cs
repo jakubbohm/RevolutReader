@@ -9,10 +9,11 @@ public static class CrossSiteWriteProtection {
   /// <summary>
   /// A request <see cref="CrossSiteWrites.IsAllowed"/> refuses is answered 403 with the problem description
   /// <c>Forbidden</c>, written through <see cref="IProblemDetailsService"/>, and goes no further, so its endpoint never runs
-  /// and nothing changes. A request carrying <c>Sec-Fetch-Site</c> or <c>Origin</c> more than once is refused too. The
-  /// request's own origin comes from its scheme and host, so behind the hosting proxy the forwarded headers must run
-  /// first (D10). Call it after <c>UseAuthorization</c> and before <c>UseFastEndpoints</c> (<c>UseSignIn</c> does); the
-  /// sign-in return's exemption is part of the rule, so it does not depend on this place.
+  /// and nothing changes. A write the rule <see cref="CrossSiteWrites.Applies"/> to (under <c>/api</c>) that carries
+  /// <c>Sec-Fetch-Site</c> or <c>Origin</c> more than once is ambiguous, so it is refused too; every other request is not
+  /// looked at, whatever its headers. The request's own origin comes from its scheme and host, so behind the hosting proxy
+  /// the forwarded headers must run first (D10). Call it after <c>UseAuthorization</c> and before <c>UseFastEndpoints</c>
+  /// (<c>UseSignIn</c> does); the sign-in return's exemption is part of the rule, so it does not depend on this place.
   /// </summary>
   public static WebApplication UseCrossSiteWriteProtection(this WebApplication app) {
     ArgumentNullException.ThrowIfNull(app);
@@ -35,6 +36,9 @@ public static class CrossSiteWriteProtection {
   }
 
   private static bool IsAllowed(HttpRequest request) {
+    if (!CrossSiteWrites.Applies(request.Method, request.Path))
+      return true;
+
     StringValues secFetchSite = request.Headers[SEC_FETCH_SITE];
     StringValues origin = request.Headers.Origin;
 

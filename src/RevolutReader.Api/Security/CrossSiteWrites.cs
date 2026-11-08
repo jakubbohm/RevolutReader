@@ -16,12 +16,23 @@ public static class CrossSiteWrites {
   private static readonly PathString _api = new("/api");
 
   /// <summary>
-  /// Whether a request may go on. A write (POST, PUT, PATCH or DELETE, in any letter case) to a path under <c>/api</c> (by
-  /// segment, ignoring case) is allowed when:
+  /// Whether the rule looks at a request at all: a write (POST, PUT, PATCH or DELETE, in any letter case) to a path under
+  /// <c>/api</c> (by segment, ignoring case), except the sign-in return <see cref="SignInAddresses.CALLBACK"/> itself
+  /// (ignoring case), which Microsoft's page posts cross-site by design and the handler's state, correlation cookie, nonce
+  /// and PKCE protect. Every other request passes whatever its headers.
+  /// </summary>
+  public static bool Applies(string method, PathString path) {
+    ArgumentNullException.ThrowIfNull(method);
+
+    return IsWrite(method)
+      && path.StartsWithSegments(_api, StringComparison.OrdinalIgnoreCase)
+      && !path.Equals(SignInAddresses.CALLBACK, StringComparison.OrdinalIgnoreCase);
+  }
+
+  /// <summary>
+  /// Whether a request may go on. A request the rule <see cref="Applies"/> to is allowed when:
   /// <list type="bullet">
-  /// <item>it is the sign-in return <see cref="SignInAddresses.CALLBACK"/> itself (ignoring case), which Microsoft's page
-  /// posts cross-site by design and the handler's state, correlation cookie, nonce and PKCE protect;</item>
-  /// <item>otherwise, when <paramref name="secFetchSite"/> is present: it is exactly <c>same-origin</c> or <c>none</c>;</item>
+  /// <item><paramref name="secFetchSite"/> is present and exactly <c>same-origin</c> or <c>none</c>;</item>
   /// <item>otherwise, when <paramref name="origin"/> is present: it is exactly <paramref name="requestOrigin"/>, the
   /// request's own scheme and host (after the forwarded headers);</item>
   /// <item>otherwise, with neither header: always, because it is not a browser's request, and such callers don't get the
@@ -33,10 +44,7 @@ public static class CrossSiteWrites {
     ArgumentNullException.ThrowIfNull(method);
     ArgumentNullException.ThrowIfNull(requestOrigin);
 
-    if (!IsWrite(method) || !path.StartsWithSegments(_api, StringComparison.OrdinalIgnoreCase))
-      return true;
-
-    if (path.Equals(SignInAddresses.CALLBACK, StringComparison.OrdinalIgnoreCase))
+    if (!Applies(method, path))
       return true;
 
     if (secFetchSite is not null)
