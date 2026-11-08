@@ -1,6 +1,6 @@
 # RevolutReader
 
-A read-only PWA in which the owner's daughter sees the balance and transactions of one Revolut account and gets a push notification when it changes ([pm/kickoff.md](pm/kickoff.md)). About 2 months of operation; **speed of delivery is the top priority**. Backend: .NET 11 (`RevolutReader.slnx`), API in `src/RevolutReader.Api` (ASP.NET Core + FastEndpoints), Aspire AppHost and ServiceDefaults, three test projects in `tests/` ([testing.md § Where tests live](docs/conventions/testing.md#where-tests-live)). Frontend: `src/RevolutReader.Web` (React + Vite + TypeScript 7, npm), tests next to the code.
+A read-only PWA in which the owner's daughter sees the balance and transactions of one Revolut account and gets a push notification when it changes ([pm/kickoff.md](pm/kickoff.md)). About 2 months of operation; **speed of delivery is the top priority for the app, never for the software-factory work it feeds** ([§ Working rules](#working-rules)). Backend: .NET 11 (`RevolutReader.slnx`), API in `src/RevolutReader.Api` (ASP.NET Core + FastEndpoints), Aspire AppHost and ServiceDefaults, three test projects in `tests/` ([testing.md § Where tests live](docs/conventions/testing.md#where-tests-live)). Frontend: `src/RevolutReader.Web` (React + Vite + TypeScript 7, npm), tests next to the code.
 
 ## Commands
 
@@ -49,7 +49,7 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 ## Working rules
 
 - **The user gates every stage and makes every decision.** Propose, summarize the state, wait for an explicit go. Never declare a step, phase or interview complete on your own.
-- **Speed of delivery comes first.** Still think as a senior architect: say when "works" and "correct" differ, then recommend the fastest sound option. Nothing is adopted until the user understands and agrees.
+- **Two quality bars: speed for the app, no shortcuts for the software factory.** For the app, speed of delivery comes first: still think as a senior architect, say when "works" and "correct" differ, then recommend the fastest sound option. Software-factory work ([workflow.md § 10 — The quality bar](docs/conventions/workflow.md#the-quality-bar-2026-11-08) says what counts) gets the best design and practice a very mature architect would choose for a real, long-lived system, never a shortcut, and speed is never a reason to do less there. Nothing is adopted until the user understands and agrees.
 - **Research before recommending:** verify versions, licenses, prices, limits and compatibility against current sources, and date such claims. Model memory is stale by default.
 - **Short, plain replies:** overview first, then small rounds. Never use repo jargon or codenames without explaining them in plain words.
 - **Big decisions** (architecture, tooling, process, scope) come as a prose proposal — solution, trade-offs, alternatives, recommendation — that the user answers freely. **Quick confirmations may use option menus.** A picked option is only the closest match; the user's free-text notes are the user's own words — re-confirm when it matters.

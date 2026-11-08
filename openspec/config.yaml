@@ -3,7 +3,8 @@ schema: spec-driven
 context: |
   RevolutReader — a read-only PWA in which the owner's daughter sees the balance and
   transactions of one Revolut account (via Enable Banking) and gets a push notification
-  when it changes. Operating period ~2 months; speed of delivery is the top priority.
+  when it changes. Operating period ~2 months; speed of delivery is the top priority
+  for the app, never for software-factory work (docs/conventions/workflow.md § 10).
   Users: a few pre-approved Microsoft accounts. App UI text is Czech; everything else
   (code, specs, docs) is English.
 
@@ -85,6 +86,7 @@ rules:
     - Changes calling the bank respect ADR-0001-bank-data-access § Decision
     - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements, and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory/lessons.md entry, and a docs/software-factory/divergences.md entry when this project runs a cut-down version (docs/conventions/workflow.md § 10)
+    - A change that creates or changes an artifact listed in docs/software-factory/creating-handover-package.md § Inventory designs that artifact to the software-factory quality bar, with no shortcuts; a project cut-down in it is the user's decision and gets a docs/software-factory/divergences.md entry (docs/conventions/workflow.md § 10)
   tasks:
     - "A tooling-only change (skip_specs: true in .openspec.yaml, docs/conventions/workflow.md § 6) follows none of the [acceptance], [unit], [integration] and [wiring] rules below: its groups are named after its work ('## N. <Area>'), each task states how it is checked, each group lands its own docs, work with an effect outside the repository (GitHub, Azure) is proven live, and the last group is '## N. Close'"
     - "Group 1 is '## 1. [acceptance] Acceptance tests' with one task per new or changed scenario, phrased 'Acceptance: <capability> / <scenario name>', suffixed ' (frontend)' or ' (manual)' when design.md says it is verified at that level"

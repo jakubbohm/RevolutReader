@@ -88,7 +88,7 @@ Keep it current: a step that creates or substantially changes a reusable artifac
 2. **Collect.** Copy lessons.md and the listed artifacts into a folder outside the repository (`revolutreader-handover-<date>/`), keeping their repository paths.
 3. **Clean.** No secrets, keys or tokens, and no bank data (balances, amounts, counterparties, transaction texts, account identifiers): `secrets/` and `evidence/` folders never go in. In templates, replace RevolutReader's names and values (project, resource and app names, client and subscription IDs, the dates of this project's approvals) with placeholders that say what goes there. Examples keep theirs; they show a real case.
 4. **Fix the links.** A link to a file of this repository that the package does not carry (an ADR, an archived change's design notes, the roadmap) becomes a permanent GitHub link at the handover commit: `https://github.com/jakubbohm/RevolutReader/blob/<commit>/<path>`. The repository is public, so these links keep working after the files leave it. Links between files the package carries stay relative.
-5. **Write the package README:** what is inside (one line per kit and the lessons it belongs to), the source repository and commit, the date, the target ([§ The target](#the-target)), and the intake below.
+5. **Write the package README:** what is inside (one line per kit and the lessons it belongs to); for every kit that carries a project cut-down, what is cut and the lesson that holds the full version (from [divergences.md](divergences.md), which stays here), so the factory never takes a cut-down as its default ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)); the source repository and commit, the date, the target ([§ The target](#the-target)), and the intake below.
 6. **Hand it over:** in the factory's consolidation session if the factory does not exist yet, otherwise in a session in the factory's repository. Back here, set **Package** in this file's header and **Handover** in [lessons.md](lessons.md) to `done <date> → <target>`, and record it in `pm/progress.md`.
 
 ## Intake
@@ -100,4 +100,4 @@ The factory decides under its own rules. This is how the package is meant to go 
 3. **A lesson that asks something the catalog never asked** (*New*): a new question in the matching topic.
 4. A lesson of several kinds takes each route.
 5. **RevolutReader's constraint set** goes next to DoseUp's, so the factory can tell which constraint decided which answer.
-6. **The inventory's artifacts** go where the factory keeps what the set-up skill produces, linked from the options that produce them.
+6. **The inventory's artifacts** go where the factory keeps what the set-up skill produces, linked from the options that produce them. A kit that carries a cut-down keeps that note and is never the factory's default until the full version replaces it.

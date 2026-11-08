@@ -18,7 +18,7 @@ Add an entry in the same change or session that makes the decision. The project'
 
 Every answer below was reached under these constraints. An entry's *Generalizes* line names the constraint that decided it, so the factory can tell which constraint flips which answer:
 
-solo developer · ~2-month operating period, then decommissioned · **speed of delivery is the top priority** · 3 use cases, essentially one screen · a handful of pre-approved users · read-only access to one real bank account through a regulated third-party API with request limits · Azure, with free-tier resources shared across the owner's projects · one deployed environment.
+solo developer · ~2-month operating period, then decommissioned · **speed of delivery is the top priority for the app** (not for the factory work, R-1) · 3 use cases, essentially one screen · a handful of pre-approved users · read-only access to one real bank account through a regulated third-party API with request limits · Azure, with free-tier resources shared across the owner's projects · one deployed environment.
 
 ## Entry format
 
@@ -61,9 +61,9 @@ RevolutReader (<link to the ADR / convention>, <date>): **<the answer>** — <wh
 **R-1 · How high is the architecture bar?** *(Divergence — relates to DoseUp F-42)* · *Topic:* I. AI-assisted workflow
 Options: architecture first, even at the cost of speed · speed first, but flag works-vs-correct gaps · no explicit rule.
 DoseUp: architectural quality is the project's highest priority.
-RevolutReader (CLAUDE.md § Working rules, 2026-11-04): **speed of delivery first** — Claude still says when "works" and "correct" differ, then recommends the fastest sound option; the user decides. What the project gives up: [divergences.md R-1](divergences.md).
+RevolutReader (CLAUDE.md § Working rules, 2026-11-04): **speed of delivery first** — Claude still says when "works" and "correct" differ, then recommends the fastest sound option; the user decides. What the project gives up: [divergences.md R-1](divergences.md). Scoped by the user on 2026-11-08: speed-first covers the app only, and software-factory work (these lessons, the reusable kits, the handover) keeps the full bar with no shortcuts ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)).
 *Setup produces:* the working rule in CLAUDE.md § Working rules: speed of delivery first, with every gap between "works" and "correct" named and the fastest sound option recommended (inventory: Claude working rules); the project's divergences file, where each cut-down answer records what it gives up and when to switch back.
-*Generalizes:* the bar follows the project's "why" (DoseUp F-4): showcase/learning goals buy architecture-first, a short-lived tool buys speed-first. Reverses when the system must outlive its first purpose or others will maintain it.
+*Generalizes:* the bar follows the project's "why" (DoseUp F-4): showcase/learning goals buy architecture-first, a short-lived tool buys speed-first. Reverses when the system must outlive its first purpose or others will maintain it. When a short-lived project also feeds a reusable factory, the bar splits: the product takes the project's bar, and the factory always takes the full one, because the factory's answers outlive the project and become other projects' defaults.
 
 **R-2 · How does the AI present decisions to the owner?** *(Divergence — relates to DoseUp F-38 and its "propose in prose" rule)* · *Topic:* I. AI-assisted workflow
 Options: always a prose proposal · option menus · prose for big decisions, menus for quick ones.

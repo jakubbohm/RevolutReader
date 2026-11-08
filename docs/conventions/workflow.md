@@ -216,3 +216,13 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 - [`divergences.md`](../software-factory/divergences.md): where this project runs a cut-down version of that full version, what it gives up and when it would switch back. It stays with the project.
 - [`creating-handover-package.md`](../software-factory/creating-handover-package.md): where the package goes (the standalone Software Factory), the inventory of reusable artifacts, how to build the handover package at the end of the project (M8), and how the factory takes it in.
 - Add the lesson, and the divergence if there is one, in the same change or session that makes the decision. A step that creates or substantially changes a reusable artifact updates the inventory. Entry formats are in the files.
+
+### The quality bar (2026-11-08)
+
+The app may take shortcuts for speed ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)). The software factory never does. Software-factory work gets the design and practice a very mature software architect would choose for a real, long-lived system: the best design, current best practice, no shortcuts. Speed is never a reason to do less. Software-factory work is:
+
+- everything in `docs/software-factory/`: the lessons, the inventory and the handover process, and the research behind each lesson (current, dated sources, every option weighed, the full version thought through even when this project does not build it);
+- the handover package and what it delivers to the factory;
+- every artifact in the [inventory](../software-factory/creating-handover-package.md#inventory), taken as a reusable artifact: its design, how general it is, and its documentation.
+
+When an inventory artifact also serves the app, the project may run a cut-down version in it, but only by the user's decision and with a `divergences.md` entry. The cut-down never reaches the factory as its default. The lesson holds the full version, and the package README names every kit that carries a cut-down ([creating-handover-package.md § Building the package](../software-factory/creating-handover-package.md#building-the-package), step 5). If the full version of factory work costs too much right now, Claude says so and the user decides when it is done. Claude never quietly delivers less.
