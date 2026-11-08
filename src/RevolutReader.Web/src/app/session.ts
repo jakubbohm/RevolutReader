@@ -24,19 +24,23 @@ const UNEXPECTED: Session = { kind: "unexpected" };
 export async function readSession(): Promise<Session> {
   if (!navigator.onLine) return { kind: "offline" };
 
+  // Only the request itself: a failure here is no answer, or a success that is not JSON. What the answer means is read
+  // below, outside, so a bug there is never mistaken for offline.
+  let answer;
   try {
-    const { data, error, response } = await api.GET("/api/me");
-
-    if (response.status === 200) return signedInOf(data) ?? UNEXPECTED;
-    if (response.status === 401)
-      return { kind: "signed-out", justSignedOut: false };
-    if (response.status === 403)
-      return { kind: "refused", email: emailOfRefusal(error) };
-
-    return UNEXPECTED;
+    answer = await api.GET("/api/me");
   } catch (failure) {
     return wasAnswered(failure) ? UNEXPECTED : { kind: "offline" };
   }
+
+  const { data, error, response } = answer;
+  if (response.status === 200) return signedInOf(data) ?? UNEXPECTED;
+  if (response.status === 401)
+    return { kind: "signed-out", justSignedOut: false };
+  if (response.status === 403)
+    return { kind: "refused", email: emailOfRefusal(error) };
+
+  return UNEXPECTED;
 }
 
 /**

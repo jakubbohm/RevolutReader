@@ -54,26 +54,28 @@ export async function readBalance(options?: {
 }): Promise<BalanceRead> {
   if (!navigator.onLine) return OFFLINE;
 
+  // Only the request itself: a failure here is no answer, or a success that is not JSON. What the answer means is read
+  // below, outside, so a bug there is never mistaken for offline.
+  let answer;
   try {
-    const { data, error, response } = await api.GET("/api/balance", {
-      signal: options?.signal,
-    });
-
-    if (response.status === 200) {
-      const balance = balanceOf(data);
-      return balance === null ? UNEXPECTED : { kind: "read", balance };
-    }
-    if (response.status === 401) return { kind: "signed out" };
-    if (response.status === 403)
-      return { kind: "refused", email: emailOfRefusal(error) };
-
-    const problemType = typeOf(error);
-    return problemType !== null && isBankProblemType(problemType)
-      ? readOfBankProblem[problemType]
-      : UNEXPECTED;
+    answer = await api.GET("/api/balance", { signal: options?.signal });
   } catch (failure) {
     return wasAnswered(failure) ? UNEXPECTED : OFFLINE;
   }
+
+  const { data, error, response } = answer;
+  if (response.status === 200) {
+    const balance = balanceOf(data);
+    return balance === null ? UNEXPECTED : { kind: "read", balance };
+  }
+  if (response.status === 401) return { kind: "signed out" };
+  if (response.status === 403)
+    return { kind: "refused", email: emailOfRefusal(error) };
+
+  const problemType = typeOf(error);
+  return problemType !== null && isBankProblemType(problemType)
+    ? readOfBankProblem[problemType]
+    : UNEXPECTED;
 }
 
 /**
