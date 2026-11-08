@@ -305,9 +305,9 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 41. [unit] Cookie keys — settings
 
-- [ ] 41.1 All three key settings empty choose the default key store
-- [ ] 41.2 All three key settings set choose Blob Storage with the Key Vault key
-- [ ] 41.3 Partly set key settings are refused, and the message names the settings, not their values
+- [x] 41.1 All three key settings empty choose the default key store
+- [x] 41.2 All three key settings set choose Blob Storage with the Key Vault key
+- [x] 41.3 Partly set key settings are refused, and the message names the settings, not their values
 
 ## 42. [wiring] Cookie keys — Blob Storage and Key Vault
 
