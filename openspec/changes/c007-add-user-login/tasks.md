@@ -277,7 +277,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 34. [close] Slice 14 — A refused account sees that it has no access
 
-- [ ] 34.1 The scenario's test passes. Verify: green, including sign-in / A refused account sees that it has no access
+- [x] 34.1 The scenario's test passes. Verify: green, including sign-in / A refused account sees that it has no access
 
 ## 35. [wiring] Slice 15 — Trying another account
 
