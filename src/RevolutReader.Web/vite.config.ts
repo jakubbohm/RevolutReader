@@ -12,11 +12,13 @@ const apiAddress = process.env.API_HTTPS ?? process.env.API_HTTP;
 // https://vite.dev/config/ — c003 design.md D1
 export default defineConfig({
   // The browser talks to the dev server only, which forwards /api to the API. `secure: false` accepts the local
-  // development certificate.
+  // development certificate. `changeOrigin: false` keeps the host the browser sent, so the API builds the sign-in's
+  // return address from the dev server's https://localhost:<port> (c007 design.md D2), and a write's Origin matches the
+  // API's own origin. Aspire adds the dev server's HTTPS certificate itself (WithHttpsDeveloperCertificate in the AppHost).
   server: apiAddress
     ? {
         proxy: {
-          "/api": { target: apiAddress, changeOrigin: true, secure: false },
+          "/api": { target: apiAddress, changeOrigin: false, secure: false },
         },
       }
     : undefined,
