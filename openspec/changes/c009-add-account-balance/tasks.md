@@ -448,10 +448,10 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 76. [close] Acceptance green
 
-- [ ] 76.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
+- [x] 76.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
 - [ ] 76.2 The local check of design.md § Migration plan, step 2, with `aspire start --isolated`. Verify: each step seen, recorded in `.tdd-state.md`
-- [ ] 76.3 Docs: the software-factory lessons of design.md § Cross-cutting effects, at the next free numbers. Verify: each names its full version where the project runs a cut-down one
-- [ ] 76.4 `pm/progress.md`: the C7a row, with Q6 and Q10 marked as applied. `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
+- [x] 76.3 Docs: the software-factory lessons of design.md § Cross-cutting effects, at the next free numbers. Verify: each names its full version where the project runs a cut-down one
+- [x] 76.4 `pm/progress.md`: the C7a row, with Q6 and Q10 marked as applied. `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 
