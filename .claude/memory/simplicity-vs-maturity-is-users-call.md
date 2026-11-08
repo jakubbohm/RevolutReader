@@ -11,7 +11,7 @@ Whenever options differ in how simple versus how mature, standard or production-
 
 **How to apply:**
 - When the options trade simplicity (less code, fewer parts, faster) against maturity (standard practice, production-readiness, robustness), name that axis and show where each option sits, including the mature option even when it costs more.
-- A recommendation is still welcome (CLAUDE.md: speed first, recommend the fastest sound option), but say which way it leans and why, and never drop the other side from the menu or decide it in an unattended run. If a run has to continue without the user, record the choice as open, not as decided on the user's behalf.
+- A recommendation is still welcome (CLAUDE.md: for the app, speed first and the fastest sound option; software-factory work never takes a shortcut), but say which way it leans and why, and never drop the other side from the menu or decide it in an unattended run. If a run has to continue without the user, record the choice as open, not as decided on the user's behalf.
 - Never filter the options down to the simple ones before presenting them.
 
 Related: [[decisions-one-by-one]], [[factory-gets-full-version]].
