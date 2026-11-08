@@ -28,7 +28,7 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 - **Secrets are declared with the literal value `"<secret>"`** — a greppable marker and a startup tripwire: a bound value still equal to `"<secret>"` fails validation, so a missing secret stops the app at startup instead of failing later.
 - **Provenance goes in a `//` comment on the key** (production source · local source). The .NET JSON configuration parser accepts comments.
 - A change that adds a setting declares it in the same change.
-- **Sections so far:** `EnableBanking` (C5) and `SignIn` (C6, c007 design.md D11): `Authority` (Microsoft's personal-account service) and `ClientId` (the Entra registration, not confidential) in the file; `ClientSecret` and `AllowedEmails` as `"<secret>"`.
+- **Sections so far:** `EnableBanking` (C5) and `SignIn` (C6, c007 design.md D11): `Authority` (Microsoft's personal-account service) and `ClientId` (the Entra registration, not confidential) in the file; `ClientSecret` and `AllowedEmails` as `"<secret>"`. **The allowlist's format:** one value, the addresses separated by commas (spaces around them don't matter), e.g. `owner@example.com, daughter@example.com`; letter case doesn't matter. The app refuses to start on a list with no address, an empty entry (two commas in a row, a trailing comma) or an entry that is not an address ([ADR-0004 § Decision](../adr/0004-account-allowlist.md#decision), item 7).
 
 ## Binding
 

@@ -13,6 +13,7 @@ namespace RevolutReader.Api.SignIn;
 /// </summary>
 public sealed class MeEndpoint : EndpointWithoutRequest<MeResponse> {
   private const string JSON = "application/json";
+  private const string PROBLEM_JSON = "application/problem+json";
 
   public override void Configure() {
     Get("/api/me");
@@ -20,7 +21,7 @@ public sealed class MeEndpoint : EndpointWithoutRequest<MeResponse> {
       static endpoint => endpoint
         .Produces<MeResponse>(StatusCodes.Status200OK, JSON)
         .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status403Forbidden),
+        .Produces<RefusedProblem>(StatusCodes.Status403Forbidden, PROBLEM_JSON),
       clearDefaults: true);
     Summary(static summary => summary.Summary = "Who is signed in");
   }

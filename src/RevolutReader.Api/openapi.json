@@ -52,7 +52,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
                 }
               }
             }
@@ -137,6 +137,50 @@
           }
         },
         "description": "The signed-in user's name and email address"
+      },
+      "RevolutReaderApiSignInRefusedProblem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The refused account's own email address; missing when the account has none"
+          }
+        },
+        "description": "A problem description that refuses a signed-in account, naming its own email address"
       }
     }
   }

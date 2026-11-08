@@ -143,10 +143,10 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 9. [wiring] Slice 3 — Strangers refused
 
-- [ ] 9.1 `AllowedUserRequirement` and `AllowedUserHandler` join the `AllowedUser` policy, with the parsed `Allowlist` registered. Verify: build passes; green except this slice's scenario
-- [ ] 9.2 `CustomizeProblemDetails` adds `email` to a 403 for a signed-in account; `WhoAnswer` reads it in the driver. Verify: the scenario runs against the app
-- [ ] 9.3 `SignInLog` and the handler's `OnTokenValidated` event: an account not on the allowlist (or without an email) logs `SignInRefused` at Warning with its `sub`, never the email, and the sign-in still completes (design.md D3). Verify: the guard 1.3 runs against the app
-- [ ] 9.4 Docs:
+- [x] 9.1 `AllowedUserRequirement` and `AllowedUserHandler` join the `AllowedUser` policy, with the parsed `Allowlist` registered. Verify: build passes; green except this slice's scenario
+- [x] 9.2 `CustomizeProblemDetails` adds `email` to a 403 for a signed-in account; `WhoAnswer` reads it in the driver. Verify: the scenario runs against the app
+- [x] 9.3 `SignInLog` and the handler's `OnTokenValidated` event: an account not on the allowlist (or without an email) logs `SignInRefused` at Warning with its `sub`, never the email, and the sign-in still completes (design.md D3). Verify: the guard 1.3 runs against the app
+- [x] 9.4 Docs:
   - README.md: the 403 row;
   - ADR-0004 amended (the list format, no email in logs, a refused sign-in logged once as a warning, no email claim means refused);
   - configuration.md: the allowlist's format.

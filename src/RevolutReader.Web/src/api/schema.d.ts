@@ -74,6 +74,17 @@ export interface components {
             /** @description The user's email address, as their Microsoft account gives it */
             email: string;
         };
+        /** @description A problem description that refuses a signed-in account, naming its own email address */
+        RevolutReaderApiSignInRefusedProblem: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number;
+            detail?: null | string;
+            instance?: null | string;
+            /** @description The refused account's own email address; missing when the account has none */
+            email?: null | string;
+        };
     };
     responses: never;
     parameters: never;
@@ -134,7 +145,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
                 };
             };
         };
