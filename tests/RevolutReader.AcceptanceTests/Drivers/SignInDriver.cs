@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 using RevolutReader.AcceptanceTests.Dsl;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
@@ -70,6 +71,20 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   private const string ORIGIN = "Origin";
   private const string MICROSOFTS_PAGES = "https://login.microsoftonline.com";
 
+  /// <summary>The rest of the fetch metadata a browser sends, for the requests other sites make it send (D4).</summary>
+  private const string SEC_FETCH_MODE = "Sec-Fetch-Mode";
+  private const string SEC_FETCH_DEST = "Sec-Fetch-Dest";
+  private const string SAME_SITE = "same-site";
+  private const string NO_CORS = "no-cors";
+  private const string IMAGE = "image";
+  private const string NAVIGATE = "navigate";
+  private const string DOCUMENT = "document";
+
+  /// <summary>A page of a site that has nothing to do with the app (made up), for a cross-site form post.</summary>
+  private const string ANOTHER_SITES_PAGE = "https://cizi-web.example.org";
+
+  private const string SET_COOKIE = "Set-Cookie";
+
   /// <summary>More redirects than any answer of the app needs; a longer chain counts as not landing.</summary>
   private const int MOST_REDIRECTS = 5;
 
@@ -78,6 +93,12 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
   /// <summary>The sign-in <see cref="StartSignIn"/> started, for the step that answers it; <see langword="null"/> before.</summary>
   private StartedSignIn? _started;
+
+  /// <summary>The cookies the last sign-in start set (<see cref="CookiesSetByTheStart"/>).</summary>
+  private IReadOnlyList<CookieSet> _setByTheStart = [];
+
+  /// <summary>The cookies the last answer from Microsoft's page made the app set (<see cref="CookiesSetByTheReturn"/>).</summary>
+  private IReadOnlyList<CookieSet> _setByTheReturn = [];
 
   /// <summary>The browser's client options: the app's own HTTPS address, no automatic redirects, cookies kept.</summary>
   public static WebApplicationFactoryClientOptions BrowserOptions => new() {
@@ -121,6 +142,8 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
       request.Headers.Add(X_FORWARDED_PROTO, forwardedProto);
 
     using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    _setByTheStart = CookiesSet(response);
 
     if (!IsRedirect(response.StatusCode) || response.Headers.Location is not { IsAbsoluteUri: true } location || !IsAt(location, Microsoft.AuthorizeEndpoint))
       return new SignInStart(SentToMicrosoft: false, ReturnAddress: null, AccountPickerAsked: false);
@@ -196,6 +219,54 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <summary>Moves the app copy's clock (<see cref="FakeMicrosoft.Clock"/>) forward by <paramref name="time"/>.</summary>
   public void Advance(TimeSpan time) => throw new NotImplementedException();
 
+  // For the guards in Conventions/, which check the channel itself (c007 design.md D2, D4): requests other sites make the
+  // browser send, and the cookies the app set.
+
+  /// <summary>The cookies the app's answer to the last <see cref="StartSignIn"/> set (the redirect to Microsoft).</summary>
+  public IReadOnlyList<CookieSet> CookiesSetByTheStart() => _setByTheStart;
+
+  /// <summary>The cookies the app's answer to the last post from Microsoft's page set (the return address's answer, before any redirect is followed).</summary>
+  public IReadOnlyList<CookieSet> CookiesSetByTheReturn() => _setByTheReturn;
+
+  /// <summary>
+  /// <c>GET </c><paramref name="path"/> as an image on a page of another app on the same hosting domain makes the browser
+  /// send it (D4): with the browser's cookies, <c>Sec-Fetch-Site: same-site</c>, <c>Sec-Fetch-Mode: no-cors</c>,
+  /// <c>Sec-Fetch-Dest: image</c>, and no <c>Origin</c>. The browser takes the answer's cookies; nothing else is read.
+  /// </summary>
+  public async Task LoadAsAnotherAppsImage(string path) {
+    using HttpRequestMessage request = new(HttpMethod.Get, new Uri(path, UriKind.Relative));
+    request.Headers.Add(SEC_FETCH_SITE, SAME_SITE);
+    request.Headers.Add(SEC_FETCH_MODE, NO_CORS);
+    request.Headers.Add(SEC_FETCH_DEST, IMAGE);
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+  }
+
+  /// <summary>
+  /// <c>POST </c><paramref name="path"/> with an empty form, as a page of another site makes the browser send it: with the
+  /// browser's cookies, <c>Sec-Fetch-Site: cross-site</c>, <c>Sec-Fetch-Mode: navigate</c>, <c>Sec-Fetch-Dest: document</c>
+  /// and that page's <c>Origin</c>. The browser takes the answer's cookies; nothing else is read.
+  /// </summary>
+  public async Task PostFormFromAnotherSite(string path) {
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(path, UriKind.Relative)) { Content = new FormUrlEncodedContent([]) };
+    request.Headers.Add(SEC_FETCH_SITE, CROSS_SITE);
+    request.Headers.Add(SEC_FETCH_MODE, NAVIGATE);
+    request.Headers.Add(SEC_FETCH_DEST, DOCUMENT);
+    request.Headers.Add(ORIGIN, ANOTHER_SITES_PAGE);
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+  }
+
+  /// <summary>
+  /// <c>GET </c><paramref name="path"/> as the browser opens a page address, without following a redirect, read as
+  /// <see cref="PagesDriver.ReadPage"/> reads a page: a redirect is not the app's page.
+  /// </summary>
+  public async Task<PageAnswer> OpenPageAddress(string path) {
+    using HttpResponseMessage response = await Browser.GetAsync(new Uri(path, UriKind.Relative));
+
+    return await PagesDriver.ReadPage(response);
+  }
+
   /// <summary>The sign-in <see cref="StartSignIn"/> started; throws when there is none.</summary>
   private StartedSignIn Started() =>
     _started ?? throw new InvalidOperationException("No sign-in was started, or the app did not send the visitor to Microsoft: a step must start one first.");
@@ -211,7 +282,26 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
     using HttpResponseMessage response = await Browser.SendAsync(request);
 
+    _setByTheReturn = CookiesSet(response);
+
     return await FollowToLanding(started.ReturnAddress, response);
+  }
+
+  /// <summary>Every cookie <paramref name="response"/> set, in header order, with its lifetime counted from the app copy's clock now.</summary>
+  private List<CookieSet> CookiesSet(HttpResponseMessage response) {
+    if (!response.Headers.TryGetValues(SET_COOKIE, out IEnumerable<string>? headers))
+      return [];
+
+    DateTimeOffset now = Microsoft.Clock.GetUtcNow();
+
+    return [.. SetCookieHeaderValue.ParseList([.. headers]).Select(cookie => new CookieSet(
+      cookie.Name.ToString(),
+      cookie.Path.HasValue ? cookie.Path.ToString() : null,
+      cookie.Domain.HasValue ? cookie.Domain.ToString() : null,
+      cookie.Secure,
+      cookie.HttpOnly,
+      cookie.SameSite.ToString(),
+      cookie.MaxAge ?? (cookie.Expires - now)))];
   }
 
   /// <summary>

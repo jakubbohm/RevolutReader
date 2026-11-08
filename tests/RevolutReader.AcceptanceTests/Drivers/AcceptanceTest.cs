@@ -22,6 +22,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private ApiDsl? _api;
   private PagesDsl? _pages;
   private BankDsl? _bank;
+  private SignInDriver? _signInDriver;
   private SignInDsl? _signIn;
 
   protected HealthDsl Health => _health ??= new(new HealthDriver(Http));
@@ -34,7 +35,13 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   protected BankDsl Bank => _bank ??= new(new BankDriver(FakeBank, Services));
 
   /// <summary>Signing in through the fake Microsoft, in this test's one browser (spec sign-in, c007 design.md D6).</summary>
-  protected SignInDsl SignIn => _signIn ??= new(new SignInDriver(Browser, FakeMicrosoft, Services));
+  protected SignInDsl SignIn => _signIn ??= new(SignInDriver);
+
+  /// <summary>
+  /// The driver under <see cref="SignIn"/>, the same browser, for the guards in <c>Conventions/</c> that check the channel
+  /// itself (cookie attributes, requests other sites make the browser send). Scenarios use <see cref="SignIn"/> only.
+  /// </summary>
+  protected SignInDriver SignInDriver => _signInDriver ??= new(Browser, FakeMicrosoft, Services);
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();
