@@ -2,7 +2,7 @@
 
 Before this list (design.md D1–D11 are all decided, 2026-11-08):
 
-- **design.md § Bootstrap**, committed as `[setup]`: a rebase if `main` moved, the package, the API names checked, and a green full suite. Its baseline has one accepted red: the traceability check naming this change's five new scenarios as not claimed. Group 1 claims them.
+- **design.md § Bootstrap**, committed as `[setup]`: a rebase if `main` moved, the package, the API names checked, and a green full suite. Its baseline (after merging C6, design.md § Bootstrap): backend 518 of 519 and frontend 53 of 53, with one accepted red: the traceability check naming this change's five new scenarios as not claimed. Group 1 claims them.
 
 Run with `/tdd-apply c008-add-bank-read-retries` (roadmap C11). Six scenarios, so the work is sliced per scenario (`openspec/config.yaml` § tasks). Docs tasks are the orchestrator's. "Green" below means the full suite (`dotnet test` and the frontend tests), except this change's acceptance tests that their slice has not reached yet.
 

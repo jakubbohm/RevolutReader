@@ -25,9 +25,9 @@
   - A network failure (`HttpRequestException`) and our own timeout (`TaskCanceledException` while the caller has not cancelled) are "bank unavailable". An error answer is classified by its code-shaped `error` value, else by its status (`BankErrorClassification`, c006 D3).
   - Each read writes one log line, whose `{Pages}` counts the requests the client sent.
 - **The bank client's wiring** (`EnableBankingRegistration`): a typed client with `BaseAddress`, `Timeout` = `RequestTimeout` (15 s, kept after Check 2 measured the slowest request at 0.76 s), logging removed. No resilience package anywhere: c001 D5 removed the template's standard handler from ServiceDefaults, and `Directory.Packages.props` says why.
-- **Tests:** the acceptance tests drive the port on the production wiring against the WireMock fake bank (`Drivers/FakeBank`, a 5 s timeout); the DSL reads for a present user unless a scenario says unattended. The adapter's edge cases run against `BankOnWireMock` in `IntegrationTests/Wiring/EnableBanking/`. No test registers a `FakeTimeProvider` yet.
+- **Tests:** the acceptance tests drive the port on the production wiring against the WireMock fake bank (`Drivers/FakeBank`, a 5 s timeout); the DSL reads for a present user unless a scenario says unattended. The adapter's edge cases run against `BankOnWireMock` in `IntegrationTests/Wiring/EnableBanking/`. Since C6 (merged 2026-11-08, #30), every acceptance app copy runs on a `FakeTimeProvider` (`Drivers/FakeMicrosoft.Clock`, the app's only `TimeProvider`), which moves only when a test moves it.
 - **What .NET already retries:** its HTTP stack resends a request without a body up to 3 times when the server closed the connection before any answer came, typically a kept-alive connection the server had closed as idle ([HttpConnectionPool.cs](https://source.dot.net/System.Net.Http/System/Net/Http/SocketsHttpHandler/ConnectionPool/HttpConnectionPool.cs.html), [HttpConnection.cs](https://source.dot.net/System.Net.Http/System/Net/Http/SocketsHttpHandler/HttpConnection.cs.html), read 2026-11-08 on the development branch, not checked on the .NET 11 build). Our bank requests are bodiless `GET`s, so that case never reached the adapter. This change covers the rest.
-- **Parallel work:** C6 runs in its own session and worktree as `c007-add-user-login` (not merged). Both changes may touch `Directory.Packages.props`, `appsettings.json` and `pm/progress.md`; whichever merges second rebases.
+- **Parallel work:** C6 (`c007-add-user-login`) ran in its own session and merged first (#30, 2026-11-08); this branch merged `main` after it (conflicts only where both added package lines and progress rows).
 
 ## Goals / Non-Goals
 
@@ -59,8 +59,8 @@ As in C1, C3, C5 and C12, Claude prepares a green starting point on the change b
 - the package in `Directory.Packages.props` and `RevolutReader.Api`; it brings Polly.Core and Polly.Extensions 8.4.2;
 - every name in the sketch found in the API docs of 10.11.0 and Polly.Core 8.4.2;
 - build with no warning; backend 391 of 392, the one red being the traceability check naming exactly the five new scenarios; frontend 31 of 31; formatting clean.
-
-The probe (step 5) waits for the user's decision whether it stays in the repository.
+- the probe (step 5) kept by the user and committed.
+- `main` merged after C6 (#30): build with no warning; backend 518 of 519, the one red still that traceability check; frontend 53 of 53; formatting clean. This is the baseline for `/tdd-apply`.
 
 ## Decisions
 
@@ -133,7 +133,7 @@ Decided with the user (2026-11-08, after propose).
 
 - **`EnableBanking:RetryDelay`**, `00:00:00.8`, `[Range]` 0 to 5 s, declared in `appsettings.json` with its provenance comment. The acceptance and integration harnesses set it to zero, so retries run at once and the tests stay fast (a zero wait does not wait).
 - **`BankRetries.MAX_RETRIES = 3`, a constant**, like c006 D4's page cap: a limit nobody tunes, and `appsettings.json` is inside the image anyway.
-- **Why a setting for the wait:** the library takes its clock from the app's services (Polly.Extensions assigns a registered `TimeProvider`, [PollyServiceCollectionExtensions.cs](https://github.com/App-vNext/Polly/blob/main/src/Polly.Extensions/DependencyInjection/PollyServiceCollectionExtensions.cs), [Polly #1983](https://github.com/app-vnext/polly/issues/1983)). Once a later harness registers a `FakeTimeProvider` (testing.md's clock), non-zero waits would never end unless a test moved the clock. A zero wait does not depend on the clock.
+- **Why a setting for the wait:** the library takes its clock from the app's services (Polly.Extensions assigns a registered `TimeProvider`, [PollyServiceCollectionExtensions.cs](https://github.com/App-vNext/Polly/blob/main/src/Polly.Extensions/DependencyInjection/PollyServiceCollectionExtensions.cs), [Polly #1983](https://github.com/app-vnext/polly/issues/1983)). The acceptance harness registers a `FakeTimeProvider` as the app's clock (C6, § Context), so in acceptance tests a non-zero wait would never end unless the test moved the clock. A zero wait does not depend on the clock.
 - **The production numbers are pinned** by a unit test of `BankRetries.Options` (3 retries, exponential from the given wait, jitter on, `Retry-After` followed) and by the declared 0.8 s.
 - **Rejected:** both as constants, with tests moving a `FakeTimeProvider` past each spread wait (no setting, fiddlier tests); both as settings, as the Azure SDK's `RetryOptions` exposes them and Microsoft's transient-fault guidance suggests (more knobs, one nobody turns).
 
@@ -359,7 +359,7 @@ All six through the port, as acceptance tests in `Scenarios/BankReads/BankReadsS
 
 - [Enable Banking stops accepting a reused continuation key later] → probed once (D11); a refusal would end the page as an error with its code in the log, never wrong data.
 - [A gateway's `Retry-After` makes a read wait] → only while the wait still ends within the 15 s; otherwise the read ends at once (D8).
-- [A later harness registers a `FakeTimeProvider` and the library's waits never end] → tests run with a zero wait (D7); a comment at the setting says why.
+- [The acceptance harness's `FakeTimeProvider` (C6) freezes the library's waits] → tests run with a zero wait (D7); a comment at the setting says why. D8's deadline is read from the same clock, so it stays consistent with it.
 - [The library's lines carry an identifier] → the telemetry guard reads with a retry (D9); the library logs no request address, only its pipeline name, the status or the exception.
 - [`Microsoft.Extensions.*` 10.11 packages on .NET 11 RC3] → the same line as ServiceDiscovery 10.11.0, which builds today; the bootstrap proves it.
 - [Retries hide a bank that degrades] → the retry warnings and the ready query (D9).
