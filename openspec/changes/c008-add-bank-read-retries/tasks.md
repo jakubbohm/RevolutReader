@@ -92,7 +92,7 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 - [x] 16.1 `Logging:LogLevel:Polly` = `Warning` in `appsettings.json` (design.md D9). Verify: edge tests with a capturing logger that also keeps the `Polly` category: a read answered at once writes no line of the library; a read retried once writes the library's retry warnings and still exactly one read line; green
 - [ ] 16.2 `Conventions/BankTelemetryTests` adds a read retried once, for the guard's own present user: no line of the library and no exported trace holds the account id, the session id, or the user's address or browser. Verify: the test passes; green
-- [ ] 16.3 deployment.md § Checks: a ready query in PowerShell 7 listing the bank retries in a period (the library's warnings in `AppTraces`), next to the existing ready queries and in their form, marked to confirm once the first real retry lines arrive. Verify: the columns match the existing queries'; the link to Microsoft's columns resolves
+- [x] 16.3 deployment.md § Checks: a ready query in PowerShell 7 listing the bank retries in a period (the library's warnings in `AppTraces`), next to the existing ready queries and in their form, marked to confirm once the first real retry lines arrive. Verify: the columns match the existing queries'; the link to Microsoft's columns resolves
 
 ## 17. [wiring] No other client retries
 
@@ -101,8 +101,8 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 ## 18. [wiring] Docs
 
 - [ ] 18.1 The rule kept with D10's broader reason, and the bank client's exception (design.md D10, § Cross-cutting effects): docs/conventions/README.md § Backend code; `.claude/rules/backend-code.md`; docs/conventions/testing.md (the driver's wiring retries); the comments in `ServiceDefaultsExtensions`, `BankDriver` and `BankOnWireMock` that say "no retries". Verify: `grep -rn -i "never retr\|no retries"` outside the archive finds only the rate-limited rule and statements that are still true
-- [ ] 18.2 ADR-0001: a dated note in § Consequences (bank adapter): a present user's transient failures are retried (c008 design.md D1–D8), unattended reads never, and 429, expired and revoked sessions still never; in § Transaction history, D11's finding (a continuation key works a second time, with its evidence). `spikes/enable-banking/README.md`: the probe as a new step with its evidence. Verify: the notes link this design and the evidence and contradict nothing in the ADR's Decision
-- [ ] 18.3 docs/software-factory/lessons.md: R-30 updated as design.md § Cross-cutting effects lists, in the file's current entry format, and the "no retries" in the entry at line 488 corrected; R-30's inventory row in `creating-handover-package.md` checked (the convention test of task 17.1 is a reusable artifact). Verify: the options, the choice and the "Generalizes" line match design.md D1–D11
+- [x] 18.2 ADR-0001: a dated note in § Consequences (bank adapter): a present user's transient failures are retried (c008 design.md D1–D8), unattended reads never, and 429, expired and revoked sessions still never; in § Transaction history, D11's finding (a continuation key works a second time, with its evidence). `spikes/enable-banking/README.md`: the probe as a new step with its evidence. Verify: the notes link this design and the evidence and contradict nothing in the ADR's Decision
+- [x] 18.3 docs/software-factory/lessons.md: R-30 updated as design.md § Cross-cutting effects lists, in the file's current entry format, and the "no retries" in the entry at line 488 corrected; R-30's inventory row in `creating-handover-package.md` checked (the convention test of task 17.1 is a reusable artifact). Verify: the options, the choice and the "Generalizes" line match design.md D1–D11
 
 ## 19. [close] Acceptance green
 
