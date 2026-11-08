@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using RevolutReader.Api.Account;
@@ -11,13 +10,12 @@ namespace RevolutReader.UnitTests.Account;
 /// <summary>
 /// The present user is read from the request a signed-in user's open or refresh sent (the user, 2026-11-08, roadmap C13):
 /// the client address as the forwarded headers left it on the connection (c007 design.md D10) and the
-/// <c>User-Agent</c> header as ASP.NET reads it. An IPv4 address in IPv6 form becomes plain IPv4 (c004 design.md D2, the
-/// heads-up for C7); any other address, an IPv6 one too, is kept as it is. The browser name is kept as given, a header
-/// sent on two lines as both values joined with a comma: cleaning it is the bank header's job (c006 design.md D5). No
-/// client address, or a missing, empty or whitespace <c>User-Agent</c>, gives no present user (<see langword="null"/>):
-/// the endpoint then answers 400 and never reads unattended in its place, which would count against the bank's 4 reads a
-/// day without the user (ADR-0001). The addresses are documentation addresses (RFC 5737, RFC 3849); the browsers are made
-/// up.
+/// <c>User-Agent</c> header as ASP.NET reads it. Turning an IPv4 address in IPv6 form into plain IPv4 is the present
+/// user's own (<c>ReadTriggerTests</c>). The browser name is kept as given, a header sent on two lines as both values
+/// joined with a comma: cleaning it is the bank header's job (c006 design.md D5). No client address, or a missing, empty
+/// or whitespace <c>User-Agent</c>, gives no present user (<see langword="null"/>): the endpoint then answers 400 and
+/// never reads unattended in its place, which would count against the bank's 4 reads a day without the user (ADR-0001).
+/// The address is a documentation address (RFC 5737); the browsers are made up.
 /// </summary>
 public sealed class PresentUserFromRequestTests {
   private const string IPHONE_BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X)";
@@ -37,33 +35,6 @@ public sealed class PresentUserFromRequestTests {
     user.ShouldNotBeNull();
     user.IpAddress.ShouldBe(_documentationAddress);
     user.UserAgent.ShouldBe(userAgent);
-  }
-
-  /// <summary>
-  /// As a server listening on IPv6 can report an IPv4 visitor. The bank gets <c>203.0.113.7</c>, not
-  /// <c>::ffff:203.0.113.7</c> (c004 design.md D2).
-  /// </summary>
-  [Test]
-  public void An_IPv4_address_in_IPv6_form_becomes_plain_IPv4() {
-    PresentUser? user = PresentUserFromRequest.Read(Request(IPAddress.Parse("::ffff:203.0.113.7"), IPHONE_BROWSER));
-
-    user.ShouldNotBeNull();
-    user.IpAddress.ShouldBe(_documentationAddress);
-    user.IpAddress.AddressFamily.ShouldBe(AddressFamily.InterNetwork);
-  }
-
-  /// <param name="address">
-  /// An IPv6 address (RFC 3849), and the old IPv4-compatible form (RFC 4291 § 2.5.5.1), which is not the IPv4-mapped one
-  /// and so is kept too.
-  /// </param>
-  [Test]
-  [Arguments("2001:db8::7")]
-  [Arguments("::203.0.113.7")]
-  public void Any_other_IPv6_address_is_kept_as_it_is(string address) {
-    PresentUser? user = PresentUserFromRequest.Read(Request(IPAddress.Parse(address), IPHONE_BROWSER));
-
-    user.ShouldNotBeNull();
-    user.IpAddress.ShouldBe(IPAddress.Parse(address));
   }
 
   [Test]
