@@ -2,7 +2,7 @@
 
 **Status:** Accepted (the user's decisions, 2026-11-07 and 2026-11-08) · **Date:** 2026-11-08 · **Roadmap:** C4, C11; applied in C11; supersedes the daily cap in [ADR-0006-hosting-registry-and-job § Consequences](0006-hosting-registry-and-job.md#consequences) (C4) · **Questions:** none
 
-> The design trail: [c006 design.md D8 (b), D9, D10, D12, D13](../../openspec/changes/c006-harden-bank-adapter/design.md); the workspace: [c005 design.md D6](../../openspec/changes/archive/2026-11-07-c005-add-deployment-pipeline/design.md). Sources were read on the dates given with each one.
+> The design trail: [c006 design.md D8 (b), D9, D10, D12, D13](../../openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md); the workspace: [c005 design.md D6](../../openspec/changes/archive/2026-11-07-c005-add-deployment-pipeline/design.md). Sources were read on the dates given with each one.
 
 ## Context
 

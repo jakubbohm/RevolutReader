@@ -11,3 +11,4 @@
 - [Git Bash sed breaks CRLF](git-bash-sed-crlf.md) — sed -i rewrites .cs files as LF; use the Edit tool, then the whitespace check
 - [Personal data: public vs private](public-vs-private-personal-data.md) — public places: no personal data, bank data or secrets; private telemetry: personal data fine, secrets never, bank data only by a recorded decision
 - [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup
+- [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up

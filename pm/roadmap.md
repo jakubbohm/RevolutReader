@@ -212,7 +212,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Type:** OpenSpec change
 - **Goal:** Fix what a code review (2026-11-07) and its assessment found in C5's adapter before C7 builds on it: paging capped at 20 pages, a negative amount is an error, a gateway's error page reads as "bank unavailable", the browser name cleaned before it is sent, the present user checked, a log line with a reason for every read, error values quoted only when shaped like a code. Make every failed bank read easy to find: Application Insights fed by the app with its own identity, and ready queries.
 - **Depends on:** C5. Runs alongside C6 in its own worktree; done before C7.
-- **Inputs:** the review's findings and their assessment ([openspec/changes/c006-harden-bank-adapter/design.md](../openspec/changes/c006-harden-bank-adapter/design.md) D1–D8, decided in explore); c004 and c005 design.md; ADR-0001-bank-data-access.
+- **Inputs:** the review's findings and their assessment ([openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md](../openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md) D1–D8, decided in explore); c004 and c005 design.md; ADR-0001-bank-data-access.
 - **Outputs:** archived change; the `bank-reads` spec updated; Application Insights in the deployment; the deploy identity's role condition widened by hand (guided task).
 - **Open questions:** — (applies Q6 through ADR-0001)
 - **Notes:** added 2026-11-07 with the user's approval (change log in `pm/progress.md`). The review's ten minor findings are fixed directly on `fix/review-findings`; this branch is rebased after that merges, before `/tdd-apply`.

@@ -129,6 +129,7 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
 - **Each change starts on its own branch** off the freshest `main`, created before any artifact is drafted (proposal rule in `openspec/config.yaml`).
 - **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the roadmap step (e.g., C6) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
 - **Apply is test-first through `/tdd-apply <change>`,** not `/opsx:apply` ([testing.md § Test-first workflow](testing.md#test-first-workflow)); `openspec/config.yaml` shapes `tasks.md` into the task groups it expects.
+- **The archive is part of the change's own PR** (the user, 2026-11-08): `/opsx:archive` runs on the change branch once its tasks are done, guided tasks included, and is committed `[archive]` before the PR is marked ready, so the main specs change in the same squash merge as the code. Never a follow-up after the merge, never a PR of its own.
 - **Tooling-only changes** (the user, 2026-11-05; the first is C2, `c002-add-ci-pipeline` design.md D1) change how the repository accepts or ships code (CI, the ruleset on `main`, process files), not what the app does. A change that touches the app's behaviour is never tooling-only.
   - It sets `skip_specs: true` in its `.openspec.yaml` and has no specs and no scenarios.
   - Proposal, design and tasks are reviewed before anything is built, as for any change.
