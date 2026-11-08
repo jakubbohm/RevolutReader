@@ -239,11 +239,11 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 27. [unit] Slice 12 — Session
 
-- [ ] 27.1 Nobody signed in reads as signed out
-- [ ] 27.2 A refused account reads as refused, with its email
-- [ ] 27.3 A refused answer without an email reads as refused, without one
-- [ ] 27.4 A signed-in account reads as signed in, with its name and email
-- [ ] 27.5 A server error or no answer reads as unknown
+- [x] 27.1 Nobody signed in reads as signed out
+- [x] 27.2 A refused account reads as refused, with its email
+- [x] 27.3 A refused answer without an email reads as refused, without one
+- [x] 27.4 A signed-in account reads as signed in, with its name and email
+- [x] 27.5 A server error or no answer reads as unknown
 
 ## 28. [wiring] Slice 12 — The sign-in screen
 
