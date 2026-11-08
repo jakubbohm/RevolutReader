@@ -41,7 +41,8 @@ public static class SignInRegistration {
   /// The <c>SignIn</c> settings, bound and validated at start (<see cref="SignInOptionsValidator"/>). The cookie scheme as
   /// the default and the challenge scheme: the login cookie <see cref="SignInCookies.SESSION"/> (D4), and its login and
   /// access-denied redirects become 401 and 403 without a body, so <c>UseStatusCodePages</c> answers them with the problem
-  /// descriptions <c>Unauthorized</c> and <c>Forbidden</c>; a 403 for a signed-in account names its own email address (D3).
+  /// descriptions <c>Unauthorized</c> and <c>Forbidden</c>; a 403 for an account the allowlist refuses names its own email
+  /// address (D3).
   /// OpenID Connect against Microsoft (D2–D4), which only <see cref="LoginEndpoint"/> challenges, by name; a sign-in by an
   /// account not on the allowlist is logged once, as <see cref="SignInLog.SignInRefused"/>, and still completes; a sign-in
   /// that is cancelled or fails lands on <see cref="SignInAddresses.LANDING"/>, signed out, and is logged without a token,
@@ -221,15 +222,19 @@ public static class SignInRegistration {
   private static ILogger Logger(HttpContext context) => context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(LOG_CATEGORY);
 
   /// <summary>
-  /// A 403 for a signed-in account names that account's own email address, as the extension <c>email</c> (D3), so the
-  /// page can say which account has no access; without an email claim, the problem has no such extension.
+  /// A 403 for a signed-in account that the allowlist refuses names that account's own email address, as the extension
+  /// <c>email</c> (D3), so the page can say which account has no access; it checks the account as
+  /// <see cref="AllowedUserHandler"/> does, on every request. Any other 403, such as an allowed user's write refused by
+  /// the rule against writes from other sites (D4), names nothing; nor does a refused account without an email claim.
   /// </summary>
   private static void NameTheRefusedAccount(ProblemDetailsContext context) {
-    ClaimsPrincipal user = context.HttpContext.User;
+    HttpContext http = context.HttpContext;
+    ClaimsPrincipal user = http.User;
 
-    if (context.HttpContext.Response.StatusCode == StatusCodes.Status403Forbidden
+    if (http.Response.StatusCode == StatusCodes.Status403Forbidden
         && user.Identity?.IsAuthenticated == true
-        && user.FindFirstValue(JwtRegisteredClaimNames.Email) is { Length: > 0 } email)
+        && user.FindFirstValue(JwtRegisteredClaimNames.Email) is { Length: > 0 } email
+        && !http.RequestServices.GetRequiredService<Allowlist>().Allows(email))
       context.ProblemDetails.Extensions[EMAIL_EXTENSION] = email;
   }
 

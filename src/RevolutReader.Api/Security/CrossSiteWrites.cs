@@ -58,10 +58,30 @@ public static class CrossSiteWrites {
   }
 
   /// <summary>
-  /// As the string overload, with the header values as received; when the rule applies, a header sent more than once is
-  /// refused as ambiguous.
+  /// Whether a request may go on, with its <c>Sec-Fetch-Site</c> and <c>Origin</c> as received (each possibly sent more
+  /// than once). A request the rule <see cref="Applies"/> to is allowed when:
+  /// <list type="bullet">
+  /// <item>neither header is sent more than once: a repeated one is ambiguous, so the request is refused;</item>
+  /// <item>and the one value of each header passes the single-value rule
+  /// (<see cref="IsAllowed(string, PathString, string, string, string)"/>).</item>
+  /// </list>
+  /// Every other request is allowed, whatever its headers.
   /// </summary>
-  public static bool IsAllowed(string method, PathString path, StringValues secFetchSite, StringValues origin, string requestOrigin) => throw new NotImplementedException();
+  public static bool IsAllowed(string method, PathString path, StringValues secFetchSite, StringValues origin, string requestOrigin) {
+    ArgumentNullException.ThrowIfNull(method);
+    ArgumentNullException.ThrowIfNull(requestOrigin);
+
+    if (!Applies(method, path))
+      return true;
+
+    if (secFetchSite.Count > 1 || origin.Count > 1)
+      return false;
+
+    return IsAllowed(method, path, OneValue(secFetchSite), OneValue(origin), requestOrigin);
+  }
+
+  /// <summary>A header's one value; <see langword="null"/> when it was not sent.</summary>
+  private static string? OneValue(StringValues values) => values.Count == 1 ? values[0] : null;
 
   private static bool IsWrite(string method) => HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
 }
