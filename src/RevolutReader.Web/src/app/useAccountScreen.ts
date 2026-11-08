@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
-import { shown, type Facts, type Problem, type Shown } from "./screenState";
+import {
+  OFFLINE,
+  shown,
+  type Facts,
+  type Problem,
+  type Shown,
+} from "./screenState";
 import { readSession, SignOutFailed, signOut, type Session } from "./session";
 import {
   forgetStoredBalance,
   loadStoredBalance,
   storeBalance,
 } from "./storedBalance";
-
-/** The phone is offline: what the phone said, or a request that got no answer (D2). */
-const OFFLINE: Problem = { kind: "offline" };
 
 /** How long the first question may go unanswered before the screen says the server is waking (D2). */
 const WAKING_AFTER_MS = 1_500;

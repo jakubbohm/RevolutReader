@@ -108,8 +108,8 @@ function wakingOf(facts: Facts): "waking" | "waking slow" | null {
   return null;
 }
 
-/** The offline banner's problem, whichever request found the phone offline. */
-const OFFLINE: Problem = { kind: "offline" };
+/** The offline problem and its banner, whichever request found the phone offline: what the phone said, or no answer (D2). */
+export const OFFLINE: Problem = { kind: "offline" };
 
 /** The unexpected answer's problem (D5 b). */
 const UNEXPECTED: Problem = { kind: "unexpected" };

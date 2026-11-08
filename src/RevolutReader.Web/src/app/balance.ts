@@ -1,6 +1,5 @@
-import { api, wasAnswered } from "../api/client";
+import { api, askTheApi } from "../api/client";
 import type { components } from "../api/schema";
-import { emailOfRefusal } from "./session";
 
 /** The balance as the API answers it and as the phone keeps it (c009 design.md D1, D4): `readAt` in ISO 8601. */
 export type Balance =
@@ -37,7 +36,6 @@ const readOfBankProblem: Record<BankProblemType, BalanceRead> = {
   "/problems/bank-unavailable": { kind: "bank unavailable" },
 };
 
-const OFFLINE: BalanceRead = { kind: "offline" };
 const UNEXPECTED: BalanceRead = { kind: "unexpected" };
 
 /**
@@ -48,31 +46,23 @@ const UNEXPECTED: BalanceRead = { kind: "unexpected" };
  * - 401: signed out; 403: refused, with the email its problem names, or none.
  * - No answer (the request failed, or `signal` aborted it): offline. An answer with an error status never is: any other
  *   status, a plain-text hosting page among them, is unexpected.
+ *
+ * Offline, 401, 403 and a success that is not JSON are every read's (`askTheApi`); the rest are the balance's own.
  */
 export async function readBalance(options?: {
   signal?: AbortSignal;
 }): Promise<BalanceRead> {
-  if (!navigator.onLine) return OFFLINE;
+  const answer = await askTheApi(() =>
+    api.GET("/api/balance", { signal: options?.signal }),
+  );
+  if (answer.kind !== "answer") return answer;
 
-  // Only the request itself: a failure here is no answer, or a success that is not JSON. What the answer means is read
-  // below, outside, so a bug there is never mistaken for offline.
-  let answer;
-  try {
-    answer = await api.GET("/api/balance", { signal: options?.signal });
-  } catch (failure) {
-    return wasAnswered(failure) ? UNEXPECTED : OFFLINE;
-  }
-
-  const { data, error, response } = answer;
-  if (response.status === 200) {
-    const balance = balanceOf(data);
+  if (answer.status === 200) {
+    const balance = balanceOf(answer.data);
     return balance === null ? UNEXPECTED : { kind: "read", balance };
   }
-  if (response.status === 401) return { kind: "signed out" };
-  if (response.status === 403)
-    return { kind: "refused", email: emailOfRefusal(error) };
 
-  const problemType = typeOf(error);
+  const problemType = typeOf(answer.error);
   return problemType !== null && isBankProblemType(problemType)
     ? readOfBankProblem[problemType]
     : UNEXPECTED;

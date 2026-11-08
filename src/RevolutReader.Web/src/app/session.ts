@@ -1,4 +1,4 @@
-import { api, wasAnswered } from "../api/client";
+import { api, askTheApi, wasAnswered } from "../api/client";
 
 /** Who the server says is signed in, as the page picks its screen from it (c007 design.md D3, D5; c009 D2, D5). */
 export type Session =
@@ -20,37 +20,22 @@ const UNEXPECTED: Session = { kind: "unexpected" };
  *   none.
  * - No answer (the request failed): offline. An answer with an error status never is: any other status, a plain-text
  *   hosting page among them, is unexpected.
+ *
+ * Offline, 401, 403 and a success that is not JSON are every read's (`askTheApi`); the rest are the session's own.
  */
 export async function readSession(): Promise<Session> {
-  if (!navigator.onLine) return { kind: "offline" };
+  const answer = await askTheApi(() => api.GET("/api/me"));
 
-  // Only the request itself: a failure here is no answer, or a success that is not JSON. What the answer means is read
-  // below, outside, so a bug there is never mistaken for offline.
-  let answer;
-  try {
-    answer = await api.GET("/api/me");
-  } catch (failure) {
-    return wasAnswered(failure) ? UNEXPECTED : { kind: "offline" };
+  switch (answer.kind) {
+    case "signed out":
+      return { kind: "signed-out", justSignedOut: false };
+    case "answer":
+      return answer.status === 200
+        ? (signedInOf(answer.data) ?? UNEXPECTED)
+        : UNEXPECTED;
+    default:
+      return answer;
   }
-
-  const { data, error, response } = answer;
-  if (response.status === 200) return signedInOf(data) ?? UNEXPECTED;
-  if (response.status === 401)
-    return { kind: "signed-out", justSignedOut: false };
-  if (response.status === 403)
-    return { kind: "refused", email: emailOfRefusal(error) };
-
-  return UNEXPECTED;
-}
-
-/**
- * The refused account's email, the 403 problem's `email` extension (c007 design.md D3), for any API address that
- * refuses; `null` when the body names none.
- */
-export function emailOfRefusal(body: unknown): string | null {
-  if (typeof body !== "object" || body === null || !("email" in body))
-    return null;
-  return typeof body.email === "string" ? body.email : null;
 }
 
 /** Signed in, when the body names the user: a name and an email, as text. */
