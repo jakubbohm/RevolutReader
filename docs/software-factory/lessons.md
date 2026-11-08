@@ -596,3 +596,24 @@ RevolutReader ([deployment.md § Identifiers](../operations/deployment.md#identi
 
 *Setup produces:* the app's Key Vault with public network access on and Azure roles only, in the platform Bicep file (inventory: Deployment); for a personal backup vault, closed by default, the commands that open it to one address per step (`docs/operations/local-secrets.md`).
 *Generalizes:* decide the vault's network at the same time as the app's environment, because a later private network means a new environment. Default for a long-lived app with real data: the private network, chosen on day one. A vault nobody reads continuously (a personal backup) stays closed and is opened to one address per step. Reverses to roles alone for a short-lived app on a platform the vault doesn't trust, where only the app's identity and its owner hold a role.
+
+**R-53 · An app with a login cookie sits on a hosting platform's shared domain: what does that domain's absence from the Public Suffix List change?** *(New)* · *Topic:* E. Data & auth
+RevolutReader ([ADR-0003 § Decision](../adr/0003-sign-in.md#decision), items 6 and 7; c007 design.md D4; 2026-11-08): **`__Host-` cookies and the app's own rule refusing every write request from another site.**
+- Browsers treat two addresses as the same site when they share a registrable domain, which the Public Suffix List defines. `azurecontainerapps.io` is not on the list (checked 2026-11-07), while `azurewebsites.net` and `azurestaticapps.net` are. So every other container app on the platform counts as the same site as ours.
+- **What that breaks:** SameSite cookies stop protecting anything, because a sibling app's page is same-site: the browser sends a Lax cookie with its requests. A sibling could also plant cookies for the shared parent domain: a session cookie that signs the visitor in as someone else, or a sign-in round-trip cookie.
+- **The answer:**
+  - every cookie is named `__Host-…`, so the browser accepts it only from the app's exact host, set without a Domain and with Path `/`;
+  - every POST, PUT, PATCH or DELETE under `/api` is refused unless the browser's fetch metadata says it came from the app's own page (`Sec-Fetch-Site: same-origin`) or from the user directly (`none`). Without fetch metadata, the `Origin` must equal the app's own origin, and a request with neither header passes (not a browser, so it has no cookie). The sign-in return is exempt, because Microsoft posts it from another site by design.
+- **Checked by:** unit tests for every row of the rule's table, and acceptance guards that read the `Set-Cookie` attributes and send a sibling's sign-out request.
+
+*Setup produces:* the cookie names and attributes in the sign-in registration; the rule as a pure function with its middleware (`src/RevolutReader.Api/Security/`, inventory: Backend) placed after authentication and before the endpoints; their unit tests and guards.
+*Generalizes:* before relying on SameSite, check whether the hosting domain is on the Public Suffix List. If it isn't, every tenant is the same site: use `__Host-` cookies and a same-origin rule for every cookie-authenticated write. Reverses when the app has its own registrable domain, or the platform's domain is on the list; SameSite Lax plus the framework's own checks are then enough.
+
+**R-54 · Does .NET 11's built-in forged-request protection cover a cookie-authenticated JSON API?** *(New — relates to R-53)* · *Topic:* E. Data & auth
+RevolutReader (c007 design.md D4; 2026-11-08): **No, not reliably: the app adds its own rule for every write and keeps the built-in protection on.**
+- .NET 11 turns on a cross-site request check automatically. Sources describe its enforcement differently: one says it is enforced where a form is read (Andrew Lock, 2026-08-04), another that it inspects every unsafe request. Its public `ICsrfProtection` interface changed shape late in the release (dotnet/aspnetcore#66585). A JSON or body-less write, such as a sign-out, may therefore pass unchecked.
+- **What was observed (.NET 11 RC3, 2026-11-08):** it let through Microsoft's cross-site `form_post` sign-in return, the same-origin body-less `POST /api/auth/logout`, and also a sibling app's body-less sign-out (`Sec-Fetch-Site: same-site`, another origin). Only the app's own rule (R-53) refuses that last one.
+- Writing the rule as a pure function over the request's method, path, `Sec-Fetch-Site` and `Origin` makes every case a unit test, independent of the framework's version.
+
+*Setup produces:* the app's own rule (R-53), with .NET's built-in protection left on.
+*Generalizes:* for a cookie-authenticated API, don't rely on a framework's automatic forged-request check until its enforcement for JSON and body-less writes is documented and tested; add an explicit fetch-metadata rule. Reverses when the API takes bearer tokens rather than cookies, or when the framework's check is documented to cover every unsafe method and a test proves it.

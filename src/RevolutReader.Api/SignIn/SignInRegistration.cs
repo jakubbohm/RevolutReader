@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using RevolutReader.Api.Security;
 
 namespace RevolutReader.Api.SignIn;
 
@@ -126,14 +127,16 @@ public static class SignInRegistration {
 
   /// <summary>
   /// After <c>UseAppPages</c>, so the pages and their files need no sign-in, and before <c>UseFastEndpoints</c>:
-  /// authentication, then authorization. A refusal counts only for a request that matched an endpoint
-  /// (<see cref="UnmatchedRequestsPass"/>, D3), so an address nothing serves answers 404 to everyone.
+  /// authentication, then authorization, then the rule against writes from other sites (D4). A refusal by authorization
+  /// counts only for a request that matched an endpoint (<see cref="UnmatchedRequestsPass"/>, D3), so an address nothing
+  /// serves answers 404 to everyone.
   /// </summary>
   public static WebApplication UseSignIn(this WebApplication app) {
     ArgumentNullException.ThrowIfNull(app);
 
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseCrossSiteWriteProtection();
 
     return app;
   }

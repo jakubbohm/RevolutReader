@@ -180,8 +180,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 14. [wiring] Slice 5 — The rule in the app
 
-- [ ] 14.1 `UseCrossSiteWriteProtection()`: a refusal answers 403 through `IProblemDetailsService` and ends the request; placed as design.md D4 says. `SignInDriver.SignOut(fromSite)` sends the other site's fetch metadata and `Origin`. Verify: the scenario runs against the app; green except this slice's scenario
-- [ ] 14.2 Docs:
+- [x] 14.1 `UseCrossSiteWriteProtection()`: a refusal answers 403 through `IProblemDetailsService` and ends the request; placed as design.md D4 says. `SignInDriver.SignOut(fromSite)` sends the other site's fetch metadata and `Origin`. Verify: the scenario runs against the app; green except this slice's scenario
+- [x] 14.2 Docs:
   - README.md § Backend code: the rule for writes;
   - ADR-0003 amended with the forged-request rule (closing "C6 chooses the mechanism") and 403 with the own email;
   - two new lessons: the Public Suffix List gap, and .NET 11's form-only enforcement;

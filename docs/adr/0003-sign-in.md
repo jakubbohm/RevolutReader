@@ -1,6 +1,6 @@
 # ADR-0003: Sign-in — the backend signs users in and keeps a login cookie (BFF)
 
-**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-05 in M4: the client secret is created in C6, not M4 (Decision, item 4); amended 2026-11-08 in C6: the addresses, landing on `/`, local-only sign-out and the cookie names (Decision, item 6) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
+**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-05 in M4: the client secret is created in C6, not M4 (Decision, item 4); amended 2026-11-08 in C6: the addresses, landing on `/`, local-only sign-out and the cookie names (Decision, item 6); the rule against writes from other sites and the 403 naming the refused account (item 7) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
 
 > Findings verified on 2026-11-05 against the sources linked with each one.
 
@@ -57,6 +57,13 @@ Decided by the user, 2026-11-05:
    - after sign-in the visitor always lands on `/`. There is no return-address parameter, so there is no open redirect to guard;
    - sign-out ends only this app's session, never the Microsoft account's. "Try another account" therefore asks Microsoft for its account picker (`prompt=select_account`), or Microsoft would sign the same account in again silently;
    - the login cookie is `__Host-session` (SameSite Lax, Path `/`, no Domain); the handler's round-trip cookies use the prefix `__Host-signin-` (Path `/`, SameSite None, because Microsoft returns with a cross-site POST). The `__Host-` prefix makes the browser accept them only from the app's exact host, so no other app on the shared hosting domain can plant a session.
+7. **Writes from other sites are refused; a refused account is told its email** *(amended in C6, 2026-11-08, with the user in explore; c007 design.md D3, D4)*:
+   - `azurecontainerapps.io` is not on the Public Suffix List, so every other container app is the same site as ours and SameSite alone protects nothing ([lessons.md R-53](../software-factory/lessons.md)). So the app has its own rule, closing "C6 chooses the mechanism" below:
+     - every POST, PUT, PATCH or DELETE under `/api` is checked. A browser's `Sec-Fetch-Site` must say `same-origin` or `none`; without it, the `Origin` must be the app's own. A request with neither header passes (not a browser, so no cookie);
+     - the sign-in return is exempt: Microsoft posts it from another site, and the handler's state, correlation cookie, nonce and PKCE protect it;
+     - a refused request gets 403 with a problem description and changes nothing.
+   - .NET 11's built-in forged-request protection stays on, but the rule doesn't rely on it: its enforcement for JSON and body-less writes is unclear ([lessons.md R-54](../software-factory/lessons.md)). Antiforgery tokens were rejected: a token endpoint and a header on every write, for no extra protection in browsers that send fetch metadata (Safari has since 16.4).
+   - A signed-in account that is not on the allowlist gets 403 on every API request, and the problem description names its own email, so the page can show which account has no access ([ADR-0004](0004-account-allowlist.md), item 7).
 
 ## Alternatives considered
 
@@ -79,7 +86,7 @@ Decided by the user, 2026-11-05:
   - if that fails, fall back in this order: open the sign-in via `window.open`, then hand the session to the app with a one-time code.
 - **The cookie's encryption keys (ASP.NET Core Data Protection) persist in Blob Storage.** The app scales to zero, so without that every wake would sign everyone out ([ADR-0006-hosting-registry-and-job § Decision](0006-hosting-registry-and-job.md#decision), item 2; C6).
 - **C3:** no sign-in library; a 401 shows the sign-in link.
-- **Write requests authenticated by the cookie need CSRF protection:** the last view in C7 and the push subscription in C8. C6 chooses the mechanism.
+- **Write requests authenticated by the cookie need CSRF protection:** the last view in C7 and the push subscription in C8. C6 chooses the mechanism. *(Chosen in C6: the app's own rule for every write under `/api`, Decision item 7. C7's and C8's writes get it with no work of their own.)*
 - **Tests:** a fake Microsoft (discovery, keys, token endpoint) in front of the real handlers, walked by a test browser, so the whole sign-in runs production code ([testing.md § Test sign-in](../conventions/testing.md#test-sign-in-fake-the-signature-never-the-security-code); C6 replaced the earlier plan of a harness-made cookie).
 - **Push on iOS** needs the Home Screen app (Q9). C8 subscribes from it, and the handovers (M5, M7) install it and confirm the iOS version.
 - **Software factory:** this diverges from DoseUp ([lessons.md R-24](../software-factory/lessons.md)).
