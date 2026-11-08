@@ -2,9 +2,10 @@ import { expect, test } from "vitest";
 import { goOffline, goOnline, leaveApp, returnToApp } from "../test/server";
 import { watchRefreshTriggers } from "./refreshTriggers";
 
-// What asks the screen for a refresh (c009 design.md D3, D7 b): coming back to it, every time; leaving asks for nothing,
-// and after the stop function nothing does. The page and the window are the test's own (jsdom); the kit's `leaveApp` and
-// `returnToApp` turn the page hidden and visible, as the phone does. Each test counts the asks in a plain function.
+// What asks the screen for a refresh (c009 design.md D3, D7 b): coming back to it, every time, and coming back online;
+// leaving asks for nothing, and after the stop function nothing does. The page and the window are the test's own
+// (jsdom); the kit's `leaveApp` and `returnToApp` turn the page hidden and visible, and `goOffline` and `goOnline` the
+// network off and on, as the phone does. Each test counts the asks in a plain function.
 
 test("Coming back to the screen asks for a refresh", () => {
   let asked = 0;
@@ -14,6 +15,19 @@ test("Coming back to the screen asks for a refresh", () => {
 
   leaveApp();
   returnToApp();
+
+  expect(asked).toBe(1);
+  stop();
+});
+
+test("Coming back online asks for a refresh", () => {
+  let asked = 0;
+  const stop = watchRefreshTriggers(() => {
+    asked += 1;
+  });
+
+  goOffline();
+  goOnline();
 
   expect(asked).toBe(1);
   stop();

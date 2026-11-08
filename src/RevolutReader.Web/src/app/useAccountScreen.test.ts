@@ -1,7 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { SECOND, startTestClock, timePasses } from "../test/clock";
-import { after, answerWith, balance, requests, signedIn } from "../test/server";
+import {
+  after,
+  answerWith,
+  balance,
+  goOffline,
+  goOnline,
+  requests,
+  signedIn,
+} from "../test/server";
 import { useAccountScreen } from "./useAccountScreen";
 
 // The account screen's sequence (c009 design.md D2, D3; § Rule ownership: useAccountScreen), driven through the hook on
@@ -10,9 +18,14 @@ import { useAccountScreen } from "./useAccountScreen";
 const LUCIE = signedIn("Lucie Nováková", "lucie@example.com");
 const READ_TIME = 2 * SECOND;
 
+/** How many times the screen has sent this request (`METHOD /path`). */
+function timesSent(request: string): number {
+  return requests().filter((sent) => sent === request).length;
+}
+
 /** How many balance reads the screen has sent. */
 function balanceReadsSent(): number {
-  return requests().filter((request) => request === "GET /api/balance").length;
+  return timesSent("GET /api/balance");
 }
 
 test("A refresh asked for while a read is under way sends no second request", async () => {
@@ -44,4 +57,22 @@ test("A refresh asked for while a read is under way sends no second request", as
   });
   await timePasses(READ_TIME);
   expect(balanceReadsSent(), "the refresh, and no second one").toBe(2);
+});
+
+test("Back online while who is signed in was unanswered asks it again, not the balance", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: after(READ_TIME, LUCIE),
+    balance: balance(286.4),
+  });
+  goOffline();
+  renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(timesSent("GET /api/me"), "nothing sent while offline").toBe(0);
+
+  goOnline();
+  await timePasses(0);
+
+  expect(timesSent("GET /api/me"), "who is signed in, asked again").toBe(1);
+  expect(balanceReadsSent(), "no balance before it answers").toBe(0);
 });
