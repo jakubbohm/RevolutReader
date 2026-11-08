@@ -64,6 +64,9 @@ public static class SignInRegistration {
         options.ResponseMode = OpenIdConnectResponseMode.FormPost;
         options.UsePkce = true;
         options.CallbackPath = SignInAddresses.CALLBACK;
+        // The app never signs out at Microsoft (D2); left on, these default addresses would let another site sign the visitor out.
+        options.RemoteSignOutPath = PathString.Empty;
+        options.SignedOutCallbackPath = PathString.Empty;
         // The ID token's short claim names stay as they are, so the login holds "name" and "email".
         options.MapInboundClaims = false;
         options.Scope.Clear();

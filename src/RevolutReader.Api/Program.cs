@@ -21,6 +21,7 @@ WebApplication app = builder.Build();
 // Every body-less error response (400–599) gets a problem description (RFC 9457), c001 design.md D4.
 app.UseStatusCodePages();
 app.UseAppPages();
+app.MapApiNotFound();
 app.UseSignIn();
 app.UseFastEndpoints();
 

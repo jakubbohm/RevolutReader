@@ -4,7 +4,8 @@ namespace RevolutReader.Api.Pages;
 
 /// <summary>
 /// Serves the app's pages from the web root (spec app-delivery, c003 design.md D5). In production the web root holds the
-/// frontend build (ADR-0002); locally it is empty, and Aspire's <c>web</c> resource serves the pages (D11).
+/// frontend build (ADR-0002); locally it is empty, and Aspire's <c>web</c> resource serves the pages (D11). The addresses
+/// under <c>/api</c> are the API's: an unknown one answers 404 (<see cref="MapApiNotFound"/>).
 /// </summary>
 public static class PagesExtensions {
   /// <summary>
@@ -13,6 +14,12 @@ public static class PagesExtensions {
   /// so does a missing file.
   /// </summary>
   private const string PAGE_ADDRESS = "{*path:regex(^(?!api(/|$)).*$):nonfile}";
+
+  /// <summary>The API's catch-all route: every address under <c>/api</c>.</summary>
+  private const string API_ADDRESS = "/api/{**path}";
+
+  /// <summary>The catch-all's name (c007 design.md D3).</summary>
+  private const string API_NOT_FOUND = "ApiNotFound";
 
   /// <summary>The app's page in the web root.</summary>
   private const string START_PAGE = "index.html";
@@ -36,6 +43,32 @@ public static class PagesExtensions {
     app.MapFallbackToFile(PAGE_ADDRESS, START_PAGE, files).AllowAnonymous();
 
     return app;
+  }
+
+  /// <summary>
+  /// <c>ApiNotFound</c> (spec api-errors, c007 design.md D3): every address under <c>/api</c> that no endpoint serves
+  /// answers 404 without a body, whatever its method and whether or not the caller is signed in, and
+  /// <c>UseStatusCodePages</c> writes the problem description <c>Not Found</c>. Without it, a write to an unknown address
+  /// would land on the router's "405 method not allowed" rejection, which the fallback policy turns into 401 for anonymous
+  /// callers. A fallback for every method, so every real address wins over it, also for a wrong method on a real address
+  /// (<c>POST /api/me</c> answers 404 too). Anonymous and on the anonymous-endpoint allowlist: it can only answer 404.
+  /// Left out of the API description.
+  /// </summary>
+  public static WebApplication MapApiNotFound(this WebApplication app) {
+    ArgumentNullException.ThrowIfNull(app);
+
+    app.MapFallback(API_ADDRESS, AnswerNotFound)
+      .WithDisplayName(API_NOT_FOUND)
+      .AllowAnonymous()
+      .ExcludeFromDescription();
+
+    return app;
+  }
+
+  private static Task AnswerNotFound(HttpContext context) {
+    context.Response.StatusCode = StatusCodes.Status404NotFound;
+
+    return Task.CompletedTask;
   }
 
   /// <summary>

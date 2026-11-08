@@ -79,20 +79,20 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 3a. [acceptance] Slice 1 fix — Unknown addresses (added after slice 1's review, design.md D3)
 
-- [ ] 3a.1 Acceptance: api-errors / A write to an unknown API address answers with a problem description. `AnonymousEndpointsTests`' allowlist gains `ApiNotFound`'s route for every method. Verify: the new test and the allowlist check fail at runtime; traceability passes
+- [x] 3a.1 Acceptance: api-errors / A write to an unknown API address answers with a problem description. `AnonymousEndpointsTests`' allowlist gains `ApiNotFound`'s route for every method. Verify: the new test and the allowlist check fail at runtime; traceability passes
 
 ## 3b. [unit] Slice 1 fix — The router's method rejection
 
-- [ ] 3b.1 A request matched only by the router's method rejection (an endpoint that is not a route endpoint) is passed on, as an unmatched one is
+- [x] 3b.1 A request matched only by the router's method rejection (an endpoint that is not a route endpoint) is passed on, as an unmatched one is
 
 ## 3c. [wiring] Slice 1 fix — Unknown API addresses
 
-- [ ] 3c.1 `ApiNotFound`: `/api/{**path}` for every method, anonymous, answering 404 without a body. Verify: the scenario runs against the app; green except the slices still to come
-- [ ] 3c.2 Docs: README.md § Backend code, secure by default: the catch-all and the method rejection. Verify: it matches design.md D3
+- [x] 3c.1 `ApiNotFound`: `/api/{**path}` for every method, anonymous, answering 404 without a body. Verify: the scenario runs against the app; green except the slices still to come
+- [x] 3c.2 Docs: README.md § Backend code, secure by default: the catch-all and the method rejection. Verify: it matches design.md D3
 
 ## 3d. [close] Slice 1 fix — A write to an unknown API address answers with a problem description
 
-- [ ] 3d.1 The scenario's test passes, and the existing GET one still does. Verify: green, including both api-errors scenarios
+- [x] 3d.1 The scenario's test passes, and the existing GET one still does. Verify: green, including both api-errors scenarios
 
 ## 4. [unit] Slice 2 — Sign-in settings
 
