@@ -345,7 +345,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
   `main.bicepparam` is unchanged. Verify: `az bicep lint --file infra/main.bicep` reports nothing; the read-only preview (docs/operations/deployment.md) shows the new resources and no deletion
 - [ ] 44.2 Guided (owner): the deploy identity's fifth grantable role, Key Vault Crypto User, with azure-prerequisites.md step 5 run again with its ID added to `$roles`; read back with its check. Verify: the condition lists five role IDs
-- [ ] 44.3 Docs:
+- [x] 44.3 Docs:
   - workflow.md § 5: the storage account row, the key and the fifth role;
   - azure-prerequisites.md: the table and step 5's command;
   - deployment.md: the new resources and settings, and the post-deploy checks of § Migration plan, step 4;

@@ -13,7 +13,9 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | Deployment stack | `revolutreader`; deletes what the Bicep no longer declares; no deny settings |
 | Log Analytics workspace | `log-revolutreader` (30 days, 0.1 GB daily cap) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
-| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded`, principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
+| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; from C6 also Storage Blob Data Contributor on the container `dataprotection` and Key Vault Crypto User on the key `dataprotection`; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded`, principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
+| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start |
+| The cookie keys' key (C6) | the RSA key `dataprotection` in `kv-revolutreader` (wrap and unwrap only); the stack's output `keyVaultKeyUri` is its versionless address, so a rotated key version is picked up. The app reaches the blob and the key as its identity (the setting `DataProtection__IdentityClientId`, c007 design.md D7) |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
 | The app's address | `https://tarjeta-papa.livelyground-53b2e5ad.germanywestcentral.azurecontainerapps.io` (the stack's output `appUrl`; plain HTTP is redirected to HTTPS). Azure generated the part after the app's name; a new environment gets a new one |
@@ -101,6 +103,17 @@ az keyvault secret list --subscription $sub --vault-name $vault --query '[].name
 **Done on 2026-11-06** by the owner, in the owner's own PowerShell 7 window, together with the role it needs (Claude Code's permission check had blocked Claude's role assignment even with the owner's go). Read back: the vault holds exactly `EnableBanking--AccountId`, `EnableBanking--ApplicationId`, `EnableBanking--PrivateKey` and `EnableBanking--SessionId`.
 
 **Replacing a value later** (a renewed session, a new key: [expiring-approvals.md](expiring-approvals.md)): run only its line again. Key Vault keeps the old value as an older version; the app follows the latest.
+
+## The sign-in's values and settings (C6)
+
+Since C6 the container app also reads two Key Vault references, `SignIn--ClientSecret` and `SignIn--AllowedEmails` (`infra/features.bicep` § Sign-in, as `SignIn__ClientSecret` and `SignIn__AllowedEmails`). **Both must exist before C6's merge:** a reference to a missing secret stops the new revision. They are written by the guided step in [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6), together with the local and backup copies. The deploy also sets three plain settings from the stack's outputs: `DataProtection__KeysBlobUri`, `DataProtection__KeyVaultKeyUri` and `DataProtection__IdentityClientId` (c007 design.md D7).
+
+- **The deploy identity's fifth role:** C6's Bicep grants Key Vault Crypto User on the key, so the deploy identity's condition must allow it first ([azure-prerequisites.md § Widening the condition](azure-prerequisites.md#widening-the-condition-c6-the-fifth-role)). Without it the stack step fails at that role assignment, and the old revision keeps running.
+- **After the first deploy with C6** (c007 design.md § Migration plan, step 4):
+  - the new revision starts, and the app's output of the last hour shows no `Data Protection` or sign-in error;
+  - the blob `dataprotection/keys.xml` exists (`az storage blob list --subscription $sub --account-name strevolutreader --container-name dataprotection --auth-mode login --query '[].name' -o tsv`; reading it needs a data role, so this check may need the owner's own role, otherwise the app's log line about the key ring is enough);
+  - signing in at the app's address in a desktop browser works, then the two iPhone checks in [tests/manual-scenarios.md](../../tests/manual-scenarios.md).
+- **Looking into a failed sign-in:** the app logs one `SignInFailed` warning with only the failure's kind. The OpenID Connect handler's own lines are switched off (`Logging:LogLevel:Microsoft.AspNetCore.Authentication.OpenIdConnect` is `Critical`), because they carry exception text and whatever anyone posts to the return address. To tell a lost correlation cookie from an unreadable state (both log as `AuthenticationFailureException`), set the environment variable `Logging__LogLevel__Microsoft.AspNetCore.Authentication.OpenIdConnect` to `Warning` on the container app for a short, bounded window (a new revision; posted text may then reach the log), then remove it again.
 
 ## Checks
 

@@ -1,6 +1,6 @@
 # ADR-0006: Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock
 
-**Status:** Accepted (the user's decision, 2026-11-05); Decision item 4 (the Logic App clock) superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone calls the endpoint; amended 2026-11-06 in C4: the package's visibility and the deploy's image check, corrected after the first deploy found the package public (Decision, item 3), the cold-start measurement moved to after v1 (Decision, item 5), the log destination (Consequences) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
+**Status:** Accepted (the user's decision, 2026-11-05); Decision item 4 (the Logic App clock) superseded 2026-11-06 by [ADR-0008-phone-triggered-check](0008-phone-triggered-check.md): the owner's iPhone calls the endpoint; amended 2026-11-06 in C4: the package's visibility and the deploy's image check, corrected after the first deploy found the package public (Decision, item 3), the cold-start measurement moved to after v1 (Decision, item 5), the log destination (Consequences); amended 2026-11-08 in C6: the keys encrypted by a Key Vault key (Decision, item 2) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M3, C4, C6, C9 · **Questions:** Q4
 
 > Findings verified on 2026-11-05 against the sources linked with each one. Unless noted, prices are Azure list prices for West Europe from the [Azure Retail Prices API](https://prices.azure.com/api/retail/prices).
 >
@@ -67,7 +67,7 @@ Decided by the user, 2026-11-05:
    - Minimum 0 and maximum 1 replica, 0.25 vCPU and 0.5 GiB.
    - A managed identity; secrets come from Key Vault as Container Apps secrets, exposed as environment variables.
    - It wakes on any request and scales to zero after the cool-down. C4 may lengthen the cool-down from its 5-minute default.
-2. **Data Protection keys persist in Blob Storage** in the app's own storage account, which therefore arrives with sign-in (C6). Without this, every wake from zero would sign every user out.
+2. **Data Protection keys persist in Blob Storage** in the app's own storage account, which therefore arrives with sign-in (C6). Without this, every wake from zero would sign every user out. *(Amended in C6, 2026-11-08, with the user in explore; c007 design.md D7: the blob `dataprotection/keys.xml` in `strevolutreader` is encrypted by the key `dataprotection` in `kv-revolutreader` (`ProtectKeysWithAzureKeyVault`), so whoever reads the blob still cannot forge login cookies; the key never leaves the vault. The app identity holds Storage Blob Data Contributor on the container and Key Vault Crypto User on the key, each on that one resource. Key Vault Crypto User is the deploy identity's fifth grantable role, added by hand before the merge. The application name is pinned, so every revision reads the same keys.)*
 3. **Registry: ghcr.io, with a public image.**
    - It is built once per merge to `main` ([workflow.md § 4](../conventions/workflow.md#4-cicd)) and pushed with GitHub's built-in token.
    - Container Apps pulls it anonymously.

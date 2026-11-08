@@ -29,16 +29,17 @@ None of these is a credential: knowing them gives no access. They are public, he
    - This repository's prefix comes from `gh api repos/jakubbohm/RevolutReader/actions/oidc/customization/sub` (`use_immutable_subject: true`, `sub_claim_prefix`, read 2026-11-05). The `:environment:production` suffix follows GitHub's documented pattern; GitHub shows immutable examples only for branches, so the first login in C4 was the real check, and it passed (see [Checks](#checks)).
 5. **Roles on `rg-revolutreader` only:**
    - **Contributor:** creates and changes resources, including the deployment stack. It cannot manage a stack's deny settings, which the project does not use.
-   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for four roles only. These are the roles Bicep grants in C4, C6 and C7. The pipeline cannot grant Owner or widen its own rights.
+   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for five roles only. These are the roles Bicep grants in C4, C6 and C7. The pipeline cannot grant Owner or widen its own rights.
 
-     | Role | ID |
-     |---|---|
-     | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` |
-     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` |
-     | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` |
-     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` |
+     | Role | ID | Granted by the Bicep to |
+     |---|---|---|
+     | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | the app identity, on the vault's secrets (C4) |
+     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` | (C8, the push subscription) |
+     | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | the app identity, on the container `dataprotection` (C6) |
+     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` | (C7, the stored balance) |
+     | Key Vault Crypto User | `12338af0-0e69-4776-bea7-57ae8d297424` | the app identity, on the key `dataprotection`, to wrap and unwrap the login cookie's keys (C6, c007 design.md D7) |
 
-     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below).
+     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below). C6 added the fifth, Key Vault Crypto User ([§ Widening the condition](#widening-the-condition-c6-the-fifth-role)).
 6. **GitHub environment `production`** with a deployment branch policy allowing only `main`, so a job on any other branch never gets a token Azure accepts. Workflows triggered by pull requests from forks get no OIDC token at all.
 7. **The owner's access to secret values (C4,** c005 design.md D17). Owner of the subscription gives no access to the values in a vault that uses Azure roles, and the guided tasks (Enable Banking in C4, later C6 and C8) and every renewal write secrets. So the owner's account gets **Key Vault Secrets Officer on `rg-revolutreader`**, inherited by every vault in the group, including one the stack creates again.
    - **Why by hand and not in the Bicep:** the Bicep would need the owner's account ID in the public repository. As a GitHub variable it would be unversioned, unreviewed and against [configuration.md](../conventions/configuration.md) (GitHub variables hold only what the workflow needs before Bicep runs). This is the one exception to "manual only for what cannot be automated" ([workflow.md § 5](../conventions/workflow.md#5-infrastructure), [lessons.md R-50](../software-factory/lessons.md)).
@@ -78,7 +79,7 @@ az identity federated-credential create --subscription $sub --resource-group $rg
 az role assignment create --subscription $sub --assignee-object-id $principalId `
     --assignee-principal-type ServicePrincipal --role Contributor --scope $scope
 
-$roles = '4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+$roles = '4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, 12338af0-0e69-4776-bea7-57ae8d297424'
 $condition = "((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles}))"
 az role assignment create --subscription $sub --assignee-object-id $principalId `
     --assignee-principal-type ServicePrincipal --role 'Role Based Access Control Administrator' `
@@ -96,6 +97,35 @@ gh variable set AZURE_RESOURCE_GROUP  --repo $repo --env production --body $rg
 ```
 
 The condition string in step 5 was checked on 2026-11-05: it equals the condition Azure stored, and it reaches the CLI unchanged through `az.cmd` in PowerShell 7.
+
+### Widening the condition (C6: the fifth role)
+
+Before C6's merge, because its Bicep grants Key Vault Crypto User on the key `dataprotection` (c007 design.md D7). Without it the deploy fails at that role assignment and the old revision keeps running. The owner runs it in the owner's own PowerShell 7 window (Claude Code's permission check blocks role assignments). Between the two commands the deploy identity can grant no role at all, so run them together. It prints nothing but the check.
+
+```powershell
+$sub         = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$scope       = "/subscriptions/$sub/resourceGroups/rg-revolutreader"
+$principalId = 'ea62a45c-aed6-4ee4-aebd-ada94cd1b3f0'    # id-revolutreader-deploy (table above)
+
+# Remove the conditional assignment, then create it again with the five role IDs
+$old = az role assignment list --subscription $sub --scope $scope --assignee $principalId `
+    --role 'Role Based Access Control Administrator' --query '[].id' --output tsv
+if (@($old).Count -ne 1) { throw "Expected one conditional assignment, found $(@($old).Count)." }
+az role assignment delete --subscription $sub --ids $old --output none
+
+$roles = '4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, 12338af0-0e69-4776-bea7-57ae8d297424'
+$condition = "((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles}))"
+az role assignment create --subscription $sub --assignee-object-id $principalId `
+    --assignee-principal-type ServicePrincipal --role 'Role Based Access Control Administrator' `
+    --scope $scope --condition $condition --condition-version 2.0 --output none
+
+# Check: the stored condition names five role IDs, Key Vault Crypto User among them
+$stored = az role assignment list --subscription $sub --scope $scope --assignee $principalId `
+    --role 'Role Based Access Control Administrator' --query '[0].condition' --output tsv
+"role IDs in the condition: $(([regex]::Matches($stored.Split('{')[1], '[0-9a-f-]{36}')).Count); Key Vault Crypto User: $($stored -match '12338af0-0e69-4776-bea7-57ae8d297424')"
+```
+
+Expected: `role IDs in the condition: 5; Key Vault Crypto User: True`.
 
 Step 7 (C4), run once by the owner in the owner's own PowerShell 7 window, after the first deployment created the vault ([deployment.md § The first deployment](deployment.md#the-first-deployment)). Claude Code's permission check blocks a role assignment by Claude even with the owner's go (2026-11-06). It prints nothing. **Applied on 2026-11-06** by the owner; read back with step 7's check below: one user holds Key Vault Secrets Officer on `rg-revolutreader`. The owner's ID is in no file (searched).
 
