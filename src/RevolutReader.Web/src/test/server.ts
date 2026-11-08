@@ -300,6 +300,35 @@ export async function phoneKeeps(kept: KeptBalance): Promise<void> {
   await inPhoneStore("readwrite", (store) => store.put(kept, PHONE_KEY));
 }
 
+/**
+ * The phone keeps this record where the balance goes, whatever its shape: what an older or broken app may have left
+ * there. As `phoneKeeps`, otherwise.
+ */
+export async function phoneKeepsRecord(record: unknown): Promise<void> {
+  await inPhoneStore("readwrite", (store) => store.put(record, PHONE_KEY));
+}
+
+/**
+ * The phone's storage fails from now on, until the returned function restores it: opening a database throws, and so
+ * does every transaction, also on a connection the app opened earlier and keeps (idb-keyval keeps one per store, so
+ * breaking only `indexedDB.open` would not reach an app that has used its store before). Restore it in a `finally`.
+ */
+export function phoneStorageFails(): () => void {
+  const factory = globalThis.indexedDB;
+  const transaction = IDBDatabase.prototype.transaction;
+  const broken = (): never => {
+    throw new DOMException("The phone's storage failed.", "UnknownError");
+  };
+
+  globalThis.indexedDB = { open: broken } as unknown as IDBFactory;
+  IDBDatabase.prototype.transaction = broken;
+
+  return () => {
+    globalThis.indexedDB = factory;
+    IDBDatabase.prototype.transaction = transaction;
+  };
+}
+
 /** The balance the phone keeps, as stored; `null` when it keeps none. */
 export async function keptBalance(): Promise<KeptBalance | null> {
   const kept = await inPhoneStore<unknown>("readonly", (store) =>

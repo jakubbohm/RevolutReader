@@ -129,3 +129,24 @@ test.each(offlineWithNothingStored)(
     });
   },
 );
+
+// D2 and D7 (a): with a stored balance, offline is its header, the "Jsi offline" banner, and the note in the list's
+// place, whichever request found the phone offline.
+const offlineWithAStoredBalance = offlineWithNothingStored.map(
+  ({ label, changes }) => ({
+    label,
+    changes: { ...changes, stored: STORED, balance: STORED },
+  }),
+);
+
+test.each(offlineWithAStoredBalance)(
+  "Offline with a stored balance, the screen shows its header, the offline banner and the note in the list's place: $label",
+  ({ changes }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      header: { balance: STORED, refreshing: false },
+      banner: { kind: "offline" },
+      body: "offline note",
+    });
+  },
+);

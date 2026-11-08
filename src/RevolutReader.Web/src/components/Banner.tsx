@@ -2,12 +2,16 @@ import { CircleAlert } from "lucide-react";
 import type { JSX, ReactNode } from "react";
 
 export interface BannerProps {
-  /** The banner's tone; the info and warning tones join when a screen needs them. */
-  tone: "error";
+  /** The banner's tone (c009 design.md D10): info and warning are announced as a status, error as an alert. */
+  tone: "info" | "warning" | "error";
   /** A short title, in the tone's colour. */
   title?: string;
   /** One sentence, in ink. */
   children?: ReactNode;
+  /** At most one action, a ghost button under the text; while `loading`, it ignores taps (c009 design.md D10). */
+  action?: { label: string; onClick: () => void; loading?: boolean };
+  /** An icon in place of the tone's own: `wifi-off` for offline (c009 design.md D10). */
+  icon?: "wifi-off";
 }
 
 /**
