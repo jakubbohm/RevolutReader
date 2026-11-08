@@ -10,13 +10,13 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation: the fake bank's one-off answers and the DSL (design.md § Public API sketch): `Bank.ReportsOwnErrorForTheFirstRequest()`; `Bank.BreaksConnectionWhileAnsweringTheFirstRequest()`, a break after the answer has started (design.md § How each scenario is verified), with a comment saying the Mock ASPSP cannot produce it; `Bank.ListsInPagesWithOneErrorOnPage(since, count, pages, failingPage)`; `Bank.PagesRequested()`. `Drivers/FakeBank` sets `EnableBanking:RetryDelay` to zero. Verify: build passes; every acceptance test that was green stays green
-- [ ] 1.2 Acceptance: bank-reads / A one-off bank error is retried and the read succeeds
-- [ ] 1.3 Acceptance: bank-reads / A connection that breaks once is retried and the read succeeds
-- [ ] 1.4 Acceptance: bank-reads / A bank error that persists is tried four times, then reads as bank unavailable
-- [ ] 1.5 Acceptance: bank-reads / A failure on a later page retries only that page
-- [ ] 1.6 Acceptance: bank-reads / An unattended read is never retried
-- [ ] 1.7 Acceptance: bank-reads / A bank that answers too slowly reads as bank unavailable (changed: the bank received exactly one request)
+- [x] 1.1 Foundation: the fake bank's one-off answers and the DSL (design.md § Public API sketch): `Bank.ReportsOwnErrorForTheFirstRequest()`; `Bank.BreaksConnectionWhileAnsweringTheFirstRequest()`, a break after the answer has started (design.md § How each scenario is verified), with a comment saying the Mock ASPSP cannot produce it; `Bank.ListsInPagesWithOneErrorOnPage(since, count, pages, failingPage)`; `Bank.PagesRequested()`. `Drivers/FakeBank` sets `EnableBanking:RetryDelay` to zero. Verify: build passes; every acceptance test that was green stays green
+- [x] 1.2 Acceptance: bank-reads / A one-off bank error is retried and the read succeeds
+- [x] 1.3 Acceptance: bank-reads / A connection that breaks once is retried and the read succeeds
+- [x] 1.4 Acceptance: bank-reads / A bank error that persists is tried four times, then reads as bank unavailable
+- [x] 1.5 Acceptance: bank-reads / A failure on a later page retries only that page
+- [x] 1.6 Acceptance: bank-reads / An unattended read is never retried
+- [x] 1.7 Acceptance: bank-reads / A bank that answers too slowly reads as bank unavailable (changed: the bank received exactly one request)
 
 ## 2. [unit] Slice 1 — The retry rule
 

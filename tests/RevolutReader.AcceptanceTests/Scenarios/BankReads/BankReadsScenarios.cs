@@ -119,6 +119,7 @@ public sealed class BankReadsScenarios : AcceptanceTest {
     Bank.AnswersAfterTheRequestTimeout();
 
     (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.BankUnavailable);
+    Bank.RequestsReceived().Count.ShouldBe(1);
   }
 
   [Test, Scenario("bank-reads", "A gateway's error page reads as bank unavailable")]
@@ -126,5 +127,53 @@ public sealed class BankReadsScenarios : AcceptanceTest {
     Bank.GatewayAnswersWithMaintenancePage();
 
     (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.BankUnavailable);
+  }
+
+  [Test, Scenario("bank-reads", "A one-off bank error is retried and the read succeeds")]
+  public async Task A_one_off_bank_error_is_retried_and_the_read_succeeds() {
+    Bank.ReportsOwnErrorForTheFirstRequest();
+    Bank.HasAvailableBalance(1234.56m, "EUR");
+
+    (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.Of(1234.56m, "EUR"));
+    Bank.RequestsReceived().Count.ShouldBe(2);
+  }
+
+  [Test, Scenario("bank-reads", "A connection that breaks once is retried and the read succeeds")]
+  public async Task A_connection_that_breaks_once_is_retried_and_the_read_succeeds() {
+    Bank.BreaksConnectionWhileAnsweringTheFirstRequest();
+    Bank.HasAvailableBalance(1234.56m, "EUR");
+
+    (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.Of(1234.56m, "EUR"));
+    Bank.RequestsReceived().Count.ShouldBe(2);
+  }
+
+  [Test, Scenario("bank-reads", "A bank error that persists is tried four times, then reads as bank unavailable")]
+  public async Task A_bank_error_that_persists_is_tried_four_times_then_reads_as_bank_unavailable() {
+    Bank.ReportsOwnError();
+
+    (await Bank.ReadBalance()).ShouldBe(BalanceAnswer.BankUnavailable);
+    Bank.RequestsReceived().Count.ShouldBe(4);
+  }
+
+  [Test, Scenario("bank-reads", "A failure on a later page retries only that page")]
+  public async Task A_failure_on_a_later_page_retries_only_that_page() {
+    Bank.ListsInPagesWithOneErrorOnPage(since: new DateOnly(2026, 10, 6), count: 25, pages: 3, failingPage: 2);
+
+    TransactionsAnswer answer = await Bank.ReadTransactionsFrom(new DateOnly(2026, 10, 6));
+
+    answer.Outcome.ShouldBe(BankOutcome.Read);
+    answer.Transactions.Count.ShouldBe(25);
+    answer.Transactions.ShouldBeUnique();
+    Bank.RequestsReceived().Count.ShouldBe(4);
+    Bank.PagesRequested().ShouldBe([1, 2, 2, 3]);
+  }
+
+  [Test, Scenario("bank-reads", "An unattended read is never retried")]
+  public async Task An_unattended_read_is_never_retried() {
+    Bank.ReportsOwnErrorForTheFirstRequest();
+    Bank.HasAvailableBalance(1234.56m, "EUR");
+
+    (await Bank.ReadBalanceUnattended()).ShouldBe(BalanceAnswer.BankUnavailable);
+    Bank.RequestsReceived().Count.ShouldBe(1);
   }
 }
