@@ -156,3 +156,10 @@ Here ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), De
 Given up: the app's own runtime metrics in production (garbage collection, heap size, thread pool, exception counts) and per-minute sums by route; they show only locally, in the Aspire dashboard.
 
 *Switch back when:* the app runs well beyond its planned period or for more users, a slowdown or growing memory needs explaining, or [#17](https://github.com/jakubbohm/RevolutReader/issues/17) shows room under the daily cap. Switching on is a one-line change in ServiceDefaults.
+
+**R-59 · The problem types are relative paths, not absolute URIs**
+Full version: an absolute `type` URI under the app's own domain, documented as RFC 9457 § 4 asks ([lessons.md](lessons.md) R-59).
+Here ([README.md § Backend code](../conventions/README.md#backend-code), 2026-11-08, C13): **`/problems/bank-access-expired`, `/problems/bank-rate-limited`, `/problems/bank-unavailable`, compared as exact strings and never opened** — the app has no domain of its own (it lives on the platform's shared domain, R-55), and RFC 9457 allows a relative reference with the full path.
+Given up: a `type` that identifies the problem outside this app and leads to its documentation; a client that resolves a relative reference reaches the app's own page, not a description.
+
+*Switch back when:* the app gets a domain of its own, or a client other than its own screen reads the API.

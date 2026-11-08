@@ -274,7 +274,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
   - the balance kept on the phone ([ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)): written after every successful read, shown at once while the server wakes and when offline, deleted on sign-out;
   - the waiting screen (normal and slow) on the app's first request, `GET /api/me`, whatever the sign-in state, and the offline screens;
   - the bank's error states (bank unavailable, too many requests, bank link expired) and their single banner, which C7b's list joins;
-  - the 500 for unexpected errors: `app.UseExceptionHandler()`, so an unhandled exception (e.g. a `BankReadException`) answers a problem description, not an empty 500 (spec `api-errors`; moved here from C13, the user, 2026-11-08, change log; C13's research in its PR);
+  - the 500 for unexpected errors: `app.UseExceptionHandler()`, so an unhandled exception (e.g. a `BankReadException`) answers a problem description, not an empty 500 (spec `api-errors`; planned for C7, found missing in C13's research and given to C7a, the user, 2026-11-08, change log; C13's research in its PR);
   - what the screen says when sign-out fails, whether a sign-out that fails offline still deletes the stored balance, and a busy state ([c007 design.md D5](../openspec/changes/archive/2026-11-08-c007-add-user-login/design.md), [#33](https://github.com/jakubbohm/RevolutReader/issues/33) finding 7).
 
   The screens and their states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
