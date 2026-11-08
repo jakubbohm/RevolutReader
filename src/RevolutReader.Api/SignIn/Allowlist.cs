@@ -9,7 +9,13 @@ public sealed class Allowlist {
   private const string EMPTY_ENTRY = "The allowlist has an empty entry: nothing but spaces before, between or after its commas.";
   private const string NOT_AN_ADDRESS = "An allowlist entry is not an email address: expected text, one @, text.";
 
-  private Allowlist(IReadOnlyList<string> addresses) => Addresses = addresses;
+  /// <summary>The addresses, for <see cref="Allows"/>: whole addresses, compared ignoring case.</summary>
+  private readonly HashSet<string> _allowed;
+
+  private Allowlist(IReadOnlyList<string> addresses) {
+    Addresses = addresses;
+    _allowed = new HashSet<string>(addresses, StringComparer.OrdinalIgnoreCase);
+  }
 
   /// <summary>The addresses on the list, trimmed, in the order written.</summary>
   public IReadOnlyList<string> Addresses { get; }
@@ -36,8 +42,11 @@ public sealed class Allowlist {
     return new Allowlist(Array.AsReadOnly(entries));
   }
 
-  /// <summary>Ignoring case; null or empty → false.</summary>
-  public bool Allows(string? email) => throw new NotImplementedException();
+  /// <summary>
+  /// Whether <paramref name="email"/> is one of the addresses, as a whole and ignoring case (D3, D8). An account without an
+  /// email address (<see langword="null"/> or empty) is not allowed.
+  /// </summary>
+  public bool Allows(string? email) => !string.IsNullOrEmpty(email) && _allowed.Contains(email);
 
   /// <summary>Text, exactly one <c>@</c>, text.</summary>
   private static bool IsEmailAddress(string entry) {

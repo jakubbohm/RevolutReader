@@ -136,10 +136,10 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 8. [unit] Slice 3 — Allowlist
 
-- [ ] 8.1 An address on the allowlist is allowed
-- [ ] 8.2 An address on the allowlist written in other letter case is allowed
-- [ ] 8.3 An address not on the allowlist is not allowed
-- [ ] 8.4 An account without an email address is not allowed
+- [x] 8.1 An address on the allowlist is allowed
+- [x] 8.2 An address on the allowlist written in other letter case is allowed
+- [x] 8.3 An address not on the allowlist is not allowed
+- [x] 8.4 An account without an email address is not allowed
 
 ## 9. [wiring] Slice 3 — Strangers refused
 
