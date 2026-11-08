@@ -50,11 +50,40 @@ export type Shown =
       signingOut: boolean;
     };
 
+type AccountScreen = Extract<Shown, { screen: "account" }>;
+
 /**
- * What the screen shows for these facts; pure. A stub until c009 tasks.md group 16 is implemented; `void` keeps the
- * unused-parameter check quiet until then.
+ * What the screen shows for these facts; pure (c009 design.md D2, D5, D7). The account screen: the menu once the server
+ * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
+ * with no header, the empty frame.
  */
 export function shown(facts: Facts): Shown {
-  void facts;
-  throw new Error("not implemented");
+  const header = headerOf(facts);
+
+  return {
+    screen: "account",
+    account: accountOf(facts.session),
+    header,
+    banner: facts.problem,
+    body: header === null ? "empty" : "list",
+    signingOut: facts.signingOut,
+  };
+}
+
+/** The menu's account: only once `GET /api/me` has named the user (D2), never from what the phone keeps. */
+function accountOf(session: Facts["session"]): AccountScreen["account"] {
+  if (session === "waiting" || session.kind !== "signed-in") return null;
+  return { name: session.name, email: session.email };
+}
+
+/**
+ * The header: the balance, the latest read or else the stored one, refreshing while a refresh runs; with no balance,
+ * the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen
+ * stays instead, never a placeholder); otherwise none.
+ */
+function headerOf(facts: Facts): AccountScreen["header"] {
+  if (facts.balance !== null)
+    return { balance: facts.balance, refreshing: facts.reading === "refresh" };
+  if (facts.reading === "first" && !facts.wokeUp) return "placeholder";
+  return null;
 }

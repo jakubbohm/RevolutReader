@@ -161,9 +161,9 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 16. [unit] Slice 8 — What the screen shows, the balance
 
-- [ ] 16.1 Before any answer, with nothing stored, the account screen is empty and has no menu
-- [ ] 16.2 A signed-in user with a read balance gets the header, the menu and the list slot
-- [ ] 16.3 A first read on an awake server, with nothing stored, shows the balance placeholder
+- [x] 16.1 Before any answer, with nothing stored, the account screen is empty and has no menu
+- [x] 16.2 A signed-in user with a read balance gets the header, the menu and the list slot
+- [x] 16.3 A first read on an awake server, with nothing stored, shows the balance placeholder
 
 ## 17. [unit] Slice 8 — The balance header
 
