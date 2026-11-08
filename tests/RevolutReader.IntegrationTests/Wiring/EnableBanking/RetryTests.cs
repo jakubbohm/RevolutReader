@@ -5,9 +5,10 @@ using Shouldly;
 namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 
 /// <summary>
-/// The bank client's retries on its production wiring (c008 design.md D2, D3, D5): a present user's request whose answer
-/// reads as the bank unavailable is sent again, and the read gets the next answer; one answered as rate limited or as
-/// access expired is sent once. No wait between the attempts (<see cref="BankOnWireMock.DefaultRetryDelay"/>).
+/// The bank client's retries on its production wiring (c008 design.md D2, D3, D5, D6): a present user's request whose
+/// answer reads as the bank unavailable, or breaks while it comes in, is sent again, and the read gets the next answer; one
+/// answered as rate limited or as access expired, and any unattended one, is sent once. No wait between the attempts
+/// (<see cref="BankOnWireMock.DefaultRetryDelay"/>).
 /// <para>
 /// The error answers are written from the API reference (<c>ErrorResponse</c>, <c>{ code, message, error, detail }</c>), not
 /// captured: the Mock ASPSP cannot time out, reach its limit or expire a session on demand. The reference does not pair
@@ -56,6 +57,33 @@ public sealed class RetryTests {
 
     result.Value.ShouldBeOfType(answer == RATE_LIMITED ? typeof(BankRateLimited) : typeof(BankAccessExpired));
     bank.RequestsReceived.ShouldBe(1);
+  }
+
+  /// <summary>
+  /// The first answer starts (a success status, a promised body) and the connection breaks while its body comes in; the
+  /// next is whole. Each attempt reads the whole answer (c008 design.md D6), so the break fails the attempt and is retried.
+  /// </summary>
+  [Test]
+  public async Task A_present_users_balance_read_whose_first_answer_breaks_while_it_comes_in_is_read_with_2_requests() {
+    await using ConnectionBreakingServer server = new(laterAnswerBody: READABLE_BALANCES);
+    using BankOnWireMock bank = new(apiBaseUrl: server.Address);
+
+    BankResult<Balance> result = await bank.Account.ReadBalance(_presentUser, CancellationToken.None);
+
+    result.Value.ShouldBe(new Balance(1234.56m, "EUR"));
+    server.RequestsReceived.ShouldBe(2);
+  }
+
+  /// <summary>As above, but nobody is waiting for the read: an unattended request is never sent again (D2).</summary>
+  [Test]
+  public async Task An_unattended_balance_read_whose_first_answer_breaks_while_it_comes_in_is_bank_unavailable_after_1_request() {
+    await using ConnectionBreakingServer server = new(laterAnswerBody: READABLE_BALANCES);
+    using BankOnWireMock bank = new(apiBaseUrl: server.Address);
+
+    BankResult<Balance> result = await bank.Account.ReadBalance(new Unattended(), CancellationToken.None);
+
+    result.Value.ShouldBeOfType<BankUnavailable>();
+    server.RequestsReceived.ShouldBe(1);
   }
 
   /// <summary>The answer <paramref name="answer"/> names: its status, its body and its content type.</summary>

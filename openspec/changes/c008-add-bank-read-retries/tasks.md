@@ -49,11 +49,11 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 6. [wiring] Slice 2 — Each attempt reads the whole answer
 
-- [ ] 6.1 `WholeAnswerHandler` inside the retry handler (design.md D6). Verify: edge tests: a present user's read whose first answer breaks while it comes in (as `ConnectionBreakingServer` does, once) is read, with 2 requests; an unattended one is bank unavailable after 1; `NetworkFailureTests` stay green; green
+- [x] 6.1 `WholeAnswerHandler` inside the retry handler (design.md D6). Verify: edge tests: a present user's read whose first answer breaks while it comes in (as `ConnectionBreakingServer` does, once) is read, with 2 requests; an unattended one is bank unavailable after 1; `NetworkFailureTests` stay green; green
 
 ## 7. [close] Slice 2 — A connection that breaks once is retried and the read succeeds
 
-- [ ] 7.1 Acceptance 1.3 passes; green
+- [x] 7.1 Acceptance 1.3 passes; green
 
 ## 8. [wiring] Slice 3 — A persistent failure
 

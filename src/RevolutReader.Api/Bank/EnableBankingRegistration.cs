@@ -17,7 +17,8 @@ public static class EnableBankingRegistration {
   /// Options bound and validated at start; the application's key and <see cref="ApplicationToken"/> as singletons; the typed
   /// client with <c>BaseAddress</c> = <see cref="EnableBankingOptions.ApiBaseUrl"/> and <c>Timeout</c> =
   /// <see cref="EnableBankingOptions.RequestTimeout"/>, without the factory's default logging (D5), and with the bank's own
-  /// retry handler (<see cref="BankRetries"/>, c008 design.md D3), which that timeout wraps (D1); <see cref="IBankAccount"/> →
+  /// retry handler (<see cref="BankRetries"/>, c008 design.md D3), which that timeout wraps (D1), and inside it
+  /// <see cref="WholeAnswerHandler"/>, so each attempt reads the whole answer (D6); <see cref="IBankAccount"/> →
   /// <see cref="EnableBankingClient"/>; <see cref="TimeProvider.System"/> unless one is registered. Called from Program.cs.
   /// </summary>
   public static IServiceCollection AddEnableBanking(this IServiceCollection services) {
@@ -34,7 +35,7 @@ public static class EnableBankingRegistration {
     services.AddSingleton(static provider => new ApplicationToken(Settings(provider).ApplicationId, provider.GetRequiredKeyedService<RSA>(SECTION)));
     services.TryAddSingleton(TimeProvider.System);
 
-    services
+    IHttpClientBuilder bank = services
       .AddHttpClient<IBankAccount, EnableBankingClient>(static (provider, http) => {
         EnableBankingOptions settings = Settings(provider);
 
@@ -44,10 +45,16 @@ public static class EnableBankingRegistration {
       })
       // The factory's own logging writes each request's URL, whose path holds the account id (D5); the client logs one
       // line per read instead.
-      .RemoveAllLoggers()
-      // One retry strategy and nothing else (c008 design.md D3): the client marks which requests it may retry (D2, D8).
-      .AddResilienceHandler(RETRY_PIPELINE, static (pipeline, context) =>
-        pipeline.AddRetry(BankRetries.Options(Settings(context.ServiceProvider).RetryDelay, context.ServiceProvider.GetRequiredService<TimeProvider>())));
+      .RemoveAllLoggers();
+
+    // The factory chains the handlers in the order they are added, the first outermost, so the handler added after the
+    // retry handler runs inside it, within each attempt. AddResilienceHandler returns the pipeline's builder, not the
+    // client's, hence two statements.
+    // One retry strategy and nothing else (c008 design.md D3): the client marks which requests it may retry (D2, D8).
+    bank.AddResilienceHandler(RETRY_PIPELINE, static (pipeline, context) =>
+      pipeline.AddRetry(BankRetries.Options(Settings(context.ServiceProvider).RetryDelay, context.ServiceProvider.GetRequiredService<TimeProvider>())));
+    // Each attempt reads the whole answer, so a break while it comes in is retried too (D6).
+    bank.AddHttpMessageHandler(static () => new WholeAnswerHandler());
 
     return services;
   }
