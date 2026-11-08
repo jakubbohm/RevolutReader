@@ -18,10 +18,10 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 3. [unit] User headers
 
-- [ ] 3.1 An accented letter in the user agent is sent as a question mark, and the length stays the same
-- [ ] 3.2 A control character in the user agent (0x01, a tab, 0x7F) is sent as a question mark
-- [ ] 3.3 A line break or a NUL in the user agent is sent as a question mark
-- [ ] 3.4 A user agent of printable ASCII is sent unchanged
+- [x] 3.1 An accented letter in the user agent is sent as a question mark, and the length stays the same
+- [x] 3.2 A control character in the user agent (0x01, a tab, 0x7F) is sent as a question mark
+- [x] 3.3 A line break or a NUL in the user agent is sent as a question mark
+- [x] 3.4 A user agent of printable ASCII is sent unchanged
 
 ## 4. [unit] Transaction mapping: the sign
 
