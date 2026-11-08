@@ -145,6 +145,7 @@ The list builds and tests its own states on today's empty account screen (the us
 | offline (nothing sent, or no answer within 60 s) | the note "Pohyby se načtou, jakmile budeš online."; loads again on the `online` event |
 
 - **401 and 403** count as "anything else" until the join, where C7a's handling takes them (the sign-in or no-access screen).
+- **Offline at opening, before the join** (the user, at the acceptance gate, 2026-11-08): `GET /api/me` fails too, and today's `App` shows the account screen with the session unknown and never asks again. So the list's offline rule is its own until the join: while the phone says it is offline, the list shows its note and sends nothing, even with the session unknown, and reads on `online`. At the join C7a's offline handling takes over (D8). Accepted, never shipped: before the join, someone signed out who opened the app offline sees the unexpected-answer banner instead of the sign-in screen. Rejected: `App` asking `/api/me` again on `online` (C7a's file and work).
 - **C7a's request rules apply** (its D2, D3): `GET /api/me` first, then the list's request; offline means the phone says so or no answer came, never an error status; `online` repeats what was under way; never two reads of the newest page at once; a 60 s cap through `setTimeout` and an `AbortController`, so fake timers drive it.
 - These banners keep their texts at the join for a failure of the list alone, so their scenarios hold before and after it.
 
@@ -389,9 +390,11 @@ public static class StorageRegistration {
 
 // ---- tests/RevolutReader.AcceptanceTests ----
 
-// Drivers/Azurite.cs — one container per test session (TUnit shared data source), image pinned; ConnectionString.
+// Drivers/AzuriteStorage.cs — one container per test session (TUnit shared data source), image pinned; ConnectionString.
+//   (Not `Azurite`: a type of that name fails CA1724 against the Testcontainers.Azurite namespace.)
 // Drivers/ScenarioCalendar.cs — maps scenario dates onto the app's clock (D12).
 public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider clock) {
+  public void TodayIs(DateOnly scenarioToday);       // re-anchors the calendar the driver shares; default 2026-11-20
   public DateOnly ToClock(DateOnly scenarioDate);
   public DateOnly FromClock(DateOnly clockDate);
   public void PassDays(int days);                     // moves the clock, and the scenario's today with it
@@ -405,6 +408,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   public Task<TransactionsReading> AskForNewest(UserAtDevice user);
   public Task<TransactionsReading> AskForNewestNamingNoBrowser(string ipAddress);
   public Task<TransactionsReading> AskForOlder(DateOnly before);
+  public void BankLists(params IEnumerable<TransactionAtBank> transactions);   // shifted days, any date_from, replaceable
   public Task Keep(params IEnumerable<KeptAtApp> transactions);
   public IReadOnlyList<DateOnly> DaysTheBankWasAskedFrom();
 }
@@ -413,10 +417,12 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 public sealed record TransactionSeenInApi(DateOnly Date, decimal Amount, bool Pending, string? Counterparty,
   Lines Details, string Kind);                                   // compared by value; currency checked as EUR by the driver
 public sealed record TransactionsReading(IReadOnlyList<TransactionSeenInApi>? Transactions, DateOnly? OlderBefore,
-  decimal? CzkPerEur, DateOnly? RateDate, int? Status, ProblemDescription? Problem);
+  decimal? CzkPerEur, DateOnly? RateDate, ProblemDescription? Problem);   // no status: the driver checks it against its
+                                                                          // own table (as C7a's balance reading, its gate)
 public sealed record KeptAtApp(DateOnly Date, decimal Amount, string? Counterparty = null);   // a unique reference from the DSL
 public sealed class TransactionsDsl(TransactionsDriver driver, ScenarioCalendar calendar) {   // AcceptanceTest.Transactions
   public void TodayIs(DateOnly scenarioToday);
+  public void BankLists(params IEnumerable<TransactionAtBank> transactions);
   public Task Kept(params IEnumerable<KeptAtApp> transactions);
   public Task KeptOnDay(DateOnly day, int count);
   public Task<TransactionsReading> AsksForTheTransactions();

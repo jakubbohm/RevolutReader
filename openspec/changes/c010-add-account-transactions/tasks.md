@@ -10,11 +10,11 @@ Its baseline holds one known exception, accepted once: the traceability check re
 Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks the review mode at the start). There are 40 scenarios: 16 API (one of them `bank-reads`), 19 screen, 5 at the join. So the work is sliced per scenario (design.md D15): slices 1–16 are the API, 17–35 the screen, then the history import, deployment and a local check. **The join (groups 87–95) waits for C7a's merge** (design.md D8); everything before it can run now.
 
 - Docs tasks are the orchestrator's; "Guided" tasks need the owner.
-- **"Green"** means the full suite: `dotnet test` (Docker running, for Azurite), and `npm --prefix src/RevolutReader.Web test`, `lint`, `typecheck` and `format:check`. Two exceptions: this change's acceptance tests stay red until their slice, and the guard 1.3 until slice 4.
+- **"Green"** means the full suite: `dotnet test` (Docker running, for Azurite), and `npm --prefix src/RevolutReader.Web test`, `lint`, `typecheck` and `format:check`. Three exceptions: this change's acceptance tests stay red until their slice; the guard 1.3 until slice 4; and the traceability check until group 88, while it names exactly the 5 join scenarios and nothing else (the user, at the acceptance gate, 2026-11-08).
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API): `Drivers/Azurite`, one container per test session (a TUnit shared data source), image `mcr.microsoft.com/azure-storage/azurite:3.37.0` pinned; it stops with a message when Docker is not running. Every app copy gets `ConnectionStrings:tables` = its connection string and `Transactions:TableName` = a unique name from the DSL (design.md D12). `AcceptanceTest.ConfigureWebHostBuilder` sets them next to `FakeBank.Configure`. Verify: every acceptance test that was green stays green
+- [ ] 1.1 Foundation (API): `Drivers/AzuriteStorage`, one container per test session (a TUnit shared data source), image `mcr.microsoft.com/azure-storage/azurite:3.37.0` pinned; it stops with a message when Docker is not running. Every app copy gets `ConnectionStrings:tables` = its connection string and `Transactions:TableName` = a unique name from the DSL (design.md D12). `AcceptanceTest.ConfigureWebHostBuilder` sets them next to `FakeBank.Configure`. Verify: every acceptance test that was green stays green
 - [ ] 1.2 Foundation (API), as design.md § Public API sketch:
   - `ScenarioCalendar`, `TransactionsDriver`, `TransactionsDsl`, `TransactionsReading`, `TransactionSeenInApi` and `KeptAtApp` as signatures whose methods throw `NotImplementedException`; `AcceptanceTest.Transactions`;
   - `TransactionAtBank` gains `TypeCode` (defaults `CARD_PAYMENT` for `Payment`, `TRANSFER` for `TransferReceived`) and the factories `Refund` and `CashWithdrawal`; `FakeBank` writes it as `bank_transaction_code.code`, in the Mock ASPSP capture's shape;
@@ -231,7 +231,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 29. [wiring] Slice 13 — The older page's endpoint
 
-- [ ] 29.1 `OlderTransactionsEndpoint` (`GET /api/transactions/older?before=`): `before` required, a calendar date, else 400 with a problem description; description 200, 400, 401, 403, 500 (design.md D10). `TransactionsDriver.AskForOlder` and `TransactionsDsl.KeptOnDay` replace their stubs. Regenerate the TS client. Verify: the scenario runs against the app; a second regenerate leaves no diff
+- [ ] 29.1 `OlderTransactionsEndpoint` (`GET /api/transactions/older?before=`): `before` required, a calendar date, else 400 with a problem description; description 200, 400, 401, 403, 500 (design.md D10). `TransactionsDriver.AskForOlder` replaces its stub (`Keep` is slice 2's). Regenerate the TS client. Verify: the scenario runs against the app; a second regenerate leaves no diff
 
 ## 30. [close] Slice 13 — Older transactions come from storage in pages of whole days
 
@@ -255,7 +255,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 34. [close] Slice 15 — A settled transaction stays in the history after the bank stops listing it
 
-- [ ] 34.1 `TransactionsDsl.DaysPass` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A settled transaction stays in the history after the bank stops listing it
+- [ ] 34.1 `ScenarioCalendar.PassDays` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A settled transaction stays in the history after the bank stops listing it
 
 ## 35. [unit] Slice 16 — Pending never kept
 
@@ -445,7 +445,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 75. [wiring] Slice 32 — The list offline
 
-- [ ] 75.1 The 60 s cap (`setTimeout` with an `AbortController`), the note "Pohyby se načtou, jakmile budeš online." (`EmptyState` note, C7a's variant name), and the reload on the window's `online` event. Verify: the scenario runs against the app
+- [ ] 75.1 The 60 s cap (`setTimeout` with an `AbortController`), the note "Pohyby se načtou, jakmile budeš online." (`EmptyState` note, C7a's variant name), and the reload on the window's `online` event; while the phone says it is offline, the note shows and nothing is sent even with the session unknown (`GET /api/me` failed offline), until the join (design.md D7). Verify: the scenario runs against the app
 
 ## 76. [close] Slice 32 — Offline, the transactions load once the phone is back online
 
