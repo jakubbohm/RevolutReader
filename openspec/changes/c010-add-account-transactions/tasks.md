@@ -243,7 +243,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 ## 31. [unit] Slice 14 — The end of the history
 
 - [ ] 31.1 An older page with nothing older kept says so
-- [ ] 31.2 An older page before every kept day is empty and says nothing older is kept
+- [x] 31.2 An older page before every kept day is empty and says nothing older is kept
 
 ## 32. [close] Slice 14 — The oldest page says nothing older is kept
 

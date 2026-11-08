@@ -24,6 +24,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private FakeMicrosoft? _fakeMicrosoft;
   private ScenarioCalendar? _calendar;
   private TransactionsDsl? _transactions;
+  private TransactionsDriver? _transactionsDriver;
   private HealthDriver? _healthDriver;
   private HealthDsl? _health;
   private ApiDriver? _apiDriver;
@@ -80,7 +81,13 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// The transactions through the API, asked for in the browser <see cref="SignIn"/> signs in with, against this test's fake
   /// bank and storage, on the scenario's calendar (spec account-transactions, c010 design.md D12).
   /// </summary>
-  protected TransactionsDsl Transactions => _transactions ??= new(new TransactionsDriver(Browser, FakeBank, Calendar, Services), Calendar);
+  protected TransactionsDsl Transactions => _transactions ??= new(TransactionsDriver, Calendar);
+
+  /// <summary>
+  /// The driver under <see cref="Transactions"/>, the same browser, for the guards in <c>Conventions/</c> that send what no
+  /// scenario names (an older page asked with a query it cannot read). Scenarios use <see cref="Transactions"/> only.
+  /// </summary>
+  protected TransactionsDriver TransactionsDriver => _transactionsDriver ??= new(Browser, FakeBank, Calendar, Services);
 
   /// <summary>The scenario's dates on the app copy's clock; the scenario's today is <see cref="TransactionsDsl.DefaultToday"/> until it names another.</summary>
   private ScenarioCalendar Calendar => _calendar ??= new(TransactionsDsl.DefaultToday, FakeMicrosoft.Clock);

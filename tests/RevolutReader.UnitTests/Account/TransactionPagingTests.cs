@@ -54,6 +54,36 @@ public sealed class TransactionPagingTests {
   public void An_older_page_names_its_oldest_day_when_older_transactions_are_kept() =>
     TransactionPaging.Older(KeptDays(Counts("10, 15, 10, 10")), Day(BEFORE)).OlderBefore.ShouldBe(Day("2026-11-16"));
 
+  // The end of the history (D10)
+
+  /// <param name="days">
+  /// How many are kept on each day before 2026-11-19, newest first, and nothing earlier: fewer than 30 in all, or exactly 30
+  /// reached on the last kept day. Either way the page holds every one of them, and nothing older is kept.
+  /// </param>
+  /// <param name="pageSize">The page: all of them.</param>
+  [Test]
+  [Arguments("10, 15", 25)]
+  [Arguments("10, 20", 30)]
+  public void An_older_page_with_nothing_older_kept_says_so(string days, int pageSize) {
+    OlderPage page = TransactionPaging.Older(KeptDays(Counts(days)), Day(BEFORE));
+
+    page.ShouldSatisfyAllConditions(
+      () => page.Transactions.Count.ShouldBe(pageSize),
+      () => page.OlderBefore.ShouldBeNull());
+  }
+
+  /// <param name="before">The oldest kept day itself (nothing is dated before it), and a day long before every kept one.</param>
+  [Test]
+  [Arguments("2026-11-17")]
+  [Arguments("2026-10-01")]
+  public void An_older_page_before_every_kept_day_is_empty_and_says_nothing_older_is_kept(string before) {
+    OlderPage page = TransactionPaging.Older(KeptDays(("2026-11-18", 3), ("2026-11-17", 2)), Day(before));
+
+    page.ShouldSatisfyAllConditions(
+      () => page.Transactions.ShouldBeEmpty(),
+      () => page.OlderBefore.ShouldBeNull());
+  }
+
   /// <param name="today">The scenarios' today, and two whose 31 days back cross a short February and a year's end.</param>
   /// <param name="windowStart">31 days before it: the newest page's first day.</param>
   [Test]

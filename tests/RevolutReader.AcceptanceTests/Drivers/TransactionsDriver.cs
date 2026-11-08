@@ -126,6 +126,24 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
     return await ReadingOf(response, older);
   }
 
+  /// <summary>
+  /// For the guards in <c>Conventions/</c>: <c>GET /api/transactions/older</c> with <paramref name="query"/> sent as it is
+  /// (empty: no query string at all), in the signed-in browser. The problem description it answered, read as
+  /// <see cref="ApiDriver"/> reads one (status, content type and title; not the <c>type</c>, which FastEndpoints' own 400
+  /// writes differently from ASP.NET's), or <see langword="null"/>; and the whole answer as text, for a failure message.
+  /// </summary>
+  public async Task<(ProblemDescription? Problem, string Answer)> AskForOlderAsSent(string query) {
+    ArgumentNullException.ThrowIfNull(query);
+
+    string older = query.Length == 0 ? OLDER : $"{OLDER}?{query}";
+
+    using HttpResponseMessage response = await browser.GetAsync(new Uri(older, UriKind.Relative));
+
+    string answer = $"{(int)response.StatusCode} {response.Content.Headers.ContentType} {await response.Content.ReadAsStringAsync()}";
+
+    return (await ApiDriver.ProblemOf(response), answer);
+  }
+
   /// <summary>The fake bank lists these transactions, in this order, as one page for any <c>date_from</c>, replacing what it listed before.</summary>
   public void BankLists(IReadOnlyList<TransactionAtBank> transactions) {
     ArgumentNullException.ThrowIfNull(transactions);
