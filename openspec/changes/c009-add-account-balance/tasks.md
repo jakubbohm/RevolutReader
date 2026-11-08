@@ -214,7 +214,7 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 - [x] 26.1 With the phone offline, asking who is signed in sends nothing and reads as offline
 - [x] 26.2 Asking who is signed in with no answer reads as offline
 - [x] 26.3 A server error or a hosting error page to who is signed in reads as unexpected, not offline
-- [ ] 26.4 Offline with nothing stored, the whole screen says so, with no header and no banner
+- [x] 26.4 Offline with nothing stored, the whole screen says so, with no header and no banner
 
 ## 27. [wiring] Slice 11 — The offline screen
 

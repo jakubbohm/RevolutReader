@@ -57,7 +57,8 @@ export type ShownAccount = Extract<Shown, { screen: "account" }>;
  * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7). Nobody signed in: the sign-in
  * screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the server
  * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
- * with no header, the empty frame.
+ * with no header, the empty frame. Offline with nothing to show, the offline state is the whole screen under the top
+ * bar, in place of the header and the banner (D2; app-shell).
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -65,6 +66,16 @@ export function shown(facts: Facts): Shown {
     return { screen: "sign-in", justSignedOut: session.justSignedOut };
   if (session !== "waiting" && session.kind === "refused")
     return { screen: "no access", email: session.email };
+
+  if (facts.balance === null && isOffline(facts))
+    return {
+      screen: "account",
+      account: accountOf(session),
+      header: null,
+      banner: null,
+      body: "offline",
+      signingOut: facts.signingOut,
+    };
 
   const header = headerOf(facts);
 
@@ -76,6 +87,15 @@ export function shown(facts: Facts): Shown {
     body: header === null ? "empty" : "list",
     signingOut: facts.signingOut,
   };
+}
+
+/** Whether the phone is offline as far as the screen knows (D2): who is signed in found it so, or the offline problem is on record. */
+function isOffline(facts: Facts): boolean {
+  const { session, problem } = facts;
+  return (
+    (session !== "waiting" && session.kind === "offline") ||
+    problem?.kind === "offline"
+  );
 }
 
 /** The menu's account: only once `GET /api/me` has named the user (D2), never from what the phone keeps. */
