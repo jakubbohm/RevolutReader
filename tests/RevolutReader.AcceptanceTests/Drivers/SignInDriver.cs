@@ -298,7 +298,7 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   }
 
   /// <summary>Moves the app copy's clock (<see cref="FakeMicrosoft.Clock"/>) forward by <paramref name="time"/>.</summary>
-  public void Advance(TimeSpan time) => throw new NotImplementedException();
+  public void Advance(TimeSpan time) => Microsoft.Clock.Advance(time);
 
   // For the guards in Conventions/, which check the channel itself (c007 design.md D2, D4): requests other sites make the
   // browser send, and the cookies the app set.

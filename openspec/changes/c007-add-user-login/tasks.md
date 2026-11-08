@@ -227,7 +227,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 24. [wiring] Slice 10 — The login's lifetime
 
-- [ ] 24.1 `SignInDriver.Advance` moves the app copy's `FakeTimeProvider`. The cookie handler takes its clock from the app's `TimeProvider`; if the default doesn't, set it explicitly (design.md § Risks). Verify: the scenario runs against the app
+- [x] 24.1 `SignInDriver.Advance` moves the app copy's `FakeTimeProvider`. The cookie handler takes its clock from the app's `TimeProvider`; if the default doesn't, set it explicitly (design.md § Risks). Verify: the scenario runs against the app
 
 ## 25. [close] Slice 10 — A login unused for 30 days has ended
 
