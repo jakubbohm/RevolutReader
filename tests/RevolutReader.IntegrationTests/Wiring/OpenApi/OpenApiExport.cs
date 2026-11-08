@@ -51,6 +51,9 @@ public sealed class OpenApiExport {
       ["EnableBanking:PrivateKey"] = key.ExportPkcs8PrivateKeyPem(),
       ["EnableBanking:SessionId"] = Guid.NewGuid().ToString(),
       ["EnableBanking:AccountId"] = Guid.NewGuid().ToString(),
+      // The sign-in's authority and client id are appsettings.json's own values, not secrets (c007 design.md D11).
+      ["SignIn:ClientSecret"] = $"made-up-client-secret-{Guid.NewGuid()}",
+      ["SignIn:AllowedEmails"] = "export@example.com",
     };
   }
 

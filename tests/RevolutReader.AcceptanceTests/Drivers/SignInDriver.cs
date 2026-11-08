@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
 using RevolutReader.AcceptanceTests.Dsl;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
@@ -41,9 +43,45 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   private const string NAME = "name";
   private const string EMAIL = "email";
 
+  /// <summary>Sign-in's start (D2), and its query for trying another account.</summary>
+  private const string LOGIN = "/api/auth/login";
+  private const string ANOTHER_ACCOUNT = "?anotherAccount=true";
+
+  /// <summary>Where every sign-in lands (D2).</summary>
+  private const string START_PAGE = "/";
+
+  /// <summary>The header the hosting proxy adds (D10).</summary>
+  private const string X_FORWARDED_PROTO = "X-Forwarded-Proto";
+
+  /// <summary>The authorize request's parameters the driver reads (OpenID Connect).</summary>
+  private const string STATE = "state";
+  private const string NONCE = "nonce";
+  private const string REDIRECT_URI = "redirect_uri";
+  private const string PROMPT = "prompt";
+  private const string SELECT_ACCOUNT = "select_account";
+
+  /// <summary>Microsoft's answer to the return address (<c>form_post</c>): a made-up code, which the fake Microsoft takes as it is.</summary>
+  private const string CODE = "code";
+  private const string AUTHORIZATION_CODE = "made-up-authorization-code";
+
+  /// <summary>How the browser marks a request made by a page of Microsoft's (D6): fetch metadata and the origin.</summary>
+  private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
+  private const string CROSS_SITE = "cross-site";
+  private const string ORIGIN = "Origin";
+  private const string MICROSOFTS_PAGES = "https://login.microsoftonline.com";
+
+  /// <summary>More redirects than any answer of the app needs; a longer chain counts as not landing.</summary>
+  private const int MOST_REDIRECTS = 5;
+
+  /// <summary>The app's own address, as the browser reaches it.</summary>
+  private static readonly Uri _appAddress = new("https://localhost");
+
+  /// <summary>The sign-in <see cref="StartSignIn"/> started, for the step that answers it; <see langword="null"/> before.</summary>
+  private StartedSignIn? _started;
+
   /// <summary>The browser's client options: the app's own HTTPS address, no automatic redirects, cookies kept.</summary>
   public static WebApplicationFactoryClientOptions BrowserOptions => new() {
-    BaseAddress = new Uri("https://localhost"),
+    BaseAddress = _appAddress,
     AllowAutoRedirect = false,
     HandleCookies = true,
   };
@@ -73,7 +111,28 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// (<see cref="SignInStart.ReturnAddress"/>) and <c>prompt=select_account</c> (<see cref="SignInStart.AccountPickerAsked"/>);
   /// it keeps <c>state</c>, <c>nonce</c> and the return address for the next step.
   /// </summary>
-  public Task<SignInStart> StartSignIn(bool anotherAccount, string? forwardedProto = null, string? host = null) => throw new NotImplementedException();
+  public async Task<SignInStart> StartSignIn(bool anotherAccount, string? forwardedProto = null, string? host = null) {
+    _started = null;
+
+    string path = anotherAccount ? $"{LOGIN}{ANOTHER_ACCOUNT}" : LOGIN;
+    using HttpRequestMessage request = new(HttpMethod.Get, host is null ? new Uri(path, UriKind.Relative) : new Uri($"http://{host}{path}"));
+
+    if (forwardedProto is not null)
+      request.Headers.Add(X_FORWARDED_PROTO, forwardedProto);
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    if (!IsRedirect(response.StatusCode) || response.Headers.Location is not { IsAbsoluteUri: true } location || !IsAt(location, Microsoft.AuthorizeEndpoint))
+      return new SignInStart(SentToMicrosoft: false, ReturnAddress: null, AccountPickerAsked: false);
+
+    Dictionary<string, StringValues> query = QueryHelpers.ParseQuery(location.Query);
+    Uri? returnAddress = Uri.TryCreate(Single(query, REDIRECT_URI), UriKind.Absolute, out Uri? address) ? address : null;
+
+    if (returnAddress is not null && Single(query, STATE) is { Length: > 0 } state && Single(query, NONCE) is { Length: > 0 } nonce)
+      _started = new StartedSignIn(state, nonce, returnAddress);
+
+    return new SignInStart(SentToMicrosoft: true, returnAddress, AccountPickerAsked: Single(query, PROMPT) == SELECT_ACCOUNT);
+  }
 
   /// <summary>
   /// Microsoft signs <paramref name="identity"/> in: the fake Microsoft gets the ID token for it and the started sign-in's
@@ -83,7 +142,15 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// the app's redirects on its own address; <see cref="Landing.StartPage"/> when they end at <c>/</c> with the app's page
   /// (as <see cref="PagesDriver"/> reads it).
   /// </summary>
-  public Task<Landing> ReturnFromMicrosoft(IdentityAtMicrosoft identity) => throw new NotImplementedException();
+  public async Task<Landing> ReturnFromMicrosoft(IdentityAtMicrosoft identity) {
+    ArgumentNullException.ThrowIfNull(identity);
+
+    StartedSignIn started = Started();
+
+    Microsoft.AnswerToken(identity, started.Nonce);
+
+    return await AnswerFromMicrosoftsPage(started, new Dictionary<string, string> { [CODE] = AUTHORIZATION_CODE, [STATE] = started.State });
+  }
 
   /// <summary>
   /// Microsoft reports that the visitor cancelled the started sign-in: the browser posts <c>error=access_denied</c> and the
@@ -128,6 +195,70 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
   /// <summary>Moves the app copy's clock (<see cref="FakeMicrosoft.Clock"/>) forward by <paramref name="time"/>.</summary>
   public void Advance(TimeSpan time) => throw new NotImplementedException();
+
+  /// <summary>The sign-in <see cref="StartSignIn"/> started; throws when there is none.</summary>
+  private StartedSignIn Started() =>
+    _started ?? throw new InvalidOperationException("No sign-in was started, or the app did not send the visitor to Microsoft: a step must start one first.");
+
+  /// <summary>
+  /// The browser posts <paramref name="answer"/> to the started sign-in's return address, as Microsoft's page makes it
+  /// (D6): a form, sent cross-site from Microsoft's origin. Then it follows the app's redirects to where the visitor lands.
+  /// </summary>
+  private async Task<Landing> AnswerFromMicrosoftsPage(StartedSignIn started, Dictionary<string, string> answer) {
+    using HttpRequestMessage request = new(HttpMethod.Post, started.ReturnAddress) { Content = new FormUrlEncodedContent(answer) };
+    request.Headers.Add(SEC_FETCH_SITE, CROSS_SITE);
+    request.Headers.Add(ORIGIN, MICROSOFTS_PAGES);
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await FollowToLanding(started.ReturnAddress, response);
+  }
+
+  /// <summary>
+  /// Follows the app's redirects on its own address, starting from <paramref name="answer"/> to a request for
+  /// <paramref name="address"/>. <see cref="Landing.StartPage"/> when they end at <c>/</c> with the app's page
+  /// (<see cref="PagesDriver.ReadPage"/>); <see cref="Landing.Elsewhere"/> when they end anywhere else, leave the app's
+  /// address, or don't end.
+  /// </summary>
+  private async Task<Landing> FollowToLanding(Uri address, HttpResponseMessage answer) {
+    Uri at = address;
+    HttpResponseMessage response = answer;
+    List<HttpResponseMessage> followed = [];
+
+    try {
+      for (int hop = 0; IsRedirect(response.StatusCode); hop++) {
+        if (hop == MOST_REDIRECTS || response.Headers.Location is not Uri location)
+          return Landing.Elsewhere;
+
+        at = new Uri(at, location);
+
+        if (!IsAt(at, _appAddress, UriComponents.SchemeAndServer))
+          return Landing.Elsewhere;
+
+        response = await Browser.GetAsync(at);
+        followed.Add(response);
+      }
+
+      bool onStartPage = at.AbsolutePath == START_PAGE && at.Query.Length == 0 && await PagesDriver.ReadPage(response) == PageAnswer.TheApp;
+
+      return onStartPage ? Landing.StartPage : Landing.Elsewhere;
+    }
+    finally {
+      foreach (HttpResponseMessage page in followed)
+        page.Dispose();
+    }
+  }
+
+  private static bool IsRedirect(HttpStatusCode status) =>
+    status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
+
+  /// <summary>Whether <paramref name="address"/> is <paramref name="place"/>, compared by <paramref name="parts"/> (by default: scheme, host, port and path).</summary>
+  private static bool IsAt(Uri address, Uri place, UriComponents parts = UriComponents.SchemeAndServer | UriComponents.Path) =>
+    Uri.Compare(address, place, parts, UriFormat.Unescaped, StringComparison.OrdinalIgnoreCase) == 0;
+
+  /// <summary>The query parameter's value when it occurs exactly once; otherwise <see langword="null"/>.</summary>
+  private static string? Single(Dictionary<string, StringValues> query, string name) =>
+    query.TryGetValue(name, out StringValues values) && values.Count == 1 ? values[0] : null;
 
   /// <summary>The body as a JSON object, detached from its document; <see langword="null"/> when it is not one.</summary>
   private static JsonElement? JsonObjectOrNull(string body) {
@@ -182,4 +313,7 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
     return WhoAnswer.SignedInAs(name.GetString()!, email.GetString()!);
   }
+
+  /// <summary>A started sign-in: what Microsoft's page sends back to the app (<c>state</c>), the token must carry (<c>nonce</c>), and where to.</summary>
+  private sealed record StartedSignIn(string State, string Nonce, Uri ReturnAddress);
 }

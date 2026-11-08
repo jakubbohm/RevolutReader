@@ -88,8 +88,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 5. [wiring] Slice 2 — Signing in through Microsoft
 
-- [ ] 5.1 `SignInOptions` and the `SignIn` section in `appsettings.json`: `Authority`, `ClientId`, and the two secrets as `"<secret>"`, each key with its provenance comment (design.md D11). Bound with `ValidateDataAnnotations`, `SignInOptionsValidator` and `ValidateOnStart`. The export check `OpenApiExport` (`RevolutReader.IntegrationTests/Wiring/OpenApi/`) gets made-up values for the new settings (design.md D9). Verify: build passes; green (the harness's settings pass); the export check passes
-- [ ] 5.2 OpenID Connect in `AddSignIn()`, as design.md D2–D4 describe:
+- [x] 5.1 `SignInOptions` and the `SignIn` section in `appsettings.json`: `Authority`, `ClientId`, and the two secrets as `"<secret>"`, each key with its provenance comment (design.md D11). Bound with `ValidateDataAnnotations`, `SignInOptionsValidator` and `ValidateOnStart`. The export check `OpenApiExport` (`RevolutReader.IntegrationTests/Wiring/OpenApi/`) gets made-up values for the new settings (design.md D9). Verify: build passes; green (the harness's settings pass); the export check passes
+- [x] 5.2 OpenID Connect in `AddSignIn()`, as design.md D2–D4 describe:
   - authority, client id and secret, code flow with `form_post` and PKCE;
   - `CallbackPath` `/api/auth/signin-oidc`;
   - `MapInboundClaims` off, `name` and `email` kept in the login;
@@ -97,9 +97,9 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
   - the login persistent, 30 days, sliding.
 
   Verify: build passes; green
-- [ ] 5.3 `LoginEndpoint` (`GET /api/auth/login`, anonymous) challenges OpenID Connect and returns to `/`. Verify: build passes
-- [ ] 5.4 `FakeMicrosoft`'s discovery, keys and token answers, and `SignInDriver.StartSignIn` and `ReturnFromMicrosoft` (with the cross-site headers of design.md D6) replace their stubs (the DSL was written in full at the acceptance gate). Verify: the scenario runs against the app; a rejection by .NET 11's own CSRF check shows here (design.md § Risks)
-- [ ] 5.5 Docs: configuration.md § `appsettings.json` and § Binding mention the `SignIn` section; ADR-0003 is amended with the addresses, landing on `/` and the cookie names. Verify: they match design.md D2, D4, D11
+- [x] 5.3 `LoginEndpoint` (`GET /api/auth/login`, anonymous) challenges OpenID Connect and returns to `/`. Verify: build passes
+- [x] 5.4 `FakeMicrosoft`'s discovery, keys and token answers, and `SignInDriver.StartSignIn` and `ReturnFromMicrosoft` (with the cross-site headers of design.md D6) replace their stubs (the DSL was written in full at the acceptance gate). Verify: the scenario runs against the app; a rejection by .NET 11's own CSRF check shows here (design.md § Risks)
+- [x] 5.5 Docs: configuration.md § `appsettings.json` and § Binding mention the `SignIn` section; ADR-0003 is amended with the addresses, landing on `/` and the cookie names. Verify: they match design.md D2, D4, D11
 
 ## 6. [wiring] Slice 2 — The generated API client
 

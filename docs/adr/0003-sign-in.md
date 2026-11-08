@@ -1,6 +1,6 @@
 # ADR-0003: Sign-in — the backend signs users in and keeps a login cookie (BFF)
 
-**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-05 in M4: the client secret is created in C6, not M4 (Decision, item 4) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
+**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-05 in M4: the client secret is created in C6, not M4 (Decision, item 4); amended 2026-11-08 in C6: the addresses, landing on `/`, local-only sign-out and the cookie names (Decision, item 6) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M4, C3, C6, M5 · **Questions:** Q2; Q9 (finding)
 
 > Findings verified on 2026-11-05 against the sources linked with each one.
 
@@ -52,6 +52,11 @@ Decided by the user, 2026-11-05:
    - **30 days, renewed while the app is used.**
 4. **The credential is a client secret valid for 12 months.** C6 creates it in its guided task, straight into Key Vault and the AppHost's user-secrets, so it never sits in a file and its 12 months start when it is first needed. It is listed with the expiring approvals. *(Amended by the user, 2026-11-05, in M4: originally M4 created it and kept it on the owner's machine until Key Vault existed.)*
 5. **Sign-in from the Home Screen app is tested on a real iPhone** (the owner's) on the deployed app in C6, before the handover (M5).
+6. **The addresses and the cookies** *(amended in C6, 2026-11-08, with the user in explore; c007 design.md D2, D4)*:
+   - every sign-in address sits under `/api/auth/`, which the page fallback, the service worker and the local Vite proxy already leave to the server: `GET /api/auth/login` starts the sign-in, `POST /api/auth/signin-oidc` is Microsoft's return (`response_mode=form_post`), `POST /api/auth/logout` ends the session;
+   - after sign-in the visitor always lands on `/`. There is no return-address parameter, so there is no open redirect to guard;
+   - sign-out ends only this app's session, never the Microsoft account's. "Try another account" therefore asks Microsoft for its account picker (`prompt=select_account`), or Microsoft would sign the same account in again silently;
+   - the login cookie is `__Host-session` (SameSite Lax, Path `/`, no Domain); the handler's round-trip cookies use the prefix `__Host-signin-` (Path `/`, SameSite None, because Microsoft returns with a cross-site POST). The `__Host-` prefix makes the browser accept them only from the app's exact host, so no other app on the shared hosting domain can plant a session.
 
 ## Alternatives considered
 
@@ -75,6 +80,6 @@ Decided by the user, 2026-11-05:
 - **The cookie's encryption keys (ASP.NET Core Data Protection) persist in Blob Storage.** The app scales to zero, so without that every wake would sign everyone out ([ADR-0006-hosting-registry-and-job § Decision](0006-hosting-registry-and-job.md#decision), item 2; C6).
 - **C3:** no sign-in library; a 401 shows the sign-in link.
 - **Write requests authenticated by the cookie need CSRF protection:** the last view in C7 and the push subscription in C8. C6 chooses the mechanism.
-- **Tests:** the harness creates the login cookie from a self-signed token ([testing.md § Test sign-in](../conventions/testing.md#test-sign-in-fake-the-signature-never-the-security-code)).
+- **Tests:** a fake Microsoft (discovery, keys, token endpoint) in front of the real handlers, walked by a test browser, so the whole sign-in runs production code ([testing.md § Test sign-in](../conventions/testing.md#test-sign-in-fake-the-signature-never-the-security-code); C6 replaced the earlier plan of a harness-made cookie).
 - **Push on iOS** needs the Home Screen app (Q9). C8 subscribes from it, and the handovers (M5, M7) install it and confirm the iOS version.
 - **Software factory:** this diverges from DoseUp ([lessons.md R-24](../software-factory/lessons.md)).
