@@ -48,4 +48,10 @@ public static class DataProtectionKeysRegistration {
 
     return services;
   }
+
+  /// <summary>
+  /// As the options overload, reading the configuration itself: the two addresses from the <c>DataProtection</c> section,
+  /// the app identity's client id from <c>AZURE_CLIENT_ID</c>.
+  /// </summary>
+  public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, IConfiguration configuration) => throw new NotImplementedException();
 }
