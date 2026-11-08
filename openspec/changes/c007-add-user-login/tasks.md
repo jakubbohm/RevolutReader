@@ -16,44 +16,44 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API): `Drivers/FakeMicrosoft`, a WireMock.Net server per test started before the app copy, serving discovery, keys and token (design.md D6). Every app copy gets:
+- [x] 1.1 Foundation (API): `Drivers/FakeMicrosoft`, a WireMock.Net server per test started before the app copy, serving discovery, keys and token (design.md D6). Every app copy gets:
   - `SignIn:Authority` = the fake, a made-up client id and secret, `SignIn:AllowedEmails` = `lucie@example.com`;
   - in `ConfigureTestServices`: `RequireHttpsMetadata = false`, ephemeral Data Protection keys, and `FakeTimeProvider` as the app's `TimeProvider`, started at the real current time.
 
   `AcceptanceTest.ConfigureWebHostBuilder` calls `FakeMicrosoft.Configure` next to `FakeBank.Configure`. Verify: every acceptance test that was green stays green
-- [ ] 1.2 Foundation (API): `SignInDriver` (own `HttpClient`: `https://localhost`, no redirects, cookies kept), `SignInDsl`, `Visitor`, `IdentityAtMicrosoft`, `SignInStart`, `Landing` and `WhoAnswer` as signatures whose methods throw `NotImplementedException`, exactly as design.md § Public API sketch; `AcceptanceTest.SignIn`. Verify: build passes
-- [ ] 1.3 Guard: `Conventions/SignInTelemetryTests` (design.md D3, D8):
+- [x] 1.2 Foundation (API): `SignInDriver` (own `HttpClient`: `https://localhost`, no redirects, cookies kept), `SignInDsl`, `Visitor`, `IdentityAtMicrosoft`, `SignInStart`, `Landing` and `WhoAnswer` as signatures whose methods throw `NotImplementedException`, exactly as design.md § Public API sketch; `AcceptanceTest.SignIn`. Verify: build passes
+- [x] 1.3 Guard: `Conventions/SignInTelemetryTests` (design.md D3, D8):
   - a stranger's sign-in logs exactly one `SignInRefused` warning, and no captured line contains the stranger's email;
   - an allowed user's sign-in logs no warning.
 
   Verify: fails at runtime until slice 3
-- [ ] 1.4 Guard: `Conventions/AnonymousEndpointsTests`:
+- [x] 1.4 Guard: `Conventions/AnonymousEndpointsTests`:
   - "open" now means `IAllowAnonymous` only, because the fallback policy protects the rest (design.md D3);
   - the allowlist gains `GET /api/auth/login` (and `HEAD` if FastEndpoints maps it) and `POST /api/auth/logout`.
 
   Verify: fails at runtime until slice 4
-- [ ] 1.5 Foundation (frontend): `src/test/renderApp.tsx` takes the server's answer to `GET /api/me` (401, 403 with or without an email, 200 with a name and email, a failure). It records the requests the app sends and where the app navigates. Verify: the existing frontend tests stay green
-- [ ] 1.6 Acceptance: sign-in / An anonymous visitor is asked to sign in
-- [ ] 1.7 Acceptance: sign-in / An allowed user who signs in gets in
-- [ ] 1.8 Acceptance: sign-in / A stranger who signs in is refused, with their own email
-- [ ] 1.9 Acceptance: sign-in / Signing out ends the login
-- [ ] 1.10 Acceptance: sign-in / A write request from another site is refused
-- [ ] 1.11 Acceptance: sign-in / Sign-in returns to the app's own HTTPS address behind the hosting proxy
-- [ ] 1.12 Acceptance: sign-in / Signing in again with another account opens Microsoft's account picker
-- [ ] 1.13 Acceptance: sign-in / A sign-in cancelled at Microsoft leaves the visitor signed out
-- [ ] 1.14 Acceptance: sign-in / An account from a work or school directory is not signed in
-- [ ] 1.15 Acceptance: sign-in / A login unused for 30 days has ended
-- [ ] 1.16 Acceptance: sign-in / Using the app keeps the login alive
-- [ ] 1.17 Acceptance: sign-in / The sign-in screen shows when nobody is signed in (frontend)
-- [ ] 1.18 Acceptance: sign-in / Tapping the sign-in button starts the Microsoft sign-in (frontend)
-- [ ] 1.19 Acceptance: sign-in / A refused account sees that it has no access (frontend)
-- [ ] 1.20 Acceptance: sign-in / Trying another account signs out and starts a new sign-in (frontend)
-- [ ] 1.21 Acceptance: sign-in / Signing out from the account menu shows the signed-out screen (frontend)
-- [ ] 1.22 Acceptance: app-shell / The account menu shows who is signed in (frontend)
-- [ ] 1.23 Acceptance: app-shell / The top bar shows the app name (frontend), modified: the test signs someone in first. Verify: it passes, because a signed-in user sees the top bar today too
-- [ ] 1.24 Acceptance: sign-in / Signing in from the Home Screen app opens the app (manual): a row in `tests/manual-scenarios.md` (why manual: Microsoft's real pages and the Home Screen app's own cookie jar; handover step M5; first chance right after the merge deploys)
-- [ ] 1.25 Acceptance: sign-in / The Home Screen app stays signed in after it is closed (manual): a row as in 1.24
-- [ ] 1.26 Docs (design.md D6):
+- [x] 1.5 Foundation (frontend): `src/test/renderApp.tsx` takes the server's answer to `GET /api/me` (401, 403 with or without an email, 200 with a name and email, a failure). It records the requests the app sends and where the app navigates. Verify: the existing frontend tests stay green
+- [x] 1.6 Acceptance: sign-in / An anonymous visitor is asked to sign in
+- [x] 1.7 Acceptance: sign-in / An allowed user who signs in gets in
+- [x] 1.8 Acceptance: sign-in / A stranger who signs in is refused, with their own email
+- [x] 1.9 Acceptance: sign-in / Signing out ends the login
+- [x] 1.10 Acceptance: sign-in / A write request from another site is refused
+- [x] 1.11 Acceptance: sign-in / Sign-in returns to the app's own HTTPS address behind the hosting proxy
+- [x] 1.12 Acceptance: sign-in / Signing in again with another account opens Microsoft's account picker
+- [x] 1.13 Acceptance: sign-in / A sign-in cancelled at Microsoft leaves the visitor signed out
+- [x] 1.14 Acceptance: sign-in / An account from a work or school directory is not signed in
+- [x] 1.15 Acceptance: sign-in / A login unused for 30 days has ended
+- [x] 1.16 Acceptance: sign-in / Using the app keeps the login alive
+- [x] 1.17 Acceptance: sign-in / The sign-in screen shows when nobody is signed in (frontend)
+- [x] 1.18 Acceptance: sign-in / Tapping the sign-in button starts the Microsoft sign-in (frontend)
+- [x] 1.19 Acceptance: sign-in / A refused account sees that it has no access (frontend)
+- [x] 1.20 Acceptance: sign-in / Trying another account signs out and starts a new sign-in (frontend)
+- [x] 1.21 Acceptance: sign-in / Signing out from the account menu shows the signed-out screen (frontend)
+- [x] 1.22 Acceptance: app-shell / The account menu shows who is signed in (frontend)
+- [x] 1.23 Acceptance: app-shell / The top bar shows the app name (frontend), modified: the test signs someone in first. Verify: it passes, because a signed-in user sees the top bar today too
+- [x] 1.24 Acceptance: sign-in / Signing in from the Home Screen app opens the app (manual): a row in `tests/manual-scenarios.md` (why manual: Microsoft's real pages and the Home Screen app's own cookie jar; handover step M5; first chance right after the merge deploys)
+- [x] 1.25 Acceptance: sign-in / The Home Screen app stays signed in after it is closed (manual): a row as in 1.24
+- [x] 1.26 Docs (design.md D6):
   - testing.md § Test sign-in (the fake provider, the HTTPS client, the clock starting at the real time) and § Acceptance-test harness (what each app copy now gets);
   - `.claude/rules/testing.md`;
   - lesson R-24 gains the test mechanics;
