@@ -5,10 +5,10 @@ using RevolutReader.AcceptanceTests.Dsl;
 namespace RevolutReader.AcceptanceTests.Drivers;
 
 /// <summary>
-/// Calls the API over HTTP. <see cref="GetProblem"/> returns the problem description the API answered with (RFC 9457):
-/// an error status, content type <c>application/problem+json</c>, a body whose <c>status</c> equals the response status,
-/// and a title that is the case belonging to that status (case → status table, docs/conventions/README.md); otherwise
-/// <see langword="null"/>.
+/// Calls the API over HTTP, without signing in. <see cref="GetProblem"/> and <see cref="PostProblem"/> return the problem
+/// description the API answered with (RFC 9457): an error status, content type <c>application/problem+json</c>, a body
+/// whose <c>status</c> equals the response status, and a title that is the case belonging to that status (case → status
+/// table, docs/conventions/README.md); otherwise <see langword="null"/>.
 /// </summary>
 public sealed class ApiDriver {
   private const string PROBLEM_JSON = "application/problem+json";
@@ -16,6 +16,7 @@ public sealed class ApiDriver {
   /// <summary>The cases of the case → status table (docs/conventions/README.md) that the DSL knows, with their status.</summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
     [ProblemDescription.NotFound] = HttpStatusCode.NotFound,
+    [ProblemDescription.Unauthorized] = HttpStatusCode.Unauthorized,
   };
 
   private readonly HttpClient _http;
@@ -25,6 +26,17 @@ public sealed class ApiDriver {
   public async Task<ProblemDescription?> GetProblem(string path) {
     using HttpResponseMessage response = await _http.GetAsync(new Uri(path, UriKind.Relative));
 
+    return await ProblemOf(response);
+  }
+
+  /// <summary>A <c>POST</c> without a body and without a browser's fetch metadata, as a script or a typo sends one.</summary>
+  public async Task<ProblemDescription?> PostProblem(string path) {
+    using HttpResponseMessage response = await _http.PostAsync(new Uri(path, UriKind.Relative), content: null);
+
+    return await ProblemOf(response);
+  }
+
+  private static async Task<ProblemDescription?> ProblemOf(HttpResponseMessage response) {
     int status = (int)response.StatusCode;
 
     if (status is < 400 or > 599)
