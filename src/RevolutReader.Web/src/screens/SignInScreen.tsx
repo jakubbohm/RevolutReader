@@ -4,19 +4,19 @@ import { useLeaving } from "../app/useLeaving";
 import { MicrosoftSignInButton } from "../components/MicrosoftSignInButton";
 
 export interface SignInScreenProps {
-  /** Shown right after signing out from the account menu, with its note above the button (c007, slice 17). */
+  /** Right after signing out from the account menu: the note that it happened shows above the button. */
   signedOut: boolean;
 }
 
 /**
- * The screen when nobody is signed in (spec sign-in, laid out as the Screens board "Sign-in / Start", light and dark;
- * c007 design.md D12): no top bar; the app icon and its Spanish name with one line about the app, centred; the
- * Microsoft sign-in button and its muted line at the bottom, above the home-indicator inset. Tapping the button starts
- * the sign-in, and the button shows it is loading while the page leaves for Microsoft; a second tap does nothing. When
- * the visitor comes back with the browser's back button and the page is restored from the back-forward cache, the
- * button is ready again.
+ * The screen when nobody is signed in (spec sign-in, laid out as the Screens boards "Sign-in / Start", light and dark,
+ * and "Sign-in / Signed out"; c007 design.md D12): no top bar; the app icon and its Spanish name with one line about
+ * the app, centred; the Microsoft sign-in button and its muted line at the bottom, above the home-indicator inset, and
+ * right after a sign-out the note that it happened above the button. Tapping the button starts the sign-in, and the
+ * button shows it is loading while the page leaves for Microsoft; a second tap does nothing. When the visitor comes
+ * back with the browser's back button and the page is restored from the back-forward cache, the button is ready again.
  */
-export function SignInScreen(_props: SignInScreenProps): JSX.Element {
+export function SignInScreen({ signedOut }: SignInScreenProps): JSX.Element {
   const [leaving, setLeaving] = useLeaving();
 
   function signIn(): void {
@@ -45,6 +45,11 @@ export function SignInScreen(_props: SignInScreenProps): JSX.Element {
         </p>
       </div>
       <div className="flex flex-col items-center gap-3 text-center">
+        {signedOut ? (
+          <p className="text-subhead text-ink" role="status">
+            Odhlášení proběhlo. Pro návrat se znovu přihlas.
+          </p>
+        ) : null}
         <MicrosoftSignInButton onClick={signIn} loading={leaving} />
         <p className="text-footnote text-ink-muted">
           Použij účet Microsoft, který ti táta povolil.

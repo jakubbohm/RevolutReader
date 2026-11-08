@@ -297,7 +297,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 39. [wiring] Slice 17 — Signing out from the menu
 
-- [ ] 39.1 "Odhlásit se" calls `signOut()`, then shows `SignInScreen` with the note "Odhlášení proběhlo. Pro návrat se znovu přihlas." (`role="status"`), as on the "Sign-in / Signed out" board. Verify: the scenario runs against the app
+- [x] 39.1 "Odhlásit se" calls `signOut()`, then shows `SignInScreen` with the note "Odhlášení proběhlo. Pro návrat se znovu přihlas." (`role="status"`), as on the "Sign-in / Signed out" board. Verify: the scenario runs against the app
 
 ## 40. [close] Slice 17 — Signing out from the account menu shows the signed-out screen
 
