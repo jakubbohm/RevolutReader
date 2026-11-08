@@ -11,10 +11,12 @@ import {
   goOffline,
   goOnline,
   kept,
+  keptBalance,
   noAnswerYet,
   phoneKeeps,
   requests,
   signedIn,
+  signedOut,
   timeline,
   type BalanceAnswer,
   type ServerAnswers,
@@ -241,3 +243,46 @@ test.each(firstLoadsWithNoAnswer)(
     });
   },
 );
+
+// D4: a device without a login holds no bank data. A read still under way when the server confirms a sign-out lands
+// after the sign-out's forgetting; it must neither come back on the screen nor be kept on the phone.
+test("A balance read that lands after a sign-out the server confirmed is neither shown nor kept on the phone", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [balance(286.4), after(5 * SECOND, balance(301.9))],
+    signOut: signedOut,
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+  });
+  await timePasses(5 * SECOND);
+
+  // The late read ended after the server confirmed the sign-out: answered then (or aborted by the sign-out).
+  const entries = timeline();
+  const signedOutAt = entries.indexOf("answer POST /api/auth/logout");
+  const lateReadEndedAt = entries.findLastIndex(
+    (entry) =>
+      entry === "answer GET /api/balance" ||
+      entry === "aborted GET /api/balance",
+  );
+  expect(signedOutAt, "the server confirmed the sign-out").not.toBe(-1);
+  expect(lateReadEndedAt, "the late read ended after it").toBeGreaterThan(
+    signedOutAt,
+  );
+  expect(result.current.shown, "not shown").toMatchObject({
+    screen: "sign-in",
+  });
+  expect(await keptBalance(), "not kept").toBeNull();
+});
