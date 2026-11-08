@@ -54,6 +54,9 @@ public sealed class OpenApiExport {
       // The sign-in's authority and client id are appsettings.json's own values, not secrets (c007 design.md D11).
       ["SignIn:ClientSecret"] = $"made-up-client-secret-{Guid.NewGuid()}",
       ["SignIn:AllowedEmails"] = "export@example.com",
+      // Checked at start to be set (c010 design.md D11); Azurite's shorthand for its local account, never reached: the
+      // export reads no table.
+      ["ConnectionStrings:tables"] = "UseDevelopmentStorage=true",
     };
   }
 

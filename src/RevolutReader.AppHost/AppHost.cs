@@ -1,3 +1,5 @@
+using Aspire.Hosting.Azure;
+
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 
 // The bank adapter's four secrets (c004 design.md D6): this AppHost's user-secrets locally (Parameters:enablebanking-*),
@@ -12,8 +14,15 @@ IResourceBuilder<ParameterResource> accountId = builder.AddParameter("enablebank
 IResourceBuilder<ParameterResource> signInClientSecret = builder.AddParameter("signin-client-secret", secret: true);
 IResourceBuilder<ParameterResource> signInAllowedEmails = builder.AddParameter("signin-allowed-emails", secret: true);
 
+// The transaction store's tables (c010 design.md D11): Azurite in Docker, handed to the API as ConnectionStrings__tables.
+IResourceBuilder<AzureTableStorageResource> tables = builder.AddAzureStorage("storage")
+  .RunAsEmulator()
+  .AddTables("tables");
+
 IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.RevolutReader_Api>("api")
   .WithHttpHealthCheck("/health")
+  .WithReference(tables)
+  .WaitFor(tables)
   .WithEnvironment("EnableBanking__ApplicationId", applicationId)
   .WithEnvironment("EnableBanking__PrivateKey", privateKey)
   .WithEnvironment("EnableBanking__SessionId", sessionId)
