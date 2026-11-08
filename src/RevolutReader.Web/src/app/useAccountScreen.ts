@@ -329,7 +329,6 @@ export function useAccountScreen(): AccountScreenModel {
 
   const facts: Facts = {
     session,
-    stored,
     balance: balance ?? stored,
     reading,
     wait,

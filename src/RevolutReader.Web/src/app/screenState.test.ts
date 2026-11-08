@@ -21,7 +21,6 @@ const READ: Balance = {
 function facts(changes: Partial<Facts>): Facts {
   return {
     session: "waiting",
-    stored: null,
     balance: null,
     reading: "no",
     wait: "short",
@@ -81,7 +80,6 @@ const refreshing: {
     label: "the first read on an awake server, over a stored balance",
     changes: {
       session: LUCIE,
-      stored: STORED,
       balance: STORED,
       reading: "first",
       wait: "short",
@@ -135,7 +133,7 @@ test.each(offlineWithNothingStored)(
 const offlineWithAStoredBalance = offlineWithNothingStored.map(
   ({ label, changes }) => ({
     label,
-    changes: { ...changes, stored: STORED, balance: STORED },
+    changes: { ...changes, balance: STORED },
   }),
 );
 
@@ -156,9 +154,7 @@ test.each(offlineWithAStoredBalance)(
 // holds nothing, and C7b's list goes there.
 
 test("Under 1.5 s with a stored balance, the header shows it in its default state and the list slot is empty", () => {
-  expect(
-    shown(facts({ stored: STORED, balance: STORED, wait: "short" })),
-  ).toMatchObject({
+  expect(shown(facts({ balance: STORED, wait: "short" }))).toMatchObject({
     screen: "account",
     header: { balance: STORED, refreshing: false },
     banner: null,
@@ -167,9 +163,7 @@ test("Under 1.5 s with a stored balance, the header shows it in its default stat
 });
 
 test("From 1.5 s with a stored balance, the waking-up screen stands in the list's place", () => {
-  expect(
-    shown(facts({ stored: STORED, balance: STORED, wait: "long" })),
-  ).toMatchObject({
+  expect(shown(facts({ balance: STORED, wait: "long" }))).toMatchObject({
     screen: "account",
     header: { balance: STORED, refreshing: false },
     body: "waking",
@@ -188,7 +182,7 @@ test("From 1.5 s with nothing stored, the waking-up screen is the whole screen",
 const slowWakes: { label: string; changes: Partial<Facts>; shows: object }[] = [
   {
     label: "a balance stored, in the list's place",
-    changes: { stored: STORED, balance: STORED, wait: "slow" },
+    changes: { balance: STORED, wait: "slow" },
     shows: { header: { balance: STORED, refreshing: false } },
   },
   {
@@ -220,7 +214,6 @@ const afterAWake: { label: string; changes: Partial<Facts>; shows: object }[] =
       label: "the balance read runs, a balance stored",
       changes: {
         session: LUCIE,
-        stored: STORED,
         balance: STORED,
         reading: "first",
         wait: "long",
@@ -307,13 +300,12 @@ const unexpectedAnswers: {
   },
   {
     label: "a balance stored",
-    changes: { stored: STORED, balance: STORED },
+    changes: { balance: STORED },
     shows: { header: { balance: STORED, refreshing: false } },
   },
   {
     label: "a balance stored, the problem on record",
     changes: {
-      stored: STORED,
       balance: STORED,
       problem: { kind: "unexpected" },
     },

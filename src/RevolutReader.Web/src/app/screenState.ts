@@ -14,9 +14,7 @@ export type Problem =
 export interface Facts {
   /** The answer to who is signed in, once it came. */
   session: Session | "waiting";
-  /** The phone's record, as loaded at start. */
-  stored: Balance | null;
-  /** The latest read, else the stored one. */
+  /** The latest read, else the one the phone keeps, as loaded at start. */
   balance: Balance | null;
   /** A balance read under way. */
   reading: "no" | "first" | "refresh";
