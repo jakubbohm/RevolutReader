@@ -12,7 +12,19 @@ public sealed record TransactionPageResponse(
   [property: Description("The page's transactions, newest day first, in the bank's order within a day")] IReadOnlyList<TransactionResponse> Transactions,
   [property: Description("The day before which older transactions are kept, to ask for the next older page with; null when none are")] DateOnly? OlderBefore,
   [property: Description("Czech koruna per euro, the rate the app converts euro amounts with")] decimal CzkPerEur,
-  [property: Description("The day the koruna rate is for")] DateOnly RateDate);
+  [property: Description("The day the koruna rate is for")] DateOnly RateDate) {
+  /// <summary>A page as the API answers it, the newest or an older one: each transaction's seven fields, as the page holds them.</summary>
+  internal static TransactionPageResponse Of(TransactionPage page) {
+    ArgumentNullException.ThrowIfNull(page);
+
+    return new(
+      [.. page.Transactions.Select(static transaction => new TransactionResponse(
+        transaction.Date, transaction.Amount, transaction.Currency, transaction.Pending, transaction.Counterparty, transaction.Details, transaction.Kind))],
+      page.OlderBefore,
+      page.CzkPerEur,
+      page.RateDate);
+  }
+}
 
 /// <summary>A transaction as the API answers it (D10): the seven fields the screen shows.</summary>
 [Description("A transaction as the app shows it")]

@@ -178,6 +178,80 @@
         }
       }
     },
+    "/api/transactions/older": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "Older transactions, from storage, in pages of whole days",
+        "operationId": "RevolutReaderApiAccountOlderTransactionsEndpoint",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "The day before which the page's transactions are dated, as yyyy-MM-dd: the olderBefore of the page before it",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [

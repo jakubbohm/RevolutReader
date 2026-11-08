@@ -46,12 +46,6 @@ public sealed class NewestTransactionsEndpoint(ReadNewestTransactionsHandler han
     if (user is null)
       return BankAnswers.NoPresentUser();
 
-    return BankAnswers.From(await handler.Handle(user, cancellationToken), ToResponse);
+    return BankAnswers.From(await handler.Handle(user, cancellationToken), TransactionPageResponse.Of);
   }
-
-  private static TransactionPageResponse ToResponse(TransactionPage page) =>
-    new([.. page.Transactions.Select(ToResponse)], page.OlderBefore, page.CzkPerEur, page.RateDate);
-
-  private static TransactionResponse ToResponse(ShownTransaction transaction) =>
-    new(transaction.Date, transaction.Amount, transaction.Currency, transaction.Pending, transaction.Counterparty, transaction.Details, transaction.Kind);
 }

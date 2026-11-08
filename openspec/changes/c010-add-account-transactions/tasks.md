@@ -233,11 +233,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 29. [wiring] Slice 13 — The older page's endpoint
 
-- [ ] 29.1 `OlderTransactionsEndpoint` (`GET /api/transactions/older?before=`): `before` required, a calendar date, else 400 with a problem description; description 200, 400, 401, 403, 500 (design.md D10). `TransactionsDriver.AskForOlder` replaces its stub (`Keep` is slice 2's). Regenerate the TS client. Verify: the scenario runs against the app; a second regenerate leaves no diff
+- [x] 29.1 `OlderTransactionsEndpoint` (`GET /api/transactions/older?before=`): `before` required, a calendar date, else 400 with a problem description; description 200, 400, 401, 403, 500 (design.md D10). `TransactionsDriver.AskForOlder` replaces its stub (`Keep` is slice 2's). Regenerate the TS client. Verify: the scenario runs against the app; a second regenerate leaves no diff
 
 ## 30. [close] Slice 13 — Older transactions come from storage in pages of whole days
 
-- [ ] 30.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions come from storage in pages of whole days
+- [x] 30.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions come from storage in pages of whole days
 
 ## 31. [unit] Slice 14 — The end of the history
 

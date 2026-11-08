@@ -41,11 +41,11 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item><see cref="DaysTheBankWasAskedFrom"/> reads the <c>date_from</c> of every request for the account's transactions
 /// the fake bank received, in order, shifted back to the scenario's calendar.</item>
 /// </list>
-/// <see cref="AskForOlder"/> is filled in by the wiring group of the older pages; until then it throws.
 /// </summary>
 public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, ScenarioCalendar calendar, IServiceProvider app) {
-  /// <summary>The newest page (D10).</summary>
+  /// <summary>The newest page and an older one (D10).</summary>
   private const string NEWEST = "/api/transactions";
+  private const string OLDER = "/api/transactions/older";
 
   /// <summary>The headers the hosting proxy and the browser send, which name the present user (C13).</summary>
   private const string X_FORWARDED_FOR = "X-Forwarded-For";
@@ -118,7 +118,13 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   }
 
   /// <summary><c>GET /api/transactions/older?before=</c> the clock's date for <paramref name="before"/>, in the signed-in browser.</summary>
-  public Task<TransactionsReading> AskForOlder(DateOnly before) => throw new NotImplementedException();
+  public async Task<TransactionsReading> AskForOlder(DateOnly before) {
+    string older = $"{OLDER}?before={calendar.ToClock(before).ToString(DATE_FORMAT, CultureInfo.InvariantCulture)}";
+
+    using HttpResponseMessage response = await browser.GetAsync(new Uri(older, UriKind.Relative));
+
+    return await ReadingOf(response, older);
+  }
 
   /// <summary>The fake bank lists these transactions, in this order, as one page for any <c>date_from</c>, replacing what it listed before.</summary>
   public void BankLists(IReadOnlyList<TransactionAtBank> transactions) {
