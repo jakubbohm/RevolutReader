@@ -256,7 +256,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 29. [close] Slice 12 — The sign-in screen shows when nobody is signed in
 
-- [ ] 29.1 The scenario's test passes. Verify: green, including sign-in / The sign-in screen shows when nobody is signed in
+- [x] 29.1 The scenario's test passes. Verify: green, including sign-in / The sign-in screen shows when nobody is signed in
 
 ## 30. [unit] Slice 13 — Starting a sign-in
 
