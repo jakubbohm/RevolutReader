@@ -18,7 +18,7 @@
   - frontend `readNewestTransactions`, `readOlderTransactions`, `useTransactionList`, the list's rules;
   - `TransactionList`, `DayGroup`, `DayHeader`, `TransactionRow`, `TransactionSheet`, `ListEnd`.
 - **Integration points:** Enable Banking through the existing port (one more field read); C13's present user, problem rules and rate; the app's storage account (a new table and role, Bicep); Azurite through the AppHost and Testcontainers; C7a's screen, refresh signal and banner (the join); the regenerated TS client.
-- **Hard to reverse:** the table's keys (the bank's reference as the row key, one partition), which the import and every stored row carry; the answer's field names and `kind` values, which the client compares exactly.
+- **Hard to reverse:** the table's keys (a hash of the bank's reference as the row key, one partition), which the import and every stored row carry; the answer's field names and `kind` values, which the client compares exactly.
 
 ## Context
 
@@ -104,7 +104,7 @@
   - **The kind's words:** `CARD_PAYMENT` "Platba kartou", `TOPUP` "Dobití účtu", `TRANSFER` "Převod", `ATM` "Výběr z bankomatu", `EXCHANGE` "Směna měny", a refund "Vrácení peněz"; any other code "Příchozí platba" or "Odchozí platba" by direction (the design system's `KIND_WORD` and `kindWord`).
   - **The bank's text** is the payment details without blank lines and without any line that repeats the counterparty, compared ignoring letter case, accents and spacing, each kept line with its runs of spaces collapsed (the design system's `descriptionLines`, after the design loop: "PEKARNA U LIPY" repeats "Pekárna U Lípy"). 100 of 116 history transactions carry such a line (c004 design.md D3; the explore check compared ignoring case). *(propose)* The server cuts it, so the answer carries only what the screen shows (openspec/config.yaml, specs rule).
   - This needs the type code, so `bank-reads`' "What a transaction carries" gains it: `bank_transaction_code.code`, unchanged, possibly missing.
-- **(c) Refunds:** a type code containing `REFUND` (ordinal, ignoring case) is a refund: the `undo-2` icon, the sheet's "Vrácení peněz" and "Vráceno na účet" (the user), and the "Vrácení" chip before line 2 when line 1 is the counterparty and line 2 the bank's text, so that no line says "Vrácení" twice (the design loop). Revolut's API reference lists `REFUND` and `CARD_REFUND` types (search summary only; developer.revolut.com answered 403 on 2026-11-08), and the history holds none, so this is the change's riskiest assumption. A wrong guess shows a refund as a plain incoming payment. **Every code the server does not know is logged** as a warning, the code itself only when it looks like one (`^[A-Z0-9_]{1,40}$`), otherwise "a code that does not look like one"; a missing code is logged too.
+- **(c) Refunds:** a type code containing `REFUND` (ordinal, ignoring case) is a refund: the `undo-2` icon, the sheet's "Vrácení peněz" and "Vráceno na účet" (the user), and the "Vrácení" chip before line 2 when line 1 is the counterparty and line 2 the bank's text, so that no line says "Vrácení" twice (the design loop). Revolut's API reference lists `REFUND` and `CARD_REFUND` types (search summary only; developer.revolut.com answered 403 on 2026-11-08), and the history holds none, so this is the change's riskiest assumption. A wrong guess shows a refund as a plain incoming payment. **Every code the server does not know is logged** as a warning, the code itself only when it looks like one (`^[A-Z0-9_]{1,40}$`), otherwise "a code that does not look like one"; a missing code is logged too. Only the newest page logs, and once per page for each thing it reports: each distinct unknown code once, however many transactions carry it; a code that does not look like one once; a missing code once, with no count (the user, 2026-11-09: about 40 identical warnings per refresh otherwise). **A code containing `REFUND` is shown as a refund and still logged** (the user, 2026-11-09), as the warning `RefundTypeCode` carrying the code under the same quoting rule, once per distinct code per page, so that the first real refund in the logs confirms the guess; dropping that line once it has is a one-line change.
 - **(d) The sheet:** option A, trimmed (the user), now the Screens design's "Transaction sheet / Default":
   - the title is the row's line 1; under it the kind's word, left out when the title already is that word (the design loop; it replaced "Odchozí platba" / "Příchozí platba" / "Vrácení peněz");
   - "Stav": "Zaúčtováno", "Vráceno na účet", or the "Čeká na zpracování" chip;
@@ -117,7 +117,7 @@
 ### D5 — The store: one table, read whole
 
 - **Table `transactions`** in `strevolutreader`, one partition (`account`), one row per settled transaction (the user, "simple").
-  - **Row key:** the bank's `entry_reference`. *(propose)* Escaped with `Uri.EscapeDataString`, because Table Storage forbids `/`, `\`, `#` and `?` in keys; the reference is also kept as a column, unescaped. Revolut's references have none of these as far as the history shows, but nobody promised it.
+  - **Row key:** the SHA-256 of the bank's `entry_reference` (its UTF-8 bytes), in lowercase hex: 64 characters, only `0-9a-f` (the user, 2026-11-09). Table Storage forbids `/`, `\`, `#` and `?` in keys, and escaping would put `%` in them, which an older Azure Storage report says causes trouble; a hash has neither, whatever the reference holds. The reference is kept unchanged in its own column, which is what every read uses. Revolut's references have none of these characters as far as the history shows, but nobody promised it. Changing this later would mean rewriting every stored row, so it is decided before the first one is written.
   - **Columns** *(propose)*: `Reference`, `Date` (`yyyy-MM-dd`), `Position` (its place within its day in the bank's order, 0 first), `Amount` (invariant decimal string: tables have no decimal type), `Currency`, `Counterparty`, `Details` (the bank's lines as a JSON array, unchanged), `TypeCode`. The kind and the shown text are worked out when answering, so a later rule change needs no migration.
 - **Every request reads every row** and cuts its page in memory (a few hundred rows; ADR-0005's "Tables answer key lookups only … the data is small enough"). So ADR-0005 item 4, "keyed so that a date range is a key query", gets a dated amendment.
 - **Every live read writes its settled transactions again,** each day of its range in full with its positions: an upsert by key, so writing one again changes nothing, and two phones reading at once write the same rows. Pending transactions are never written (ADR-0001 item 6).
@@ -270,7 +270,7 @@ public enum TransactionKind { CardPayment, TopUp, Transfer, CashWithdrawal, Exch
 /// <summary>The kind of a type code (D4): the five known codes; any code containing REFUND, ignoring case; else Other.</summary>
 public static class TransactionKinds {
   public static TransactionKind Of(string? typeCode);
-  public static bool IsKnown(string? typeCode);                 // false → the handler logs it (D4c)
+  public static bool IsKnown(string? typeCode);                 // the five codes only; false → the handler logs it, a REFUND code as RefundTypeCode (D4c)
   public static bool LooksLikeACode(string? typeCode);          // ^[A-Z0-9_]{1,40}$ → quoted in the log
 }
 
@@ -337,6 +337,7 @@ public static partial class TransactionsLog {
   public static partial void HistoryGap(ILogger logger, int days);                    // Warning
   public static partial void SettledWithoutReference(ILogger logger, int count);      // Warning
   public static partial void UnknownTypeCode(ILogger logger, string code);            // Warning
+  public static partial void RefundTypeCode(ILogger logger, string code);             // Warning, until a real refund confirms D4c's guess
   public static partial void TypeCodeNotLikeACode(ILogger logger);                    // Warning
   public static partial void NoTypeCode(ILogger logger);                              // Warning
 }
@@ -361,7 +362,7 @@ public static class TransactionsRegistration {
 /// <summary>The Transactions section (D11), validated on start.</summary>
 public sealed class TransactionStoreOptions { public const string SECTION = "Transactions"; public required string TableName { get; init; } }
 
-/// <summary>ITransactionStore on Azure Table Storage (D5): partition "account", row key = escaped reference; creates the
+/// <summary>ITransactionStore on Azure Table Storage (D5): partition "account", row key = the reference's SHA-256 in hex; creates the
 /// table if missing, once per process; Keep upserts in batches of at most 100 (one partition).</summary>
 public sealed class TableTransactionStore(TableServiceClient tables, IOptions<TransactionStoreOptions> options) : ITransactionStore;
 
@@ -593,7 +594,7 @@ export function useTransactionList(options: { enabled: boolean }): {
 
 ## Risks / Trade-offs
 
-- **[`REFUND` is not how Revolut marks refunds]** → a refund shows as a plain incoming payment; the warning log names the code on its first appearance, and a one-line change in `TransactionKinds` follows.
+- **[`REFUND` is not how Revolut marks refunds]** → a refund shows as a plain incoming payment; the warning log names the code on the first newest page that holds it, and a one-line change in `TransactionKinds` follows. If the guess is right, `RefundTypeCode` shows it the same way.
 - **[C7a's components or texts change in its review before it merges]** → the rebase takes C7a's merged version (D13); a text that differs from this spec is shown to the user and fixed as `[plan]`.
 - **[Azurite in every acceptance run slows the suite or fails without Docker]** → one container per session; tests that need Docker stop with a message, never skip (testing.md). Locally the owner keeps Docker running, as for the integration tests.
 - **[A missing tables connection goes unnoticed until the first request]** (the Aspire client checks it lazily, the bootstrap's probe) → `AddTransactionStore` checks it at registration (D11).

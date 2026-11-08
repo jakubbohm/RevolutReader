@@ -110,8 +110,9 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 7. [wiring] Slice 2 — Storage
 
-- [x] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `ConnectionStrings:tables` checked at registration (design.md D11), `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, escaped row key, columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
+- [x] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `ConnectionStrings:tables` checked at registration (design.md D11), `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, the row key (see 7.4), columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
 - [x] 7.2 AppHost: `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Start the app through the aspire skill with `--isolated`. Verify: the storage emulator and the API come up healthy
+- [ ] 7.4 The row key is the reference's SHA-256 in lowercase hex, never holding `%` (added 2026-11-09, the user: design.md D5): a test in `Wiring/Storage/` keeps a transaction whose reference holds `/`, `%`, a space and an accented letter and finds its raw row under that key; `UnreadableRowTests` writes its row under the same key. Verify: the new test failed before the adapter changed; group 6 and `UnreadableRowTests` green on Azurite
 - [ ] 7.3 Docs:
   - configuration.md: the `Transactions` section and `ConnectionStrings:tables` (not a secret; set by Bicep in Azure);
   - README.md § Backend code: the store port in `Account/`, its adapter in `Storage/`;
@@ -160,6 +161,8 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 - [ ] 13.7 The newest page logs an unknown, code-shaped type code as a warning carrying the code
 - [ ] 13.8 The newest page logs a type code that does not look like a code without quoting it
 - [ ] 13.9 The newest page logs a transaction without a type code
+- [ ] 13.10 The newest page logs each thing once per page: an unknown code once however many transactions carry it, two different unknown codes once each, codes that do not look like one once, transactions without a code once (added 2026-11-09, the user: design.md D4c)
+- [ ] 13.11 The newest page shows a code containing `REFUND` as a refund and logs it as a warning carrying the code, once per distinct code (added 2026-11-09, the user: design.md D4c)
 
 ## 14. [wiring] Slice 4 — Kinds in the answer
 
