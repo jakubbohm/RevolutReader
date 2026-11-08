@@ -193,7 +193,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 ## 21. [unit] Slice 10 — Live read start
 
 - [ ] 21.1 With the newest kept day inside the last 31 days, the read starts 31 days before today
-- [ ] 21.2 The newest page asks the bank from the live read's start
+- 21.2 moved to slice 11 as 24.4 (inside the last 31 days the live read's start is the window's start, so no test of it could fail here; found by the test-writer)
 
 ## 22. [wiring] Slice 10 — The bank's from-date
 
@@ -208,6 +208,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 - [ ] 24.1 With the newest kept day earlier than 31 days back, the read starts on that day
 - [ ] 24.2 With the newest kept day earlier than 89 days back, the read starts 89 days back and reports the gap's days
 - [ ] 24.3 A gap beyond 89 days logs a warning with its days
+- [ ] 24.4 The newest page asks the bank from the live read's start (moved from 21.2)
 
 ## 25. [close] Slice 11 — After a long pause, the live read reaches back to the newest kept day
 
