@@ -14,6 +14,11 @@ public union ReadTrigger(PresentUser, Unattended);
 /// from the forwarded headers, C13).
 /// </summary>
 public sealed record PresentUser {
+  /// <summary>
+  /// An IPv4 address in IPv6 form (<c>::ffff:203.0.113.7</c>, as a server listening on IPv6 reports an IPv4 visitor) as
+  /// plain IPv4, so the bank gets the address the visitor has (c004 design.md D2), whoever creates the present user (the
+  /// user, 2026-11-08, C13's code review); any other address, an IPv6 one too, as given.
+  /// </summary>
   public IPAddress IpAddress { get; }
 
   /// <summary>As given; cleaned only when the header is built (c006 design.md D5).</summary>
@@ -25,7 +30,7 @@ public sealed record PresentUser {
     ArgumentNullException.ThrowIfNull(ipAddress);
     ArgumentException.ThrowIfNullOrWhiteSpace(userAgent);
 
-    IpAddress = ipAddress;
+    IpAddress = ipAddress.IsIPv4MappedToIPv6 ? ipAddress.MapToIPv4() : ipAddress;
     UserAgent = userAgent;
   }
 }

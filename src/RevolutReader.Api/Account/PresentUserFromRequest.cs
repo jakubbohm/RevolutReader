@@ -8,9 +8,8 @@ namespace RevolutReader.Api.Account;
 public static class PresentUserFromRequest {
   /// <summary>
   /// The user whose address and browser go to the bank as user headers (ADR-0001). The address is the connection's client
-  /// address as the forwarded headers left it, the visitor's and not the ingress's (c007 design.md D10). An IPv4 address in
-  /// IPv6 form (<c>::ffff:203.0.113.7</c>, as a server listening on IPv6 reports an IPv4 visitor) becomes plain IPv4, so
-  /// the bank gets the address the visitor has (c004 design.md D2); any other address, an IPv6 one too, is kept as it is.
+  /// address as the forwarded headers left it, the visitor's and not the ingress's (c007 design.md D10); an IPv4 address in
+  /// IPv6 form becomes plain IPv4 in <see cref="PresentUser.IpAddress"/> itself (c004 design.md D2).
   /// The browser name is the <c>User-Agent</c> header as ASP.NET reads it (sent on two lines: both values joined with a
   /// comma), kept as given: cleaning it to printable ASCII is <see cref="PsuHeaders"/>' job (c006 design.md D5).
   /// <see langword="null"/> without a client address or with a missing, empty or whitespace <c>User-Agent</c>, each line
@@ -26,6 +25,6 @@ public static class PresentUserFromRequest {
     if (address is null || userAgent.All(string.IsNullOrWhiteSpace))
       return null;
 
-    return new PresentUser(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address, userAgent.ToString());
+    return new PresentUser(address, userAgent.ToString());
   }
 }
