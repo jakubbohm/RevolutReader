@@ -327,7 +327,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
   - "Zkusit jiný účet" opens Microsoft's account picker.
 
   Verify: recorded in `.tdd-state.md` with what was seen, without addresses
-- [ ] 43.6 Docs:
+- [x] 43.6 Docs:
   - local-secrets.md: the two parameters and their backup names;
   - configuration.md § Local development and § Hand-provisioned secrets: two rows with the date;
   - entra-id.md: the redirect URIs and the client secret, with its expiry;

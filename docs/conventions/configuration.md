@@ -55,6 +55,7 @@ The deployed app sends its logs and traces to Application Insights ([ADR-0009-ap
 - Local secrets live **only** in the AppHost's user-secrets as Aspire parameters — never in per-service or per-test-project secret files.
 - How the test harness gets its configuration: [testing.md](testing.md). No automated test needs a real secret. Local development reads Enable Banking's Mock ASPSP through the sandbox application, whose key and session are local secrets like any other ([testing.md § Fake bank](testing.md#fake-bank-a-local-fake-server-in-front-of-our-real-enable-banking-client)).
 - **The Enable Banking values (C5):** the four `Parameters:enablebanking-*` keys, which the AppHost hands to the API as `EnableBanking__*`, so `aspire start` does not start the API until they are set. Next to them, the `RealAccountCheck:*` keys hold the real account's values for the one-off Check 2. The AppHost declares no parameter for them, so they never reach the API (c004 design.md D7). How they are set from the owner's files, and the commands: [docs/operations/local-secrets.md](../operations/local-secrets.md).
+- **The sign-in values (C6):** `Parameters:signin-client-secret` and `Parameters:signin-allowed-emails`, which the AppHost hands to the API as `SignIn__ClientSecret` and `SignIn__AllowedEmails`, so `aspire start` does not start the API until they are set. They are the same client secret and allowlist as production, written to the user-secrets, Key Vault and the backup vault by one block ([entra-id.md § The client secret and the allowlist](../operations/entra-id.md#the-client-secret-and-the-allowlist-c6); set 2026-11-08). The cookie keys' three `DataProtection` settings stay empty locally (the default key folder).
 - **Every local secret has a backup copy** in the owner's personal Key Vault `jb-localdev-secrets-copy`, named `RevolutReader--<store>--<key>` with `:` written as `--`, so a new or reinstalled laptop gets them back mechanically (c004 design.md D6). The app and the tests never read it.
 
 ## Frontend
@@ -76,6 +77,8 @@ Secrets that only a human can produce are put into Key Vault by hand, guided by 
 | Enable Banking private key (PEM text) | `EnableBanking__PrivateKey`: signs every request's token | `EnableBanking--PrivateKey` | C4, same task | 2026-11-06 |
 | Enable Banking session ID | `EnableBanking__SessionId`: the session the account belongs to (validated at start; no C5 read sends it) | `EnableBanking--SessionId` | C4, same task | 2026-11-06 |
 | Enable Banking account ID | `EnableBanking__AccountId`: the account the reads address | `EnableBanking--AccountId` | C4, same task | 2026-11-06 |
+| Entra client secret (`RevolutReader C6`, 12 months, expires 2027-11-08: [expiring-approvals.md](../operations/expiring-approvals.md)) | `SignIn__ClientSecret`: the app's proof to Microsoft when it redeems the sign-in code | `SignIn--ClientSecret` | C6, [entra-id.md § The client secret and the allowlist](../operations/entra-id.md#the-client-secret-and-the-allowlist-c6) | 2026-11-08 |
+| The allowlist (not a credential, but personal data in a public repository, so handled like a secret) | `SignIn__AllowedEmails`: the comma-separated accounts allowed in | `SignIn--AllowedEmails` | C6, same block | 2026-11-08 |
 
 ## Not adopted
 
