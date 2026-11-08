@@ -260,8 +260,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 30. [unit] Slice 13 — Starting a sign-in
 
-- [ ] 30.1 A sign-in goes to the backend's sign-in address
-- [ ] 30.2 A sign-in to try another account asks for Microsoft's account picker
+- [x] 30.1 A sign-in goes to the backend's sign-in address
+- [x] 30.2 A sign-in to try another account asks for Microsoft's account picker
 
 ## 31. [wiring] Slice 13 — The button starts the sign-in
 

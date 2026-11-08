@@ -36,7 +36,17 @@ export async function readSession(): Promise<Session> {
   }
 }
 
-/** location → /api/auth/login[?anotherAccount=true] */
-export function startSignIn(_options?: { anotherAccount?: boolean }): void {
-  throw new Error("Not implemented");
+/** The backend's sign-in address (design.md D2), and its query for Microsoft's account picker. */
+const SIGN_IN = "/api/auth/login";
+const ANOTHER_ACCOUNT = "?anotherAccount=true";
+
+/**
+ * Starts a sign-in: the page goes to the backend's sign-in address, which sends it on to Microsoft (design.md D2, D9).
+ * A navigation, never a fetch, because Microsoft's pages must open in the page itself. With `anotherAccount`, Microsoft
+ * is asked for its account picker ("Zkusit jiný účet").
+ */
+export function startSignIn(options?: { anotherAccount?: boolean }): void {
+  location.assign(
+    options?.anotherAccount === true ? `${SIGN_IN}${ANOTHER_ACCOUNT}` : SIGN_IN,
+  );
 }
