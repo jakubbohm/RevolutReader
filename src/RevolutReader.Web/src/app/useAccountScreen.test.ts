@@ -11,10 +11,13 @@ import {
   goOffline,
   goOnline,
   kept,
+  noAnswerYet,
   phoneKeeps,
   requests,
   signedIn,
+  timeline,
   type BalanceAnswer,
+  type ServerAnswers,
 } from "../test/server";
 import type { Problem } from "./screenState";
 import { useAccountScreen } from "./useAccountScreen";
@@ -180,3 +183,61 @@ test("A new read clears the banner of the one before", async () => {
     banner: null,
   });
 });
+
+// The 60 s cap (D3): a refresh with no answer after 60 s is aborted and ends as offline, the balance kept; the first
+// load has no cap, it shows the waking-up screens instead (D2).
+
+test("A refresh with no answer after 60 s ends as offline, the balance kept", async () => {
+  startTestClock();
+  answerWith({ whoIsSignedIn: LUCIE, balance: [balance(286.4), noAnswerYet] });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(59 * SECOND);
+  expect(result.current.shown, "at 59 s, still reading").toMatchObject({
+    header: { balance: { amount: 286.4 }, refreshing: true },
+    banner: null,
+  });
+  await timePasses(SECOND);
+
+  expect(result.current.shown, "at 60 s, offline").toMatchObject({
+    header: { balance: { amount: 286.4 }, refreshing: false },
+    banner: { kind: "offline" },
+  });
+  expect(timeline(), "the read is aborted").toContain(
+    "aborted GET /api/balance",
+  );
+});
+
+const firstLoadsWithNoAnswer: { label: string; answers: ServerAnswers }[] = [
+  {
+    label: "who is signed in has no answer",
+    answers: { whoIsSignedIn: noAnswerYet },
+  },
+  {
+    label: "the first balance read has no answer",
+    answers: { whoIsSignedIn: LUCIE, balance: noAnswerYet },
+  },
+];
+
+test.each(firstLoadsWithNoAnswer)(
+  "The first load has no 60 s limit: $label",
+  async ({ answers }) => {
+    startTestClock();
+    answerWith(answers);
+    const { result } = renderHook(() => useAccountScreen());
+
+    await timePasses(61 * SECOND);
+
+    expect(
+      timeline().filter((entry) => entry.startsWith("aborted ")),
+      "nothing aborted",
+    ).toEqual([]);
+    expect(result.current.shown, "no offline banner").not.toMatchObject({
+      banner: { kind: "offline" },
+    });
+  },
+);
