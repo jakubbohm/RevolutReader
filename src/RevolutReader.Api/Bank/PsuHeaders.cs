@@ -13,12 +13,12 @@ public static class PsuHeaders {
 
   /// <summary>
   /// Psu-Ip-Address and Psu-User-Agent for a present user; none for an unattended read (ADR-0001: never on background
-  /// work). The address goes as <see cref="System.Net.IPAddress.ToString"/> writes it, an IPv4-mapped IPv6 one too:
-  /// normalising forwarded addresses is the caller's (C7). Each character of the user agent outside printable ASCII (0x20
-  /// to 0x7E) is sent as <c>?</c>, one for one, so the length stays the same (spec bank-reads § Who triggers a read; c006
-  /// design.md D5): <see cref="HttpClient"/> refuses non-ASCII header values, sends control characters raw and throws on
-  /// a line break or a NUL. <see cref="PresentUser.UserAgent"/> stays as given. No default: an empty
-  /// <see cref="ReadTrigger"/> throws.
+  /// work). The address goes as <see cref="System.Net.IPAddress.ToString"/> writes it: an IPv4 address in IPv6 form is
+  /// already plain IPv4 (<see cref="PresentUser.IpAddress"/>, c004 design.md D2). Each
+  /// character of the user agent outside printable ASCII (0x20 to 0x7E) is sent as <c>?</c>, one for one, so the length
+  /// stays the same (spec bank-reads § Who triggers a read; c006 design.md D5): <see cref="HttpClient"/> refuses
+  /// non-ASCII header values, sends control characters raw and throws on a line break or a NUL.
+  /// <see cref="PresentUser.UserAgent"/> stays as given. No default: an empty <see cref="ReadTrigger"/> throws.
   /// </summary>
   public static IReadOnlyList<KeyValuePair<string, string>> For(ReadTrigger trigger) => trigger switch {
     PresentUser user => [new(IP_ADDRESS, user.IpAddress.ToString()), new(USER_AGENT, Printable(user.UserAgent))],
