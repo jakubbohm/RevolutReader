@@ -311,8 +311,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 42. [wiring] Cookie keys — Blob Storage and Key Vault
 
-- [ ] 42.1 `DataProtectionKeysOptions` and the `DataProtection` section in `appsettings.json`: three empty settings with provenance comments (design.md D7). `AddDataProtectionKeys()` in the composition root: the application name pinned, and Blob plus the Key Vault key through `ManagedIdentityCredential` when set. Verify: build passes; green (the harness keeps ephemeral keys)
-- [ ] 42.2 Docs: configuration.md: the `DataProtection` settings are production-only, set by Bicep. Verify: it matches design.md D7
+- [x] 42.1 `DataProtectionKeysOptions` and the `DataProtection` section in `appsettings.json`: three empty settings with provenance comments (design.md D7). `AddDataProtectionKeys()` in the composition root: the application name pinned, and Blob plus the Key Vault key through `ManagedIdentityCredential` when set. Verify: build passes; green (the harness keeps ephemeral keys)
+- [x] 42.2 Docs: configuration.md: the `DataProtection` settings are production-only, set by Bicep. Verify: it matches design.md D7
 
 ## 43. [wiring] Local development
 
