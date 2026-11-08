@@ -18,4 +18,11 @@
     <ProjectReference Include="..\..\src\RevolutReader.Api\RevolutReader.Api.csproj" />
   </ItemGroup>
 
+  <!-- The transaction store's in-memory fake, the unit tests' own, run by the same contract tests as the Table adapter
+       (Account/TransactionStoreContract.cs, c010 design.md D12): one file, so the fake the unit tests trust is the one
+       checked here. -->
+  <ItemGroup>
+    <Compile Include="..\RevolutReader.UnitTests\Account\InMemoryTransactionStore.cs" Link="Account\InMemoryTransactionStore.cs" />
+  </ItemGroup>
+
 </Project>
