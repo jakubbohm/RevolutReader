@@ -36,6 +36,12 @@ context: |
   c001-add-backend-foundation); NNN is the next number across openspec/changes/ and the
   archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first rule.
 
+  Change size, a guide for explore only (docs/conventions/workflow.md § 6): while exploring an
+  idea, estimate how many new or changed scenarios it needs and say so; well above about 12,
+  suggest splitting it into smaller changes, each a slice a user can see where possible. The
+  owner decides. It is never a limit on writing artifacts: propose writes every scenario the
+  change needs and never merges, drops or shortens one to come closer to it.
+
   Testing (docs/conventions/testing.md): TUnit + Shouldly. Every scenario is an executable
   specification with exactly one claim: an API acceptance test by default, a frontend test for
   rules only the browser shows, or a row in tests/manual-scenarios.md for device-only
