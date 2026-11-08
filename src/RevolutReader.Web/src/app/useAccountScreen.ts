@@ -104,7 +104,8 @@ export function useAccountScreen(): AccountScreenModel {
    * Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. A refresh
    * with no answer after `REFRESH_LIMIT_MS` is aborted, and so ends as offline (D3); the first read has no limit: the
    * first load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor
-   * kept (D4); one that finds the login ended (401, 403) ends it here too.
+   * kept (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome,
+   * a wake is over: later reads show the header refreshing or the placeholder, never the waking-up screen (D2, D3).
    */
   const readTheBalance = useCallback(
     async (as: "first" | "refresh"): Promise<void> => {
@@ -131,6 +132,9 @@ export function useAccountScreen(): AccountScreenModel {
         readUnderWay.current = false;
       }
       if (!onPage.current || login !== loginsEnded.current) return;
+
+      // A read has landed, whatever it brought: a wake is over, and the server is awake for every read after it (D2, D3).
+      setWokeUp(false);
 
       // The login has ended (D5 c): a 401 leads to the sign-in screen, with no note that a sign-out happened; a 403 to
       // the no-access screen, naming the account.
@@ -214,7 +218,7 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * The first load's answer to who is signed in: one that took 1.5 s or more woke the server, so the waking-up screen
-   * stays until the balance arrives (D2).
+   * stays until the first balance read lands, whatever it brings (D2; `readTheBalance` ends the wake).
    */
   const takeInFirstAnswer = useCallback(
     async (answer: Session): Promise<void> => {

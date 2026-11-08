@@ -20,7 +20,7 @@ export interface Facts {
   reading: "no" | "first" | "refresh";
   /** The first load's wait: under 1.5 s, from 1.5 s, from 30 s. */
   wait: "short" | "long" | "slow";
-  /** The first answer took 1.5 s or more: the waiting screen stays until data. */
+  /** The first answer took 1.5 s or more, and the first balance read has not landed yet: the waiting screen stays. */
   wokeUp: boolean;
   /** The screen's one banner. */
   problem: Problem | null;
