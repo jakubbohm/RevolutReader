@@ -1,15 +1,22 @@
 import { act, renderHook } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { SECOND, startTestClock, timePasses } from "../test/clock";
+import { ago, HOUR, SECOND, startTestClock, timePasses } from "../test/clock";
 import {
   after,
   answerWith,
   balance,
+  bankAccessExpired,
+  bankRateLimited,
+  bankUnavailable,
   goOffline,
   goOnline,
+  kept,
+  phoneKeeps,
   requests,
   signedIn,
+  type BalanceAnswer,
 } from "../test/server";
+import type { Problem } from "./screenState";
 import { useAccountScreen } from "./useAccountScreen";
 
 // The account screen's sequence (c009 design.md D2, D3; § Rule ownership: useAccountScreen), driven through the hook on
@@ -75,4 +82,101 @@ test("Back online while who is signed in was unanswered asks it again, not the b
 
   expect(timesSent("GET /api/me"), "who is signed in, asked again").toBe(1);
   expect(balanceReadsSent(), "no balance before it answers").toBe(0);
+});
+
+// The bank's failures on the screen (D5, D7 c; spec account-balance): a read that fails at the bank keeps the balance
+// shown and records its problem as the screen's one banner; the next read clears it.
+
+const bankFailures: {
+  label: string;
+  /** The balance shown is a stored one, and the first read fails; otherwise a read one, and a refresh fails. */
+  stored: boolean;
+  failure: BalanceAnswer;
+  banner: Problem;
+}[] = [
+  {
+    label: "a refresh, the bank does not answer",
+    stored: false,
+    failure: bankUnavailable,
+    banner: { kind: "bank unavailable" },
+  },
+  {
+    label: "a refresh, the bank's limit is reached",
+    stored: false,
+    failure: bankRateLimited,
+    banner: { kind: "bank rate limited" },
+  },
+  {
+    label: "a refresh, the bank's access has expired",
+    stored: false,
+    failure: bankAccessExpired,
+    banner: { kind: "bank access expired" },
+  },
+  {
+    label: "the first read, over a stored balance",
+    stored: true,
+    failure: bankUnavailable,
+    banner: { kind: "bank unavailable" },
+  },
+];
+
+test.each(bankFailures)(
+  "A bank failure keeps the balance shown and adds its banner: $label",
+  async ({ stored, failure, banner }) => {
+    startTestClock();
+    if (stored) await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+    answerWith({
+      whoIsSignedIn: LUCIE,
+      balance: stored ? failure : [balance(286.4), failure],
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    if (!stored) {
+      act(() => {
+        result.current.refresh();
+      });
+      await timePasses(0);
+    }
+
+    expect(result.current.shown).toMatchObject({
+      screen: "account",
+      header: { balance: { amount: 286.4 }, refreshing: false },
+      banner,
+    });
+  },
+);
+
+test("A new read clears the banner of the one before", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [
+      balance(286.4),
+      bankUnavailable,
+      after(READ_TIME, balance(301.9)),
+    ],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "the failed read's banner").toMatchObject({
+    banner: { kind: "bank unavailable" },
+  });
+
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "while the new read runs").toMatchObject({
+    banner: null,
+  });
+  await timePasses(READ_TIME);
+  expect(result.current.shown, "once it has read").toMatchObject({
+    header: { balance: { amount: 301.9 } },
+    banner: null,
+  });
 });
