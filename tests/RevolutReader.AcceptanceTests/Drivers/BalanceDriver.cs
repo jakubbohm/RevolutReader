@@ -28,8 +28,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <see cref="ProblemDescription.InternalServerError"/> 500. The answer gives a reading only when its status matches its
 /// case; status codes never reach the DSL.</item>
 /// </list>
-/// Filled in by the wiring groups: <see cref="AskForBalanceNamingNoBrowser"/> and <see cref="BankAnswersAnErrorNoCaseFits"/>
-/// still throw until theirs.
+/// Filled in by the wiring groups: <see cref="BankAnswersAnErrorNoCaseFits"/> still throws until its own.
 /// </summary>
 public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimeProvider clock) {
   /// <summary>The balance (D1).</summary>
@@ -91,7 +90,11 @@ public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimePro
   }
 
   /// <summary><c>GET /api/balance</c> with <c>X-Forwarded-For</c> <paramref name="ipAddress"/> and no <c>User-Agent</c>.</summary>
-  public Task<BalanceReading> AskForBalanceNamingNoBrowser(string ipAddress) => throw new NotImplementedException();
+  public Task<BalanceReading> AskForBalanceNamingNoBrowser(string ipAddress) {
+    ArgumentNullException.ThrowIfNull(ipAddress);
+
+    return Ask(ipAddress, browserName: null);
+  }
 
   /// <summary>
   /// Every request: an Enable Banking error answer (<c>ErrorResponse</c>, written from the API reference, with a comment

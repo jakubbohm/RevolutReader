@@ -98,29 +98,29 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 6. [wiring] Slice 3 — A request naming no browser
 
-- [ ] 6.1 `BalanceEndpoint`: no present user → C13's `BankAnswers.NoPresentUser()` (400), the handler never called; `BalanceDriver.AskForBalanceNamingNoBrowser` replaces its stub. Verify: the scenario runs against the app; the bank's request log stays empty
-- [ ] 6.2 Docs: README.md § Backend code, the case → status table's 400 row: its Scenario column names account-balance / A balance request without a browser name reads nothing at the bank for the no-present-user case. Verify: the row names the scenario exactly
+- [x] 6.1 `BalanceEndpoint`: no present user → C13's `BankAnswers.NoPresentUser()` (400), the handler never called; `BalanceDriver.AskForBalanceNamingNoBrowser` replaces its stub. Verify: the scenario runs against the app; the bank's request log stays empty
+- [x] 6.2 Docs: README.md § Backend code, the case → status table's 400 row: its Scenario column names account-balance / A balance request without a browser name reads nothing at the bank for the no-present-user case. Verify: the row names the scenario exactly
 
 ## 7. [close] Slice 3 — A balance request without a browser name reads nothing at the bank
 
-- [ ] 7.1 The scenario's test passes. Verify: green, including account-balance / A balance request without a browser name reads nothing at the bank
+- [x] 7.1 The scenario's test passes. Verify: green, including account-balance / A balance request without a browser name reads nothing at the bank
 
 ## 8. [wiring] Slice 4 — The bank's failures
 
-- [ ] 8.1 `BalanceEndpoint` answers the three failures with C13's rules; the driver reads the problem's status, `type` and title and returns them only when they agree. Regenerate the TS client if the description changed. Verify: the three failure scenarios run against the app
-- [ ] 8.2 Docs: README.md § Backend code: the case → status table's bank rows (C13's) name these three scenarios in their Scenario column. Verify: each row names its scenario exactly
+- [x] 8.1 `BalanceEndpoint` answers the three failures with C13's rules; the driver reads the problem's status, `type` and title and returns them only when they agree. Regenerate the TS client if the description changed. Verify: the three failure scenarios run against the app
+- [x] 8.2 Docs: README.md § Backend code: the case → status table's bank rows (C13's) name these three scenarios in their Scenario column. Verify: each row names its scenario exactly
 
 ## 9. [close] Slice 4 — Expired bank access answers its own problem
 
-- [ ] 9.1 The scenario's test passes. Verify: green, including account-balance / Expired bank access answers its own problem
+- [x] 9.1 The scenario's test passes. Verify: green, including account-balance / Expired bank access answers its own problem
 
 ## 10. [close] Slice 5 — A reached bank limit answers its own problem
 
-- [ ] 10.1 The scenario's test passes. Verify: green, including account-balance / A reached bank limit answers its own problem
+- [x] 10.1 The scenario's test passes. Verify: green, including account-balance / A reached bank limit answers its own problem
 
 ## 11. [close] Slice 6 — A bank that does not answer is its own problem
 
-- [ ] 11.1 The scenario's test passes, after the bank's own error on every retry. Verify: green, including account-balance / A bank that does not answer is its own problem
+- [x] 11.1 The scenario's test passes, after the bank's own error on every retry. Verify: green, including account-balance / A bank that does not answer is its own problem
 
 ## 12. [wiring] Slice 7 — The 500
 
