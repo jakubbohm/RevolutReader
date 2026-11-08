@@ -75,12 +75,12 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 2. [unit] Slice 1 — Reading the balance
 
-- [ ] 2.1 The balance comes with the clock's time and the koruna rate
-- [ ] 2.2 The read is made as the given present user
-- [ ] 2.3 Expired bank access comes back as access expired
-- [ ] 2.4 A reached bank limit comes back as rate limited
-- [ ] 2.5 A bank that does not answer comes back as unavailable
-- [ ] 2.6 A balance in another currency throws, and the message names neither the amount nor the currency
+- [x] 2.1 The balance comes with the clock's time and the koruna rate
+- [x] 2.2 The read is made as the given present user
+- [x] 2.3 Expired bank access comes back as access expired
+- [x] 2.4 A reached bank limit comes back as rate limited
+- [x] 2.5 A bank that does not answer comes back as unavailable
+- [x] 2.6 A balance in another currency throws, and the message names neither the amount nor the currency
 
 ## 3. [wiring] Slice 1 — The balance endpoint
 

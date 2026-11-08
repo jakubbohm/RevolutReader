@@ -8,8 +8,31 @@ namespace RevolutReader.Api.Account;
 /// currency other than EUR throws <see cref="InvalidOperationException"/>, whose message names neither the amount nor the
 /// currency.
 /// </summary>
-#pragma warning disable CS9113 // A stub until Handle is written (c009 tasks.md group 2), which reads both; then this goes.
 public sealed class ReadBalanceHandler(IBankAccount bank, TimeProvider time) {
-#pragma warning restore CS9113
-  public Task<BankResult<AccountBalance>> Handle(PresentUser user, CancellationToken cancellationToken) => throw new NotImplementedException();
+  /// <summary>The account's currency (ISO 4217), as the bank names it.</summary>
+  private const string EURO = "EUR";
+
+  /// <exception cref="InvalidOperationException">The bank answered a balance in another currency than euros: a bug.</exception>
+  public async Task<BankResult<AccountBalance>> Handle(PresentUser user, CancellationToken cancellationToken) {
+    ArgumentNullException.ThrowIfNull(user);
+
+    return await bank.ReadBalance(user, cancellationToken) switch {
+      Balance balance => InEuros(balance, readAt: time.GetUtcNow()),
+      BankAccessExpired expired => expired,
+      BankRateLimited rateLimited => rateLimited,
+      BankUnavailable unavailable => unavailable,
+    };
+  }
+
+  /// <summary>
+  /// The balance with its read time and the koruna rate. The account is a euro account, so another currency is a bug
+  /// (D1): the message names neither the amount nor the currency, as no error message names bank data
+  /// (docs/conventions/README.md § Backend code).
+  /// </summary>
+  private static AccountBalance InEuros(Balance balance, DateTimeOffset readAt) {
+    if (!string.Equals(balance.Currency, EURO, StringComparison.Ordinal))
+      throw new InvalidOperationException("The bank answered the balance in a currency other than euros, though the account is a euro account.");
+
+    return new AccountBalance(balance.Amount, readAt, KorunaRate.CzkPerEur);
+  }
 }
