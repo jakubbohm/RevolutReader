@@ -207,7 +207,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 19. [close] Slice 7 — Signing in again with another account opens Microsoft's account picker
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including sign-in / Signing in again with another account opens Microsoft's account picker
+- [x] 19.1 The scenario's test passes. Verify: green, including sign-in / Signing in again with another account opens Microsoft's account picker
 
 ## 20. [wiring] Slice 8 — A sign-in that does not complete
 
