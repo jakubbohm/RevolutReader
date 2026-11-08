@@ -33,9 +33,9 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 3. [unit] Slice 1 — The retry options
 
-- [ ] 3.1 The options allow at most 3 retries
-- [ ] 3.2 The waits are exponential from the given first wait, with jitter
-- [ ] 3.3 The options follow a `Retry-After` header
+- [x] 3.1 The options allow at most 3 retries
+- [x] 3.2 The waits are exponential from the given first wait, with jitter
+- [x] 3.3 The options follow a `Retry-After` header
 
 ## 4. [wiring] Slice 1 — The retry handler on the bank client
 

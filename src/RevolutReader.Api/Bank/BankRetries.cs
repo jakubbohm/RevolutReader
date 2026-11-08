@@ -18,9 +18,21 @@ public static class BankRetries {
   /// <summary>
   /// The retry strategy: MAX_RETRIES, exponential waits from <paramref name="firstWait"/> with jitter, Retry-After followed,
   /// ShouldHandle = <see cref="ShouldRetry"/> with the request taken from the resilience context and now from
-  /// <paramref name="time"/> (D4, D5, D8).
+  /// <paramref name="time"/> (D4, D5, D8). Every number is set even where it equals the library's default, so the options
+  /// say what production runs with (D7); no longest wait, as the request timeout bounds the waits (D1, D4).
   /// </summary>
-  public static HttpRetryStrategyOptions Options(TimeSpan firstWait, TimeProvider time) => throw new NotImplementedException();
+  public static HttpRetryStrategyOptions Options(TimeSpan firstWait, TimeProvider time) {
+    ArgumentNullException.ThrowIfNull(time);
+
+    return new HttpRetryStrategyOptions {
+      MaxRetryAttempts = MAX_RETRIES,
+      Delay = firstWait,
+      BackoffType = DelayBackoffType.Exponential,
+      UseJitter = true,
+      ShouldRetryAfterHeader = true,
+      ShouldHandle = args => ShouldRetry(args.Context.GetRequestMessage(), args.Outcome, time.GetUtcNow(), args.Context.CancellationToken),
+    };
+  }
 
   /// <summary>
   /// D5: true only when <paramref name="request"/> carries <see cref="PresentUser"/> = true and the attempt failed in a way
