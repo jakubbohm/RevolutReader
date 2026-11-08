@@ -203,7 +203,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 18. [wiring] Slice 7 — The account picker
 
-- [ ] 18.1 `LoginRequest.AnotherAccount` → `prompt=select_account` on the challenge. Its OpenAPI description, then regenerate the TS client. The driver reads `prompt`. Verify: the scenario runs against the app; `regenerate` leaves no diff
+- [x] 18.1 `LoginRequest.AnotherAccount` → `prompt=select_account` on the challenge. Its OpenAPI description, then regenerate the TS client. The driver reads `prompt`. Verify: the scenario runs against the app; `regenerate` leaves no diff
 
 ## 19. [close] Slice 7 — Signing in again with another account opens Microsoft's account picker
 

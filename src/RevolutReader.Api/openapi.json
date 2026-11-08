@@ -12,6 +12,19 @@
         ],
         "summary": "Starts the sign-in at Microsoft",
         "operationId": "RevolutReaderApiSignInLoginEndpoint",
+        "parameters": [
+          {
+            "name": "anotherAccount",
+            "in": "query",
+            "description": "Asks Microsoft to show its account picker",
+            "schema": {
+              "type": [
+                "null",
+                "boolean"
+              ]
+            }
+          }
+        ],
         "responses": {
           "302": {
             "description": "Found"

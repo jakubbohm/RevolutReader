@@ -113,7 +113,10 @@ export type $defs = Record<string, never>;
 export interface operations {
     RevolutReaderApiSignInLoginEndpoint: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Asks Microsoft to show its account picker */
+                anotherAccount?: null | boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
