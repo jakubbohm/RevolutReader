@@ -304,7 +304,10 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     BankUnavailable => TransactionsAnswer.BankUnavailable,
   };
 
-  /// <summary>Field by field; the details become <see cref="Lines"/>; the type code is always stated (<see cref="TypeCodeOf"/>).</summary>
+  /// <summary>
+  /// Field by field; the details become <see cref="Lines"/>; the type code is always stated, the port's
+  /// <see cref="BankTransaction.TypeCode"/> as it is, none when the bank gave none.
+  /// </summary>
   private static TransactionSeen Seen(BankTransaction transaction) => new TransactionSeen(
     transaction.Reference,
     transaction.Status switch {
@@ -316,14 +319,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     transaction.Amount,
     transaction.Currency,
     transaction.Counterparty,
-    new Lines(transaction.PaymentDetails)).WithTypeCode(TypeCodeOf(transaction));
-
-  /// <summary>
-  /// The transaction's type code. The port's <see cref="BankTransaction"/> has none until c010's wiring (tasks.md 3.1, design.md
-  /// § Public API sketch: <c>BankTransaction.TypeCode</c>), so until then every read states none, and only a scenario that
-  /// names a type code notices; the wiring returns <c>transaction.TypeCode</c> here.
-  /// </summary>
-  private static string? TypeCodeOf(BankTransaction transaction) => null;
+    new Lines(transaction.PaymentDetails)).WithTypeCode(transaction.TypeCode);
 
   private static PresentUser Present(UserAtDevice user) => new(IPAddress.Parse(user.IpAddress), user.Browser);
 

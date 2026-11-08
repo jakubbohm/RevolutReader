@@ -72,11 +72,11 @@ Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks
 
 ## 3. [wiring] Slice 1 — The type code from the bank
 
-- [ ] 3.1 `EbBankTransactionCode` on `EbTransaction`; `BankTransaction.TypeCode`, filled by `TransactionMapping` (design.md § Public API sketch). The existing adapter and mapping tests already expect the codes their captured answers carry (the test-writer's update in group 2). Verify: build passes; green except this slice's scenario
+- [x] 3.1 `EbBankTransactionCode` on `EbTransaction`; `BankTransaction.TypeCode`, filled by `TransactionMapping` (design.md § Public API sketch). The existing adapter and mapping tests already expect the codes their captured answers carry (the test-writer's update in group 2). Verify: build passes; green except this slice's scenario
 
 ## 4. [close] Slice 1 — A transaction comes back with the bank's type code
 
-- [ ] 4.1 The scenario's test passes. Verify: green, including bank-reads / A transaction comes back with the bank's type code
+- [x] 4.1 The scenario's test passes. Verify: green, including bank-reads / A transaction comes back with the bank's type code
 
 ## 5. [unit] Slice 2 — Newest page and storage settings
 
