@@ -211,7 +211,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 20. [wiring] Slice 8 — A sign-in that does not complete
 
-- [ ] 20.1 `OnAccessDenied` and `OnRemoteFailure` redirect to `/`. A cancel logs `SignInCancelled` (Information); any other failure logs `SignInFailed` (Warning) with the failure's kind only, never a token, an email or an exception message (design.md D3). `SignInDriver.CancelAtMicrosoft` replaces its stub. Verify: the scenario runs against the app; the guard 1.3 stays green
+- [x] 20.1 `OnAccessDenied` and `OnRemoteFailure` redirect to `/`. A cancel logs `SignInCancelled` (Information); any other failure logs `SignInFailed` (Warning) with the failure's kind only, never a token, an email or an exception message (design.md D3). `SignInDriver.CancelAtMicrosoft` replaces its stub. Verify: the scenario runs against the app; the guard 1.3 stays green
 
 ## 21. [close] Slice 8 — A sign-in cancelled at Microsoft leaves the visitor signed out
 

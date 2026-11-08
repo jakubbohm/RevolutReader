@@ -13,4 +13,10 @@ public static class SignInAddresses {
 
   /// <summary>Signs out of the app's own login only: an anonymous endpoint.</summary>
   public const string LOGOUT = "/api/auth/logout";
+
+  /// <summary>
+  /// Where every sign-in ends, whether it completed, was cancelled or failed: the app's start page. There is no
+  /// return-address parameter, so nothing to redirect elsewhere.
+  /// </summary>
+  public const string LANDING = "/";
 }

@@ -68,6 +68,10 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   private const string CODE = "code";
   private const string AUTHORIZATION_CODE = "made-up-authorization-code";
 
+  /// <summary>Microsoft's answer when the visitor cancels at its page (OAuth 2.0's error response).</summary>
+  private const string ERROR = "error";
+  private const string ACCESS_DENIED = "access_denied";
+
   /// <summary>How the browser marks a request made by a page of Microsoft's (D6): fetch metadata and the origin.</summary>
   private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
   private const string CROSS_SITE = "cross-site";
@@ -184,7 +188,11 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <c>state</c> to the return address, with the same cross-site headers as <see cref="ReturnFromMicrosoft"/>, and
   /// follows the app's redirects as it does.
   /// </summary>
-  public Task<Landing> CancelAtMicrosoft() => throw new NotImplementedException();
+  public Task<Landing> CancelAtMicrosoft() {
+    StartedSignIn started = Started();
+
+    return AnswerFromMicrosoftsPage(started, new Dictionary<string, string> { [ERROR] = ACCESS_DENIED, [STATE] = started.State });
+  }
 
   /// <summary>
   /// <c>GET /api/me</c> with the browser's cookies (D3), mapped as <see cref="WhoAnswer"/> describes. A problem

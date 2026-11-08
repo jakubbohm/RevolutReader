@@ -12,9 +12,6 @@ namespace RevolutReader.Api.SignIn;
 /// closing the app keeps it (D4).
 /// </summary>
 public sealed class LoginEndpoint : Endpoint<LoginRequest> {
-  /// <summary>Where every sign-in returns to: the app's start page.</summary>
-  private const string START_PAGE = "/";
-
   /// <summary>The OpenID Connect <c>prompt</c> that makes Microsoft show its account picker.</summary>
   private const string SELECT_ACCOUNT = "select_account";
 
@@ -32,7 +29,7 @@ public sealed class LoginEndpoint : Endpoint<LoginRequest> {
     ArgumentNullException.ThrowIfNull(req);
 
     OpenIdConnectChallengeProperties login = new() {
-      RedirectUri = START_PAGE,
+      RedirectUri = SignInAddresses.LANDING,
       IsPersistent = true,
       Prompt = req.AnotherAccount is true ? SELECT_ACCOUNT : null,
     };
