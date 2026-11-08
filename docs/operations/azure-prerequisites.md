@@ -2,7 +2,7 @@
 
 > What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, C4's one addition (item 7), and C12's and C6's widened role condition (item 5): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-08 (C12: the deploy identity may assign a fifth role; C6: the command for a sixth).
+> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-08 (C12: the deploy identity may assign a fifth role; C6: the sixth role, applied).
 
 ## Identifiers (non-secret)
 
@@ -40,7 +40,7 @@ None of these is a credential: knowing them gives no access. They are public, he
      | Monitoring Metrics Publisher | `3913510d-42f4-4e42-8a64-420c390055eb` ([Microsoft Learn: built-in roles for Monitor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#monitoring-metrics-publisher), updated 2026-07-01, read 2026-11-08) | the app identity, on Application Insights, to write its telemetry ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)) | C12 |
      | Key Vault Crypto User | `12338af0-0e69-4776-bea7-57ae8d297424` | the app identity, on the key `dataprotection`, to wrap and unwrap the login cookie's keys (C6, c007 design.md D7) | C6 |
 
-     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below). **Widened on 2026-11-08 (C12)** from four roles to five, before the merge whose deploy grants Monitoring Metrics Publisher; without it, that deploy fails at the new role assignment. The command: [Commands](#commands), "Widening step 5's condition"; Claude read the condition back with step 5's check ([Checks](#checks)). C6 adds the sixth, Key Vault Crypto User ([§ Widening the condition](#widening-the-condition-c6-the-sixth-role)).
+     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below). **Widened on 2026-11-08 (C12)** from four roles to five, before the merge whose deploy grants Monitoring Metrics Publisher; without it, that deploy fails at the new role assignment. The command: [Commands](#commands), "Widening step 5's condition"; Claude read the condition back with step 5's check ([Checks](#checks)). **Widened again on 2026-11-08 (C6)** from five roles to six, adding Key Vault Crypto User ([§ Widening the condition](#widening-the-condition-c6-the-sixth-role)).
 6. **GitHub environment `production`** with a deployment branch policy allowing only `main`, so a job on any other branch never gets a token Azure accepts. Workflows triggered by pull requests from forks get no OIDC token at all.
 7. **The owner's access to secret values (C4,** c005 design.md D17). Owner of the subscription gives no access to the values in a vault that uses Azure roles, and the guided tasks (Enable Banking in C4, later C6 and C8) and every renewal write secrets. So the owner's account gets **Key Vault Secrets Officer on `rg-revolutreader`**, inherited by every vault in the group, including one the stack creates again.
    - **Why by hand and not in the Bicep:** the Bicep would need the owner's account ID in the public repository. As a GitHub variable it would be unversioned, unreviewed and against [configuration.md](../conventions/configuration.md) (GitHub variables hold only what the workflow needs before Bicep runs). This is the one exception to "manual only for what cannot be automated" ([workflow.md § 5](../conventions/workflow.md#5-infrastructure), [lessons.md R-50](../software-factory/lessons.md)).
@@ -180,6 +180,8 @@ $ids = @([regex]::Matches($stored, '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 ```
 
 Expected: `role IDs in the condition: 6; Monitoring Metrics Publisher: True; Key Vault Crypto User: True`.
+
+**Applied on 2026-11-08** by the owner, before C6's merge. Claude read it back: the stored condition equals the block's text exactly (the six IDs for both writes and deletes), and the deploy identity still holds only Contributor and this assignment on the group.
 
 ## Checks
 
