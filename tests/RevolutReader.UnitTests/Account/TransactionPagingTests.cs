@@ -53,5 +53,14 @@ public sealed class TransactionPagingTests {
   public void With_the_newest_kept_day_earlier_than_89_days_back_the_read_starts_89_days_back_and_reports_the_gaps_days(string newestKeptDay, int gapDays) =>
     TransactionPaging.LiveReadStart(Day("2026-11-20"), Day(newestKeptDay)).ShouldBe(new LiveReadStart(Day("2026-08-23"), gapDays));
 
+  /// <param name="today">The scenarios' today, and two whose 89 days back cross a year's end and a short February.</param>
+  /// <param name="readStart">89 days before it: as far back as the bank serves, with no gap reported, since nothing kept is missing (D3).</param>
+  [Test]
+  [Arguments("2026-11-20", "2026-08-23")]
+  [Arguments("2027-01-15", "2026-10-18")]
+  [Arguments("2026-03-01", "2025-12-02")]
+  public void With_nothing_kept_the_read_starts_89_days_before_today(string today, string readStart) =>
+    TransactionPaging.LiveReadStart(Day(today), newestKeptDay: null).ShouldBe(new LiveReadStart(Day(readStart), GapDays: null));
+
   private static DateOnly Day(string isoDate) => DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
