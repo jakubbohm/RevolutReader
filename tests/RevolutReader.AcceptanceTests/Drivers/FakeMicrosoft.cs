@@ -36,7 +36,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// the public half of an RSA key generated once per test run; <c>POST /token</c> the ID token <see cref="AnswerToken"/>
 /// set up, signed with that key, carrying <c>iss</c>, <c>aud</c> = <see cref="ClientId"/>, <c>nonce</c>,
 /// <c>iat</c>/<c>exp</c> (from the real clock, which checks them), <c>sub</c>, <c>oid</c>, <c>tid</c>, <c>name</c> and
-/// <c>email</c>; until then it has no answer. Nobody calls the authorize endpoint: the visitor's browser would show
+/// <c>email</c>; before <see cref="AnswerToken"/>, <c>POST /token</c> has no answer. Nobody calls the authorize endpoint: the visitor's browser would show
 /// Microsoft's page there, and <see cref="SignInDriver"/> plays the page's answer instead. No real secret and no real
 /// account, ever.
 /// </para>

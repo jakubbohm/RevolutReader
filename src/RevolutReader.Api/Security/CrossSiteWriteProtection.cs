@@ -7,7 +7,7 @@ public static class CrossSiteWriteProtection {
   private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
 
   /// <summary>
-  /// A request <see cref="CrossSiteWrites.IsAllowed"/> refuses is answered 403 with the problem description
+  /// A request <see cref="CrossSiteWrites.IsAllowed(string, PathString, string, string, string)"/> refuses is answered 403 with the problem description
   /// <c>Forbidden</c>, written through <see cref="IProblemDetailsService"/>, and goes no further, so its endpoint never runs
   /// and nothing changes. A write the rule <see cref="CrossSiteWrites.Applies"/> to (under <c>/api</c>) that carries
   /// <c>Sec-Fetch-Site</c> or <c>Origin</c> more than once is ambiguous, so it is refused too; every other request is not

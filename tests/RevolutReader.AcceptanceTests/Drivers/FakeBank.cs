@@ -26,7 +26,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// (<c>spikes/enable-banking-mock/evidence/2026-11-06-account1-*.json</c>); what the mock cannot produce (several pages,
 /// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer) is written from the API reference and the M1 findings,
 /// and a gateway's maintenance page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected <c>date_from</c> and
-/// <c>continuation_key</c>. Filled in by the wiring groups; until then the answer methods throw.
+/// <c>continuation_key</c>.
 /// </para>
 /// </summary>
 public sealed class FakeBank : IDisposable {

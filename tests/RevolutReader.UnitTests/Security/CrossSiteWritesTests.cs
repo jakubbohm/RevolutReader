@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 using RevolutReader.Api.Security;
 using Shouldly;
 
@@ -9,12 +10,14 @@ namespace RevolutReader.UnitTests.Security;
 /// write (POST, PUT, PATCH or DELETE) to a path under <c>/api</c>:
 /// <list type="bullet">
 /// <item>the sign-in return <c>/api/auth/signin-oidc</c> is passed on;</item>
+/// <item>a <c>Sec-Fetch-Site</c> or <c>Origin</c> sent more than once is refused, as ambiguous, even when its values
+/// agree;</item>
 /// <item><c>Sec-Fetch-Site: same-origin</c> or <c>none</c> is allowed; any other <c>Sec-Fetch-Site</c> is refused;</item>
 /// <item>without <c>Sec-Fetch-Site</c>, an <c>Origin</c> is allowed only when it is exactly the request's own (scheme,
 /// host and port);</item>
 /// <item>with neither header, the request is allowed (not a browser).</item>
 /// </list>
-/// Every other request passes. "Under <c>/api</c>" is by path segment and ignores letter case, as ASP.NET's routing
+/// Every other request passes, even with both headers repeated. "Under <c>/api</c>" is by path segment and ignores letter case, as ASP.NET's routing
 /// matches paths; methods ignore letter case too, so a lowercase method is no way around the rule. The app's own origin
 /// here is <see cref="APP"/>; every address is made up.
 /// </summary>
@@ -130,7 +133,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("PATCH")]
   [Arguments("DELETE")]
   public void A_write_with_neither_header_is_allowed(string method) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: null, origin: null, APP).ShouldBeTrue();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: (string?)null, origin: (string?)null, APP).ShouldBeTrue();
 
   [Test]
   [Arguments(SIGN_IN_RETURN)]
@@ -148,6 +151,24 @@ public sealed class CrossSiteWritesTests {
   public void A_write_outside_api_is_passed_on(string method, string path) =>
     _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed(method, new PathString(path), headers.SecFetchSite, headers.Origin, APP))
       .ShouldBeEmpty($"{method} {path} refused with these headers");
+
+  [Test]
+  [Arguments("POST", $"{SAME_ORIGIN}|{SAME_ORIGIN}", APP)] // the same value twice is still a repeated header
+  [Arguments("POST", $"{SAME_ORIGIN}|{CROSS_SITE}", "")]
+  [Arguments("POST", "", $"{APP}|{APP}")]
+  [Arguments("DELETE", "", $"{APP}|{OTHER_SITE}")]
+  public void A_write_with_a_repeated_Sec_Fetch_Site_or_Origin_is_refused(string method, string secFetchSite, string origin) =>
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), Received(secFetchSite), Received(origin), APP).ShouldBeFalse();
+
+  [Test]
+  [Arguments("GET", SIGN_OUT)]
+  [Arguments("POST", SIGN_IN_RETURN)]
+  [Arguments("POST", "/no-such-page")]
+  public void A_request_the_rule_does_not_apply_to_passes_even_with_both_headers_repeated(string method, string path) =>
+    CrossSiteWrites.IsAllowed(method, new PathString(path), Received($"{SAME_ORIGIN}|{CROSS_SITE}"), Received($"{APP}|{OTHER_SITE}"), APP).ShouldBeTrue();
+
+  /// <summary>A header's values as the request carried them, written here with <c>|</c> between them; empty: the header was not sent.</summary>
+  private static StringValues Received(string? values) => string.IsNullOrEmpty(values) ? StringValues.Empty : new StringValues(values.Split('|'));
 
   /// <summary>A request's <c>Sec-Fetch-Site</c> and <c>Origin</c>; <see langword="null"/>: the header is missing.</summary>
   private sealed record Headers(string? SecFetchSite, string? Origin);

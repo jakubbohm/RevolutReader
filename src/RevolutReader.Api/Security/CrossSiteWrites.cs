@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Primitives;
 using RevolutReader.Api.SignIn;
 
 namespace RevolutReader.Api.Security;
@@ -55,6 +56,12 @@ public static class CrossSiteWrites {
 
     return true;
   }
+
+  /// <summary>
+  /// As the string overload, with the header values as received; when the rule applies, a header sent more than once is
+  /// refused as ambiguous.
+  /// </summary>
+  public static bool IsAllowed(string method, PathString path, StringValues secFetchSite, StringValues origin, string requestOrigin) => throw new NotImplementedException();
 
   private static bool IsWrite(string method) => HttpMethods.IsPost(method) || HttpMethods.IsPut(method) || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
 }

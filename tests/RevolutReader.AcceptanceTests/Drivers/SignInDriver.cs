@@ -19,10 +19,6 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// started (<c>state</c>, <c>nonce</c>, the return address), so test cases pass nothing between steps. Status codes,
 /// headers and addresses stay here; the DSL gets <see cref="SignInStart"/>, <see cref="Landing"/>,
 /// <see cref="WhoAnswer"/> and <see cref="SignOutAnswer"/>.
-/// <para>
-/// Filled in by the wiring groups (tasks 2.2, 5.4, 11.1, 14.1, 16.1, 18.1, 20.1, 24.1); until then every method that
-/// talks to the app throws. <see cref="AllowedEmails"/> reads only the app copy's configuration, so it works already.
-/// </para>
 /// </summary>
 public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IServiceProvider services) {
   /// <summary>The app copy's allowlist setting (c007 design.md D8): comma-separated addresses.</summary>
@@ -259,14 +255,38 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <c>Origin: </c><paramref name="fromSite"/>.
   /// </summary>
   public async Task<SignOutAnswer> SignOut(string? fromSite = null) {
-    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(LOGOUT, UriKind.Relative));
+    using HttpRequestMessage request = SignOutRequest(fromSite);
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await SignOutAnswerOf(response);
+  }
+
+  /// <summary>
+  /// The sign-out as <see cref="SignOut"/> sends it from <paramref name="fromSite"/>, for a guard that reads the refusal
+  /// itself: the names of the problem description's members when the answer is the problem <c>Forbidden</c> (403), as
+  /// <see cref="SignOutAnswer.Refused"/> reads it; <see langword="null"/> for any other answer.
+  /// </summary>
+  public async Task<IReadOnlyList<string>?> SignOutRefusalMembers(string fromSite) {
+    using HttpRequestMessage request = SignOutRequest(fromSite);
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+
+    return response.StatusCode == HttpStatusCode.Forbidden
+      && JsonObjectOrNull(await response.Content.ReadAsStringAsync()) is JsonElement problem
+      && IsProblem(mediaType, problem, response.StatusCode, FORBIDDEN)
+        ? [.. problem.EnumerateObject().Select(static member => member.Name)]
+        : null;
+  }
+
+  /// <summary><c>POST /api/auth/logout</c> as <see cref="SignOut"/> describes it, from the app's own page or from <paramref name="fromSite"/>.</summary>
+  private static HttpRequestMessage SignOutRequest(string? fromSite) {
+    HttpRequestMessage request = new(HttpMethod.Post, new Uri(LOGOUT, UriKind.Relative));
     request.Headers.Add(SEC_FETCH_SITE, fromSite is null ? SAME_ORIGIN : SAME_SITE);
     request.Headers.Add(ORIGIN, fromSite ?? _appAddress.GetLeftPart(UriPartial.Authority));
     request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
 
-    using HttpResponseMessage response = await Browser.SendAsync(request);
-
-    return await SignOutAnswerOf(response);
+    return request;
   }
 
   /// <summary>
