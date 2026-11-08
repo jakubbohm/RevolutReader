@@ -298,6 +298,20 @@ public sealed class ReadNewestTransactionsHandlerTests {
       () => warning.ShouldHoldNoBankData());
   }
 
+  /// <summary>Two pending transactions and nothing else, one with a reference: the read keeps nothing, while the page shows both.</summary>
+  [Test]
+  public async Task A_read_with_only_pending_transactions_keeps_nothing() {
+    InMemoryTransactionStore store = new();
+    StubBankAccount bank = new(Lists(
+      Pending(_november19, -8.90m),
+      Pending(_november18, -12.30m) with { Reference = "e-pending-1" }));
+
+    TransactionPage page = await NewestPage(bank, store);
+
+    page.Transactions.Count.ShouldBe(2, "the page shows both");
+    (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("what the store keeps after the read");
+  }
+
   private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) =>
     new(bank, store, clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 

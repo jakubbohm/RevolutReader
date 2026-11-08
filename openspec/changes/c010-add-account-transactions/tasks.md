@@ -262,8 +262,8 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 35. [unit] Slice 16 — Pending never kept
 
-- [ ] 35.1 A pending transaction is never kept
-- [ ] 35.2 A read with only pending transactions keeps nothing
+- [x] 35.1 A pending transaction is never kept
+- [x] 35.2 A read with only pending transactions keeps nothing
 
 ## 36. [close] Slice 16 — A pending transaction is never kept
 

@@ -190,6 +190,24 @@ public sealed class TransactionPagingTests {
       () => kept.WithoutReference.ShouldBe(2));
   }
 
+  /// <summary>
+  /// Pending ones, with a reference and without, among settled ones: only the settled ones are kept (ADR-0001 item 6, D5),
+  /// and a pending one without a reference is not counted as a settled one without.
+  /// </summary>
+  [Test]
+  public void A_pending_transaction_is_never_kept() {
+    ToKeep kept = TransactionPaging.ToKeep([
+      Booked("e-p1", "2026-11-19") with { Status = TransactionStatus.Pending },
+      Booked("e-a", "2026-11-19"),
+      Booked(null, "2026-11-18") with { Status = TransactionStatus.Pending },
+      Booked("e-b", "2026-11-18"),
+    ]);
+
+    kept.ShouldSatisfyAllConditions(
+      () => kept.Transactions.Select(static transaction => transaction.Reference).ShouldBe(["e-a", "e-b"]),
+      () => kept.WithoutReference.ShouldBe(0));
+  }
+
   private static DateOnly Day(string isoDate) => DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 
   /// <summary>A booked card payment with this reference (none: <see langword="null"/>) on this day, as the bank's read returns one.</summary>
