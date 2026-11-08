@@ -324,3 +324,37 @@ test.each(failedSignOuts)(
     });
   },
 );
+
+// D2, D3 (code review of PR #59, finding 5): the waking-up screen stays after a wake only until that first read ends,
+// and belongs to the first load only. Once the server has woken and answered, a later read is on an awake server: the
+// stored header reads as refreshing ("Obnovuji…"), never the waking-up screen again.
+test("Once the woken server has answered, reading again shows the stored balance refreshing, not the waking-up screen", async () => {
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: after(20 * SECOND, LUCIE),
+    balance: [bankUnavailable, after(READ_TIME, balance(301.9))],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(20 * SECOND);
+  expect(
+    result.current.shown,
+    "the woken server's first read failed",
+  ).toMatchObject({
+    banner: { kind: "bank unavailable" },
+  });
+
+  // "Zkusit znovu" on the bank's banner.
+  act(() => {
+    result.current.retry();
+  });
+  await timePasses(0);
+
+  expect(result.current.shown, "while the read runs").toMatchObject({
+    screen: "account",
+    header: { balance: { amount: 286.4 }, refreshing: true },
+  });
+  expect(result.current.shown, "no waking-up screen").not.toMatchObject({
+    body: "waking",
+  });
+});
