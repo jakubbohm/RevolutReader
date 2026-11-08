@@ -24,8 +24,8 @@
 - **Backend today:**
   - no endpoint reads the bank; the port `IBankAccount.ReadBalance(ReadTrigger, ct)` returns `BankResult<Balance>`, and `Balance(decimal Amount, string Currency)` carries the account's currency;
   - `Program.cs` has `AddProblemDetails` and `UseStatusCodePages` but no exception handler. An unhandled exception answers 500 with an empty body, against the `api-errors` requirement. In the in-process acceptance harness there is no 500 at all: the exception is rethrown into the test's `HttpClient` call (C13's research, 2026-11-08).
-- **C13** (`feat/c13-account-read-groundwork`, not merged at propose time; its merged names are final):
-  - `Account/PresentUserFromRequest.Read(HttpContext)` returns `PresentUser?`: the client address after forwarded headers, IPv4 out of its IPv6 form, and the `User-Agent` as given. It returns `null` without an address or with a blank browser, and the endpoint then answers 400;
+- **C13** (merged 2026-11-08 as [#57](https://github.com/jakubbohm/RevolutReader/pull/57); the names below are its merged ones):
+  - `Account/PresentUserFromRequest.Read(HttpContext)` returns `PresentUser?`: the client address after forwarded headers, passed on as it came, and the `User-Agent` as given. `PresentUser` itself turns an IPv4 address in IPv6 form into plain IPv4, so every way of creating one is covered. It returns `null` without an address or with a blank browser, and the endpoint then answers 400;
   - the rules that turn a bank failure into a problem description:
     - access expired: 503, `/problems/bank-access-expired`, "Bank access expired";
     - rate limited: 429, `/problems/bank-rate-limited`, "Bank rate limit reached";
@@ -71,7 +71,7 @@
   - C, a separate rate endpoint: one more request on every open, for one number.
 - **Currency:** not in the answer. The account is a euro account, so a balance in any other currency is a bug: the handler throws `InvalidOperationException` and the answer is a 500. The message names neither the amount nor the currency (docs/conventions/README.md, never log bank data). Unit-tested, no scenario.
 - **The present user:** the endpoint reads it with C13's `PresentUserFromRequest.Read`. When that returns `null`, the endpoint answers C13's `BankAnswers.NoPresentUser()` (400, ASP.NET Core's default `type`, title "Bad Request") and never calls the handler, so nothing is read unattended in its place (C13's rule, the user, 2026-11-08). C13's `ProducesBankProblems()` declares that 400 together with the 429 and 503, so the endpoint's description adds no 400 of its own (C13's message, 2026-11-08).
-- **Bank failures:** C13's rules map `BankAccessExpired`, `BankRateLimited` and `BankUnavailable` to their problem descriptions. Clients compare `type` exactly, as written (a relative path, never resolved), because two cases share 503, and the ingress and Vite's dev server answer 502, 503 and 504 in plain text when the app is down.
+- **Bank failures:** C13's rules map `BankAccessExpired`, `BankRateLimited` and `BankUnavailable` to their problem descriptions. Clients compare `type` exactly, as written (a relative path, never resolved), because two cases share 503, and the proxies in front of the app answer in plain text when it is down: the ingress with 502, 503 or 504, Vite's dev server with 502.
 - **The bank problems in the contract** (C13's message, 2026-11-08): `ProducesBankProblems()` describes the 429 and 503 bodies as C13's `BankProblem`, whose `type` is required and limited to the enum `BankProblemType` (exactly the three strings). Once this endpoint calls it and the client is regenerated, `schema.d.ts` carries it as `components["schemas"]["RevolutReaderApiAccountBankProblem"]`. *(propose)* `readBalance` types a 429 or 503 body by that schema and compares `type` against its enum's literals, so a type renamed on either side fails the type check or CI's drift check instead of reading silently as unexpected.
 - **The 500** (C13's research, checked against the ASP.NET Core 11 RC3 sources and a scratch copy of the API):
   - `app.UseExceptionHandler()` with no arguments (`AddProblemDetails` is already registered), placed directly after `app.UseStatusCodePages()` and before `app.UseAppPages()`; forwarded headers stay first;
@@ -255,7 +255,7 @@ public sealed record AccountBalance(decimal Amount, DateTimeOffset ReadAt, decim
 
 /// <summary>
 /// Reads the balance as the present user (D1). The read time is the TimeProvider's when the bank answered; the rate is
-/// C13's constant. A bank failure comes back as the same case. A balance in any currency other than EUR throws
+/// KorunaRate.CzkPerEur (C13). A bank failure comes back as the same case. A balance in any currency other than EUR throws
 /// InvalidOperationException, whose message names neither the amount nor the currency.
 /// </summary>
 public sealed class ReadBalanceHandler(IBankAccount bank, TimeProvider time) {
@@ -264,7 +264,8 @@ public sealed class ReadBalanceHandler(IBankAccount bank, TimeProvider time) {
 
 /// <summary>
 /// GET /api/balance (D1): the AllowedUser default policy; no PresentUser → C13's BankAnswers.NoPresentUser() (400);
-/// otherwise the handler, a value → 200 BalanceResponse, a failure → C13's problem description. Description: 200, 401,
+/// otherwise the handler's result through BankAnswers.From(result, toResponse): a value → 200 BalanceResponse, a
+/// failure → C13's problem description. Description: 200, 401,
 /// 403 and 500, plus C13's ProducesBankProblems() (400, 429, 503).
 /// </summary>
 public sealed class BalanceEndpoint(ReadBalanceHandler handler) : EndpointWithoutRequest<BalanceResponse>;
@@ -275,10 +276,13 @@ public static class BalanceRegistration {
   public static IServiceCollection AddBalance(this IServiceCollection services);
 }
 
-// C13, its branch's names on 2026-11-08 (confirmed or replaced at the bootstrap, once merged):
-// PresentUserFromRequest.Read(HttpContext) → PresentUser?; BankAnswers.NoPresentUser() (the 400) and the bank failure →
-// problem description rules; ProducesBankProblems() (declares 400 as a plain problem description, 429 and 503 as
-// BankProblem, whose type is the enum BankProblemType of the three strings); the rate constant (24.3).
+// C13, as merged (#57), in src/RevolutReader.Api/Account/:
+//   PresentUserFromRequest.Read(HttpContext) → PresentUser?
+//   BankAnswers.From<T, TResponse>(BankResult<T>, Func<T, TResponse>) → Results<Ok<TResponse>, ProblemHttpResult>
+//   BankAnswers.NoPresentUser() → the 400; BankAnswers.Problem(BankAccessExpired | BankRateLimited | BankUnavailable)
+//   RouteHandlerBuilder.ProducesBankProblems(): 400 as a plain problem description, 429 and 503 as BankProblem, whose
+//     Type is the enum BankProblemType of the three strings
+//   KorunaRate.CzkPerEur (24.3m) and KorunaRate.Date (2026-11-08; C7b's sheet only)
 
 // Program.cs order: UseForwardedHeadersFromIngress → UseStatusCodePages → UseExceptionHandler → UseAppPages →
 // MapApiNotFound → UseSignIn → UseFastEndpoints. Services: AddBalance() after AddEnableBanking().
@@ -437,7 +441,7 @@ export function pingServer(): void;   // fetch("/health"), never awaited, failur
 | Rule (spec, ADR or convention) | Enforced by |
 |---|---|
 | `GET /api/balance` answers exactly `amount`, `readAt`, `czkPerEur` | `BalanceEndpoint`, `BalanceResponse`; the exact shape checked by `BalanceDriver` |
-| `readAt` is the server's time of the read; the rate is C13's | `ReadBalanceHandler` (`TimeProvider`, C13's constant) |
+| `readAt` is the server's time of the read; the rate is C13's | `ReadBalanceHandler` (`TimeProvider`, `KorunaRate.CzkPerEur`) |
 | Read as the present user; no browser named → 400 and nothing read | C13's `PresentUserFromRequest.Read`; `BalanceEndpoint` (C13's `BankAnswers.NoPresentUser()` before the handler) |
 | A balance in another currency is a bug | `ReadBalanceHandler` (throws) → `UseExceptionHandler` |
 | The bank's failures → problem descriptions told apart by `type` | C13's rules, applied by `BalanceEndpoint` |
@@ -496,7 +500,7 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
   - their `.claude/rules/` mirrors.
 - **Operations:** deployment.md's ready queries checked against the first real bank lines (C12's follow-up), corrected if a column differs.
 - **Design:** read only; no change (D5, D10).
-- **Software factory** (the next free numbers when written; R-58 was the last on 2026-11-08, and C13 may take more):
+- **Software factory** (the next free numbers when written; R-60 was the last on 2026-11-08):
   - *(New)* keeping a scale-to-zero server awake only while a client is on screen and in use: a fire-and-forget health ping under the cool-down, with an idle cap;
   - *(New)* the exception handler goes after `UseStatusCodePages` (C13's research), and in-process test hosts rethrow without it;
   - *(New)* a PWA's offline rule: the browser's flag and no answer mean offline; an error status never does, since hosting proxies answer in plain text;
@@ -506,7 +510,7 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
 
 - **[A `/health` ask every 4 minutes doesn't keep the replica up]** (the HTTP scale rule's window, or the probe path counting differently) → checked on Azure after the merge (D9). The fallback is a shorter interval, or a real API address such as `GET /api/me`, which also needs no bank.
 - **[The keep-alive's cost]:** while the app is on screen and in use, the replica runs at the active rate. Bounded by the cap; the daughter's sessions are minutes long.
-- **[Every acceptance request answers 400]:** the in-process test server sets no client address, and the test `HttpClient` sends no `User-Agent` (C13's code review, 2026-11-08, not yet verified). So `BalanceDriver` sends `X-Forwarded-For` and `User-Agent` on every request except the no-browser one, which leaves out `User-Agent` only. Whether `X-Forwarded-For` is applied when the connection has no address at all is probed at the bootstrap; the fallback is a test-only startup filter that sets the connection's address from the driver's header.
+- **[Every acceptance request answers 400]:** the in-process test server sets no client address, and the test `HttpClient` sends no `User-Agent` (C13's code review; confirmed by the bootstrap's probe, 2026-11-08). So `BalanceDriver` sends `X-Forwarded-For` and `User-Agent` on every request except the no-browser one, which leaves out `User-Agent` only. The probe also showed that the app's forwarded headers set the address from `X-Forwarded-For` although the connection has none (`203.0.113.7` arrived as sent; `::ffff:203.0.113.8` arrived unchanged, for `PresentUser` to convert), so no test-only fallback is needed.
 - **[C13's merged names or titles differ from this design]** → filled in at the bootstrap. If a title or `type` differs, the account-balance spec is updated and the user told before `/tdd-apply`.
 - **[Fake timers and Testing Library deadlock]** (`findBy…` waiting on a frozen clock) → `userEvent.setup({ advanceTimers })` and explicit `advanceTimersByTimeAsync`; the fake server's own delay runs on the same clock. The first frontend slice proves the pattern.
 - **[IndexedDB on the iPhone Home Screen app is cleared]** → the app then shows the waking-up or offline screen alone, as on a first open: harmless. WebKit's 7-day storage limit applies to sites in Safari, not to Home Screen apps.
@@ -520,6 +524,22 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
 3. **Probe:** a balance request through the in-process harness with `X-Forwarded-For` reaches `PresentUserFromRequest` with that address (Risks).
 4. **Baseline:** the full suite green, except the traceability check naming this change's 31 new scenarios.
 
+**Done 2026-11-08** (the user's go):
+
+1. `main` merged with C13 (#57). The one conflict, `pm/progress.md`, kept both rows. C13's names went into the sketch; its titles and types match the spec.
+2. Packages:
+   - `idb-keyval` 6.3.0 and `@radix-ui/react-progress` 1.2.1;
+   - `fake-indexeddb` 6.2.7: 6.2.8 came out the same day with no release notes, and 6.2.7's notes list performance fixes only;
+   - `npm audit`'s six findings are all in the existing build tooling (`vite-plugin-pwa` through `workbox-build`), none in the new packages.
+3. The probe, a throwaway acceptance test deleted afterwards:
+   - without `X-Forwarded-For` the app sees no address and no `User-Agent`;
+   - with it, the address as sent (§ Risks).
+4. The baseline:
+   - build with no warning;
+   - `dotnet test` 720 of 721, the one red the traceability check naming exactly the 31 new scenarios;
+   - frontend 53 of 53;
+   - lint, type check, Prettier and `dotnet format` clean.
+
 ## Migration plan
 
 1. **Before `/tdd-apply`:** C13 merged; the bootstrap.
@@ -529,7 +549,7 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
    - offline in DevTools: the offline screen, then the stored balance on reopening;
    - the API stopped: the waking-up screen, then the slow one;
    - the keep-alive's `/health` asks in the network panel.
-3. **Before the merge:** the archive in the same PR, as C5 and C6 did.
+3. **Before the merge** (workflow.md § 6, a change's path): the push and a draft PR on the owner's go, the owner's `/code-review xhigh --comment`, `/triage-review <PR>`, then the archive on the branch.
 4. **After the merge:**
    - the deploy runs;
    - the balance at the production address in a desktop browser;

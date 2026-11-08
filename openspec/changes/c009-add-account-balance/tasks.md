@@ -99,6 +99,7 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 ## 6. [wiring] Slice 3 — A request naming no browser
 
 - [ ] 6.1 `BalanceEndpoint`: no present user → C13's `BankAnswers.NoPresentUser()` (400), the handler never called; `BalanceDriver.AskForBalanceNamingNoBrowser` replaces its stub. Verify: the scenario runs against the app; the bank's request log stays empty
+- [ ] 6.2 Docs: README.md § Backend code, the case → status table's 400 row: its Scenario column names account-balance / A balance request without a browser name reads nothing at the bank for the no-present-user case. Verify: the row names the scenario exactly
 
 ## 7. [close] Slice 3 — A balance request without a browser name reads nothing at the bank
 
