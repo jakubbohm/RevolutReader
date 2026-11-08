@@ -293,7 +293,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 38. [close] Slice 16 — The account menu shows who is signed in
 
-- [ ] 38.1 Both app-shell scenarios pass. Verify: green, including app-shell / The account menu shows who is signed in and app-shell / The top bar shows the app name
+- [x] 38.1 Both app-shell scenarios pass. Verify: green, including app-shell / The account menu shows who is signed in and app-shell / The top bar shows the app name
 
 ## 39. [wiring] Slice 17 — Signing out from the menu
 
