@@ -133,17 +133,17 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 14. [unit] Slice 8 — Czech formats
 
-- [ ] 14.1 An amount shows in euros with a decimal comma and a no-break space before `€` (`286,40 €`)
-- [ ] 14.2 A four-digit amount groups its thousands with a no-break space (`2 486,40 €`)
-- [ ] 14.3 The koruna value is the amount times the rate, rounded to whole crowns, after `≈` (`≈ 6 960 Kč`)
-- [ ] 14.4 The koruna value of a negative amount shows its size without a sign
-- [ ] 14.5 The spoken koruna value reads `přibližně 6 960 Kč`
-- [ ] 14.6 A balance read under a minute ago is `Aktualizováno právě teď`
-- [ ] 14.7 A balance read 2 minutes ago is `Aktualizováno před 2 min`
-- [ ] 14.8 A balance read 2 hours ago is `Aktualizováno před 2 h`
-- [ ] 14.9 A balance read earlier today is `Aktualizováno v 9:05`
-- [ ] 14.10 A balance read yesterday is `Aktualizováno včera v 14:05`
-- [ ] 14.11 A balance read on another day this year is `Aktualizováno 3. 11. v 14:05`, and in another year its year follows the month
+- [x] 14.1 An amount shows in euros with a decimal comma and a no-break space before `€` (`286,40 €`)
+- [x] 14.2 A four-digit amount groups its thousands with a no-break space (`2 486,40 €`)
+- [x] 14.3 The koruna value is the amount times the rate, rounded to whole crowns, after `≈` (`≈ 6 960 Kč`)
+- [x] 14.4 The koruna value of a negative amount shows its size without a sign
+- [x] 14.5 The spoken koruna value reads `přibližně 6 960 Kč`
+- [x] 14.6 A balance read under a minute ago is `Aktualizováno právě teď`
+- [x] 14.7 A balance read 2 minutes ago is `Aktualizováno před 2 min`
+- [x] 14.8 A balance read 2 hours ago is `Aktualizováno před 2 h`
+- [x] 14.9 A balance read earlier today is `Aktualizováno v 9:05`
+- [x] 14.10 A balance read yesterday is `Aktualizováno včera v 14:05`
+- [x] 14.11 A balance read on another day this year is `Aktualizováno 3. 11. v 14:05`, and in another year its year follows the month
 
 ## 15. [unit] Slice 8 — Reading the balance
 
