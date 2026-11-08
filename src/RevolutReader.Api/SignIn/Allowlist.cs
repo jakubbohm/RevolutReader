@@ -36,6 +36,9 @@ public sealed class Allowlist {
     return new Allowlist(Array.AsReadOnly(entries));
   }
 
+  /// <summary>Ignoring case; null or empty → false.</summary>
+  public bool Allows(string? email) => throw new NotImplementedException();
+
   /// <summary>Text, exactly one <c>@</c>, text.</summary>
   private static bool IsEmailAddress(string entry) {
     int at = entry.IndexOf('@', StringComparison.Ordinal);
