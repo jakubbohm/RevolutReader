@@ -71,6 +71,7 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <summary>Microsoft's answer when the visitor cancels at its page (OAuth 2.0's error response).</summary>
   private const string ERROR = "error";
   private const string ACCESS_DENIED = "access_denied";
+  private const string ERROR_DESCRIPTION = "error_description";
 
   /// <summary>How the browser marks a request made by a page of Microsoft's (D6): fetch metadata and the origin.</summary>
   private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
@@ -188,10 +189,22 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <c>state</c> to the return address, with the same cross-site headers as <see cref="ReturnFromMicrosoft"/>, and
   /// follows the app's redirects as it does.
   /// </summary>
-  public Task<Landing> CancelAtMicrosoft() {
-    StartedSignIn started = Started();
+  public Task<Landing> CancelAtMicrosoft() => ReturnWithError(ACCESS_DENIED);
 
-    return AnswerFromMicrosoftsPage(started, new Dictionary<string, string> { [ERROR] = ACCESS_DENIED, [STATE] = started.State });
+  /// <summary>
+  /// An answer to the started sign-in that carries an error instead of a code, as Microsoft's page, or anyone who posts to
+  /// the return address, can send it: the browser posts <c>error=</c><paramref name="error"/>, with
+  /// <c>error_description=</c><paramref name="description"/> when given, and the <c>state</c>, with the same cross-site
+  /// headers as <see cref="ReturnFromMicrosoft"/>, and follows the app's redirects as it does.
+  /// </summary>
+  public Task<Landing> ReturnWithError(string error, string? description = null) {
+    StartedSignIn started = Started();
+    Dictionary<string, string> answer = new() { [ERROR] = error, [STATE] = started.State };
+
+    if (description is not null)
+      answer[ERROR_DESCRIPTION] = description;
+
+    return AnswerFromMicrosoftsPage(started, answer);
   }
 
   /// <summary>
