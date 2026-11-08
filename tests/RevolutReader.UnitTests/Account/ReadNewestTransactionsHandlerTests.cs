@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using RevolutReader.Api.Account;
@@ -158,12 +159,66 @@ public sealed class ReadNewestTransactionsHandlerTests {
       .ShouldBe(["e-kept-1"], "the store holds what it held before, and nothing more");
   }
 
-  private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null) =>
-    new(bank, store, clock ?? new FakeTimeProvider(_today), NullLogger<ReadNewestTransactionsHandler>.Instance);
+  // The log: a type code the app does not know (D4c). Each page holds one transaction whose code is in question, so the
+  // tests hold whether the handler logs once per transaction or once per code on the page.
+
+  /// <summary>
+  /// Among two transactions with codes the app knows, one with a code it does not, shaped like a code: one warning, whose
+  /// only value is the code, and nothing of the transaction's bank data (its counterparty, amount or text) in the line.
+  /// </summary>
+  [Test]
+  public async Task The_newest_page_logs_an_unknown_code_shaped_type_code_as_a_warning_carrying_the_code() {
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(
+      Settled(_november19, -12.30m),
+      Settled(_november18, -7.20m) with { TypeCode = "CASHBACK" },
+      Settled(_november18, 50.00m)));
+
+    _ = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    LogEntry warning = log.Warnings().ShouldHaveSingleItem("the warnings: one, for the one code the app does not know");
+    warning.ShouldSatisfyAllConditions(
+      () => warning.EventName.ShouldBe("UnknownTypeCode"),
+      () => warning.OwnValues().ShouldBe(["CASHBACK"], "the line's values: the code alone"),
+      () => warning.ShouldHoldNoBankData());
+  }
+
+  /// <summary>Words with an accent and spaces, which the bank could put there: the warning says so without quoting them.</summary>
+  [Test]
+  public async Task The_newest_page_logs_a_type_code_that_does_not_look_like_a_code_without_quoting_it() {
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(Settled(_november18, -7.20m) with { TypeCode = "Platba v kavárně" }));
+
+    _ = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    LogEntry warning = log.Warnings().ShouldHaveSingleItem("the warnings: one, for the code that does not look like one");
+    warning.ShouldSatisfyAllConditions(
+      () => warning.EventName.ShouldBe("TypeCodeNotLikeACode"),
+      () => warning.OwnValues().ShouldBeEmpty("the line's values: none"),
+      () => warning.AllText().ShouldNotContain("kavárně", Case.Insensitive),
+      () => warning.ShouldHoldNoBankData());
+  }
+
+  [Test]
+  public async Task The_newest_page_logs_a_transaction_without_a_type_code() {
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(Settled(_november18, -7.20m) with { TypeCode = null }));
+
+    _ = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    LogEntry warning = log.Warnings().ShouldHaveSingleItem("the warnings: one, for the transaction without a code");
+    warning.ShouldSatisfyAllConditions(
+      () => warning.EventName.ShouldBe("NoTypeCode"),
+      () => warning.OwnValues().ShouldBeEmpty("the line's values: none"),
+      () => warning.ShouldHoldNoBankData());
+  }
+
+  private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) =>
+    new(bank, store, clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 
   /// <summary>The newest page for <see cref="_lucieOnHerPhone"/>; a failure fails the test.</summary>
-  private static async Task<TransactionPage> NewestPage(StubBankAccount bank, ITransactionStore store, TimeProvider? clock = null) {
-    BankResult<TransactionPage> result = await Handler(bank, store, clock).Handle(_lucieOnHerPhone, CancellationToken.None);
+  private static async Task<TransactionPage> NewestPage(StubBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) {
+    BankResult<TransactionPage> result = await Handler(bank, store, clock, logger).Handle(_lucieOnHerPhone, CancellationToken.None);
 
     return result.Value.ShouldBeOfType<TransactionPage>("the newest page, not a failure");
   }
@@ -218,5 +273,56 @@ public sealed class ReadNewestTransactionsHandlerTests {
 
       return Task.FromResult(answer);
     }
+  }
+
+  /// <summary>
+  /// The handler's logger, keeping every line it writes: its level, its event's name, its structured values and its
+  /// message. A source-generated line's values are its own fields and its message template.
+  /// </summary>
+  private sealed class CapturedLog : ILogger<ReadNewestTransactionsHandler> {
+    private readonly List<LogEntry> _entries = [];
+
+    /// <summary>The lines at <see cref="LogLevel.Warning"/> or above, in the order written.</summary>
+    public IReadOnlyList<LogEntry> Warnings() => [.. _entries.Where(static entry => entry.Level >= LogLevel.Warning)];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+      ArgumentNullException.ThrowIfNull(formatter);
+
+      IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
+      _entries.Add(new LogEntry(logLevel, eventId.Name, [.. values], formatter(state, exception)));
+    }
+  }
+
+  /// <summary>One line of the handler's log.</summary>
+  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, string Message) {
+    /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
+    private const string ORIGINAL_FORMAT = "{OriginalFormat}";
+
+    /// <summary>The bank data of the transactions these tests list (made up): counterparties, the line of text, the amounts in either decimal separator.</summary>
+    private static readonly string[] _bankData = ["Pekárna U Lípy", "Jan Novák", "Praha 2", "7.20", "7,20", "12.30", "12,30", "50.00", "50,00"];
+
+    /// <summary>The values of the line's own fields, in order, without its message template.</summary>
+    public IReadOnlyList<string?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value?.ToString())];
+
+    /// <summary>The message and every value, as one text.</summary>
+    public string AllText() => string.Join(" | ", [Message, .. Values.Select(static pair => $"{pair.Key}={pair.Value}")]);
+
+    /// <summary>Fails when the line holds any of the transactions' bank data.</summary>
+    public void ShouldHoldNoBankData() {
+      string text = AllText();
+
+      _bankData.Where(value => text.Contains(value, StringComparison.OrdinalIgnoreCase)).ShouldBeEmpty("bank data in the line");
+    }
+
+    #region Object overrides
+
+    /// <summary>For a failure message: the level and the event.</summary>
+    public override string ToString() => $"{Level} {EventName}";
+
+    #endregion
   }
 }
