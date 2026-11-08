@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target; 2026-11-08: C11 bank-read retries, C9's one-check-at-a-time design — see the change log in `pm/progress.md`)
 
 ---
 
@@ -38,22 +38,23 @@
 | 11 | M4 | Manual | Entra ID | F0-2 | — |
 | 12 | C5 | OpenSpec | `cNNN-add-enable-banking-adapter` | C1, M1 | — |
 | 13 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
-| 14 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
+| 14 | C11 | OpenSpec | `cNNN-add-bank-read-retries` | C5 | — |
+| 15 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C6; findings on Q6 | decides Q7 |
 | ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7 deployed via C4 | |
-| 15 | M5 | Manual | Handover v1 | v1 | — |
-| 16 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
-| 17 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
+| 16 | M5 | Manual | Handover v1 | v1 | — |
+| 17 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
+| 18 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 18 | M7 | Manual | Handover v2 | v2 | — |
+| 19 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 19 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 20 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| 20 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 21 | M8 | Manual | Decommissioning | end of operation; D1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 (v1) → C8 → C9 (v2).
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C7 (v1) → C8 → C9 (v2).
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -215,6 +216,16 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Outputs:** archived change; sign-in working locally and, after deployment, on Azure; BDD scenarios for allowed and rejected users.
 - **Open questions:** — (applies Q1, Q2)
 
+### C11 — `cNNN-add-bank-read-retries`
+
+- **Type:** OpenSpec change
+- **Goal:** The bank adapter retries a failed request a few times within about 2 s, so that a one-off network failure does not end as "bank unavailable" ([#27](https://github.com/jakubbohm/RevolutReader/issues/27)). It retries network failures and the bank's own errors (`ASPSP_ERROR`, `ASPSP_TIMEOUT`), each HTTP request on its own (a failed transactions page retries that page only). It never retries rate limited (429), access expired or any other error. A read is "bank unavailable" only after its last attempt fails.
+- **Depends on:** C5. Placed before C7, so that C7 and C9 build on it.
+- **Inputs:** issue #27 (the proposal and what to decide); the `bank-reads` spec; c004 design.md D4 and c001 design.md D5 (archived with their changes); [README.md § Backend code](../docs/conventions/README.md#backend-code); [ADR-0001-bank-data-access](../docs/adr/0001-bank-data-access.md).
+- **Outputs:** archived change; `bank-reads` with the changed "Bank unavailable" requirement and retry scenarios ("Rate limited, never retried" unchanged); README.md § Backend code narrowed from "the bank client never retries" to the policy this change decides (no other client gets retries by default); a dated note in ADR-0001; software-factory lesson R-30 updated.
+- **Open questions:** — (applies Q6: no retry may use up the 4 unattended reads a day)
+- **Notes:** small. It decides: whether a request that hit our own 15 s timeout is retried (that alone breaks the 2 s budget), or a total time budget per read; retries on unattended reads (none exist today; only a C9 fallback check would make them, and whether Revolut counts a failed request against the 4 a day is unknown, so the recommendation is none, or only when no connection was made); a resilience handler on the bank client alone or a small loop in `EnableBankingClient`. Added 2026-11-08 (change log).
+
 ### C7 — `cNNN-add-account-detail` (UC2)
 
 - **Type:** OpenSpec change
@@ -249,6 +260,15 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 
 - **Type:** OpenSpec change
 - **Goal:** When the Revolut app on my iPhone shows a notification, an iOS 27 Shortcuts automation on the phone calls a protected, retry-safe endpoint in the app. The endpoint reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. This replaces the 4 scheduled runs a day and the Logic App clock of [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md) ([ADR-0008-phone-triggered-check](../docs/adr/0008-phone-triggered-check.md), [issue #12](https://github.com/jakubbohm/RevolutReader/issues/12)). Reads triggered from the phone forward the phone's real PSU headers (my decision; I accept the risk). C9 decides how the Shortcut authenticates and whether a fallback check is kept for when the phone is off or offline.
+- **One check at a time, one merged notification** (the owner, 2026-11-08; the starting design for C9's explore). Revolut often sends an offer right after the payment notification, and each one fires the Shortcut. While the app wakes up, both calls arrive together, read the same new state, compare it with the same old stored state and would both notify. This is how C9 meets ADR-0008's "at most one notification" constraint:
+  1. **Three steps per trigger, one trigger at a time:** read the bank and compare with the stored state; store the new state if it changed; notify. A trigger waits until the previous one has finished. An in-process queue is enough, because the app runs at most one copy ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)).
+  2. **At most one check waits:** a trigger arriving while a check is already waiting joins that check and gets its answer, so a burst of any size costs at most two bank reads.
+  3. **Two stored markers:** *last seen*, the state from the latest successful read, updated by every check; and *last notified*, the state as of the last notification sent. The notification is the difference between them.
+  4. **Only the last check in a burst notifies:** a check with another check waiting behind it skips the notification and leaves its changes to the last one, which covers everything since the last notification.
+  5. **The notification comes from the stored state, not the live read:** a last check whose bank read fails still sends what earlier checks found, and a stop between storing and notifying (scale to zero, a deploy) is caught up by the next trigger. *Last notified* is written only after the push has gone out: at worst one notification repeats, none is lost.
+  6. **Optional backstop:** a conditional update (ETag) on the stored state, so two app copies during a deploy cannot send the same changes.
+  - **Not chosen:** waiting for a quiet period (debounce) before checking. It delays every notification, needs a timer that outlives the phone's request, and buys nothing: the payment is already readable when its notification arrives ([M1 spike, step 7](../spikes/enable-banking/README.md)). Accepted cost: two real payments a few seconds apart can still bring two notifications.
+  - **C9 decides:** whether the Shortcut waits for the answer (a queued call answers after the wake-up plus under 1 s per read; iOS Shortcuts' request timeout is not known yet) or the endpoint answers at once (202) and checks in the background; the content of a merged notification (Q8, e.g. "2 new payments" plus the balance, which the push carries, [ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)); how *last notified* relates to "changes since the daughter's last view" ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), Q8).
 - **Depends on:** C5, C8; findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06: the automation runs on its own, also while the phone is locked).
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job, ADR-0008-phone-triggered-check and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v2 complete and deployed; the Shortcut and its secret recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
@@ -329,7 +349,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 | 3 | Frontend hosting (one container) | F0-2 | C1, C3, C4 |
 | 4 | Job hosting, registry, costs | F0-2 | M3, C4, C9 |
 | 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M9, M8 |
-| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C7, C9 |
+| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7, C9 |
 | 7 | Transactions (history, paging, details) | C7 | — |
 | 8 | Notification content | C9 | — |
 | 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8, M5, M7 |
