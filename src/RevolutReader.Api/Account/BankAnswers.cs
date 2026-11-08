@@ -77,20 +77,26 @@ public static class BankAnswers {
     return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: BANK_UNAVAILABLE_TITLE, type: BANK_UNAVAILABLE_TYPE);
   }
 
-  /// <summary>Not yet (the review's #2, the user, 2026-11-08).</summary>
-  public static ProblemHttpResult NoPresentUser() => throw new NotImplementedException();
+  /// <summary>
+  /// 400 with ASP.NET Core's default <c>type</c> and <c>title</c> (<c>Bad Request</c>), for a bank read with no present
+  /// user (<see cref="PresentUserFromRequest.Read"/> gave <see langword="null"/>): a request the API cannot read, answered
+  /// before the bank and never with an unattended read in its place (the user, 2026-11-08, roadmap C13; ADR-0001). One
+  /// answer for C7a's and C7b's endpoints, declared with the bank problems by <see cref="ProducesBankProblems"/>.
+  /// </summary>
+  public static ProblemHttpResult NoPresentUser() => TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest);
 
   /// <summary>
-  /// Declares the bank problems in the endpoint's API description: a 429 and a 503 problem description
-  /// (<c>application/problem+json</c>), one 503 for both 503 cases. A problem result puts no status into the API
-  /// description by itself, while an <see cref="Ok{TValue}"/> does, so C7a's and C7b's endpoints declare the same statuses
-  /// with this, inside FastEndpoints' <c>Description(…, clearDefaults: true)</c>, as <see cref="SignIn.MeEndpoint"/>
-  /// declares its own.
+  /// Declares the bank problems in the endpoint's API description: a 400 (<see cref="NoPresentUser"/>), a 429 and a 503
+  /// problem description (<c>application/problem+json</c>), one 503 for both 503 cases. A problem result puts no status into
+  /// the API description by itself, while an <see cref="Ok{TValue}"/> does, so C7a's and C7b's endpoints declare the same
+  /// statuses with this, inside FastEndpoints' <c>Description(…, clearDefaults: true)</c>, as
+  /// <see cref="SignIn.MeEndpoint"/> declares its own.
   /// </summary>
   public static RouteHandlerBuilder ProducesBankProblems(this RouteHandlerBuilder builder) {
     ArgumentNullException.ThrowIfNull(builder);
 
     return builder
+      .ProducesProblem(StatusCodes.Status400BadRequest)
       .ProducesProblem(StatusCodes.Status429TooManyRequests)
       .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
   }

@@ -14,9 +14,9 @@ public static class PresentUserFromRequest {
   /// The browser name is the <c>User-Agent</c> header as ASP.NET reads it (sent on two lines: both values joined with a
   /// comma), kept as given: cleaning it to printable ASCII is <see cref="PsuHeaders"/>' job (c006 design.md D5).
   /// <see langword="null"/> without a client address or with a missing, empty or whitespace <c>User-Agent</c>, each line
-  /// judged on its own (two blank lines read as <c>" , "</c>, which is not blank): the endpoint then answers 400 and never
-  /// reads unattended in its place, which would count against the bank's 4 reads a day without the user (the user,
-  /// 2026-11-08, roadmap C13; ADR-0001).
+  /// judged on its own (two blank lines read as <c>" , "</c>, which is not blank): the endpoint then answers
+  /// <see cref="BankAnswers.NoPresentUser"/>'s 400 and never reads unattended in its place, which would count against the
+  /// bank's 4 reads a day without the user (the user, 2026-11-08, roadmap C13; ADR-0001).
   /// </summary>
   public static PresentUser? Read(HttpContext context) {
     ArgumentNullException.ThrowIfNull(context);
