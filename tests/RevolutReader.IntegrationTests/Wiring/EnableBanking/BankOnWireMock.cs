@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using RevolutReader.Api.Bank;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -15,7 +16,7 @@ namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 /// key, token, typed <c>HttpClient</c>, no retries) in front of a WireMock.Net server that answers every request the same
 /// way. The settings are made up and the key is generated once per run, as the acceptance harness's fake bank does; no
 /// real secret and no real account data. A test of a fault WireMock.Net cannot produce points the client at another
-/// address instead.
+/// address instead. The client's log lines are kept for the tests (<see cref="CapturedLogLines"/>).
 /// </summary>
 public sealed class BankOnWireMock : IDisposable {
   private const string SECTION = "EnableBanking";
@@ -23,6 +24,7 @@ public sealed class BankOnWireMock : IDisposable {
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
   private readonly WireMockServer _server = WireMockServer.Start();
+  private readonly CapturedLogLines _log = new();
   private readonly ServiceProvider _services;
 
   /// <summary>Made up: the one linked account, whose id is in every request's path.</summary>
@@ -30,6 +32,9 @@ public sealed class BankOnWireMock : IDisposable {
 
   /// <summary>The port, as the app wires it.</summary>
   public IBankAccount Account => _services.GetRequiredService<IBankAccount>();
+
+  /// <summary>The lines the client has logged so far (one per read).</summary>
+  public IReadOnlyList<LogLine> LogLines => _log.Lines;
 
   /// <summary>The client's request timeout unless a test sets its own: long, so no other test runs into it.</summary>
   public static TimeSpan DefaultRequestTimeout { get; } = TimeSpan.FromSeconds(5);
@@ -51,6 +56,7 @@ public sealed class BankOnWireMock : IDisposable {
     ServiceCollection services = new();
 
     services.AddSingleton(configuration);
+    services.AddSingleton<ILoggerProvider>(_log);
     services.AddEnableBanking();
 
     _services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -78,6 +84,7 @@ public sealed class BankOnWireMock : IDisposable {
   public void Dispose() {
     _services.Dispose();
     _server.Dispose();
+    _log.Dispose();
   }
 
   #endregion
