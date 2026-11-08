@@ -62,21 +62,39 @@ function signedInOf(body: unknown): Session | null {
 
 /**
  * A sign-out that failed (c009 design.md D6): `offline` when the phone was offline or no answer came, otherwise the
- * server answered with an error. A stub until c009 tasks.md group 64 is implemented: its shape only.
+ * server answered with an error.
  */
 export class SignOutFailed extends Error {
-  declare readonly offline: boolean;
+  readonly offline: boolean;
+
+  constructor(offline: boolean) {
+    super(
+      offline
+        ? "The sign-out got no answer: the phone is offline."
+        : "The server answered the sign-out with an error.",
+    );
+    this.name = "SignOutFailed";
+    this.offline = offline;
+  }
 }
 
 /**
- * Ends the login on this device (`POST /api/auth/logout`, design.md D2); the Microsoft account stays signed in.
- * Resolves once the server has answered with success; rejects when it answered otherwise or the request failed, so the
- * caller decides what that means for its screen.
+ * Ends the login on this device (`POST /api/auth/logout`, c007 design.md D2); the Microsoft account stays signed in.
+ * Resolves once the server has answered with success. Rejects with `SignOutFailed` otherwise, so the caller decides
+ * what that means for its screen (c009 D2, D6): offline when the phone says so (nothing is sent) or no answer came; not
+ * offline when the server answered with an error, a plain-text hosting page among them.
  */
 export async function signOut(): Promise<void> {
-  const { response } = await api.POST("/api/auth/logout");
+  if (!navigator.onLine) throw new SignOutFailed(true);
 
-  if (!response.ok) throw new Error(`Sign-out answered ${response.status}.`);
+  let response: Response;
+  try {
+    ({ response } = await api.POST("/api/auth/logout"));
+  } catch (failure) {
+    throw new SignOutFailed(!wasAnswered(failure));
+  }
+
+  if (!response.ok) throw new SignOutFailed(false);
 }
 
 /** The backend's sign-in address (design.md D2), and its query for Microsoft's account picker. */

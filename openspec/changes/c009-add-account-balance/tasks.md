@@ -389,35 +389,35 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 64. [unit] Slice 27 — A failed sign-out
 
-- [ ] 64.1 With the phone offline, the sign-out sends nothing and fails as offline
-- [ ] 64.2 A sign-out that gets no answer fails as offline
-- [ ] 64.3 A sign-out the server answers with an error fails as not offline
-- [ ] 64.4 A failed sign-out keeps the screen and the stored balance and gives its banner, offline or not
+- [x] 64.1 With the phone offline, the sign-out sends nothing and fails as offline
+- [x] 64.2 A sign-out that gets no answer fails as offline
+- [x] 64.3 A sign-out the server answers with an error fails as not offline
+- [x] 64.4 A failed sign-out keeps the screen and the stored balance and gives its banner, offline or not
 
 ## 65. [wiring] Slice 27 — The failed sign-out
 
-- [ ] 65.1 `SignOutFailed`; the "Odhlášení se nepovedlo" banner with its two sentences (design.md D6); the bare `return` in `App` is gone; the no-access screen's "Zkusit jiný účet" is unchanged. Verify: the scenario runs against the app; the existing sign-in scenarios stay green
+- [x] 65.1 `SignOutFailed`; the "Odhlášení se nepovedlo" banner with its two sentences (design.md D6); the bare `return` in `App` is gone; the no-access screen's "Zkusit jiný účet" is unchanged. Verify: the scenario runs against the app; the existing sign-in scenarios stay green
 
 ## 66. [close] Slice 27 — A sign-out that fails offline says to try again online
 
-- [ ] 66.1 The scenario's test passes. Verify: green, including sign-in / A sign-out that fails offline says to try again online
+- [x] 66.1 The scenario's test passes. Verify: green, including sign-in / A sign-out that fails offline says to try again online
 
 ## 67. [close] Slice 28 — A sign-out the server fails says to try again later
 
-- [ ] 67.1 The scenario's test passes. Verify: green, including sign-in / A sign-out the server fails says to try again later
+- [x] 67.1 The scenario's test passes. Verify: green, including sign-in / A sign-out the server fails says to try again later
 
 ## 68. [unit] Slice 29 — The busy menu item
 
-- [ ] 68.1 While signing out, "Odhlásit se" shows a spinner beside its label and is marked busy
-- [ ] 68.2 Selecting "Odhlásit se" while signing out keeps the menu open and calls nothing
+- [x] 68.1 While signing out, "Odhlásit se" shows a spinner beside its label and is marked busy
+- [x] 68.2 Selecting "Odhlásit se" while signing out keeps the menu open and calls nothing
 
 ## 69. [wiring] Slice 29 — The sign-out under way
 
-- [ ] 69.1 `AccountMenu`'s `signingOut` (Radix `onSelect` with `preventDefault`), passed through `AppShell` from `useAccountScreen`; a tap outside closes the menu and the result still shows. Verify: the scenario runs against the app
+- [x] 69.1 `AccountMenu`'s `signingOut` (Radix `onSelect` with `preventDefault`), passed through `AppShell` from `useAccountScreen`; a tap outside closes the menu and the result still shows. Verify: the scenario runs against the app
 
 ## 70. [close] Slice 29 — The menu shows the sign-out under way
 
-- [ ] 70.1 The scenario's test passes. Verify: green, including sign-in / The menu shows the sign-out under way
+- [x] 70.1 The scenario's test passes. Verify: green, including sign-in / The menu shows the sign-out under way
 
 ## 71. [unit] Slice 30 — Keeping the server awake
 

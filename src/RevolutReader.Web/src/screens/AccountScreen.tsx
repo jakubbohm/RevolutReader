@@ -20,7 +20,7 @@ export interface AccountScreenProps {
   /** "Zkusit znovu" in a banner. */
   onRetry: () => void;
   /** "Odhlásit se" in the account menu. */
-  onSignOut: () => void;
+  onSignOut: () => void | Promise<void>;
 }
 
 /**
@@ -43,7 +43,11 @@ export function AccountScreen({
     shown.banner === null ? null : bannerFor(shown.banner, onRetry);
 
   return (
-    <AppShell account={shown.account ?? undefined} onSignOut={onSignOut}>
+    <AppShell
+      account={shown.account ?? undefined}
+      onSignOut={onSignOut}
+      signingOut={shown.signingOut}
+    >
       {header === "placeholder" ? (
         <Skeleton variant="balance" />
       ) : header !== null ? (
@@ -86,9 +90,9 @@ export function AccountScreen({
  * - the bank's limit is reached: the warning "Příliš mnoho obnovení", with no action, since trying again would not help;
  * - the bank access expired: the error "Propojení s bankou vypršelo", with no action, since only Dad can renew it;
  * - any answer the app cannot read, to who is signed in or to the balance read: the error "Zůstatek se nepodařilo
- *   načíst" with "Zkusit znovu", which repeats what failed (D5 b).
- *
- * The failed sign-out's banner comes with its own slice (c009 tasks.md slice 27).
+ *   načíst" with "Zkusit znovu", which repeats what failed (D5 b);
+ * - a failed sign-out: the error "Odhlášení se nepovedlo", to try again online, or in a while when the server failed it;
+ *   no action, since the menu is right there (D6).
  */
 function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
   const retry = { label: "Zkusit znovu", onClick: onRetry };
@@ -132,7 +136,13 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
         </Banner>
       );
     case "sign-out failed":
-      return null;
+      return (
+        <Banner tone="error" title="Odhlášení se nepovedlo">
+          {problem.offline
+            ? "Zkus to znovu, až budeš online."
+            : "Zkus to prosím za chvíli."}
+        </Banner>
+      );
   }
 }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
 import { shown, type Facts, type Problem, type Shown } from "./screenState";
-import { readSession, signOut, type Session } from "./session";
+import { readSession, SignOutFailed, signOut, type Session } from "./session";
 import {
   forgetStoredBalance,
   loadStoredBalance,
@@ -28,8 +28,8 @@ export interface AccountScreenModel {
   refresh: () => void;
   /** "Zkusit znovu": asks again on the slow waking-up screen; otherwise repeats what was under way, at once (`repeat`). */
   retry: () => void;
-  /** "Odhlásit se" in the account menu. */
-  signOut: () => void;
+  /** "Odhlásit se" in the account menu; settles when the sign-out has ended, whatever its outcome (it never rejects). */
+  signOut: () => Promise<void>;
 }
 
 /**
@@ -60,6 +60,9 @@ export function useAccountScreen(): AccountScreenModel {
   const [problem, setProblem] = useState<Problem | null>(null);
   const [wait, setWait] = useState<Facts["wait"]>("short");
   const [wokeUp, setWokeUp] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  /** Set the moment a sign-out starts, so a second tap in the same turn sees it (state would not yet). */
+  const signOutUnderWay = useRef(false);
   /** Whether the screen is on the page, for answers that come after it left. */
   const onPage = useRef(false);
   /** The first question has been answered. */
@@ -294,15 +297,31 @@ export function useAccountScreen(): AccountScreenModel {
     else repeat();
   }, [session, wait, askAgainAfterASlowWake, repeat]);
 
+  /**
+   * "Odhlásit se" (D6): one sign-out at a time, busy while it runs. Confirmed: the balance the phone keeps is forgotten
+   * before the signed-out screen shows (D4). Failed: the visitor stays signed in on the account screen, the balance
+   * shown and kept, and its banner, offline or not, replaces any other.
+   */
   async function signOutFromMenu(): Promise<void> {
+    if (signOutUnderWay.current) return;
+    signOutUnderWay.current = true;
+    setSigningOut(true);
+
     try {
       await signOut();
-    } catch {
+    } catch (failure) {
+      setProblem({
+        kind: "sign-out failed",
+        offline: failure instanceof SignOutFailed && failure.offline,
+      });
+      setSigningOut(false);
+      signOutUnderWay.current = false;
       return;
     }
 
-    // Confirmed: the balance the phone keeps is forgotten before the signed-out screen shows (D4).
     await endLogin({ kind: "signed-out", justSignedOut: true });
+    setSigningOut(false);
+    signOutUnderWay.current = false;
   }
 
   const facts: Facts = {
@@ -313,13 +332,13 @@ export function useAccountScreen(): AccountScreenModel {
     wait,
     wokeUp,
     problem,
-    signingOut: false,
+    signingOut,
   };
 
   return {
     shown: shown(facts),
     refresh: repeat,
     retry,
-    signOut: () => void signOutFromMenu(),
+    signOut: signOutFromMenu,
   };
 }
