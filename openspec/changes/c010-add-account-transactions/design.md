@@ -318,8 +318,9 @@ public sealed record TransactionPage(IReadOnlyList<ShownTransaction> Transaction
 
 /// <summary>
 /// The newest page (D1–D5): the store's rows → LiveReadStart → the bank, as the present user → keeps ToKeep → the live
-/// transactions dated from WindowStart, shown; OlderBefore = WindowStart when a kept one is older. Bank failures pass
-/// through; nothing is kept then. Logs: a gap beyond 89 days, settled ones without a reference, unknown type codes.
+/// transactions dated from WindowStart, shown; OlderBefore = WindowStart when a kept one is older, counting those this
+/// read has just kept (D3: the extra days are kept to appear on older pages, so the first open, reading 89 days with
+/// nothing kept, already names the window's start). Bank failures pass through; nothing is kept then. Logs: a gap beyond 89 days, settled ones without a reference, unknown type codes.
 /// </summary>
 public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, TimeProvider time,
   ILogger<ReadNewestTransactionsHandler> logger) {
