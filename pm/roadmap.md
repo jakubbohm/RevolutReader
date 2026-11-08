@@ -156,7 +156,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 6, 7, 8; the knowledge base; F0-2 decisions (Q3 affects the structure).
 - **Outputs:** archived change; solution in `src/` and `tests/`; `CLAUDE.md` with build, test and run commands, including the commands `/tdd-apply` needs (one group's tests, one change's acceptance tests, the traceability test, the full suite).
 - **Open questions:** —
-- **Notes:** before fixing the Result shape, verify whether C# union types ship in .NET 11 GA ([README.md § Backend code](../docs/conventions/README.md#backend-code)). The first change through `/tdd-apply`: run it with `review=all`, measure the cost of one app copy per test, and confirm that the implementer's hook fires (accept the workspace trust prompt first). Verify that FastEndpoints works with TUnit.AspNetCore (FastEndpoints' own testing package is believed to be xUnit-based).
+- **Notes:** before fixing the Result shape, verify whether C# union types ship in .NET 11 GA ([README.md § Backend code](../docs/conventions/README.md#backend-code)). The first change through `/tdd-apply`: run it with `review=all`, measure the cost of one app copy per test, and confirm that the implementer's hook fires (accept the workspace trust prompt first). Verify that FastEndpoints works with TUnit.AspNetCore (FastEndpoints' own testing package is believed to be xUnit-based). Issue: [#44](https://github.com/jakubbohm/RevolutReader/issues/44).
 
 ### C2 — `cNNN-add-ci-pipeline`
 
@@ -166,6 +166,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** the knowledge base (workflow); output of C1.
 - **Outputs:** archived change; CI passing on GitHub; the rule on `main` in place, checked by a PR whose CI fails and cannot be merged.
 - **Open questions:** —
+- **Notes:** issue [#45](https://github.com/jakubbohm/RevolutReader/issues/45).
 
 ### C3 — `c003-add-frontend-foundation`
 
@@ -175,6 +176,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 2, 6, 7, 10 (Q10); the knowledge base; F0-2 decisions (Q2, Q3, Q9); the design system ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Outputs:** archived change; a running PWA shell with the basis for the Czech UI; CI covering the frontend.
 - **Open questions:** decides Q10.
+- **Notes:** issue [#46](https://github.com/jakubbohm/RevolutReader/issues/46).
 
 ### M3 — Azure prerequisites for v1
 
@@ -193,7 +195,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 6, 7; F0-2 decisions (Q3, Q4); identifiers from M3; [workflow.md §§ 4–5](../docs/conventions/workflow.md#4-cicd).
 - **Outputs:** archived change; the skeleton running on Azure; the Enable Banking values in Key Vault, which the app reads from C5's merge on, when C5 wires them into the Bicep (c005 design.md D2); C5 lists them in `docs/conventions/configuration.md` § Hand-provisioned secrets.
 - **Open questions:** —
-- **Notes:** if it is too big for one session, propose a split (e.g., infrastructure first, then the pipeline).
+- **Notes:** if it is too big for one session, propose a split (e.g., infrastructure first, then the pipeline). Issue: [#47](https://github.com/jakubbohm/RevolutReader/issues/47).
 
 ### M4 — Entra ID
 
@@ -212,6 +214,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 6; ADR-0001-bank-data-access and the M1 identifiers; Enable Banking API documentation; the knowledge base; [spikes/enable-banking-mock/](../spikes/enable-banking-mock/README.md) (sandbox application, captured responses). Run `/tdd-apply` with `review=all`.
 - **Outputs:** archived change; the adapter with tests, including handling of expired consent and rate-limit responses.
 - **Open questions:** — (applies the findings on Q5, Q6)
+- **Notes:** issue [#48](https://github.com/jakubbohm/RevolutReader/issues/48).
 
 ### C12 — `c006-harden-bank-adapter`
 
@@ -221,7 +224,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** the review's findings and their assessment ([openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md](../openspec/changes/archive/2026-11-08-c006-harden-bank-adapter/design.md) D1–D8, decided in explore); c004 and c005 design.md; ADR-0001-bank-data-access.
 - **Outputs:** archived change; the `bank-reads` spec updated; Application Insights in the deployment; the deploy identity's role condition widened by hand (guided task).
 - **Open questions:** — (applies Q6 through ADR-0001)
-- **Notes:** added 2026-11-07 with the user's approval (change log in `pm/progress.md`). The review's ten minor findings are fixed directly on `fix/review-findings`; this branch is rebased after that merges, before `/tdd-apply`.
+- **Notes:** added 2026-11-07 with the user's approval (change log in `pm/progress.md`). The review's ten minor findings are fixed directly on `fix/review-findings`; this branch is rebased after that merges, before `/tdd-apply`. Issue: [#49](https://github.com/jakubbohm/RevolutReader/issues/49).
 
 ### C6 — `cNNN-add-user-login` (UC1)
 
@@ -231,6 +234,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Inputs:** kickoff ch. 4, 5 (UC1); F0-2 decisions (Q1, Q2); identifiers from M4; the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Outputs:** archived change; sign-in working locally and, after deployment, on Azure; BDD scenarios for allowed and rejected users.
 - **Open questions:** — (applies Q1, Q2)
+- **Notes:** issue [#50](https://github.com/jakubbohm/RevolutReader/issues/50).
 
 ### C11 — `cNNN-add-bank-read-retries`
 
@@ -318,6 +322,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q9); the answer to Q9 from F0-2; the knowledge base; the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Outputs:** archived change; a subscribed device receives a test notification.
 - **Open questions:** — (applies Q9: on iOS, Web Push works only for a PWA added to the home screen)
+- **Notes:** issue [#51](https://github.com/jakubbohm/RevolutReader/issues/51).
 
 ### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
 
@@ -338,7 +343,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job, ADR-0008-phone-triggered-check and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v2 complete and deployed; the Shortcut and its secret recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
 - **Open questions:** decides Q8.
-- **Notes:** the phone test needs no server (issue #12, "Prerequisite"). Enable Banking has no webhooks for account data, and Revolut has no API and no emails for personal accounts, so the phone is the only near-real-time trigger found (issue #12, "Findings").
+- **Notes:** the phone test needs no server (issue #12, "Prerequisite"). Enable Banking has no webhooks for account data, and Revolut has no API and no emails for personal accounts, so the phone is the only near-real-time trigger found (issue #12, "Findings"). Issue: [#52](https://github.com/jakubbohm/RevolutReader/issues/52).
 
 ### ◆ Milestone v2 — push notifications
 
@@ -359,6 +364,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 - **Inputs:** ADR-0001-bank-data-access and the Q5 outcome in `pm/progress.md`; output of C5.
 - **Outputs:** archived change. If the step is not needed, mark it `done` with the note "Not needed" and the reason.
 - **Open questions:** —
+- **Notes:** issue [#53](https://github.com/jakubbohm/RevolutReader/issues/53).
 
 ### M9 — Renew the Enable Banking account link (conditional, dated)
 
