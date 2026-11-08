@@ -68,8 +68,8 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 11. [close] Acceptance green
 
-- [ ] 11.1 Both acceptance tests of this change pass (`dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/BankReadsScenarios/*"`), and the full suite, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check are green
-- [ ] 11.2 `pm/progress.md`: C11's status, date and notes, and its follow-ups: after the merge, a read-only query showing the app's start lines in `AppTraces` and a request in `AppRequests`; the ready queries' columns with C7's first bank lines; #17 with the metrics volume (design.md § Risks). `CLAUDE.md` needs no change unless a command changed. Verify: the row links the change folder
+- [x] 11.1 Both acceptance tests of this change pass (`dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/BankReadsScenarios/*"`), and the full suite, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check are green
+- [x] 11.2 `pm/progress.md`: C11's status, date and notes, and its follow-ups: after the merge, a read-only query showing the app's start lines in `AppTraces` and a request in `AppRequests`; the ready queries' columns with C7's first bank lines; #17 with the metrics volume (design.md § Risks). `CLAUDE.md` needs no change unless a command changed. Verify: the row links the change folder
 
 ## Workflow follow-up
 
