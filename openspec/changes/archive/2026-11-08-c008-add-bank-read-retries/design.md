@@ -20,7 +20,7 @@
 ## Context
 
 - See proposal.md § Why. D1–D4 were decided with the user in `/opsx:explore` (2026-11-08), one at a time, and D5–D11 right after propose, the same day; D11 after a probe against the real account.
-- **The adapter today** (`main` at `c7c40da`; [c004 design.md](../archive/2026-11-07-c004-add-enable-banking-adapter/design.md), [c006 design.md](../archive/2026-11-08-c006-harden-bank-adapter/design.md)):
+- **The adapter today** (`main` at `c7c40da`; [c004 design.md](../2026-11-07-c004-add-enable-banking-adapter/design.md), [c006 design.md](../2026-11-08-c006-harden-bank-adapter/design.md)):
   - `EnableBankingClient` sends one signed `GET` per balance read and per transactions page, with the user headers of the `ReadTrigger`, and tags each request so the trace instrumentation leaves it out (`HttpRequestTracing.Exclude`).
   - A network failure (`HttpRequestException`) and our own timeout (`TaskCanceledException` while the caller has not cancelled) are "bank unavailable". An error answer is classified by its code-shaped `error` value, else by its status (`BankErrorClassification`, c006 D3).
   - Each read writes one log line, whose `{Pages}` counts the requests the client sent.
@@ -79,7 +79,7 @@ Decided with the user (2026-11-08, explore).
 
 Decided with the user (2026-11-08, explore).
 
-- **Why:** Revolut allows 4 unattended requests a day ([ADR-0001](../../../docs/adr/0001-bank-data-access.md) § Request limits), and nobody knows whether a request that reached the bank and failed counts against them. No unattended caller exists today; C9 decides about a fallback check, and with it whether such a check retries.
+- **Why:** Revolut allows 4 unattended requests a day ([ADR-0001](../../../../docs/adr/0001-bank-data-access.md) § Request limits), and nobody knows whether a request that reached the bank and failed counts against them. No unattended caller exists today; C9 decides about a fallback check, and with it whether such a check retries.
 - **How:** the client marks each request of a present user's read (`BankRetries.PresentUser`); the retry rule retries only marked requests. A request without the mark is never retried, so the rule fails safe.
 - **Rejected:** retrying an unattended request only when no connection was made (the bank surely never saw it). Precise, but for a caller that does not exist yet.
 
@@ -179,8 +179,8 @@ Decided with the user (2026-11-08, after propose). The user asked whether the ru
 
 Decided with the user (2026-11-08, after propose): probe it on the real account with the owner's headers, the owner present.
 
-- **The question:** Enable Banking does not say whether a continuation key works twice; its reference only says it is "only valid in current session" (API reference, read 2026-11-08). The Mock ASPSP does not page ([spike README](../../../spikes/enable-banking-mock/README.md), item 12), so Check 1 could not try it.
-- **The probe** (`RealAccountCheck.A_continuation_key_works_a_second_time`, an explicit test next to Check 2, run 2026-11-08 13:11 UTC): with the owner's public address and a check user agent, the first page of the last 89 days, then the second page twice with the same key, the second time right after the first answered (3 present-user requests, none unattended). All three read; both answers of the second page held the same 50 transactions in the same order, and both announced a third page ([evidence](../../../spikes/enable-banking/evidence/2026-11-08-continuation-key-reuse.json), counts only). A key that has already been answered once is the strongest case: a retry after a failure sends a key Enable Banking may not even have seen.
+- **The question:** Enable Banking does not say whether a continuation key works twice; its reference only says it is "only valid in current session" (API reference, read 2026-11-08). The Mock ASPSP does not page ([spike README](../../../../spikes/enable-banking-mock/README.md), item 12), so Check 1 could not try it.
+- **The probe** (`RealAccountCheck.A_continuation_key_works_a_second_time`, an explicit test next to Check 2, run 2026-11-08 13:11 UTC): with the owner's public address and a check user agent, the first page of the last 89 days, then the second page twice with the same key, the second time right after the first answered (3 present-user requests, none unattended). All three read; both answers of the second page held the same 50 transactions in the same order, and both announced a third page ([evidence](../../../../spikes/enable-banking/evidence/2026-11-08-continuation-key-reuse.json), counts only). A key that has already been answered once is the strongest case: a retry after a failure sends a key Enable Banking may not even have seen.
 - **So:** a failed transactions page is retried with its key, as D3 already does. ADR-0001 § Transaction history gets the finding.
 - **Rejected:** accepting the risk unprobed (Claude's first proposal: a refused key would have ended as an error, visibly); not retrying later pages at all.
 

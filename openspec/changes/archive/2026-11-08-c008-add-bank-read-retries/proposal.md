@@ -11,7 +11,7 @@
 
 ## Why
 
-The bank adapter turns every network failure and every error of the bank's own straight into "bank unavailable" ([c004 design.md D4](../archive/2026-11-07-c004-add-enable-banking-adapter/design.md)). The daughter then sees "Banka teď neodpovídá" for a blip that a second request a moment later would have survived, and C9's phone-triggered check has nobody to tap "try again". The owner asked for short retries (#27, 2026-11-08). C7 and C9 are the adapter's first callers, so the retries come before them (roadmap C11).
+The bank adapter turns every network failure and every error of the bank's own straight into "bank unavailable" ([c004 design.md D4](../2026-11-07-c004-add-enable-banking-adapter/design.md)). The daughter then sees "Banka teď neodpovídá" for a blip that a second request a moment later would have survived, and C9's phone-triggered check has nobody to tap "try again". The owner asked for short retries (#27, 2026-11-08). C7 and C9 are the adapter's first callers, so the retries come before them (roadmap C11).
 
 ## What Changes
 
@@ -48,7 +48,7 @@ None.
 - **Issue:** [#27](https://github.com/jakubbohm/RevolutReader/issues/27) (the proposal and the questions this change decides).
 - **Use cases:** UC2 and UC3 (kickoff ch. 5), through the adapter they build on.
 - **Open questions:** decides none; applies Q6 through ADR-0001-bank-data-access: no retry may use up the 4 unattended reads a day, so unattended reads are never retried.
-- **Earlier decisions it changes:** c001 design.md D5 and c004 design.md D4 ("the bank client never retries") become "the bank client retries a present user's transient failures only"; [ADR-0001](../../../docs/adr/0001-bank-data-access.md) gets a dated note; software-factory lesson R-30 is updated.
+- **Earlier decisions it changes:** c001 design.md D5 and c004 design.md D4 ("the bank client never retries") become "the bank client retries a present user's transient failures only"; [ADR-0001](../../../../docs/adr/0001-bank-data-access.md) gets a dated note; software-factory lesson R-30 is updated.
 
 ## Impact
 
