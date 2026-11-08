@@ -358,6 +358,10 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 - [x] 57.1 The scenario's test passes. Verify: green, including app-shell / A refresh with no answer for 60 seconds counts as offline
 
+## 57b. [unit] Slice 24 — A read that lands after the sign-out (added during the apply, 2026-11-08)
+
+- [ ] 57b.1 A balance read that lands after a sign-out the server confirmed is neither shown nor kept on the phone
+
 ## 58. [wiring] Slice 24 — Forgetting on sign-out
 
 - [ ] 58.1 After a sign-out the server confirmed, `useAccountScreen` forgets the stored balance before the sign-in screen shows. Verify: the scenario runs against the app
