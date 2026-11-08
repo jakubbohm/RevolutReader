@@ -10,6 +10,8 @@ namespace RevolutReader.UnitTests.Bank;
 /// and the payment details, unchanged. Each test maps one transaction the bank lists, made up in the Mock ASPSP
 /// capture's shape: a booked payment, money spent (<c>DBIT</c>), or a booked transfer received (<c>CRDT</c>), dated like
 /// Revolut's settled ones (booking and value date, no transaction date), or a pending payment (a transaction date only).
+/// The bank's amounts are unsigned, the direction only in the indicator: a kept transaction whose amount carries a minus
+/// is an error (c006 design.md D2).
 /// </summary>
 public sealed class TransactionMappingTests {
   private static readonly DateOnly _november2 = new(2026, 11, 2);
@@ -245,6 +247,61 @@ public sealed class TransactionMappingTests {
     finally {
       CultureInfo.CurrentCulture = original;
     }
+  }
+
+  // The sign: the bank's amounts carry none (c006 design.md D2)
+
+  /// <param name="direction">Money spent (<c>DBIT</c>) or money received (<c>CRDT</c>): a minus is an error on either.</param>
+  [Test]
+  [Arguments("money spent")]
+  [Arguments("money received")]
+  public void A_booked_transaction_with_a_negative_amount_is_an_error_whose_message_quotes_no_amount(string direction) {
+    EbTransaction transaction = direction switch {
+      "money spent" => BookedPayment() with { TransactionAmount = new("EUR", "-12.30") },
+      "money received" => BookedTransferReceived() with { TransactionAmount = new("EUR", "-12.30") },
+      _ => throw new ArgumentOutOfRangeException(nameof(direction), direction, "Not a known case."),
+    };
+
+    BankReadException error = Should.Throw<BankReadException>(() => TransactionMapping.Map([transaction]));
+
+    // The amount neither as the bank wrote it nor without its sign, in either culture's decimal separator.
+    ShouldCarryNoBankData(error, transaction, "12.30", "12,30");
+  }
+
+  [Test]
+  public void A_pending_transaction_with_a_negative_amount_is_an_error() =>
+    Should.Throw<BankReadException>(() => TransactionMapping.Map([PendingPayment() with { TransactionAmount = new("EUR", "-8.90") }]));
+
+  /// <param name="amount">Zero as the bank may write it. Real data (D2): one of 103 payments had amount 0.</param>
+  [Test]
+  [Arguments("0")]
+  [Arguments("0.00")]
+  public void A_spent_transaction_of_zero_comes_out_as_zero_not_as_a_negative_zero(string amount) {
+    BankTransaction mapped = MapOne(BookedPayment() with { TransactionAmount = new("EUR", amount) });
+
+    // A decimal keeps a sign even on zero, and -0 equals 0, so the equality alone cannot tell them apart.
+    mapped.Amount.ShouldBe(0m);
+    decimal.IsNegative(mapped.Amount).ShouldBeFalse();
+  }
+
+  /// <param name="status">
+  /// Cancelled, and the other statuses a read leaves out the same way (rejected, on hold, scheduled, other): such a
+  /// transaction is not read at all (c004 design.md D3), so its minus is never seen.
+  /// </param>
+  [Test]
+  [Arguments("CNCL")]
+  [Arguments("RJCT")]
+  [Arguments("HOLD")]
+  [Arguments("SCHD")]
+  [Arguments("OTHR")]
+  public void A_cancelled_transaction_with_a_negative_amount_is_only_left_out_its_amount_unread(string status) {
+    MappedTransactions mapped = TransactionMapping.Map([
+      BookedPayment() with { EntryReference = "e-101" },
+      BookedPayment() with { Status = status, EntryReference = "e-201", TransactionAmount = new("EUR", "-30.00") },
+    ]);
+
+    mapped.Kept.Select(static transaction => transaction.Reference).ShouldBe(["e-101"]);
+    mapped.LeftOut.ShouldBe(1);
   }
 
   // Transactions that cannot be read: a bug or a changed answer, never a result (D4), and never quoting the bank (D5)
