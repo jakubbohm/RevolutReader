@@ -11,9 +11,11 @@ namespace RevolutReader.Api.Account;
 /// while a status alone never names one of these cases (the Container Apps ingress and the Vite dev server answer 502, 503
 /// and 504 themselves, in plain text, when the app cannot be reached, and ASP.NET Core's default <c>type</c> would be the
 /// same for both 503 cases). No <c>detail</c>, never the bank's error text, and no <c>Retry-After</c>: the failure records
-/// carry no wait time. Each problem is built with <c>TypedResults.Problem</c>, so it is written through
-/// <see cref="IProblemDetailsService"/> with the trace id and the app's problem customization, as every other problem is;
-/// never with FastEndpoints' own problem details, which bypass that service.
+/// carry no wait time. Each problem is built with <c>TypedResults.Problem</c>, so for a caller that accepts JSON it is
+/// written through <see cref="IProblemDetailsService"/> with the trace id and the app's problem customization, as the
+/// problems ASP.NET Core writes are; a caller that rules JSON out gets the same problem, still as
+/// <c>application/problem+json</c>, but without either. Never with FastEndpoints' own problem details, which bypass that
+/// service.
 /// </summary>
 public static class BankAnswers {
   private const string ACCESS_EXPIRED_TYPE = "/problems/bank-access-expired";
@@ -26,18 +28,20 @@ public static class BankAnswers {
   /// <summary>
   /// The read's value as a 200 answer carrying <paramref name="toResponse"/>'s response for it, each failure as its
   /// problem: for an endpoint that answers the read as it came, its <c>ExecuteAsync</c> returning this union of results.
-  /// A read's value is never null (<c>notnull</c>), so the switch needs no null arm. An empty result holds no case, which no
-  /// read returns: a bug, so it throws <see cref="System.Runtime.CompilerServices.SwitchExpressionException"/>, as a switch
-  /// over the union does (docs/conventions/README.md § Backend code), and never becomes an answer.
+  /// A read's value is never null (<c>notnull</c>), so the switch needs no null arm. The failures come first: a type pattern
+  /// over the union tests the value it holds, so for a value type a failure record also is (<see cref="object"/>), a value
+  /// arm first would answer 200 carrying the failure. An empty result holds no case, which no read returns: a bug, so it
+  /// throws <see cref="System.Runtime.CompilerServices.SwitchExpressionException"/>, as a switch over the union does
+  /// (docs/conventions/README.md § Backend code), and never becomes an answer.
   /// </summary>
   public static Results<Ok<TResponse>, ProblemHttpResult> From<T, TResponse>(BankResult<T> result, Func<T, TResponse> toResponse) where T : notnull {
     ArgumentNullException.ThrowIfNull(toResponse);
 
     return result switch {
-      T value => TypedResults.Ok(toResponse(value)),
       BankAccessExpired failure => Problem(failure),
       BankRateLimited failure => Problem(failure),
       BankUnavailable failure => Problem(failure),
+      T value => TypedResults.Ok(toResponse(value)),
     };
   }
 
@@ -55,7 +59,7 @@ public static class BankAnswers {
 
   /// <summary>
   /// 429, <c>/problems/bank-rate-limited</c>, <c>Bank rate limit reached</c>, for an endpoint that answers a failure itself.
-  /// No <c>Retry-After</c>: the bank's limit gives no wait time the failure could carry.
+  /// No <c>Retry-After</c>: the failure carries no wait time.
   /// </summary>
   public static ProblemHttpResult Problem(BankRateLimited failure) {
     ArgumentNullException.ThrowIfNull(failure);
