@@ -157,8 +157,8 @@ Given up: the app's own runtime metrics in production (garbage collection, heap 
 
 *Switch back when:* the app runs well beyond its planned period or for more users, a slowdown or growing memory needs explaining, or [#17](https://github.com/jakubbohm/RevolutReader/issues/17) shows room under the daily cap. Switching on is a one-line change in ServiceDefaults.
 
-**R-59 · The problem types are relative paths, not absolute URIs**
-Full version: an absolute `type` URI that opens the problem type's description, under the app's own domain or as a page of its published documentation, as RFC 9457 § 3.1.1 encourages ([lessons.md](lessons.md) R-59).
+**R-60 · The problem types are relative paths, not absolute URIs**
+Full version: an absolute `type` URI that opens the problem type's description, under the app's own domain or as a page of its published documentation, as RFC 9457 § 3.1.1 encourages ([lessons.md](lessons.md) R-60).
 Here ([README.md § Backend code](../conventions/README.md#backend-code), 2026-11-08, C13 and its code review): **`/problems/bank-access-expired`, `/problems/bank-rate-limited`, `/problems/bank-unavailable`, compared as exact strings and never opened, and listed in the API description** — only the app's own screen reads them and needs nothing more than the label; a link would point every client at the source repository (the user). Not for want of a domain: an address into the public repository's documentation needs none. RFC 9457 allows a relative reference with the full path.
 Given up: a `type` that identifies the problem outside this app and leads to its description. RFC 9457 asks a consumer to compare the type after resolving it, which a generic client does: it gets the app's own address plus the path, not the string the screen compares, and opening it shows the app's start page.
 
