@@ -14,7 +14,8 @@
 - **Hard to reverse:** nothing in code. The widened role condition stays until someone narrows it again by hand.
 - **A new ADR, ADR-0009-application-telemetry,** holds the telemetry decisions (D8 b, D9, D10) and C4's workspace (D11).
 - **Personal data:** kept out of everything public (the repository, PRs, CI logs, evidence); private telemetry in Application Insights may hold the users' browser names, so request traces export unchanged (D13). Bank data and account identifiers stay out of all logs (CLAUDE.md).
-- **Open questions:** none left (§ Open questions, all four decided 2026-11-08).
+- **The exporter's defaults (D14, found at implementation):** its own metrics, its sampler and its trace-based log filter (which would drop every log line inside a request on .NET 11) are off; its reports about itself to Microsoft stay on (the user).
+- **Open questions:** none left (§ Open questions, all four decided 2026-11-08); two exporter defaults not yet put to the user are follow-ups (D14).
 
 ## Context
 
@@ -225,6 +226,15 @@ Decided with the user (2026-11-08, open question 1). The project rule records de
 - **Number:** 0009, the next free one on 2026-11-08 (C6's worktree has none newer); if another ADR lands first, the next free number when written.
 - **Where it is linked:** `docs/adr/README.md` (the index), workflow.md § 5, `pm/progress.md` (C11's notes), the lesson. D8–D10 stay in this design as the trail of how it was decided.
 - **Rejected: no ADR,** as C4 did. Simpler, but the telemetry setup spans decisions in two changes and outlives both; an archived design is a folder few will open, also for the D1 reinstatement guide.
+
+### D14 — The exporter's defaults: what is switched off, what stays
+
+Found at implementation (2026-11-08, group 9): the implementer read `Azure.Monitor.OpenTelemetry.Exporter` 1.10.0's source and checked each default with a test against a fake ingestion endpoint.
+
+- **Switched off in code, because they go against D8 and D10** (no new choice, so not asked): the trace exporter's own metrics (`EnableStandardMetrics`, `EnablePerformanceCounters`: request and dependency durations, CPU, memory and exception rates every minute); its rate-limited sampler (`TracesPerSecond = null`, `SamplingRatio = 1.0`; the default keeps at most 5 traces a second); and its trace-based log filter (`EnableTraceBasedLogsSampler = false`). That filter keeps a log line written inside a trace only when the trace flags equal exactly "Recorded"; .NET 11 RC3's activities carry "Recorded, RandomTraceId", so **every log line written inside a request, the bank-read lines included, would have been dropped**. The managed-identity credential is passed as the exporters' `credential` argument.
+- **Kept, the user's choice** (2026-11-08: "keep them", after Claude's lean to switch them off): the exporter's usage statistics (Statsbeat, to Microsoft every 15 minutes) and SDK statistics (a one-time machine-type check against the instance metadata address, which Container Apps does not serve, so it gives up after 2 s in the background). Both go to Microsoft, not to the workspace, and carry no personal or bank data (exporter version, OS, runtime, the resource, counts of sends). Switching them off later: `APPLICATIONINSIGHTS_STATSBEAT_DISABLED=true` and `APPLICATIONINSIGHTS_SDKSTATS_DISABLED=true` on the container app.
+- **Left at the exporter's default, not yet put to the user** (the user asked for the PR after the point above; follow-ups in `pm/progress.md`): the trace exporter sends one `_OTELRESOURCE_` metric item per batch, the resource's description, into `AppMetrics` (off: `OTEL_DOTNET_AZURE_MONITOR_ENABLE_RESOURCE_METRICS=false`); and with no `service.name` set in production, the cloud role shows as `unknown_service:RevolutReader.Api` (set: `OTEL_SERVICE_NAME` on the container app, or `ConfigureResource` in ServiceDefaults).
+- **Still open (§ Risks):** whether the exporter's offline storage can write in the chiseled non-root image; the post-merge check looks for missing telemetry.
 
 ## Public API sketch
 
