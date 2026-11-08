@@ -71,6 +71,7 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 - Work items live in `pm/roadmap.md` and `pm/progress.md`; `pm/kickoff.md` is the brief the roadmap refers to.
 - Update `pm/progress.md` when a step starts and when it ends. Decisions go into ADRs; `pm/progress.md` records only each open question's status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](docs/conventions/workflow.md#2-decisions)).
 - Roadmap changes only with the user's approval, logged in `pm/progress.md`.
+- Every piece of planned work also gets a GitHub issue, linked both ways with its roadmap entry and closed by the PR that finishes it, unless the user says otherwise for that item ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
 
 ## Workflow
 

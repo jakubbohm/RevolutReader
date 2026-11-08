@@ -1,5 +1,5 @@
 - [Memory lives in-repo](memory-in-repo.md) — auto-memory redirected to .claude/memory via settings.local.json; canary at the global default location
-- [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next
+- [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next, except linked questions: write only after the whole round is agreed
 - [Factory gets the full version](factory-gets-full-version.md) — two bars: the app may cut corners for speed, software-factory work never; notes during the project, the perfect solution at the handover
 - [Simplicity vs maturity is the user's call](simplicity-vs-maturity-is-users-call.md) — show both sides of every such trade-off; never pick or narrow the options on the user's behalf
 - [Ask "done?" before committing](ask-done-before-commit.md) — at the end of a step, ask whether it is done so the status update goes into the same commit

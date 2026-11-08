@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time — see the change log in `pm/progress.md`)
 
 ---
 
@@ -16,11 +16,12 @@
   - **Manual:** only what cannot be automated ([docs/conventions/workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure)): access to the Azure subscription, the Entra application registration, the identity GitHub Actions deploys with, shared resources and access to them, and secret values only a human can produce. Everything else in Azure is Bicep, deployed by CD inside the OpenSpec changes. The user does the manual work; Claude guides them step by step and says what to set up, where and how. Commands for the user are PowerShell 7. Non-secret identifiers (resource names, client IDs, URLs) are recorded in the repository. Secrets go only to Key Vault, never into the repository; until Key Vault exists, they stay on the user's machine. Scripts and evidence go in `spikes/<topic>/` ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)).
   - **Documentation:** a document Claude writes or restructures from what the repository records; the user reviews it. No product code.
   - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/tdd-apply`, `/opsx:archive`), test-first as defined in [docs/conventions/testing.md](../docs/conventions/testing.md). Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
+  - **Direct PR:** product code that shows nothing to a user, so it has no OpenSpec scenario of its own, e.g. groundwork shared by two changes that run in parallel. Unit tests are written first, the scenarios that reach the code come with the changes that use it, and the user reviews the PR. Added 2026-11-08 with C13 (change log).
   - **Tech debt (low priority):** knowledge building, or paying back a shortcut taken on purpose. Picked up only when no other step is waiting, and before M8, so its findings reach the software-factory handover. Findings go into a spike ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)); a code change that follows is a small PR (an OpenSpec change if it changes behaviour).
   - **Software factory:** work the factory needs and the app does not, built to the factory's quality bar ([workflow.md § 10 — The quality bar](../docs/conventions/workflow.md#the-quality-bar-2026-11-08)): the best design, no shortcuts, and every artifact proven to work before it is handed over. Planned item by item with the user, and split into smaller steps when it does not fit one session.
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
-- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
-- **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
+- **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes); the step's PR closes its GitHub issue. Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
+- **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split. A new step gets its GitHub issue, unless the user says otherwise for it ([workflow.md § 9](../docs/conventions/workflow.md#9-project-management)).
 
 ## 2. Overview
 
@@ -41,23 +42,25 @@
 | 13 | C12 | OpenSpec | `c006-harden-bank-adapter` (runs alongside C6) | C5 | — |
 | 14 | C6 | OpenSpec | `cNNN-add-user-login` (UC1) | C3, M4 | — |
 | 15 | C11 | OpenSpec | `cNNN-add-bank-read-retries` | C5, C12 | — |
-| 16 | C7 | OpenSpec | `cNNN-add-account-detail` (UC2) | C5, C12, C6; findings on Q6 | decides Q7 |
-| ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7 deployed via C4 | |
-| 17 | M5 | Manual | Handover v1 | v1 | — |
-| 18 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
-| 19 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
+| 16 | C13 | Direct PR | Backend groundwork for the account reads | C5, C12, C6 | — |
+| 17 | C7a | OpenSpec | `cNNN-add-account-balance` (UC2, part 1; alongside C7b, merges first) | C13; findings on Q6 | — |
+| 18 | C7b | OpenSpec | `cNNN-add-account-transactions` (UC2, part 2; alongside C7a) | C13; its last task group C7a; findings on Q6 | decides Q7 |
+| ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7a and C7b deployed via C4 | |
+| 19 | M5 | Manual | Handover v1 | v1 | — |
+| 20 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
+| 21 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 20 | M7 | Manual | Handover v2 | v2 | — |
+| 22 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 21 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 22 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
-| 23 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
+| 23 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 24 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
+| 25 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C7 (v1) → C8 → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8 → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -80,7 +83,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 |---|---|---|
 | F0-2 | job hosting (Q4); whether a database is needed already in v1 | done: both decided in F0-2 with the M1 findings ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md), [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)) |
 | C5 | handling of expired consent and rate-limit responses | recommended |
-| C7 | live reads from the bank or a cache | **blocking** |
+| C7a, C7b | live reads from the bank or a cache | **blocking** |
 | C9 | check frequency and the use of stored state | **blocking** |
 | C10 | whether the step is needed and its deadline | **blocking** |
 | M9 | whether the account link must be renewed, and by when | **blocking** |
@@ -176,7 +179,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 ### M3 — Azure prerequisites for v1
 
 - **Type:** Manual
-- **Goal:** Set up what v1 needs in Azure that cannot be automated: access to the subscription; the resource group the deployment stack is scoped to, in **Germany West Central**; the identity GitHub Actions deploys with (OIDC federated credential and the narrowest roles on the resource group that let the stack create the resources and their role assignments). Everything else is created by Bicep (C4, C6, C7, C9). Resource list: [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure).
+- **Goal:** Set up what v1 needs in Azure that cannot be automated: access to the subscription; the resource group the deployment stack is scoped to, in **Germany West Central**; the identity GitHub Actions deploys with (OIDC federated credential and the narrowest roles on the resource group that let the stack create the resources and their role assignments). Everything else is created by Bicep (C4, C6, C7b, C9). Resource list: [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure).
 - **Depends on:** F0-2, M1, M2
 - **Inputs:** kickoff ch. 6, 7, 9.4; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); F0-2 decisions ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md) and the resource list); M1 findings.
 - **Outputs:** the deploy identity and its federated credential; the values the workflow needs before Bicep can run (subscription, resource group, client ID) on the GitHub Environment; non-secret identifiers recorded.
@@ -239,15 +242,62 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Open questions:** — (applies Q6: no retry may use up the 4 unattended reads a day)
 - **Notes:** small. Decided with the user (c008 design.md D1–D11, 2026-11-08): our own 15 s timeout is final and covers a request with its retries (no time budget per read); unattended reads are never retried (a C9 fallback check decides for itself); Microsoft's resilience library (`Microsoft.Extensions.Http.Resilience`) on the bank client alone, not a loop of our own; a `Retry-After` is followed only while its wait ends within the timeout. Added 2026-11-08 (change log).
 
-### C7 — `cNNN-add-account-detail` (UC2)
+UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after a small groundwork PR (the user, 2026-11-08, change log in `pm/progress.md`): C13 the shared backend pieces, then C7a the balance and C7b the transactions. One C7 would have been larger than C5 or C6, whose sessions each reached about half a million tokens of context. Each half is a slice the user can see, with its own spec, scenarios and design boards; only C7b brings the database and decides Q7.
+
+**Working in parallel.** Agreed with the user (2026-11-08), so that C7a and C7b run at once, each in its own worktree, after C13:
+
+1. **Two endpoints:** `GET /api/balance` (C7a) and `GET /api/transactions` (C7b), never one combined answer, so neither change edits the other's endpoint. The adapter already reads the two separately, so this adds no bank call; the screen sends both requests at once and shows a failure of each part on its own.
+2. **The shared backend pieces come first, in C13:** the "a user is present" code, the rules that turn a failed bank read into an API answer, and the koruna rate. Neither half waits for the other on the backend.
+3. **C7a owns the account screen:** its layout, its refresh (`Obnovit`, return to the app), its single error banner (the Screens design draws one banner over the balance and the list), and a place for the list. C7b builds the list as its own component, with its own request, and puts it on today's empty account screen in its own branch, so that its tests run through the whole app.
+4. **C7a merges first.** C7b then rebases on it and, as its last task group: moves the list into C7a's place, joins C7a's refresh and banner, and adds the koruna line to its rows (the design system's `TransactionRow`).
+5. **Merged by hand at the rebase:** the generated API files (`openapi.json`, `schema.d.ts`: regenerated, not merged line by line) and the rows in `pm/progress.md`.
+
+### C13 — Backend groundwork for the account reads
+
+- **Type:** Direct PR, not an OpenSpec change (the user, 2026-11-08): it shows nothing to a user, so it has no scenario of its own; the scenarios that reach these pieces come with C7a's and C7b's endpoints. Unit tests are written first, and the user reviews the PR.
+- **Goal:** The backend pieces both C7a and C7b need, built once, so that the two never wait for each other:
+  - the code that turns the incoming request into "a user is present" (`PresentUser` in [ReadTrigger.cs](../src/RevolutReader.Api/Bank/ReadTrigger.cs): the signed-in user's IP address and browser), including IPv4 addresses that arrive in IPv6 form (c004 design.md D2; forwarded headers, c007 design.md D10);
+  - the rules that turn a failed bank read into the API's answer, a problem description like the API's other errors, for the three cases of c004 design.md D4: access expired, rate limited, bank unavailable;
+  - the EUR→CZK rate as a constant, 24.3 CZK per euro (the user, 2026-11-08), until it is sourced from an outside service once a day ([#39](https://github.com/jakubbohm/RevolutReader/issues/39)).
+- **Depends on:** C5, C12, C6.
+- **Inputs:** [ReadTrigger.cs](../src/RevolutReader.Api/Bank/ReadTrigger.cs) and `BankResult<T>`; c004 design.md D2 and D4 (archived with C5); c007 design.md D10 (archived with C6); the `api-errors` spec.
+- **Outputs:** the merged PR; the three pieces with their unit tests; no endpoint, nothing a user sees.
+- **Open questions:** —
+- **Notes:** small. Added 2026-11-08 with C7's split ([#40](https://github.com/jakubbohm/RevolutReader/issues/40), change log). The first app code outside OpenSpec (software-factory R-58).
+
+### C7a — `cNNN-add-account-balance` (UC2, part 1)
 
 - **Type:** OpenSpec change
-- **Goal:** UC2 end to end: API endpoints for the balance and transactions, accessible only to allowed users, and the account detail screen with the balance in the header and a scrollable list of transactions. The screen and its states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
-- **Depends on:** C5, C6; findings on Q6 (blocking: they decide live reads versus a cache).
-- **Inputs:** kickoff ch. 5 (UC2), 6, 10 (Q6, Q7); ADR-0001-bank-data-access and the outcomes in `pm/progress.md`.
-- **Outputs:** archived change; v1 complete and deployed through C4.
+- **Goal:** The balance end to end, and the app's waiting and offline states:
+  - `GET /api/balance`, allowed users only, which reads the balance live and forwards the signed-in user's IP address and browser to the bank ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 1);
+  - the account screen (working in parallel, item 3): its header with the balance, its CZK equivalent (C13's rate) and the time it was read; a refresh on `Obnovit` and on return to the app; a place for C7b's list;
+  - the balance kept on the phone ([ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)): written after every successful read, shown at once while the server wakes and when offline, deleted on sign-out;
+  - the waiting screen (normal and slow) on the app's first request, `GET /api/me`, whatever the sign-in state, and the offline screens;
+  - the bank's error states (bank unavailable, too many requests, bank link expired) and their single banner, which C7b's list joins;
+  - what the screen says when sign-out fails, whether a sign-out that fails offline still deletes the stored balance, and a busy state ([c007 design.md D5](../openspec/changes/archive/2026-11-08-c007-add-user-login/design.md), [#33](https://github.com/jakubbohm/RevolutReader/issues/33) finding 7).
+
+  The screens and their states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
+- **Depends on:** C13 (and through it C5, C12, C6); findings on Q6. Runs alongside C7b in its own worktree and merges first.
+- **Inputs:** kickoff ch. 5 (UC2), 6; ADR-0001-bank-data-access, ADR-0007-offline-balance and the outcomes in `pm/progress.md`; C13's pieces; c007 design.md D5; the Screens design: the balance header and the screen-wide states of the `Account / Detail / *` boards, `Shell / Offline / *`, `Sign-in / Waiting / *`.
+- **Outputs:** archived change; the balance and the waiting and offline states working locally and, after deployment, on Azure; C12's ready queries checked against the first real bank lines; the balance compared once with the Revolut app (C5 follow-up).
+- **Open questions:** — (applies Q6, Q10)
+- **Notes:** no database and no new Azure resource. [#41](https://github.com/jakubbohm/RevolutReader/issues/41).
+
+### C7b — `cNNN-add-account-transactions` (UC2, part 2)
+
+- **Type:** OpenSpec change
+- **Goal:** The transactions end to end:
+  - the settled transactions stored from 2026-08-09 ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 6): the first table in the storage account C6 created, with its role assignment (Storage Table Data Contributor is already among the roles the deploy identity may grant, [azure-prerequisites.md](../docs/operations/azure-prerequisites.md)); Azurite locally and in tests ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md));
+  - the one-time import of the M1 history file, which is then deleted;
+  - `GET /api/transactions`, allowed users only, which returns the stored settled transactions together with a live read of the last 31 days (c004 design.md D7): newly settled ones are stored, pending ones shown but never stored;
+  - the account screen's scrollable list, grouped by day, and the transaction sheet; after the rebase on C7a, the list in C7a's place, joined to its refresh and banner, with the koruna line on each row (working in parallel, items 3 and 4).
+
+  The screens and their states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
+- **Depends on:** C13 (and through it C5, C12, C6); findings on Q6. Runs alongside C7a in its own worktree; its last task group waits for C7a's merge.
+- **Inputs:** kickoff ch. 5 (UC2), 6, 10 (Q6, Q7); ADR-0001-bank-data-access, ADR-0005-data-storage and the outcomes in `pm/progress.md`; C13's pieces; c004 design.md D3 (time of day, refunds, the CZK equivalent, showing the payment details) and D7 (the 31-day window); the M1 history file on the owner's machine; the Screens design: the list on the `Account / Detail / *` boards (`Scrolled` and `Empty` in particular) and `Account / Transaction sheet / *`.
+- **Outputs:** archived change; the history imported and its file deleted; with C7a, v1 complete and deployed through C4.
 - **Open questions:** decides Q7.
-- **Notes:** the Q6 findings require stored transactions (ADR-0001-bank-data-access § Decision, item 6), so the step will probably need to be split (e.g., the transaction store first). Agree on it with the user and log it. The change that first stores data adds the tables to the storage account C6 created, with their role assignment, and imports the M1 history file ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)).
+- **Notes:** the history file ends on 2026-11-04 and the live read covers 31 days. If C7b goes live after about 2026-12-05, its first read reaches further back (the bank serves 90 days) to close the gap. The transaction store is the app's view of the history, never C9's record of what was notified (C9, item 3). [#42](https://github.com/jakubbohm/RevolutReader/issues/42).
 
 ### ◆ Milestone v1 — my daughter sees the balance and transactions
 
@@ -276,12 +326,14 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **One check at a time, one merged notification** (the owner, 2026-11-08; the starting design for C9's explore). Revolut often sends an offer right after the payment notification, and each one fires the Shortcut. While the app wakes up, both calls arrive together, read the same new state, compare it with the same old stored state and would both notify. This is how C9 meets ADR-0008's "at most one notification" constraint:
   1. **Three steps per trigger, one trigger at a time:** read the bank and compare with the stored state; store the new state if it changed; notify. A trigger waits until the previous one has finished. An in-process queue is enough, because the app runs at most one copy ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)).
   2. **At most one check waits:** a trigger arriving while a check is already waiting joins that check and gets its answer, so a burst of any size costs at most two bank reads.
-  3. **Two stored markers:** *last seen*, the state from the latest successful read, updated by every check; and *last notified*, the state as of the last notification sent. The notification is the difference between them.
+  3. **Two stored markers:** *last seen*, the state from the latest successful read, updated by every check; and *last notified*, the state as of the last notification sent. The notification is the difference between them. Nothing depends on when the daughter opens the app: no view time is stored (the user, 2026-11-08, [ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), items 4–5 amended). Two notes from C7's split (2026-11-08):
+     - **A state, not a time, and not the last transaction's ID alone.** A pending payment, the one the shop's notification is about, has no stable ID until it settles ([ADR-0001 § Context — Transaction history](../docs/adr/0001-bank-data-access.md#transaction-history)), and how Revolut dates a payment when it settles is not known yet. So the marker probably holds the balance and the pending transactions as well; C9's explore decides.
+     - **The markers are C9's own, never C7b's transaction store.** An open of the app stores newly settled transactions (C7b); a check that compared against the store would find nothing new after the daughter's open and send nothing.
   4. **Only the last check in a burst notifies:** a check with another check waiting behind it skips the notification and leaves its changes to the last one, which covers everything since the last notification.
   5. **The notification comes from the stored state, not the live read:** a last check whose bank read fails still sends what earlier checks found, and a stop between storing and notifying (scale to zero, a deploy) is caught up by the next trigger. *Last notified* is written only after the push has gone out: at worst one notification repeats, none is lost.
   6. **Optional backstop:** a conditional update (ETag) on the stored state, so two app copies during a deploy cannot send the same changes.
   - **Not chosen:** waiting for a quiet period (debounce) before checking. It delays every notification, needs a timer that outlives the phone's request, and buys nothing: the payment is already readable when its notification arrives ([M1 spike, step 7](../spikes/enable-banking/README.md)). Accepted cost: two real payments a few seconds apart can still bring two notifications.
-  - **C9 decides:** whether the Shortcut waits for the answer (a queued call answers after the wake-up plus under 1 s per read; iOS Shortcuts' request timeout is not known yet) or the endpoint answers at once (202) and checks in the background; the content of a merged notification (Q8, e.g. "2 new payments" plus the balance, which the push carries, [ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)); how *last notified* relates to "changes since the daughter's last view" ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), Q8).
+  - **C9 decides:** whether the Shortcut waits for the answer (a queued call answers after the wake-up plus under 1 s per read; iOS Shortcuts' request timeout is not known yet) or the endpoint answers at once (202) and checks in the background; the content of a merged notification (Q8, e.g. "2 new payments" plus the balance, which the push carries, [ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)). *(2026-11-08: "how *last notified* relates to the daughter's last view" is gone from this list; there is no view time, item 3.)*
 - **Depends on:** C5, C8; findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06: the automation runs on its own, also while the phone is locked).
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job, ADR-0008-phone-triggered-check and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v2 complete and deployed; the Shortcut and its secret recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
@@ -372,8 +424,8 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 | 3 | Frontend hosting (one container) | F0-2 | C1, C3, C4 |
 | 4 | Job hosting, registry, costs | F0-2 | M3, C4, C9 |
 | 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M9, M8 |
-| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7, C9 |
-| 7 | Transactions (history, paging, details) | C7 | — |
+| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7a, C7b, C9 |
+| 7 | Transactions (history, paging, details) | C7b | — |
 | 8 | Notification content | C9 | — |
 | 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8, M5, M7 |
 | 10 | PWA scope (offline mode?) | C3 | — |
