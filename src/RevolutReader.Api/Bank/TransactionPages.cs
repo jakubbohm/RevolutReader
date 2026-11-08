@@ -4,6 +4,9 @@ namespace RevolutReader.Api.Bank;
 
 /// <summary>Every page of a transactions read, joined (c004 design.md D7).</summary>
 public static class TransactionPages {
+  /// <summary>The most pages one read requests (c006 design.md D4).</summary>
+  public const int MOST_PAGES = 20;
+
   /// <summary>
   /// Follows continuation keys until none comes back, also after an empty page; a repeated key → BankReadException;
   /// the first failed page ends the read with its failure (D7).
