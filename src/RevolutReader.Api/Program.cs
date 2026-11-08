@@ -26,6 +26,7 @@ app.UseStatusCodePages();
 app.UseAppPages();
 app.MapApiNotFound();
 app.UseSignIn();
-app.UseFastEndpoints();
+// A request FastEndpoints cannot bind answers 400 as a problem description too (spec api-errors), not in its own format.
+app.UseFastEndpoints(static config => config.Errors.UseProblemDetails());
 
 app.Run();

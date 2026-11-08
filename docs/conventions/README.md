@@ -44,8 +44,10 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
   | Case | Status | `title` | Scenario |
   |---|---|---|---|
   | The API does not serve the address | 404 Not Found | `Not Found` | api-errors / Unknown API address answers with a problem description |
+  | A request the API cannot read, e.g. a malformed parameter (FastEndpoints' binding, with `Errors.UseProblemDetails()`; `detail` and `errors` repeat the bad value, so a value that must never be echoed is not bound unchecked) | 400 Bad Request | `Bad Request` | the guard `Conventions/UnreadableRequestsTests` (api-errors' requirement; no scenario of its own) |
   | Nobody is signed in | 401 Unauthorized | `Unauthorized` | sign-in / An anonymous visitor is asked to sign in |
   | A signed-in account that is not on the allowlist (the problem's extension `email` names the account's own address, when it has one) | 403 Forbidden | `Forbidden` | sign-in / A stranger who signs in is refused, with their own email |
+  | A write to the API that a browser sends on behalf of another site (the rule for writes below; for a signed-in caller the problem carries `email` too) | 403 Forbidden | `Forbidden` | sign-in / A write request from another site is refused |
 
 - **Outgoing HTTP calls get no retries by default.** The Aspire template's `AddStandardResilienceHandler` on every `HttpClient` is removed from ServiceDefaults: it retries 408, 429 and 5xx, and a retried 429 from Enable Banking would silently burn the 4 requests a day allowed without the account holder ([ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)). A client gets retries only when its own change decides a policy; the bank client never retries.
 - **Endpoints: FastEndpoints.** One thin endpoint per use case (route, OpenAPI metadata, auth, Result → ProblemDetails mapping) that injects a plain, framework-free handler class owning the use case. No mediator, and no pipeline behaviors wrapped around handlers.
