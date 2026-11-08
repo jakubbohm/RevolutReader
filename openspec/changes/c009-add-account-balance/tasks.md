@@ -218,11 +218,11 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 27. [wiring] Slice 11 — The offline screen
 
-- [ ] 27.1 `EmptyState` (title, sentence, icon; and the `note` variant), as design.md D10 describes; the offline screen in `AccountScreen`. Verify: the scenario runs against the app
+- [x] 27.1 `EmptyState` (title, sentence, icon; and the `note` variant), as design.md D10 describes; the offline screen in `AccountScreen`. Verify: the scenario runs against the app
 
 ## 28. [close] Slice 11 — Offline with nothing stored says the balance loads once online
 
-- [ ] 28.1 The scenario's test passes. Verify: green, including app-shell / Offline with nothing stored says the balance loads once online
+- [x] 28.1 The scenario's test passes. Verify: green, including app-shell / Offline with nothing stored says the balance loads once online
 
 ## 29. [unit] Slice 12 — The stored balance
 

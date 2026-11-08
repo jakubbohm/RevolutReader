@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
-import { shown, type Facts, type Shown } from "./screenState";
+import { shown, type Facts, type Problem, type Shown } from "./screenState";
 import { readSession, signOut, type Session } from "./session";
+
+/** The phone is offline: what the phone said, or a request that got no answer (D2). */
+const OFFLINE: Problem = { kind: "offline" };
 
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
@@ -30,6 +33,7 @@ export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
   const [balance, setBalance] = useState<Balance | null>(null);
   const [reading, setReading] = useState<Facts["reading"]>("no");
+  const [problem, setProblem] = useState<Problem | null>(null);
   /** Set the moment a balance read starts, so a second one asked for in the same turn sees it (state would not yet). */
   const readUnderWay = useRef(false);
 
@@ -49,10 +53,11 @@ export function useAccountScreen(): AccountScreenModel {
     [],
   );
 
-  /** What a read brought: the read is over, and a balance it read replaces the one shown. */
+  /** What a read brought: the read is over; a balance it read replaces the one shown, and no answer means offline. */
   const takeIn = useCallback((read: BalanceRead): void => {
     setReading("no");
     if (read.kind === "read") setBalance(read.balance);
+    if (read.kind === "offline") setProblem(OFFLINE);
   }, []);
 
   useEffect(() => {
@@ -62,6 +67,7 @@ export function useAccountScreen(): AccountScreenModel {
       const answer = await readSession();
       if (!showing) return;
       setSession(answer);
+      if (answer.kind === "offline") setProblem(OFFLINE);
       if (answer.kind !== "signed-in") return;
 
       const read = await readOnce("first");
@@ -111,7 +117,7 @@ export function useAccountScreen(): AccountScreenModel {
     reading,
     wait: "short",
     wokeUp: false,
-    problem: null,
+    problem,
     signingOut: false,
   };
 
