@@ -17,6 +17,7 @@ import {
   requests,
   timeline,
   unreadable,
+  wifiLoginPage,
   type BalanceAnswer,
 } from "../test/server";
 import { readBalance } from "./balance";
@@ -60,6 +61,14 @@ const notABalance: { label: string; answer: BalanceAnswer }[] = [
     answer: jsonBody({ amount: 286.4, readAt: "2026-11-10T08:58:00+00:00" }),
   },
   { label: "null", answer: jsonBody(null) },
+  {
+    label: "a read time that is not a date",
+    answer: jsonBody({ amount: 286.4, readAt: "včera", czkPerEur: 24.3 }),
+  },
+  {
+    label: "an HTML page, not JSON (a public Wi-Fi's login page)",
+    answer: wifiLoginPage,
+  },
 ];
 
 test.each(notABalance)(

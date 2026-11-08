@@ -33,6 +33,8 @@ export type Trouble =
   | { kind: "hosting error page" }
   /** 200 with a JSON body that is not the answer's shape. */
   | { kind: "unreadable" }
+  /** 200 with an HTML page, as a public Wi-Fi's login page answers any request before the user has signed in to it. */
+  | { kind: "wi-fi login page" }
   /** 200 with exactly this JSON body (`jsonBody`), for a body a little off the answer's shape. */
   | { kind: "json"; body: unknown }
   /** A problem description (`application/problem+json`) with this status, title and `type` (`problemOf`). */
@@ -172,6 +174,9 @@ export const serverError = { kind: "server error" } as const;
 export const hostingErrorPage = { kind: "hosting error page" } as const;
 /** The server answers 200 with a body that is not the answer's shape. */
 export const unreadable = { kind: "unreadable" } as const;
+
+/** A public Wi-Fi's login page answers 200 with its HTML page instead of the server. */
+export const wifiLoginPage = { kind: "wi-fi login page" } as const;
 
 /** The server answers 200 with exactly this JSON body. */
 export function jsonBody(body: unknown): { kind: "json"; body: unknown } {
@@ -626,6 +631,17 @@ function troubleOutcome(answer: Delayed<Trouble>): Outcome {
         kind: "answer",
         after: answer.after,
         response: () => Response.json({ message: "Something else" }),
+      };
+    case "wi-fi login page":
+      return {
+        kind: "answer",
+        after: answer.after,
+        // Written from a typical public Wi-Fi login page, made up and with no provider's name, not captured.
+        response: () =>
+          new Response(
+            "<!DOCTYPE html><html><head><title>Wi-Fi</title></head><body><h1>Připojte se k síti</h1></body></html>",
+            { headers: { "Content-Type": "text/html; charset=utf-8" } },
+          ),
       };
     case "json":
       return {
