@@ -215,10 +215,10 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   - Data Protection persists its keys to the blob `dataprotection/keys.xml` in the new storage account (`PersistKeysToAzureBlobStorage`) and encrypts them with the key `dataprotection` in `kv-revolutreader` (`ProtectKeysWithAzureKeyVault`);
   - both are reached with the app's user-assigned identity (`ManagedIdentityCredential` with its client id);
   - the application name is pinned (`SetApplicationName("RevolutReader")`), so every revision reads the same keys.
-- **Settings** *(propose)*: `DataProtection:KeysBlobUri`, `DataProtection:KeyVaultKeyUri` and `DataProtection:IdentityClientId` are empty in `appsettings.json` and set by Bicep in production.
-  - All three empty: ASP.NET's default key folder (locally, your user profile). The harness replaces it with ephemeral keys.
-  - All three set: Blob plus Key Vault.
-  - Anything in between stops the app at start. The settings are read in the composition root, because the choice is made while registering services.
+- **Settings** *(propose; the identity's part changed by the owner, 2026-11-08, issue #33 finding 10)*: `DataProtection:KeysBlobUri` and `DataProtection:KeyVaultKeyUri` are empty in `appsettings.json` and set by Bicep in production. The identity's client ID is the app-wide `AZURE_CLIENT_ID` (c006 design.md D12, the standard Azure.Identity name), not a setting of its own: C6 first added `DataProtection:IdentityClientId` while C12 was built in parallel, so the same ID reached the app twice.
+  - Both addresses empty: ASP.NET's default key folder (locally, your user profile), whether or not `AZURE_CLIENT_ID` is set (telemetry alone sets it). The harness replaces it with ephemeral keys.
+  - Both addresses set: Blob plus Key Vault, reached with the identity `AZURE_CLIENT_ID` names.
+  - One address without the other, or both without `AZURE_CLIENT_ID`, stops the app at start, naming the settings, never their values. The registration reads the configuration while services are registered, because the choice is made there.
 - **Roles for the app identity,** each on the one resource only: Storage Blob Data Contributor on the container, Key Vault Crypto User on the key. **Key Vault Crypto User is a sixth role** the deploy identity may not grant yet (the fifth was C12's Monitoring Metrics Publisher, merged before C6; 2026-11-08), so the owner widens its condition by hand before the merge (D11).
 - **What it buys:** someone who reads the blob still can't forge login cookies without the key, which never leaves Key Vault.
 - **What it costs:**
@@ -389,12 +389,12 @@ public static WebApplication UseCrossSiteWriteProtection(this WebApplication app
 
 // ---- src/RevolutReader.Api/DataProtection/ ----
 
-/// <summary>The DataProtection section (D7): all empty (default key store) or all set (Blob + Key Vault).</summary>
-public sealed class DataProtectionKeysOptions { public Uri? KeysBlobUri { get; init; } public Uri? KeyVaultKeyUri { get; init; } public string? IdentityClientId { get; init; } }
+/// <summary>The DataProtection section (D7): both addresses empty (default key store) or both set (Blob + Key Vault).</summary>
+public sealed class DataProtectionKeysOptions { public Uri? KeysBlobUri { get; init; } public Uri? KeyVaultKeyUri { get; init; } }
 // Uri? (not string?): the analyzer rule CA1056 asks for Uri on *Uri properties, and an empty appsettings value binds to null.
 public static class DataProtectionKeysRegistration {
-  /// <summary>Throws at registration when the settings are partly set; the message names the settings, not their values.</summary>
-  public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, DataProtectionKeysOptions options);
+  /// <summary>Reads the section and AZURE_CLIENT_ID; throws at registration when they are partly set; the message names the settings, not their values.</summary>
+  public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, IConfiguration configuration);
 }
 
 // Program.cs order: UseForwardedHeaders → UseStatusCodePages → UseAppPages (fallback .AllowAnonymous()) →
