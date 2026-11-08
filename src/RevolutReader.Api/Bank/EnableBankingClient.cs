@@ -15,7 +15,8 @@ namespace RevolutReader.Api.Bank;
 /// case fits (D4), decided by its <c>error</c> value only when that has the shape of a code, otherwise by its status
 /// (c006 design.md D3, D7); a network failure is the bank unavailable; a success answer it cannot read is a
 /// <see cref="BankReadException"/>. No exception quotes a URL, a body or an error value of another shape, and each read
-/// logs one line without identifiers or bank data (D5).
+/// logs one line without identifiers or bank data (D5). Below it, the retry handler sends a present user's request again
+/// when it failed as the bank unavailable (<see cref="BankRetries"/>, c008 design.md); the client sees the last attempt.
 /// </summary>
 public sealed partial class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time, ILogger<EnableBankingClient> logger)
   : IBankAccount {
@@ -129,7 +130,9 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
 
   /// <summary>
   /// A signed <c>GET</c> of <paramref name="pathAndQuery"/> with the user headers of <paramref name="trigger"/>
-  /// (<see cref="PsuHeaders"/>), left out of the exported traces (<see cref="HttpRequestTracing.Exclude"/>, D5). A success
+  /// (<see cref="PsuHeaders"/>), left out of the exported traces (<see cref="HttpRequestTracing.Exclude"/>, D5), and marked
+  /// for the retry handler (<see cref="BankRetries.PresentUser"/>, <see cref="BankRetries.Deadline"/>; c008 design.md D2,
+  /// D8), which may send it again; it counts once in <paramref name="record"/> however often it is sent. A success
   /// answer is its JSON body read as <typeparamref name="T"/>, which must be <paramref name="whole"/>; an error answer is
   /// its failure case (<see cref="FailureOf{T}"/>) by its error value (<see cref="EnableBankingErrorValue"/>). What it sees
   /// goes into <paramref name="record"/>.
@@ -142,6 +145,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
       request.Headers.Add(name, value);
 
     request.Options.Set(HttpRequestTracing.Exclude, true);
+    // For the retry handler (BankRetries): only a present user's request is ever retried (c008 design.md D2), and no
+    // Retry-After wait may outlast the request's timeout (D8).
+    request.Options.Set(BankRetries.PresentUser, trigger.Value is PresentUser);
+    request.Options.Set(BankRetries.Deadline, time.GetUtcNow() + options.Value.RequestTimeout);
 
     record.Sent();
 
@@ -166,9 +173,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   }
 
   /// <summary>
-  /// The answer, its body read whole; <see langword="null"/> when the bank cannot be reached, the connection breaks before
-  /// the answer is read, or the answer takes longer than our request timeout (all the bank unavailable, § Error model). The
-  /// caller's own cancellation is none of these: its <see cref="OperationCanceledException"/> passes on.
+  /// The answer, its body read whole, after any retries (the last attempt's); <see langword="null"/> when the bank cannot be
+  /// reached, the connection breaks before the answer is read, or the answer takes longer than our request timeout, which
+  /// covers the retries too (all the bank unavailable, § Error model; c008 design.md D1). The caller's own cancellation is
+  /// none of these: its <see cref="OperationCanceledException"/> passes on.
   /// </summary>
   private async Task<HttpResponseMessage?> Send(HttpRequestMessage request, ReadRecord record, CancellationToken cancellationToken) {
     try {

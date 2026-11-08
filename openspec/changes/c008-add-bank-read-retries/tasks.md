@@ -39,13 +39,13 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 4. [wiring] Slice 1 — The retry handler on the bank client
 
-- [ ] 4.1 `EnableBankingErrorValue`: the client's reading of an error answer's `error` value, moved out unchanged and used by the client (design.md D5). Verify: `ErrorAnswerTests` and the log-line tests in `IntegrationTests/Wiring/EnableBanking/` stay green unchanged; green
-- [ ] 4.2 `EnableBankingOptions.RetryDelay` (0 to 5 s), declared in `appsettings.json` as `00:00:00.8` with its provenance comment and a note on why tests set zero (design.md D7); `RequestTimeout`'s comment says it covers a request with its retries (D1); `BankOnWireMock` sets the wait to zero. Verify: an edge test that a wait over 5 s stops the start, naming the setting; green
-- [ ] 4.3 `AddResilienceHandler("bank-retries")` with `BankRetries.Options(RetryDelay, TimeProvider)` on the bank client; the client marks a present user's requests and every request's deadline (design.md § Public API sketch). Verify: edge tests in `IntegrationTests/Wiring/EnableBanking/`: a present user's balance read answered 503 once and then 200 is read, with 2 requests; the same after `ASPSP_TIMEOUT`; a present user's 429 and expired session each get exactly 1 request; acceptance 1.2 passes; green
+- [x] 4.1 `EnableBankingErrorValue`: the client's reading of an error answer's `error` value, moved out unchanged and used by the client (design.md D5). Verify: `ErrorAnswerTests` and the log-line tests in `IntegrationTests/Wiring/EnableBanking/` stay green unchanged; green
+- [x] 4.2 `EnableBankingOptions.RetryDelay` (0 to 5 s), declared in `appsettings.json` as `00:00:00.8` with its provenance comment and a note on why tests set zero (design.md D7); `RequestTimeout`'s comment says it covers a request with its retries (D1); `BankOnWireMock` sets the wait to zero. Verify: an edge test that a wait over 5 s stops the start, naming the setting; green
+- [x] 4.3 `AddResilienceHandler("bank-retries")` with `BankRetries.Options(RetryDelay, TimeProvider)` on the bank client; the client marks a present user's requests and every request's deadline (design.md § Public API sketch). Verify: edge tests in `IntegrationTests/Wiring/EnableBanking/`: a present user's balance read answered 503 once and then 200 is read, with 2 requests; the same after `ASPSP_TIMEOUT`; a present user's 429 and expired session each get exactly 1 request; acceptance 1.2 passes; green
 
 ## 5. [close] Slice 1 — A one-off bank error is retried and the read succeeds
 
-- [ ] 5.1 Acceptance 1.2 passes (`--treenode-filter "/*/*/BankReadsScenarios/*"` for the class); green
+- [x] 5.1 Acceptance 1.2 passes (`--treenode-filter "/*/*/BankReadsScenarios/*"` for the class); green
 
 ## 6. [wiring] Slice 2 — Each attempt reads the whole answer
 
