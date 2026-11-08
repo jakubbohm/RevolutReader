@@ -269,7 +269,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 32. [close] Slice 13 — Tapping the sign-in button starts the Microsoft sign-in
 
-- [ ] 32.1 The scenario's test passes. Verify: green, including sign-in / Tapping the sign-in button starts the Microsoft sign-in
+- [x] 32.1 The scenario's test passes. Verify: green, including sign-in / Tapping the sign-in button starts the Microsoft sign-in
 
 ## 33. [wiring] Slice 14 — The no-access screen
 
