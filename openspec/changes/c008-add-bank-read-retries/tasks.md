@@ -91,12 +91,12 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 ## 16. [wiring] The library's log lines
 
 - [x] 16.1 `Logging:LogLevel:Polly` = `Warning` in `appsettings.json` (design.md D9). Verify: edge tests with a capturing logger that also keeps the `Polly` category: a read answered at once writes no line of the library; a read retried once writes the library's retry warnings and still exactly one read line; green
-- [ ] 16.2 `Conventions/BankTelemetryTests` adds a read retried once, for the guard's own present user: no line of the library and no exported trace holds the account id, the session id, or the user's address or browser. Verify: the test passes; green
+- [x] 16.2 `Conventions/BankTelemetryTests` adds a read retried once, for the guard's own present user: no line of the library and no exported trace holds the account id, the session id, or the user's address or browser. Verify: the test passes; green
 - [x] 16.3 deployment.md § Checks: a ready query in PowerShell 7 listing the bank retries in a period (the library's warnings in `AppTraces`), next to the existing ready queries and in their form, marked to confirm once the first real retry lines arrive. Verify: the columns match the existing queries'; the link to Microsoft's columns resolves
 
 ## 17. [wiring] No other client retries
 
-- [ ] 17.1 A convention test in `AcceptanceTests/Conventions/` (design.md D10): the app copy's plain `HttpClient` from `IHttpClientFactory` sends one request to a local fake answering 503, and exactly one request arrives. Verify: it passes; a probe that adds `AddStandardResilienceHandler` to `ConfigureHttpClientDefaults` in ServiceDefaults makes it fail (probe reverted, as lesson R-31 does for build gates); green
+- [x] 17.1 A convention test in `AcceptanceTests/Conventions/` (design.md D10): the app copy's plain `HttpClient` from `IHttpClientFactory` sends one request to a local fake answering 503, and exactly one request arrives. Verify: it passes; a probe that adds `AddStandardResilienceHandler` to `ConfigureHttpClientDefaults` in ServiceDefaults makes it fail (probe reverted, as lesson R-31 does for build gates); green
 
 ## 18. [wiring] Docs
 

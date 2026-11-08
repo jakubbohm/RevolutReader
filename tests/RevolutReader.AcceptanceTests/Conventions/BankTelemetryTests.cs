@@ -16,7 +16,8 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// the log, D5); the HTTP client's default logging and the HTTP-client trace instrumentation record a request's URL. So
 /// the test's app copy reads the bank once for its balance and once for its transactions, for a present user, and
 /// nothing it logs (message, structured value or scope value) or exports as a trace (activity name, tag, event or
-/// status) may contain the configured account id, the session id, or the user's IP address or browser.
+/// status) may contain the configured account id, the session id, or the user's IP address or browser. A second test
+/// does the same for a read retried once, whose retry the resilience library logs as well (c008 design.md D9).
 /// <para>
 /// The present user is the guard's own, with an address and a browser no other test uses: the app copies of tests running
 /// in parallel export into this test's collection too (<see cref="ExportedActivities"/>), and the server activity of
@@ -33,6 +34,9 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// </para>
 /// </summary>
 public sealed class BankTelemetryTests : AcceptanceTest {
+  /// <summary>The log category of the resilience library the bank client retries with (Polly, c008 design.md D3, D9).</summary>
+  private const string RESILIENCE_LIBRARY = "Polly";
+
   /// <summary>The guard's own present user: a documentation address (RFC 5737) and a made-up browser, both used nowhere else.</summary>
   private static readonly UserAtDevice _user = new("192.0.2.71", "Mozilla/5.0 (RevolutReader telemetry guard; made up)");
 
@@ -49,6 +53,26 @@ public sealed class BankTelemetryTests : AcceptanceTest {
 
     string[] identifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId"), _user.IpAddress, _user.Browser];
 
+    _logs.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session, or the user's address or browser");
+    _traces.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account, the session, or the user's address or browser");
+  }
+
+  /// <summary>
+  /// A read retried once (c008 design.md D9): the resilience library writes its own lines about the retry, under its
+  /// category <see cref="RESILIENCE_LIBRARY"/>, and they must hold no identifier either. The test first checks that the
+  /// library did write some, so it cannot pass without them.
+  /// </summary>
+  [Test]
+  public async Task A_retried_bank_read_leaves_no_account_id_session_id_or_user_headers_in_the_resilience_librarys_lines_or_in_traces() {
+    Bank.ReportsOwnErrorForTheFirstRequest();
+    Bank.HasAvailableBalance(1234.56m);
+
+    (await Bank.ReadBalanceFor(_user)).Outcome.ShouldBe(BankOutcome.Read, "the balance read reached the bank");
+    Bank.RequestsReceived().Count.ShouldBe(2, "the balance read was retried once");
+
+    string[] identifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId"), _user.IpAddress, _user.Browser];
+
+    _logs.MessagesOf(RESILIENCE_LIBRARY).ShouldNotBeEmpty("The resilience library's lines about the retry");
     _logs.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session, or the user's address or browser");
     _traces.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account, the session, or the user's address or browser");
   }
@@ -76,19 +100,30 @@ public sealed class BankTelemetryTests : AcceptanceTest {
     return value;
   }
 
-  /// <summary>Every log entry of the app copy, as text: the message, each structured value, each scope and its values, the exception.</summary>
+  /// <summary>
+  /// Every log entry of the app copy, whatever its category, as text: the message, each structured value, each scope and
+  /// its values, the exception. What reaches it has passed the app copy's log level settings (<c>Logging:LogLevel</c>).
+  /// </summary>
   private sealed class CapturedLogs {
     private readonly Lock _lock = new();
-    private readonly List<string> _texts = [];
+    private readonly List<(string Category, IReadOnlyList<string> Texts)> _entries = [];
 
+    /// <summary>The texts of every entry.</summary>
     public IReadOnlyList<string> Texts() {
       lock (_lock)
-        return [.. _texts];
+        return [.. _entries.SelectMany(static entry => entry.Texts)];
     }
 
-    public void Add(IEnumerable<string> texts) {
+    /// <summary>The messages of the entries of this category, in the order written.</summary>
+    public IReadOnlyList<string> MessagesOf(string category) {
       lock (_lock)
-        _texts.AddRange(texts);
+        return [.. _entries.Where(entry => entry.Category == category).Select(static entry => entry.Texts[0])];
+    }
+
+    /// <summary>One entry: its category, then its message first among its texts.</summary>
+    public void Add(string category, IReadOnlyList<string> texts) {
+      lock (_lock)
+        _entries.Add((category, texts));
     }
   }
 
@@ -96,11 +131,11 @@ public sealed class BankTelemetryTests : AcceptanceTest {
   private sealed class CapturingLoggerProvider(CapturedLogs logs) : ILoggerProvider, ISupportExternalScope {
     private IExternalScopeProvider _scopes = new LoggerExternalScopeProvider();
 
-    public ILogger CreateLogger(string categoryName) => new CapturingLogger(this);
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(this, categoryName);
 
     public void SetScopeProvider(IExternalScopeProvider scopeProvider) => _scopes = scopeProvider;
 
-    private void Capture<TState>(TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+    private void Capture<TState>(string category, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
       List<string> texts = [formatter(state, exception)];
 
       AddValues(texts, state);
@@ -110,7 +145,7 @@ public sealed class BankTelemetryTests : AcceptanceTest {
 
       _scopes.ForEachScope(static (scope, list) => AddValues(list, scope), texts);
 
-      logs.Add(texts);
+      logs.Add(category, texts);
     }
 
     private static void AddValues(List<string> texts, object? state) {
@@ -123,13 +158,13 @@ public sealed class BankTelemetryTests : AcceptanceTest {
         texts.AddRange(values.Select(static pair => $"{pair.Key}={pair.Value}"));
     }
 
-    private sealed class CapturingLogger(CapturingLoggerProvider provider) : ILogger {
+    private sealed class CapturingLogger(CapturingLoggerProvider provider, string category) : ILogger {
       public IDisposable? BeginScope<TState>(TState state) where TState : notnull => provider._scopes.Push(state);
 
       public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
 
       public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-        provider.Capture(state, exception, formatter);
+        provider.Capture(category, state, exception, formatter);
     }
 
     #region IDisposable
