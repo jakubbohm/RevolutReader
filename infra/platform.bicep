@@ -231,6 +231,3 @@ output keysBlobUri string = '${storage.properties.primaryEndpoints.blob}${keysCo
 
 @description('The Key Vault key that encrypts the key ring, without a version, so a rotated key is picked up.')
 output keyVaultKeyUri string = keysKey.properties.keyUri
-
-@description('The client ID of the app\'s identity, which reaches the keys blob and the key.')
-output appIdentityClientId string = appIdentity.properties.clientId

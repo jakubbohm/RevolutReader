@@ -31,7 +31,6 @@ module features 'features.bicep' = {
     keyVaultUri: platform.outputs.keyVaultUri
     keysBlobUri: platform.outputs.keysBlobUri
     keyVaultKeyUri: platform.outputs.keyVaultKeyUri
-    appIdentityClientId: platform.outputs.appIdentityClientId
   }
 }
 

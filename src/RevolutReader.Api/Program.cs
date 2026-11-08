@@ -17,9 +17,9 @@ builder.Services.AddFastEndpoints();
 builder.Services.OpenApiDocument(static options => options.EnableJWTBearerAuth = false);
 builder.Services.AddEnableBanking();
 builder.Services.AddSignIn();
-// Where the login cookie's keys live is chosen while registering services, so the composition root reads the settings
-// (c007 design.md D7).
-builder.Services.AddDataProtectionKeys(builder.Configuration.GetSection(DataProtectionKeysOptions.SECTION).Get<DataProtectionKeysOptions>() ?? new());
+// Where the login cookie's keys live is chosen while registering services, so the composition root hands over the
+// configuration: the DataProtection section and AZURE_CLIENT_ID (c007 design.md D7).
+builder.Services.AddDataProtectionKeys(builder.Configuration);
 
 WebApplication app = builder.Build();
 

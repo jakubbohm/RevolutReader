@@ -26,9 +26,6 @@ param keysBlobUri string
 @description('The Key Vault key that encrypts the key ring, without a version (platform.bicep).')
 param keyVaultKeyUri string
 
-@description('The client ID of the app\'s identity (platform.bicep), which reaches the keys blob and the key.')
-param appIdentityClientId string
-
 // The app: one container serving the API and the pages (ADR-0002-frontend-hosting). Its name is
 // the first part of its public address, on the daughter's Home Screen and, from C6, in Entra ID:
 // renaming it makes a new app with a new address.
@@ -186,9 +183,9 @@ var signInSecrets = [
   }
 ]
 
-// The secrets above, and where the login cookie's keys live (c007 design.md D7): the keys blob, the
-// Key Vault key and the identity that reaches both, all from platform.bicep. Not secret: addresses
-// and an ID.
+// The secrets above, and where the login cookie's keys live (c007 design.md D7): the keys blob and
+// the Key Vault key, from platform.bicep. Not secret: two addresses. The app reaches both with its
+// identity, whose client ID AZURE_CLIENT_ID holds (the telemetry settings above).
 var signInSettings = [
   ...map(signInSecretSettings, setting => {
     name: 'SignIn__${setting}'
@@ -201,10 +198,6 @@ var signInSettings = [
   {
     name: 'DataProtection__KeyVaultKeyUri'
     value: keyVaultKeyUri
-  }
-  {
-    name: 'DataProtection__IdentityClientId'
-    value: appIdentityClientId
   }
 ]
 
