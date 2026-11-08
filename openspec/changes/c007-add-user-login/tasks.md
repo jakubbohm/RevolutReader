@@ -289,7 +289,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 37. [wiring] Slice 16 — The account menu
 
-- [ ] 37.1 `AccountMenu` (Radix `DropdownMenu`, design.md D12), `AppShell`'s optional account and sign-out, and `AccountScreen`; signed in → `AccountScreen`. Radix is imported only in `src/components/`. Verify: the scenario runs against the app; lint (including the Radix import rule), format and typecheck pass
+- [x] 37.1 `AccountMenu` (Radix `DropdownMenu`, design.md D12), `AppShell`'s optional account and sign-out, and `AccountScreen`; signed in → `AccountScreen`. Radix is imported only in `src/components/`. Verify: the scenario runs against the app; lint (including the Radix import rule), format and typecheck pass
 
 ## 38. [close] Slice 16 — The account menu shows who is signed in
 

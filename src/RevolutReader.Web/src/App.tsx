@@ -1,8 +1,8 @@
 import { useEffect, useState, type JSX } from "react";
 import { needsInstallHint, type Device } from "./app/device";
 import { readSession, type Session } from "./app/session";
-import { AppShell } from "./components/AppShell";
 import { InstallHint } from "./components/InstallHint";
+import { AccountScreen } from "./screens/AccountScreen";
 import { NoAccessScreen } from "./screens/NoAccessScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 
@@ -17,8 +17,10 @@ export function App({ device }: AppProps): JSX.Element {
 
 /**
  * The screen picked from the server's first answer to who is signed in, asked once at start (c007 design.md D3): signed
- * out → the sign-in screen; refused → the no-access screen, naming the account. Until the answer comes, and when it is
- * unknown (offline, a server error), the empty frame (D5); C7 hooks its waiting and offline screens onto this.
+ * out → the sign-in screen; refused → the no-access screen, naming the account; signed in → the account screen, with
+ * the account menu. Until the answer comes, and when it is unknown (offline, a server error), the same screen without
+ * the menu: the empty frame (D5), so the top bar stays in place when a signed-in answer comes. C7 hooks its waiting and
+ * offline screens onto this.
  */
 function Screens(): JSX.Element {
   const [session, setSession] = useState<Session>({ kind: "unknown" });
@@ -40,7 +42,11 @@ function Screens(): JSX.Element {
       return <SignInScreen signedOut={session.justSignedOut} />;
     case "refused":
       return <NoAccessScreen email={session.email} />;
-    default:
-      return <AppShell />;
+    case "signed-in":
+      return (
+        <AccountScreen account={{ name: session.name, email: session.email }} />
+      );
+    case "unknown":
+      return <AccountScreen />;
   }
 }
