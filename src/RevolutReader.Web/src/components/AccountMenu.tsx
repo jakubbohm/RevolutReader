@@ -17,10 +17,10 @@ export interface AccountMenuProps {
 /**
  * The top bar's account menu (design system AppShell, c007 design.md D12), a Radix `DropdownMenu` that leaves the page
  * unlocked (`modal={false}`): the trigger is a ghost icon button, 44 × 44 and round, with `circle-user-round` at 24 px,
- * labelled "Účet a odhlášení"; the menu holds the label "Přihlášený účet", the name and the email (cut with an ellipsis
- * when long), a separator, and one item, "Odhlásit se" with `log-out`, 44 pt tall. Nothing else goes in this menu. It
- * fades in over `duration-fast`, also under reduced motion (a fade, not a movement). Keyboard, VoiceOver, Escape and a
- * tap outside work through Radix.
+ * labelled "Účet a odhlášení"; the menu holds the label "Přihlášený účet", the name in full (a word too long for the
+ * line breaks inside it) and the email, cut with an ellipsis when long, a separator, and one item, "Odhlásit se" with
+ * `log-out`, 44 pt tall. Nothing else goes in this menu. It fades in over `duration-fast`, also under reduced motion (a
+ * fade, not a movement). Keyboard, VoiceOver, Escape and a tap outside work through Radix.
  */
 export function AccountMenu({
   account,
@@ -45,7 +45,9 @@ export function AccountMenu({
             <span className="text-footnote text-ink-muted">
               Přihlášený účet
             </span>
-            <span className="text-body-strong">{account.name}</span>
+            <span className="text-body-strong wrap-anywhere">
+              {account.name}
+            </span>
             <span className="truncate text-footnote text-ink-muted">
               {account.email}
             </span>

@@ -42,11 +42,10 @@ public static class SignInRegistration {
   /// the default and the challenge scheme: the login cookie <see cref="SignInCookies.SESSION"/> (D4), and its login and
   /// access-denied redirects become 401 and 403 without a body, so <c>UseStatusCodePages</c> answers them with the problem
   /// descriptions <c>Unauthorized</c> and <c>Forbidden</c>; a 403 for an account the allowlist refuses names its own email
-  /// address (D3).
-  /// OpenID Connect against Microsoft (D2–D4), which only <see cref="LoginEndpoint"/> challenges, by name; a sign-in by an
-  /// account not on the allowlist is logged once, as <see cref="SignInLog.SignInRefused"/>, and still completes; a sign-in
-  /// that is cancelled or fails lands on <see cref="SignInAddresses.LANDING"/>, signed out, and is logged without a token,
-  /// an email address or an exception message (D3). The
+  /// address (D3). OpenID Connect against Microsoft (D2–D4), which only <see cref="LoginEndpoint"/> challenges, by name; a
+  /// sign-in by an account not on the allowlist is logged once, as <see cref="SignInLog.SignInRefused"/>, and still
+  /// completes; a sign-in that is cancelled or fails lands on <see cref="SignInAddresses.LANDING"/> without signing anyone
+  /// in, and is logged without a token, an email address or an exception message (D3). The
   /// <c>AllowedUser</c> policy, a signed-in user on the allowlist (<see cref="AllowedUserRequirement"/>, the
   /// <see cref="Allowlist"/> parsed once from the validated settings), as both the default policy (what FastEndpoints
   /// applies to an endpoint without its own settings) and the fallback policy (any other endpoint without authorization
@@ -110,14 +109,14 @@ public static class SignInRegistration {
           ILogger logger = Logger(context.HttpContext);
           SignInLog.SignInCancelled(logger);
 
-          return LandSignedOut(context);
+          return ReturnToStart(context);
         };
         options.Events.OnRemoteFailure = static context => {
           ILogger logger = Logger(context.HttpContext);
           string kind = FailureKind(context.Failure);
           SignInLog.SignInFailed(logger, kind);
 
-          return LandSignedOut(context);
+          return ReturnToStart(context);
         };
       });
 
@@ -191,10 +190,14 @@ public static class SignInRegistration {
   }
 
   /// <summary>
-  /// A sign-in that did not complete (cancelled, or failed) goes back to the start page, signed out (D3): the handler's own
-  /// answer, an error page or an exception, is replaced by the redirect.
+  /// A sign-in that did not complete (cancelled, or failed) signs nobody in and goes back to the start page (D3): the
+  /// handler's own answer, an error page or an exception, is replaced by the redirect. A login from before stays as it is;
+  /// a completed sign-in replaces it. It never signs out: the return address <see cref="SignInAddresses.CALLBACK"/> takes
+  /// form posts from any site (it is exempt from the rule against writes from other sites, D4, and even an empty form ends
+  /// here), so a sign-out here would let any site sign the visitor out, which D2 rules out for the handler's own sign-out
+  /// addresses.
   /// </summary>
-  private static Task LandSignedOut(HandleRequestContext<RemoteAuthenticationOptions> context) {
+  private static Task ReturnToStart(HandleRequestContext<RemoteAuthenticationOptions> context) {
     context.Response.Redirect(SignInAddresses.LANDING);
     context.HandleResponse();
 

@@ -17,9 +17,11 @@ public static class DataProtectionKeysRegistration {
   /// Data Protection with its application name pinned, and its keys where the settings say (D7): all three settings
   /// empty, ASP.NET's default key store (locally, the user profile); all three set, the keys blob in Blob Storage,
   /// encrypted by the Key Vault key, both reached with the app's user-assigned managed identity. Anything in between
-  /// throws here, at registration, with a message that names the settings, never their values. Nothing calls Azure
-  /// here: the clients reach it when the keys are first needed. Called from Program.cs, the composition root, because the
-  /// choice is made while registering services.
+  /// throws here, at registration, with a message that names the settings, never their values. Nothing calls Azure while
+  /// registering. ASP.NET's own start-up service then reads the keys once, before the server listens (on a scale-to-zero
+  /// app, at every wake); a failure there is logged as an error and retried when the keys are first needed. While the app
+  /// runs, they are read again about every 24 h (D7). Called from Program.cs, the composition root, because the choice is
+  /// made while registering services.
   /// </summary>
   public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, DataProtectionKeysOptions options) {
     ArgumentNullException.ThrowIfNull(services);
