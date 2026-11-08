@@ -17,6 +17,8 @@ public sealed class LoginEndpoint : EndpointWithoutRequest {
   public override void Configure() {
     Get(SignInAddresses.LOGIN);
     AllowAnonymous();
+    Description(static endpoint => endpoint.Produces(StatusCodes.Status302Found), clearDefaults: true);
+    Summary(static summary => summary.Summary = "Starts the sign-in at Microsoft");
   }
 
   public override Task HandleAsync(CancellationToken ct) {

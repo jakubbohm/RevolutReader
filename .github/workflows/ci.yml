@@ -35,6 +35,13 @@ jobs:
       - name: Build
         run: dotnet build
 
+      # The committed OpenAPI document matches the API (c007 design.md D9): the explicit export check
+      # writes it again, and any difference fails. CI only compares; it never commits a fix.
+      - name: API description drift
+        run: |
+          dotnet test --project tests/RevolutReader.IntegrationTests --no-build --treenode-filter "/*/*/OpenApiExport/*"
+          git diff --exit-code -- src/RevolutReader.Api/openapi.json
+
       - name: Test
         run: dotnet test --no-build
 
@@ -49,15 +56,27 @@ jobs:
         with:
           persist-credentials: false
 
-      # Node from the version the frontend pins; npm's download cache is keyed on its lock file.
+      # Node from the version the frontend pins; npm's download cache is keyed on its lock file and
+      # the API type generator's.
       - uses: actions/setup-node@v7
         with:
           node-version-file: src/RevolutReader.Web/.node-version
           cache: npm
-          cache-dependency-path: src/RevolutReader.Web/package-lock.json
+          cache-dependency-path: |
+            src/RevolutReader.Web/package-lock.json
+            tools/api-client/package-lock.json
 
       - name: Install
         run: npm ci
+
+      # The committed TypeScript API types match the committed OpenAPI document (c007 design.md D9):
+      # generated again with the generator's own TypeScript 5 copy, and any difference fails.
+      - name: API types drift
+        working-directory: .
+        run: |
+          npm --prefix tools/api-client ci
+          npm --prefix tools/api-client run generate
+          git diff --exit-code -- src/RevolutReader.Web/src/api/schema.d.ts
 
       - name: Format check
         run: npm run format:check

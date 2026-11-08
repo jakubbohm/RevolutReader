@@ -6,6 +6,9 @@
 # The frontend uses Prettier's line endings (LF) everywhere, so `prettier --check` agrees on Windows
 # checkouts (core.autocrlf) and in Linux CI (c003 design.md § Bootstrap).
 src/RevolutReader.Web/** text eol=lf
+# The OpenAPI document as the export check writes it (LF), so a Windows checkout and the CI drift
+# step compare the same bytes (c007 design.md D9). The generated TypeScript types sit under the line above.
+src/RevolutReader.Api/openapi.json text eol=lf
 # Images are binary, also in the frontend: as text, their bytes would be rewritten on commit (a PNG's
 # signature holds a CRLF). After the line above, so it wins.
 *.png binary

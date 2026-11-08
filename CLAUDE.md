@@ -22,6 +22,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | Frontend tests / one file | `npm --prefix src/RevolutReader.Web test` / add `-- src/scenarios/<capability>.test.tsx` |
 | Frontend checks | `npm --prefix src/RevolutReader.Web run lint` · `run typecheck` · `run format:check` (fix: `run format`) |
 | Frontend build | `npm --prefix src/RevolutReader.Web run build` |
+| Regenerate the API client (after changing an endpoint's contract; once per machine first `npm --prefix tools/api-client ci`) | `npm --prefix tools/api-client run regenerate`: the export check writes `src/RevolutReader.Api/openapi.json`, then the TypeScript types `src/RevolutReader.Web/src/api/schema.d.ts`; commit both (CI fails when either is stale). Run in C6, 2026-11-08 |
 | App icons and launch images | `npm --prefix src/RevolutReader.Web run icons`: by hand, only when `public/app-icon.svg` or the launch-screen design changes; commit the PNGs and paste the launch tags it prints into `index.html` |
 | Run the app | `aspire start` / `aspire stop` (Claude: through the aspire skills, never `dotnet run` on the AppHost). The app opens at the `web` resource's address (Vite, forwarding `/api` to the API); the API's own address serves no pages (C3) |
 | Image, local build | `docker build -t revolutreader:local .` (Docker running; the same Dockerfile the deploy builds) |

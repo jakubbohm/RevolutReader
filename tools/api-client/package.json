@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "description": "Generates the frontend's TypeScript API types from the API's OpenAPI document (c007 design.md D9). Its own folder because openapi-typescript needs TypeScript 5 (peer dependency ^5.x) and the frontend runs TypeScript 7.",
   "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../src/RevolutReader.Api/openapi.json --output ../../src/RevolutReader.Web/src/api/schema.d.ts",
+    "regenerate": "dotnet test --project ../../tests/RevolutReader.IntegrationTests --treenode-filter \"/*/*/OpenApiExport/*\" && npm run generate"
+  },
   "engines": {
     "node": ">=24"
   },

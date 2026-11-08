@@ -12,7 +12,18 @@ namespace RevolutReader.Api.SignIn;
 /// runs.
 /// </summary>
 public sealed class MeEndpoint : EndpointWithoutRequest<MeResponse> {
-  public override void Configure() => Get("/api/me");
+  private const string JSON = "application/json";
+
+  public override void Configure() {
+    Get("/api/me");
+    Description(
+      static endpoint => endpoint
+        .Produces<MeResponse>(StatusCodes.Status200OK, JSON)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status403Forbidden),
+      clearDefaults: true);
+    Summary(static summary => summary.Summary = "Who is signed in");
+  }
 
   public override Task HandleAsync(CancellationToken ct) {
     string email = User.FindFirstValue(JwtRegisteredClaimNames.Email)
