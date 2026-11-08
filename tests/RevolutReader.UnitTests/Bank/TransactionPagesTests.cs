@@ -207,7 +207,8 @@ public sealed class TransactionPagesTests {
     TransactionDate: null,
     BookingDate: new DateOnly(2026, 11, 3),
     ValueDate: new DateOnly(2026, 11, 3),
-    RemittanceInformation: ["Pekárna U Lípy"]);
+    RemittanceInformation: ["Pekárna U Lípy"],
+    BankTransactionCode: new("CARD_PAYMENT"));
 
   /// <summary>
   /// The fake bank: the first page for no key, each further page for its key, and a record of the keys asked for, in

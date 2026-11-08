@@ -15,4 +15,13 @@ public sealed record BankTransaction(
   decimal Amount,
   string Currency,
   string? Counterparty,
-  IReadOnlyList<string> PaymentDetails);
+  IReadOnlyList<string> PaymentDetails) {
+  /// <summary>
+  /// The bank's type code: <c>bank_transaction_code.code</c>, unchanged; <see langword="null"/> when the bank gives none
+  /// (c010 design.md § Public API sketch). A stub until c010's task 3.1, which makes it the record's last positional
+  /// parameter, filled by <see cref="TransactionMapping"/>, and removes the suppression.
+  /// </summary>
+#pragma warning disable CA1065 // The stub's throw (c010 task 3.1 replaces the property).
+  public string? TypeCode => throw new NotImplementedException();
+#pragma warning restore CA1065
+}

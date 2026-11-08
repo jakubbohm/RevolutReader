@@ -6,12 +6,14 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// What a transaction carries (spec bank-reads, c004 design.md D3): the reference, the status, one date (the transaction
-/// date, else the booking date, else the value date), the amount signed by direction in its currency, the counterparty
-/// and the payment details, unchanged. Each test maps one transaction the bank lists, made up in the Mock ASPSP
-/// capture's shape: a booked payment, money spent (<c>DBIT</c>), or a booked transfer received (<c>CRDT</c>), dated like
-/// Revolut's settled ones (booking and value date, no transaction date), or a pending payment (a transaction date only).
-/// The bank's amounts are unsigned, the direction only in the indicator: a kept transaction whose amount carries a minus
-/// is an error (c006 design.md D2).
+/// date, else the booking date, else the value date), the amount signed by direction in its currency, the counterparty,
+/// the payment details and the type code (c010 design.md D4: <c>bank_transaction_code.code</c>), unchanged. Each test
+/// maps one transaction the bank lists, made up in the Mock ASPSP capture's shape: a booked payment, money spent
+/// (<c>DBIT</c>), or a booked transfer received (<c>CRDT</c>), dated like Revolut's settled ones (booking and value date,
+/// no transaction date), or a pending payment (a transaction date only), each with a type code as Revolut gives one (the
+/// M1 history file's codes, counts only, c010 design.md § Context; the Mock ASPSP gives none). The bank's amounts are
+/// unsigned, the direction only in the indicator: a kept transaction whose amount carries a minus is an error (c006
+/// design.md D2).
 /// </summary>
 public sealed class TransactionMappingTests {
   private static readonly DateOnly _november2 = new(2026, 11, 2);
@@ -202,6 +204,43 @@ public sealed class TransactionMappingTests {
     ShouldCarryNoBankData(error, transaction, bankStatus);
   }
 
+  // The type code (c010 design.md D4)
+
+  /// <param name="direction">Money spent or money received: the code comes through on either.</param>
+  /// <param name="typeCode">
+  /// The bank's code, which the mapping passes on as it is: two of Revolut's codes, and one that is not shaped like a code
+  /// (spaces, letter case), which the mapping neither trims nor rewrites; judging it is the transactions' rule, not the
+  /// adapter's (D4c).
+  /// </param>
+  [Test]
+  [Arguments("money spent", "CARD_PAYMENT")]
+  [Arguments("money received", "TOPUP")]
+  [Arguments("money spent", " card_Refund ")]
+  public void A_transactions_type_code_comes_back_unchanged(string direction, string typeCode) {
+    EbTransaction transaction = direction switch {
+      "money spent" => BookedPayment() with { BankTransactionCode = new(typeCode) },
+      "money received" => BookedTransferReceived() with { BankTransactionCode = new(typeCode) },
+      _ => throw new ArgumentOutOfRangeException(nameof(direction), direction, "Not a known case."),
+    };
+
+    MapOne(transaction).TypeCode.ShouldBe(typeCode);
+  }
+
+  [Test]
+  public void A_transaction_without_a_type_code_comes_back_without_one() {
+    BankTransaction mapped = MapOne(BookedPayment() with { BankTransactionCode = null });
+
+    mapped.TypeCode.ShouldBeNull();
+  }
+
+  /// <summary>The bank gives the type code's object, but no code in it (its description and sub-code are not read).</summary>
+  [Test]
+  public void A_transaction_whose_type_code_has_no_code_comes_back_without_one() {
+    BankTransaction mapped = MapOne(BookedPayment() with { BankTransactionCode = new(Code: null) });
+
+    mapped.TypeCode.ShouldBeNull();
+  }
+
   // The date
 
   [Test]
@@ -347,7 +386,7 @@ public sealed class TransactionMappingTests {
     ShouldCarryNoBankData(error, transaction, creditDebitIndicator);
   }
 
-  /// <summary>A booked payment of 12.30 EUR to "Pekárna U Lípy", booked and valued on 3 November; each test changes what it is about.</summary>
+  /// <summary>A booked card payment of 12.30 EUR to "Pekárna U Lípy", booked and valued on 3 November; each test changes what it is about.</summary>
   private static EbTransaction BookedPayment() => new(
     EntryReference: "e-101",
     Status: "BOOK",
@@ -358,7 +397,8 @@ public sealed class TransactionMappingTests {
     TransactionDate: null,
     BookingDate: _november3,
     ValueDate: _november3,
-    RemittanceInformation: ["Pekárna U Lípy"]);
+    RemittanceInformation: ["Pekárna U Lípy"],
+    BankTransactionCode: new("CARD_PAYMENT"));
 
   /// <summary>A booked transfer of 50.00 EUR received from "Jan Novák" on 4 November, as the capture lists one; each test changes what it is about.</summary>
   private static EbTransaction BookedTransferReceived() => new(
@@ -371,7 +411,8 @@ public sealed class TransactionMappingTests {
     TransactionDate: null,
     BookingDate: _november4,
     ValueDate: _november4,
-    RemittanceInformation: ["Kapesné listopad"]);
+    RemittanceInformation: ["Kapesné listopad"],
+    BankTransactionCode: new("TRANSFER"));
 
   /// <summary>
   /// A pending card payment of 8.90 EUR to "Kavárna Na Rohu" on 5 November, as the capture lists one: a transaction date
@@ -387,7 +428,8 @@ public sealed class TransactionMappingTests {
     TransactionDate: _november5,
     BookingDate: null,
     ValueDate: null,
-    RemittanceInformation: ["Kavárna Na Rohu"]);
+    RemittanceInformation: ["Kavárna Na Rohu"],
+    BankTransactionCode: new("CARD_PAYMENT"));
 
   /// <summary>The one transaction the mapping keeps from a list of one.</summary>
   private static BankTransaction MapOne(EbTransaction transaction) => TransactionMapping.Map([transaction]).Kept.ShouldHaveSingleItem();
