@@ -213,6 +213,43 @@ public sealed class ReadNewestTransactionsHandlerTests {
       () => warning.ShouldHoldNoBankData());
   }
 
+  // Where the live read starts (D3)
+
+  /// <summary>
+  /// After a long pause: the newest kept day, 2026-09-30, is earlier than the window's first day, 2026-10-20, so the bank
+  /// is asked from 2026-09-30 to close the gap, while the page still shows only the window.
+  /// </summary>
+  [Test]
+  public async Task The_newest_page_asks_the_bank_from_the_live_reads_start() {
+    InMemoryTransactionStore store = new();
+    await store.Keep([Kept(new DateOnly(2026, 9, 30), "e-kept-1")], CancellationToken.None);
+    StubBankAccount bank = new(Lists(Settled(_november18, -12.30m)));
+
+    _ = await NewestPage(bank, store);
+
+    bank.FromDatesReceived.ShouldBe([new DateOnly(2026, 9, 30)]);
+  }
+
+  /// <summary>
+  /// The newest kept day, 2026-08-20, is earlier than 89 days before 2026-11-20: one warning, whose only value is the
+  /// gap's days (92, from the newest kept day to today), and nothing of the kept or the live transactions' bank data.
+  /// </summary>
+  [Test]
+  public async Task A_gap_beyond_89_days_logs_a_warning_with_its_days() {
+    CapturedLog log = new();
+    InMemoryTransactionStore store = new();
+    await store.Keep([Kept(new DateOnly(2026, 8, 20), "e-kept-1")], CancellationToken.None);
+    StubBankAccount bank = new(Lists(Settled(_november18, -12.30m)));
+
+    _ = await NewestPage(bank, store, logger: log);
+
+    LogEntry warning = log.Warnings().ShouldHaveSingleItem("the warnings: one, for the gap");
+    warning.ShouldSatisfyAllConditions(
+      () => warning.EventName.ShouldBe("HistoryGap"),
+      () => warning.OwnValues().ShouldBe(["92"], "the line's values: the gap's days alone"),
+      () => warning.ShouldHoldNoBankData());
+  }
+
   private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) =>
     new(bank, store, clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 
@@ -261,15 +298,20 @@ public sealed class ReadNewestTransactionsHandlerTests {
   /// </summary>
   private sealed class StubBankAccount(BankResult<Transactions> answer) : IBankAccount {
     private readonly List<ReadTrigger> _triggers = [];
+    private readonly List<DateOnly> _fromDates = [];
 
     /// <summary>Who each transactions read was for, in order.</summary>
     public IReadOnlyList<ReadTrigger> TriggersReceived => _triggers;
+
+    /// <summary>The day each transactions read asked from, in order.</summary>
+    public IReadOnlyList<DateOnly> FromDatesReceived => _fromDates;
 
     public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) =>
       throw new InvalidOperationException("The transactions handler never reads the balance.");
 
     public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
       _triggers.Add(trigger);
+      _fromDates.Add(from);
 
       return Task.FromResult(answer);
     }
@@ -302,8 +344,13 @@ public sealed class ReadNewestTransactionsHandlerTests {
     /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
     private const string ORIGINAL_FORMAT = "{OriginalFormat}";
 
-    /// <summary>The bank data of the transactions these tests list (made up): counterparties, the line of text, the amounts in either decimal separator.</summary>
-    private static readonly string[] _bankData = ["Pekárna U Lípy", "Jan Novák", "Praha 2", "7.20", "7,20", "12.30", "12,30", "50.00", "50,00"];
+    /// <summary>
+    /// The bank data of the transactions these tests list or keep (made up): counterparties, the line of text, the amounts in
+    /// either decimal separator.
+    /// </summary>
+    private static readonly string[] _bankData = [
+      "Pekárna U Lípy", "Jan Novák", "Trafika Můstek", "Praha 2", "7.20", "7,20", "12.30", "12,30", "50.00", "50,00", "4.20", "4,20",
+    ];
 
     /// <summary>The values of the line's own fields, in order, without its message template.</summary>
     public IReadOnlyList<string?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value?.ToString())];

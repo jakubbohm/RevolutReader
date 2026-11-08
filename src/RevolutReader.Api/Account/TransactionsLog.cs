@@ -5,6 +5,13 @@ namespace RevolutReader.Api.Account;
 /// never bank data (no counterparty, amount or line of the bank's text).
 /// </summary>
 public static partial class TransactionsLog {
+  /// <summary>
+  /// The newest kept day is earlier than the 89 days the live read reaches back to (D3): the days between it and the read's
+  /// start are lost unless a history file covers them. Only the gap's days, never bank data.
+  /// </summary>
+  [LoggerMessage(EventName = "HistoryGap", Level = LogLevel.Warning, Message = "The newest kept transaction is {Days} days old, more than the live read's 89 days reach back: the days in between are missing unless a history file covers them")]
+  public static partial void HistoryGap(ILogger logger, int days);
+
   /// <summary>A type code the app does not know, which looks like a code, so it is quoted: the first sign of a code to add (D4c).</summary>
   [LoggerMessage(EventName = "UnknownTypeCode", Level = LogLevel.Warning, Message = "A transaction has a type code the app does not know: {Code}")]
   public static partial void UnknownTypeCode(ILogger logger, string code);
