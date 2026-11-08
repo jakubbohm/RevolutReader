@@ -199,7 +199,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 17. [close] Slice 6 — Sign-in returns to the app's own HTTPS address behind the hosting proxy
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including sign-in / Sign-in returns to the app's own HTTPS address behind the hosting proxy
+- [x] 17.1 The scenario's test passes. Verify: green, including sign-in / Sign-in returns to the app's own HTTPS address behind the hosting proxy
 
 ## 18. [wiring] Slice 7 — The account picker
 
