@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start — see the change log in `pm/progress.md`)
 
 ---
 
@@ -253,7 +253,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 1. **Two endpoints:** `GET /api/balance` (C7a) and `GET /api/transactions` (C7b), never one combined answer, so neither change edits the other's endpoint. The adapter already reads the two separately, so this adds no bank call; the screen sends both requests at once and shows a failure of each part on its own.
 2. **The shared backend pieces come first, in C13:** the "a user is present" code, the rules that turn a failed bank read into an API answer, and the koruna rate. Neither half waits for the other on the backend.
 3. **C7a owns the account screen:** its layout, its refresh (`Obnovit`, return to the app), its single error banner (the Screens design draws one banner over the balance and the list), and a place for the list. C7b builds the list as its own component, with its own request, and puts it on today's empty account screen in its own branch, so that its tests run through the whole app.
-4. **C7a merges first.** C7b then rebases on it and, as its last task group: moves the list into C7a's place, joins C7a's refresh and banner, and adds the koruna line to its rows (the design system's `TransactionRow`).
+4. **C7a merges first.** C7b then rebases on it and, as its last task group: moves the list into C7a's place and joins C7a's refresh and banner. Its rows carry the koruna line (the design system's `TransactionRow`) from C7b's start (2026-11-08, change log).
 5. **Merged by hand at the rebase:** the generated API files (`openapi.json`, `schema.d.ts`: regenerated, not merged line by line) and the rows in `pm/progress.md`.
 
 ### C13 — Backend groundwork for the account reads
@@ -295,7 +295,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
   - the settled transactions stored from 2026-08-09 ([ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), item 6): the first table in the storage account C6 created, with its role assignment (Storage Table Data Contributor is already among the roles the deploy identity may grant, [azure-prerequisites.md](../docs/operations/azure-prerequisites.md)); Azurite locally and in tests ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md));
   - the one-time import of the M1 history file, which is then deleted;
   - `GET /api/transactions`, allowed users only, which returns the stored settled transactions together with a live read of the last 31 days (c004 design.md D7): newly settled ones are stored, pending ones shown but never stored;
-  - the account screen's scrollable list, grouped by day, and the transaction sheet; after the rebase on C7a, the list in C7a's place, joined to its refresh and banner, with the koruna line on each row (working in parallel, items 3 and 4).
+  - the account screen's scrollable list, grouped by day, with the koruna line on each row, and the transaction sheet; after the rebase on C7a, the list in C7a's place, joined to its refresh and banner (working in parallel, items 3 and 4).
 
   The screens and their states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
 - **Depends on:** C13 (and through it C5, C12, C6); findings on Q6. Runs alongside C7a in its own worktree; its last task group waits for C7a's merge.
