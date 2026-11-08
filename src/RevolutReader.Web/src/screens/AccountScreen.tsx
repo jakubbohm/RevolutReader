@@ -63,10 +63,10 @@ export function AccountScreen({
         </EmptyState>
       ) : null}
       {shown.body === "offline" ? <OfflineScreen /> : null}
-      {shown.body === "waking" ? (
+      {shown.body === "waking" || shown.body === "waking slow" ? (
         // Under a stored header in the list's place, or the whole screen under the top bar with nothing stored.
         <div className={header === null ? "px-gutter pt-16" : "px-gutter"}>
-          <WakingUp slow={false} onRetry={onRetry} />
+          <WakingUp slow={shown.body === "waking slow"} onRetry={onRetry} />
         </div>
       ) : null}
     </AppShell>

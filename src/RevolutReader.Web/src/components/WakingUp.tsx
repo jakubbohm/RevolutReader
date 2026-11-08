@@ -1,6 +1,7 @@
 import * as Progress from "@radix-ui/react-progress";
-import { Moon } from "lucide-react";
+import { Moon, RefreshCw } from "lucide-react";
 import type { JSX } from "react";
+import { Button } from "./Button";
 
 export interface WakingUpProps {
   /** The first request has had no answer for 30 s: the slow variant, with "Zkusit znovu". */
@@ -14,9 +15,10 @@ export interface WakingUpProps {
  * first load reads as expected rather than broken: a card with the 56 pt `color-accent-soft` disc and `moon`, "Server
  * se probouzí" (`text-title`), its sentence (muted `text-body`), and a thin indeterminate bar in `color-accent`, Radix
  * `Progress` with no value, so it waits rather than counts. Announced as a status. Under reduced motion the bar stands
- * still as a half-tone bar across the track. The slow variant comes with its own slice (c009 tasks.md slice 17).
+ * still as a half-tone bar across the track. The slow variant says it takes longer than usual and offers "Zkusit znovu",
+ * a secondary button across the card.
  */
-export function WakingUp(_props: WakingUpProps): JSX.Element {
+export function WakingUp({ slow, onRetry }: WakingUpProps): JSX.Element {
   return (
     <div
       role="status"
@@ -31,7 +33,9 @@ export function WakingUp(_props: WakingUpProps): JSX.Element {
       </span>
       <p className="text-title text-ink">Server se probouzí</p>
       <p className="text-body text-ink-muted">
-        Když ho chvíli nikdo nepoužívá, usne. První načtení trvá asi 20 sekund.
+        {slow
+          ? "Trvá to déle než obvykle. Zkontroluj připojení, nebo to zkus znovu."
+          : "Když ho chvíli nikdo nepoužívá, usne. První načtení trvá asi 20 sekund."}
       </p>
       <Progress.Root
         value={null}
@@ -40,6 +44,13 @@ export function WakingUp(_props: WakingUpProps): JSX.Element {
       >
         <Progress.Indicator className="h-full w-2/5 animate-progress-indeterminate rounded-full bg-accent motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-50" />
       </Progress.Root>
+      {slow ? (
+        <div className="mt-3 w-full">
+          <Button variant="secondary" block icon={RefreshCw} onClick={onRetry}>
+            Zkusit znovu
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -289,16 +289,16 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 41. [unit] Slice 17 — A slow wake
 
-- [ ] 41.1 From 30 s, the waking-up screen is the slow one
-- [ ] 41.2 The slow waking-up screen offers "Zkusit znovu" as a secondary button
+- [x] 41.1 From 30 s, the waking-up screen is the slow one
+- [x] 41.2 The slow waking-up screen offers "Zkusit znovu" as a secondary button
 
 ## 42. [wiring] Slice 17 — Trying again
 
-- [ ] 42.1 The 30 s mark; "Zkusit znovu" sends the first request again and starts the 30 s over, without reloading the page. Verify: the scenario runs against the app
+- [x] 42.1 The 30 s mark; "Zkusit znovu" sends the first request again and starts the 30 s over, without reloading the page. Verify: the scenario runs against the app
 
 ## 43. [close] Slice 17 — A slow wake offers to try again after 30 seconds
 
-- [ ] 43.1 The scenario's test passes. Verify: green, including app-shell / A slow wake offers to try again after 30 seconds
+- [x] 43.1 The scenario's test passes. Verify: green, including app-shell / A slow wake offers to try again after 30 seconds
 
 ## 44. [unit] Slice 18 — The bank's failures on the screen
 

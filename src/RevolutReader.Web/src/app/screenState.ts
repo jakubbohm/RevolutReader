@@ -89,25 +89,22 @@ export function shown(facts: Facts): Shown {
     banner: offline ? OFFLINE : facts.problem,
     body: offline
       ? "offline note"
-      : waking(facts)
-        ? "waking"
-        : header === null
-          ? "empty"
-          : "list",
+      : (wakingOf(facts) ?? (header === null ? "empty" : "list")),
     signingOut: facts.signingOut,
   };
 }
 
 /**
- * Whether the server is waking, as the first load sees it (D2): who is signed in has had no answer for 1.5 s or more;
- * or it took that long, and the first balance read still runs: then the waking-up screen stays until the balance
- * arrives, never a placeholder. A refresh never shows it (D3).
+ * The waking-up screen, as the first load sees it (D2); `null` when the server is not waking. Who is signed in has had
+ * no answer for 1.5 s or more: waking, and from 30 s the slow one, which offers to try again. Or it took that long,
+ * and the first balance read still runs: the waking-up screen stays until the balance arrives, never a placeholder. A
+ * refresh never shows it (D3).
  */
-function waking(facts: Facts): boolean {
-  return (
-    (facts.session === "waiting" && facts.wait !== "short") ||
-    (facts.wokeUp && facts.reading === "first")
-  );
+function wakingOf(facts: Facts): "waking" | "waking slow" | null {
+  if (facts.session === "waiting" && facts.wait !== "short")
+    return facts.wait === "slow" ? "waking slow" : "waking";
+  if (facts.wokeUp && facts.reading === "first") return "waking";
+  return null;
 }
 
 /** The offline banner's problem, whichever request found the phone offline. */

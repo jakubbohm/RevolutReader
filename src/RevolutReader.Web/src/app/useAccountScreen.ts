@@ -11,12 +11,15 @@ const OFFLINE: Problem = { kind: "offline" };
 /** How long the first question may go unanswered before the screen says the server is waking (D2). */
 const WAKING_AFTER_MS = 1_500;
 
+/** How long it may go unanswered before the waking-up screen offers to try again (D2). */
+const SLOW_AFTER_MS = 30_000;
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
   /** "Obnovit": the screen's refresh signal (`repeat`). */
   refresh: () => void;
-  /** "Zkusit znovu": repeats what was under way, at once (`repeat`). */
+  /** "Zkusit znovu": asks again on the slow waking-up screen; otherwise repeats what was under way, at once (`repeat`). */
   retry: () => void;
   /** "Odhlásit se" in the account menu. */
   signOut: () => void;
@@ -27,7 +30,8 @@ export interface AccountScreenModel {
  * until a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
  * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen.
  * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
- * without an answer it is long, and an answer that took that long woke the server (D2).
+ * without an answer it is long, and an answer that took that long woke the server; from 30 s it is slow, and "Zkusit
+ * znovu" asks again and starts the 30 s over (D2). The first load has no other cap (D3).
  *
  * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
  * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
@@ -53,8 +57,12 @@ export function useAccountScreen(): AccountScreenModel {
   const firstAnswered = useRef(false);
   /** The first question had no answer after `WAKING_AFTER_MS`: the server was asleep. */
   const firstAnswerLate = useRef(false);
+  /** The 30 s mark's timer, started over by "Zkusit znovu" on the slow waking-up screen. */
+  const slowMark = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   /** Set the moment the question starts, so a second one asked for in the same turn sees it (state would not yet). */
   const askUnderWay = useRef(false);
+  /** The latest question's number: the answer to one asked before it was given up, and is ignored. */
+  const latestQuestion = useRef(0);
   /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
 
@@ -85,17 +93,25 @@ export function useAccountScreen(): AccountScreenModel {
     [],
   );
 
-  /** Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. */
-  const askOnce = useCallback(async (): Promise<Session | null> => {
-    if (askUnderWay.current) return null;
-    askUnderWay.current = true;
+  /**
+   * Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. `anew`
+   * asks again all the same and gives the question under way up: its answer, whenever it comes, is `null` too.
+   */
+  const askOnce = useCallback(
+    async (anew: boolean = false): Promise<Session | null> => {
+      if (askUnderWay.current && !anew) return null;
+      askUnderWay.current = true;
+      const question = ++latestQuestion.current;
 
-    try {
-      return await readSession();
-    } finally {
-      askUnderWay.current = false;
-    }
-  }, []);
+      try {
+        const answer = await readSession();
+        return question === latestQuestion.current ? answer : null;
+      } finally {
+        if (question === latestQuestion.current) askUnderWay.current = false;
+      }
+    },
+    [],
+  );
 
   /**
    * Who is signed in, as the server answered: it replaces the screen's problem (offline, or none), and for a signed-in
@@ -118,6 +134,24 @@ export function useAccountScreen(): AccountScreenModel {
     if (answer !== null) await takeInAnswer(answer);
   }, [askOnce, takeInAnswer]);
 
+  /**
+   * The first load's answer to who is signed in: one that took 1.5 s or more woke the server, so the waking-up screen
+   * stays until the balance arrives (D2).
+   */
+  const takeInFirstAnswer = useCallback(
+    async (answer: Session): Promise<void> => {
+      firstAnswered.current = true;
+      if (firstAnswerLate.current) setWokeUp(true);
+      await takeInAnswer(answer);
+    },
+    [takeInAnswer],
+  );
+
+  /** From 30 s without the first answer, the waking-up screen is the slow one (D2). */
+  const markSlowIfUnanswered = useCallback((): void => {
+    if (!firstAnswered.current) setWait("slow");
+  }, []);
+
   useEffect(() => {
     onPage.current = true;
 
@@ -133,15 +167,11 @@ export function useAccountScreen(): AccountScreenModel {
       firstAnswerLate.current = true;
       setWait("long");
     }, WAKING_AFTER_MS);
+    slowMark.current = setTimeout(markSlowIfUnanswered, SLOW_AFTER_MS);
 
     async function start(): Promise<void> {
       const answer = await askOnce();
-      if (answer === null) return;
-
-      // An answer that took 1.5 s or more woke the server: the waking-up screen stays until the balance arrives.
-      firstAnswered.current = true;
-      if (firstAnswerLate.current) setWokeUp(true);
-      await takeInAnswer(answer);
+      if (answer !== null) await takeInFirstAnswer(answer);
     }
 
     void loadStored();
@@ -149,9 +179,23 @@ export function useAccountScreen(): AccountScreenModel {
 
     return () => {
       clearTimeout(wakingMark);
+      clearTimeout(slowMark.current);
       onPage.current = false;
     };
-  }, [askOnce, takeInAnswer]);
+  }, [askOnce, takeInFirstAnswer, markSlowIfUnanswered]);
+
+  /**
+   * "Zkusit znovu" on the slow waking-up screen (D2): the first question is sent again, the one still unanswered given
+   * up, and the 30 s start over; the page is never reloaded.
+   */
+  const askAgainAfterASlowWake = useCallback(async (): Promise<void> => {
+    setWait("long");
+    clearTimeout(slowMark.current);
+    slowMark.current = setTimeout(markSlowIfUnanswered, SLOW_AFTER_MS);
+
+    const answer = await askOnce(true);
+    if (answer !== null) await takeInFirstAnswer(answer);
+  }, [askOnce, takeInFirstAnswer, markSlowIfUnanswered]);
 
   const signedIn = session !== "waiting" && session.kind === "signed-in";
   const unanswered =
@@ -171,6 +215,12 @@ export function useAccountScreen(): AccountScreenModel {
 
   // Every return to the screen and coming back online repeat what was under way: no throttle.
   useEffect(() => watchRefreshTriggers(repeat), [repeat]);
+
+  /** "Zkusit znovu": on the slow waking-up screen it asks again at once; otherwise it repeats what was under way. */
+  const retry = useCallback((): void => {
+    if (session === "waiting" && wait === "slow") void askAgainAfterASlowWake();
+    else repeat();
+  }, [session, wait, askAgainAfterASlowWake, repeat]);
 
   async function signOutFromMenu(): Promise<void> {
     try {
@@ -196,7 +246,7 @@ export function useAccountScreen(): AccountScreenModel {
   return {
     shown: shown(facts),
     refresh: repeat,
-    retry: repeat,
+    retry,
     signOut: () => void signOutFromMenu(),
   };
 }
