@@ -18,8 +18,8 @@ namespace RevolutReader.UnitTests.Account;
 /// a problem description (RFC 9457, <c>application/problem+json</c>) with a <c>type</c> of its own, a fixed <c>title</c>
 /// and no <c>detail</c> (never the bank's error text). The <c>type</c> is what names the case for the client: RFC 9457
 /// makes it the problem's identifier and the title a fixed label for it, while a status alone never names one of these
-/// cases (the Container Apps ingress and the Vite dev server answer 502–504 themselves, and ASP.NET's default <c>type</c>
-/// would be the same for both 503 cases). A read's value becomes a 200 answer carrying the endpoint's own response for it,
+/// cases (the proxies in front of the app answer with the same statuses, as that section says, and ASP.NET's default
+/// <c>type</c> would be the same for both 503 cases). A read's value becomes a 200 answer carrying the endpoint's own response for it,
 /// and an endpoint declares the two problem statuses in its API description. The statuses and strings are written out
 /// here, never read from <see cref="BankAnswers"/>: they are the contract the client switches on. The balance is made up.
 /// </summary>
