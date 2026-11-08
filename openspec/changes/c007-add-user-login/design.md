@@ -151,7 +151,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | The handler's correlation and nonce cookies during the round trip | prefix `__Host-signin-` | HttpOnly, Secure, Path `/` (the prefix requires it; the default is the callback path), SameSite None (Microsoft returns with a cross-site POST); 15 minutes (ASP.NET's default) |
 
   - **Why `__Host-`:** the browser accepts such a cookie only from our exact host, set without a Domain. No sibling app on `azurecontainerapps.io` can plant a session (signing the daughter in as someone else) or a correlation cookie.
-  - **Sliding renewal:** ASP.NET renews the cookie on a request when more than half of its 30 days have passed. That's the scenario "Using the app keeps the login alive" (day 20 renews to day 50).
+  - **Sliding renewal:** ASP.NET renews the cookie on a request when more than half of its 30 days have passed. That's the scenario "Using the app keeps the login alive" (day 20 renews to day 50). A use in the first half renews nothing, so a login ends 15 to 30 days after its last use (signed in on day 0, used on day 14, ended on day 30). **Kept as is by the owner (2026-11-08):** the code review in issue #33 (finding 1) suggested renewing on every request (`OnCheckSlidingExpiration` setting `ShouldRenew`); ASP.NET's standard behaviour is good enough for this app, and the spec's requirement now says exactly that.
 - **The rule** (the user: our own, app-wide; *(propose)*: our own code rather than calling .NET 11's `ICsrfProtection`, whose final shape moved late and whose enforcement the sources describe differently). It applies to every request whose method is POST, PUT, PATCH or DELETE to a path under `/api`:
 
   | Request | Result |

@@ -59,7 +59,7 @@ When Microsoft reports a cancelled or failed sign-in, or its answer does not com
 - **AND** asking the API who is signed in answers 401
 
 ### Requirement: The login lasts 30 days and is renewed while the app is used
-A sign-in SHALL keep the user signed in on that device for 30 days, also after the app or the browser is closed. Using the app SHALL renew the login, so it ends only after 30 days without use.
+A sign-in SHALL keep the user signed in on that device for 30 days, also after the app or the browser is closed. Using the app SHALL renew the login for another 30 days once more than half of its current 30 days have passed, so regular use keeps it alive and a login unused for 30 days has always ended; a login unused for between 15 and 30 days MAY end as well.
 
 #### Scenario: A login unused for 30 days has ended
 - **GIVEN** Lucie, an allowed user, signed in
