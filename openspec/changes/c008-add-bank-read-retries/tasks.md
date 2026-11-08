@@ -20,16 +20,16 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 2. [unit] Slice 1 — The retry rule
 
-- [ ] 2.1 A present user's request answered with the bank's own error (`ASPSP_ERROR`, `ASPSP_TIMEOUT`) is retried
-- [ ] 2.2 A present user's request answered with a 5xx or 408 without an Enable Banking code, a gateway's HTML page included, is retried
-- [ ] 2.3 A present user's request that failed with a network failure is retried
-- [ ] 2.4 A present user's request answered as rate limited (429, or `ASPSP_RATE_LIMIT_EXCEEDED` with any status) is not retried
-- [ ] 2.5 A present user's request answered with an access-expired code (e.g. `EXPIRED_SESSION`) is not retried
-- [ ] 2.6 A present user's request answered with any other error (an unknown code on a 5xx, a 4xx with or without a code) is not retried
-- [ ] 2.7 A success answer is not retried
-- [ ] 2.8 A cancelled attempt is not retried
-- [ ] 2.9 A request without the present-user mark, or marked false, is never retried, whatever its failure
-- [ ] 2.10 A retryable answer whose `Retry-After` wait (seconds or a date) would end after the request's deadline is not retried; one whose wait ends before it is; a `Retry-After` on a request without a deadline is not retried (design.md D8)
+- [x] 2.1 A present user's request answered with the bank's own error (`ASPSP_ERROR`, `ASPSP_TIMEOUT`) is retried
+- [x] 2.2 A present user's request answered with a 5xx or 408 without an Enable Banking code, a gateway's HTML page included, is retried
+- [x] 2.3 A present user's request that failed with a network failure is retried
+- [x] 2.4 A present user's request answered as rate limited (429, or `ASPSP_RATE_LIMIT_EXCEEDED` with any status) is not retried
+- [x] 2.5 A present user's request answered with an access-expired code (e.g. `EXPIRED_SESSION`) is not retried
+- [x] 2.6 A present user's request answered with any other error (an unknown code on a 5xx, a 4xx with or without a code) is not retried
+- [x] 2.7 A success answer is not retried
+- [x] 2.8 A cancelled attempt is not retried
+- [x] 2.9 A request without the present-user mark, or marked false, is never retried, whatever its failure
+- [x] 2.10 A retryable answer whose `Retry-After` wait (seconds or a date) would end after the request's deadline is not retried; one whose wait ends before it is; a `Retry-After` on a request without a deadline is not retried (design.md D8)
 
 ## 3. [unit] Slice 1 — The retry options
 

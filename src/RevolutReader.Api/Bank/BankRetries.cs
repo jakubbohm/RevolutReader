@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 
@@ -24,11 +25,42 @@ public static class BankRetries {
   /// <summary>
   /// D5: true only when <paramref name="request"/> carries <see cref="PresentUser"/> = true and the attempt failed in a way
   /// that reads as bank unavailable: an HttpRequestException, or an error answer whose error value
-  /// (EnableBankingErrorValue) BankErrorClassification puts as Unavailable. False for a success, rate limited, access
-  /// expired, an unexpected answer and any cancellation. D8: false too when the answer's Retry-After wait, counted from
-  /// <paramref name="now"/>, would end after the request's <see cref="Deadline"/>, or when a Retry-After comes on a request
-  /// without a deadline. Never throws for what an answer holds.
+  /// (<see cref="EnableBankingErrorValue"/>) BankErrorClassification puts as Unavailable. False for a success, rate limited,
+  /// access expired, an unexpected answer and any cancellation. D8: false too when the answer's Retry-After wait, counted
+  /// from <paramref name="now"/>, would end after the request's <see cref="Deadline"/>, or when a Retry-After comes on a
+  /// request without a deadline. Never throws for what an answer holds.
   /// </summary>
-  public static ValueTask<bool> ShouldRetry(HttpRequestMessage? request, Outcome<HttpResponseMessage> outcome, DateTimeOffset now, CancellationToken cancellationToken) =>
-    throw new NotImplementedException();
+  public static async ValueTask<bool> ShouldRetry(HttpRequestMessage? request, Outcome<HttpResponseMessage> outcome, DateTimeOffset now, CancellationToken cancellationToken) {
+    if (request is null || !request.Options.TryGetValue(PresentUser, out bool presentUser) || !presentUser)
+      return false;
+
+    // A network failure, also a body that breaks while it comes in; a cancellation, ours or the caller's, never (D1).
+    if (outcome.Exception is { } exception)
+      return exception is HttpRequestException;
+
+    if (outcome.Result is not { IsSuccessStatusCode: false } answer)
+      return false;
+
+    EnableBankingErrorValue error = await EnableBankingErrorValue.Read(answer, cancellationToken);
+
+    return BankErrorClassification.Classify(answer.StatusCode, error.Code) == BankErrorKind.Unavailable
+      && RetryAfterEndsInTime(request, answer.Headers.RetryAfter, now);
+  }
+
+  /// <summary>
+  /// D8: true without a Retry-After; with one, only when its wait (seconds, or until a date), counted from
+  /// <paramref name="now"/>, ends strictly before the request's <see cref="Deadline"/>. A retry sent as the deadline comes
+  /// could never be answered, so a wait that ends exactly then is a wait for nothing. A date already past is no wait.
+  /// </summary>
+  private static bool RetryAfterEndsInTime(HttpRequestMessage request, RetryConditionHeaderValue? retryAfter, DateTimeOffset now) {
+    if (retryAfter is null)
+      return true;
+
+    if (!request.Options.TryGetValue(Deadline, out DateTimeOffset deadline))
+      return false;
+
+    TimeSpan wait = retryAfter.Delta ?? (retryAfter.Date - now) ?? TimeSpan.Zero;
+
+    return now + (wait > TimeSpan.Zero ? wait : TimeSpan.Zero) < deadline;
+  }
 }
