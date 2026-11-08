@@ -18,6 +18,7 @@ public sealed class ApiDriver {
   /// (docs/conventions/README.md), and the router's method rejection on a page address.
   /// </summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
+    [ProblemDescription.BadRequest] = HttpStatusCode.BadRequest,
     [ProblemDescription.NotFound] = HttpStatusCode.NotFound,
     [ProblemDescription.Unauthorized] = HttpStatusCode.Unauthorized,
     [ProblemDescription.MethodNotAllowed] = HttpStatusCode.MethodNotAllowed,
@@ -31,6 +32,16 @@ public sealed class ApiDriver {
     using HttpResponseMessage response = await _http.GetAsync(new Uri(path, UriKind.Relative));
 
     return await ProblemOf(response);
+  }
+
+  /// <summary>
+  /// What the API answered a <c>GET</c> of <paramref name="path"/>, as text for a guard's failure message: the status, the
+  /// content type and the body, so a failing guard shows the answer it got.
+  /// </summary>
+  public async Task<string> DescribeGet(string path) {
+    using HttpResponseMessage response = await _http.GetAsync(new Uri(path, UriKind.Relative));
+
+    return $"{(int)response.StatusCode} {response.Content.Headers.ContentType} {await response.Content.ReadAsStringAsync()}";
   }
 
   /// <summary>A <c>POST</c> without a body and without a browser's fetch metadata, as a script or a typo sends one.</summary>

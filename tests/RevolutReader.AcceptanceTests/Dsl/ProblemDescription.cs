@@ -8,6 +8,9 @@ public sealed record ProblemDescription(string Title) {
   /// <summary>The API does not serve the address: title <c>Not Found</c>, status 404.</summary>
   public static ProblemDescription NotFound { get; } = new("Not Found");
 
+  /// <summary>The API cannot read the request (a value it cannot bind): title <c>Bad Request</c>, status 400.</summary>
+  public static ProblemDescription BadRequest { get; } = new("Bad Request");
+
   /// <summary>Nobody is signed in: title <c>Unauthorized</c>, status 401.</summary>
   public static ProblemDescription Unauthorized { get; } = new("Unauthorized");
 
