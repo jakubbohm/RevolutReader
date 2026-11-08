@@ -34,7 +34,10 @@ public static class SignInRegistration {
   /// <summary>The scopes asked of Microsoft (D3): the sign-in itself, the account's name, and its email address.</summary>
   private static readonly string[] _scopes = ["openid", "profile", "email"];
 
-  /// <summary>How long the login lasts without use (D4): 30 days, renewed while the app is used.</summary>
+  /// <summary>
+  /// The login's lifetime (D4): 30 days from sign-in or from its last renewal. ASP.NET renews it on a request once more
+  /// than half of it has passed, so a login ends 15 to 30 days after its last use.
+  /// </summary>
   private static readonly TimeSpan _loginLifetime = TimeSpan.FromDays(30);
 
   /// <summary>
