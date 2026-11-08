@@ -551,14 +551,14 @@ None new or changed. The endpoint uses `IBankAccount` as C5, C12 and C11 left it
 2. **During it,** after the last frontend slice, a local check with `aspire start --isolated` in a browser:
    - sign in and see the balance from the Mock ASPSP;
    - "Obnovit";
-   - offline in DevTools: the offline screen, then the stored balance on reopening;
+   - offline in DevTools with the app open: "Obnovit" keeps the balance and shows "Jsi offline", whose "Zkusit znovu" loads again once online (a reload offline shows the browser's own page: the dev server registers no service worker, so the reopen offline is checked on the deployed app, step 4);
    - the API stopped: the waking-up screen, then the slow one;
    - the keep-alive's `/health` asks in the network panel.
    - reduced motion emulated in DevTools: the waking-up bar stands still (a static half-tone bar) and the balance placeholder does not pulse; these are CSS rules the tests cannot see (the user, 2026-11-08, task 37.5).
 3. **Before the merge** (workflow.md § 6, a change's path): the push and a draft PR on the owner's go, the owner's `/code-review xhigh --comment`, `/triage-review <PR>`, then the archive on the branch.
 4. **After the merge:**
    - the deploy runs;
-   - the balance at the production address in a desktop browser;
+   - the balance at the production address in a desktop browser, and the reopen offline there (the stored balance with "Jsi offline"; the dev server cannot show it, step 2);
    - the owner compares it once with the Revolut app (C5's follow-up);
    - C12's ready queries are run against the first real bank lines and corrected if a column differs (deployment.md);
    - the keep-alive: with the app open for more than 5 minutes the replica stays up, and about 5 minutes after it closes it scales to zero (the container app's replica count, read-only).
