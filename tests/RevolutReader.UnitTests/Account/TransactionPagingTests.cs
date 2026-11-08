@@ -18,5 +18,16 @@ public sealed class TransactionPagingTests {
   public void The_window_starts_31_days_before_today(string today, string windowStart) =>
     TransactionPaging.WindowStart(Day(today)).ShouldBe(Day(windowStart));
 
+  /// <param name="newestKeptDay">
+  /// Inside the last 31 days of 2026-11-20: yesterday, today itself, and the window's first day, 2026-10-20. The read then
+  /// starts where the window does, and there is no gap (D3).
+  /// </param>
+  [Test]
+  [Arguments("2026-11-19")]
+  [Arguments("2026-11-20")]
+  [Arguments("2026-10-20")]
+  public void With_the_newest_kept_day_inside_the_last_31_days_the_read_starts_31_days_before_today(string newestKeptDay) =>
+    TransactionPaging.LiveReadStart(Day("2026-11-20"), Day(newestKeptDay)).ShouldBe(new LiveReadStart(Day("2026-10-20"), GapDays: null));
+
   private static DateOnly Day(string isoDate) => DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
