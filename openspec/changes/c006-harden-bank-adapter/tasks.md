@@ -12,9 +12,9 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 2. [unit] Present user
 
-- [ ] 2.1 A present user without an IP address is rejected
-- [ ] 2.2 A present user with a null, empty or whitespace user agent is rejected
-- [ ] 2.3 A present user keeps the IP address and the user agent as given
+- [x] 2.1 A present user without an IP address is rejected
+- [x] 2.2 A present user with a null, empty or whitespace user agent is rejected
+- [x] 2.3 A present user keeps the IP address and the user agent as given
 
 ## 3. [unit] User headers
 
