@@ -60,7 +60,8 @@ export type ShownAccount = Extract<Shown, { screen: "account" }>;
  * with no header, the empty frame. Offline (D2; app-shell): with nothing to show, the offline state is the whole screen
  * under the top bar, in place of the header and the banner; with a balance, its header, the offline banner and the
  * offline note in the list's place (D7 a). While the server wakes (`waking`), the waking-up screen stands in the list's
- * place under a stored header, or is the whole screen with nothing stored.
+ * place under a stored header, or is the whole screen with nothing stored. A problem on the screen is its banner,
+ * under the header or alone under the top bar (`bannerOf`; D5).
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -86,7 +87,7 @@ export function shown(facts: Facts): Shown {
     screen: "account",
     account: accountOf(facts.session),
     header,
-    banner: offline ? OFFLINE : facts.problem,
+    banner: offline ? OFFLINE : bannerOf(facts),
     body: offline
       ? "offline note"
       : (wakingOf(facts) ?? (header === null ? "empty" : "list")),
@@ -109,6 +110,19 @@ function wakingOf(facts: Facts): "waking" | "waking slow" | null {
 
 /** The offline banner's problem, whichever request found the phone offline. */
 const OFFLINE: Problem = { kind: "offline" };
+
+/** The unexpected answer's problem (D5 b). */
+const UNEXPECTED: Problem = { kind: "unexpected" };
+
+/**
+ * The screen's one banner when the phone is online (D5, D7 c): an answer to who is signed in that the app cannot read
+ * is the unexpected banner, whether or not it is on record; otherwise the problem on record, if any.
+ */
+function bannerOf(facts: Facts): Problem | null {
+  const { session } = facts;
+  if (session !== "waiting" && session.kind === "unexpected") return UNEXPECTED;
+  return facts.problem;
+}
 
 /** Whether the phone is offline as far as the screen knows (D2): who is signed in found it so, or the offline problem is on record. */
 function isOffline(facts: Facts): boolean {

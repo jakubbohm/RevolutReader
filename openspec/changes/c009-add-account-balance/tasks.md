@@ -319,31 +319,31 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 48. [unit] Slice 20 — A bank failure with nothing to show
 
-- [ ] 48.1 A bank failure with no balance to show gives the banner alone, without the header
+- [x] 48.1 A bank failure with no balance to show gives the banner alone, without the header
 
 ## 49. [close] Slice 20 — Expired bank access asks to let Dad know
 
-- [ ] 49.1 The scenario's test passes. Verify: green, including account-balance / Expired bank access asks to let Dad know
+- [x] 49.1 The scenario's test passes. Verify: green, including account-balance / Expired bank access asks to let Dad know
 
 ## 50. [wiring] Slice 21 — An unexpected answer to the balance read
 
-- [ ] 50.1 "Zůstatek se nepodařilo načíst" / "Zkus to prosím za chvíli." with "Zkusit znovu", which reads the balance again (design.md D5). Verify: the scenario runs against the app
+- [x] 50.1 "Zůstatek se nepodařilo načíst" / "Zkus to prosím za chvíli." with "Zkusit znovu", which reads the balance again (design.md D5). Verify: the scenario runs against the app
 
 ## 51. [close] Slice 21 — An unexpected answer to the balance read shows a banner with a retry
 
-- [ ] 51.1 The scenario's test passes. Verify: green, including account-balance / An unexpected answer to the balance read shows a banner with a retry
+- [x] 51.1 The scenario's test passes. Verify: green, including account-balance / An unexpected answer to the balance read shows a banner with a retry
 
 ## 52. [unit] Slice 22 — An unexpected answer to who is signed in
 
-- [ ] 52.1 An unexpected answer to who is signed in gives the error banner, below a stored balance if there is one, and no menu
+- [x] 52.1 An unexpected answer to who is signed in gives the error banner, below a stored balance if there is one, and no menu
 
 ## 53. [wiring] Slice 22 — Asking again
 
-- [ ] 53.1 "Zkusit znovu" after an unexpected answer to who is signed in asks it again; C6's empty frame on an error is gone. Verify: the scenario runs against the app
+- [x] 53.1 "Zkusit znovu" after an unexpected answer to who is signed in asks it again; C6's empty frame on an error is gone. Verify: the scenario runs against the app
 
 ## 54. [close] Slice 22 — An unexpected answer to who is signed in shows a banner with a retry
 
-- [ ] 54.1 The scenario's test passes. Verify: green, including app-shell / An unexpected answer to who is signed in shows a banner with a retry
+- [x] 54.1 The scenario's test passes. Verify: green, including app-shell / An unexpected answer to who is signed in shows a banner with a retry
 
 ## 55. [unit] Slice 23 — The 60 s limit
 

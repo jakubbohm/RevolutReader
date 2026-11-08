@@ -84,9 +84,11 @@ export function AccountScreen({
  *   znovu", and no sentence, since the freshness line already says how old the balance is;
  * - the bank does not answer: the error "Banka teď neodpovídá" with "Zkusit znovu", which reads the balance again;
  * - the bank's limit is reached: the warning "Příliš mnoho obnovení", with no action, since trying again would not help;
- * - the bank access expired: the error "Propojení s bankou vypršelo", with no action, since only Dad can renew it.
+ * - the bank access expired: the error "Propojení s bankou vypršelo", with no action, since only Dad can renew it;
+ * - any answer the app cannot read, to who is signed in or to the balance read: the error "Zůstatek se nepodařilo
+ *   načíst" with "Zkusit znovu", which repeats what failed (D5 b).
  *
- * The other problems' banners come with their own slices (c009 tasks.md slices 22 and 27).
+ * The failed sign-out's banner comes with its own slice (c009 tasks.md slice 27).
  */
 function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
   const retry = { label: "Zkusit znovu", onClick: onRetry };
@@ -120,6 +122,15 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
         </Banner>
       );
     case "unexpected":
+      return (
+        <Banner
+          tone="error"
+          title="Zůstatek se nepodařilo načíst"
+          action={retry}
+        >
+          Zkus to prosím za chvíli.
+        </Banner>
+      );
     case "sign-out failed":
       return null;
   }

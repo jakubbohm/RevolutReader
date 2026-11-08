@@ -89,11 +89,12 @@ export function useAccountScreen(): AccountScreenModel {
         void storeBalance(read.balance);
       }
       if (read.kind === "offline") setProblem(OFFLINE);
-      // A failure at the bank keeps the balance shown, with its banner (D5).
+      // A failure at the bank, or an answer the app cannot read, keeps what is shown, with its banner (D5).
       if (
         read.kind === "bank unavailable" ||
         read.kind === "bank rate limited" ||
-        read.kind === "bank access expired"
+        read.kind === "bank access expired" ||
+        read.kind === "unexpected"
       )
         setProblem({ kind: read.kind });
     },
@@ -121,15 +122,19 @@ export function useAccountScreen(): AccountScreenModel {
   );
 
   /**
-   * Who is signed in, as the server answered: it replaces the screen's problem (offline, or none), and for a signed-in
-   * user the balance is read next.
+   * Who is signed in, as the server answered: it replaces the screen's problem (offline, unexpected, or none), and for a
+   * signed-in user the balance is read next.
    */
   const takeInAnswer = useCallback(
     async (answer: Session): Promise<void> => {
       if (!onPage.current) return;
 
       setSession(answer);
-      setProblem(answer.kind === "offline" ? OFFLINE : null);
+      setProblem(
+        answer.kind === "offline" || answer.kind === "unexpected"
+          ? { kind: answer.kind }
+          : null,
+      );
       if (answer.kind === "signed-in") await readTheBalance("first");
     },
     [readTheBalance],
