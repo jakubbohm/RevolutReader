@@ -12,12 +12,25 @@ public static class TransactionPaging {
   public static DateOnly WindowStart(DateOnly today) => today.AddDays(-WINDOW_DAYS);
 
   /// <summary>
-  /// Where the live read starts (D3): with the newest kept day inside the last <see cref="WINDOW_DAYS"/> days, the window's
-  /// start, and no gap.
+  /// Where the live read starts (D3): the earlier of the window's start and the newest kept day, which is read again since
+  /// more of its transactions may have settled; never earlier than <see cref="MOST_DAYS_BACK"/> days before
+  /// <paramref name="today"/>. A newest kept day earlier than that is a gap: the read starts <see cref="MOST_DAYS_BACK"/>
+  /// days back, and <see cref="Account.LiveReadStart.GapDays"/> holds the gap's length, the days from the newest kept day to
+  /// today.
   /// </summary>
-  // For now every newest kept day reads from the window's start: the long pause, the cap at MOST_DAYS_BACK with its gap,
-  // and nothing kept come with slices 11 and 12.
-  public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) => new(WindowStart(today), GapDays: null);
+  public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) {
+    DateOnly windowStart = WindowStart(today);
+
+    // Nothing kept reads from the window's start for now: slice 12 makes it MOST_DAYS_BACK.
+    if (newestKeptDay is not DateOnly newest || newest >= windowStart)
+      return new(windowStart, GapDays: null);
+
+    DateOnly mostDaysBack = today.AddDays(-MOST_DAYS_BACK);
+
+    return newest >= mostDaysBack
+      ? new(newest, GapDays: null)
+      : new(mostDaysBack, GapDays: today.DayNumber - newest.DayNumber);
+  }
 
   /// <summary>
   /// Settled ones with a reference, each with its position within its day in the given order; pending ones and those
