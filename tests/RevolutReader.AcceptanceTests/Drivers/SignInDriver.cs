@@ -198,6 +198,25 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
     using HttpResponseMessage response = await Browser.SendAsync(request);
 
+    return await WhoAnswerOf(response);
+  }
+
+  /// <summary>
+  /// <c>GET /api/me</c> as <see cref="AskWhoIsSignedIn"/> asks it, carrying <paramref name="header"/> once per value, each on
+  /// its own line (<see cref="HeaderLines"/>); mapped the same way.
+  /// </summary>
+  public async Task<WhoAnswer> AskWhoIsSignedInWithHeaderLines(string header, params string[] values) {
+    using HttpRequestMessage request = new(HttpMethod.Get, new Uri(ME, UriKind.Relative));
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
+    HeaderLines.AddEachOnItsOwnLine(request.Headers, header, values);
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await WhoAnswerOf(response);
+  }
+
+  /// <summary>The answer to who is signed in, as <see cref="AskWhoIsSignedIn"/> describes the mapping.</summary>
+  private static async Task<WhoAnswer> WhoAnswerOf(HttpResponseMessage response) {
     string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
 
     if (JsonObjectOrNull(await response.Content.ReadAsStringAsync()) is not JsonElement body)
@@ -226,6 +245,25 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
     using HttpResponseMessage response = await Browser.SendAsync(request);
 
+    return await SignOutAnswerOf(response);
+  }
+
+  /// <summary>
+  /// <c>POST /api/auth/logout</c> with the browser's cookies, carrying <paramref name="header"/> once per value, each on its
+  /// own line (<see cref="HeaderLines"/>), and no other fetch metadata or origin; mapped as <see cref="SignOut"/> maps it.
+  /// </summary>
+  public async Task<SignOutAnswer> SignOutWithHeaderLines(string header, params string[] values) {
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(LOGOUT, UriKind.Relative));
+    HeaderLines.AddEachOnItsOwnLine(request.Headers, header, values);
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await SignOutAnswerOf(response);
+  }
+
+  /// <summary>Signed out for 204; refused for the problem description <c>Forbidden</c> (403); anything else otherwise.</summary>
+  private static async Task<SignOutAnswer> SignOutAnswerOf(HttpResponseMessage response) {
     if (response.StatusCode == HttpStatusCode.NoContent)
       return SignOutAnswer.SignedOut;
 

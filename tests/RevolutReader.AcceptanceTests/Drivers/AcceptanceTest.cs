@@ -18,6 +18,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private HttpClient? _browser;
   private FakeBank? _fakeBank;
   private FakeMicrosoft? _fakeMicrosoft;
+  private HealthDriver? _healthDriver;
   private HealthDsl? _health;
   private ApiDriver? _apiDriver;
   private ApiDsl? _api;
@@ -26,7 +27,10 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private SignInDriver? _signInDriver;
   private SignInDsl? _signIn;
 
-  protected HealthDsl Health => _health ??= new(new HealthDriver(Http));
+  protected HealthDsl Health => _health ??= new(HealthDriver);
+
+  /// <summary>The driver under <see cref="Health"/>, an anonymous caller, for the guards in <c>Conventions/</c>. Scenarios use <see cref="Health"/> only.</summary>
+  protected HealthDriver HealthDriver => _healthDriver ??= new(Http);
 
   protected ApiDsl Api => _api ??= new(ApiDriver);
 
