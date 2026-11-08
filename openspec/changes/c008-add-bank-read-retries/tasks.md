@@ -81,12 +81,12 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 14. [wiring] Slice 6 — The timeout covers the retries
 
-- [ ] 14.1 Edge tests (design.md D1): a present user's read whose first answer is a 503 and whose second never comes ends as bank unavailable within the request timeout plus a small margin, after 2 requests; a first attempt that runs into the timeout is the only request. Verify: the tests pass; green
-- [ ] 14.2 Edge tests (design.md D8): a 503 with `Retry-After: 60` ends the read as bank unavailable at once (well under the request timeout), after 1 request; a 503 with `Retry-After: 1` is retried about 1 s later and read; a `Retry-After` that just overruns the time left ends the read at once. Verify: the tests pass; green
+- [x] 14.1 Edge tests (design.md D1): a present user's read whose first answer is a 503 and whose second never comes ends as bank unavailable within the request timeout plus a small margin, after 2 requests; a first attempt that runs into the timeout is the only request. Verify: the tests pass; green
+- [x] 14.2 Edge tests (design.md D8): a 503 with `Retry-After: 60` ends the read as bank unavailable at once (well under the request timeout), after 1 request; a 503 with `Retry-After: 1` is retried about 1 s later and read; a `Retry-After` that just overruns the time left ends the read at once. Verify: the tests pass; green
 
 ## 15. [close] Slice 6 — A bank that answers too slowly reads as bank unavailable
 
-- [ ] 15.1 Acceptance 1.7 passes; green
+- [x] 15.1 Acceptance 1.7 passes; green
 
 ## 16. [wiring] The library's log lines
 

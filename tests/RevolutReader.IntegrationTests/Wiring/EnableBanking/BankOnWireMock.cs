@@ -1,17 +1,20 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using RevolutReader.Api.Bank;
-using WireMock;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
-using WireMock.Types;
+using WireMock.Settings;
 
 namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 
@@ -21,7 +24,9 @@ namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 /// WireMock.Net server that answers every request the same way, except a first request a test answers on its own. The
 /// settings are made up and the key is generated once per run, as the acceptance harness's fake bank does; no real secret
 /// and no real account data. A test of a fault WireMock.Net cannot produce points the client at another address instead.
-/// The client's log lines are kept for the tests (<see cref="CapturedLogLines"/>).
+/// The client's log lines are kept for the tests (<see cref="CapturedLogLines"/>), and every request is noted as it
+/// arrives, in front of WireMock.Net's own handling: WireMock.Net logs a request only once its answer is ready, so a
+/// request the client gave up on before a delayed answer would be missing from its log.
 /// </summary>
 public sealed class BankOnWireMock : IDisposable {
   private const string SECTION = "EnableBanking";
@@ -44,7 +49,8 @@ public sealed class BankOnWireMock : IDisposable {
 
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
-  private readonly WireMockServer _server = WireMockServer.Start();
+  private readonly WireMockServer _server;
+  private readonly ConcurrentQueue<ReceivedRequest> _arrivals = new();
   private readonly CapturedLogLines _log = new();
   private readonly ServiceProvider _services;
 
@@ -58,7 +64,7 @@ public sealed class BankOnWireMock : IDisposable {
   public IReadOnlyList<LogLine> LogLines => _log.Lines;
 
   /// <summary>How many requests reached the server so far, answered or not.</summary>
-  public int RequestsReceived => _server.LogEntries.Count;
+  public int RequestsReceived => _arrivals.Count;
 
   /// <summary>The client's request timeout unless a test sets its own: long, so no other test runs into it.</summary>
   public static TimeSpan DefaultRequestTimeout { get; } = TimeSpan.FromSeconds(5);
@@ -73,6 +79,10 @@ public sealed class BankOnWireMock : IDisposable {
   /// <param name="requestTimeout">The client's request timeout; <see cref="DefaultRequestTimeout"/> unless given.</param>
   /// <param name="retryDelay">The client's wait before a first retry; <see cref="DefaultRetryDelay"/> unless given.</param>
   public BankOnWireMock(Uri? apiBaseUrl = null, TimeSpan? requestTimeout = null, TimeSpan? retryDelay = null) {
+    _server = WireMockServer.Start(new WireMockServerSettings {
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(NoteArrival),
+    });
+
     IConfiguration configuration = new ConfigurationBuilder()
       .AddInMemoryCollection(new Dictionary<string, string?> {
         [$"{SECTION}:ApiBaseUrl"] = apiBaseUrl?.ToString() ?? _server.Url,
@@ -100,18 +110,21 @@ public sealed class BankOnWireMock : IDisposable {
   /// </summary>
   public async Task Starts() => await _services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(CancellationToken.None);
 
-  /// <summary>Every request is answered with this status and body.</summary>
-  public void Answers(HttpStatusCode status, string body, string contentType = "application/json") =>
-    _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
+  /// <summary>
+  /// Every request is answered with this status and body; with a <c>Retry-After</c> header when <paramref name="retryAfter"/>
+  /// is given (as sent: seconds or an HTTP date), and only after <paramref name="after"/> when that is given.
+  /// </summary>
+  public void Answers(HttpStatusCode status, string body, string contentType = "application/json", string? retryAfter = null, TimeSpan? after = null) =>
+    _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Answer(status, body, contentType, retryAfter, after));
 
   /// <summary>
   /// The first request is answered with this status and body, whatever else the test set up; later requests get that (a
   /// WireMock.Net scenario of its own, at <see cref="FIRST_REQUEST_PRIORITY"/>, which moves on to <see cref="ANSWERED"/>
-  /// once it has answered).
+  /// once it has answered). <paramref name="retryAfter"/> and <paramref name="after"/> as for <see cref="Answers"/>.
   /// </summary>
-  public void AnswersTheFirstRequest(HttpStatusCode status, string body, string contentType = "application/json") =>
+  public void AnswersTheFirstRequest(HttpStatusCode status, string body, string contentType = "application/json", string? retryAfter = null, TimeSpan? after = null) =>
     _server.Given(Request.Create().UsingAnyMethod()).AtPriority(FIRST_REQUEST_PRIORITY).InScenario($"first request {Guid.NewGuid()}").WillSetStateTo(ANSWERED)
-      .RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
+      .RespondWith(Answer(status, body, contentType, retryAfter, after));
 
   /// <summary>Every request is answered with this body, but only after <paramref name="delay"/>.</summary>
   public void AnswersAfter(TimeSpan delay, string body) =>
@@ -141,9 +154,7 @@ public sealed class BankOnWireMock : IDisposable {
       .RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
 
   /// <summary>Every request the server received so far, answered or not, in the order received.</summary>
-  public IReadOnlyList<ReceivedRequest> Requests() => [
-    .. _server.LogEntries.Select(static entry => Received(entry.RequestMessage ?? throw new InvalidOperationException("WireMock.Net logged a request without its message."))),
-  ];
+  public IReadOnlyList<ReceivedRequest> Requests() => [.. _arrivals];
 
   /// <summary>The server stops: nothing listens at the client's address any more.</summary>
   public void StopsListening() => _server.Stop();
@@ -163,14 +174,34 @@ public sealed class BankOnWireMock : IDisposable {
       : request.WithParam(CONTINUATION_KEY, new ExactMatcher(KeyOfPage(number)));
   }
 
-  /// <summary>What a test checks of a received request: its continuation key and its user headers.</summary>
-  private static ReceivedRequest Received(IRequestMessage request) => new(
-    request.GetParameter(CONTINUATION_KEY, ignoreCase: false)?.FirstOrDefault(),
+  /// <summary>
+  /// An answer with this status, body and content type, a <c>Retry-After</c> when given, sent after a delay when given (a
+  /// zero delay is none: WireMock.Net refuses it).
+  /// </summary>
+  private static IResponseBuilder Answer(HttpStatusCode status, string body, string contentType, string? retryAfter, TimeSpan? after) {
+    IResponseBuilder answer = Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body);
+
+    if (retryAfter is not null)
+      answer = answer.WithHeader("Retry-After", retryAfter);
+
+    return after is { } delay && delay > TimeSpan.Zero ? answer.WithDelay(delay) : answer;
+  }
+
+  /// <summary>The middleware in front of WireMock.Net's own handling: notes the request as it arrives, then passes it on.</summary>
+  private Task NoteArrival(HttpContext context, RequestDelegate next) {
+    _arrivals.Enqueue(Received(context.Request));
+
+    return next(context);
+  }
+
+  /// <summary>What a test checks of a received request: its decoded continuation key and its user headers.</summary>
+  private static ReceivedRequest Received(HttpRequest request) => new(
+    request.Query.TryGetValue(CONTINUATION_KEY, out StringValues keys) ? keys.FirstOrDefault() : null,
     [
-      .. (request.Headers ?? new Dictionary<string, WireMockList<string>>())
+      .. request.Headers
         .Where(static header => header.Key.StartsWith(USER_HEADER_PREFIX, StringComparison.OrdinalIgnoreCase))
         .OrderBy(static header => header.Key, StringComparer.OrdinalIgnoreCase)
-        .Select(static header => $"{header.Key}: {string.Join(", ", header.Value)}"),
+        .Select(static header => $"{header.Key}: {string.Join(", ", (IEnumerable<string?>)header.Value)}"),
     ]);
 
   private static string CreatePrivateKey() {
