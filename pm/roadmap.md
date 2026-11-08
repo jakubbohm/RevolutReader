@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits — see the change log in `pm/progress.md`)
 
 ---
 
@@ -17,6 +17,7 @@
   - **Documentation:** a document Claude writes or restructures from what the repository records; the user reviews it. No product code.
   - **OpenSpec change:** one change, taken from propose through apply to archive in a single session (`/opsx:propose`, `/tdd-apply`, `/opsx:archive`), test-first as defined in [docs/conventions/testing.md](../docs/conventions/testing.md). Change names in this roadmap are proposals; the `cNNN` prefix is the next free number, assigned when the change is created ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)).
   - **Tech debt (low priority):** knowledge building, or paying back a shortcut taken on purpose. Picked up only when no other step is waiting, and before M8, so its findings reach the software-factory handover. Findings go into a spike ([workflow.md § 7](../docs/conventions/workflow.md#7-spikes)); a code change that follows is a small PR (an OpenSpec change if it changes behaviour).
+  - **Software factory:** work the factory needs and the app does not, built to the factory's quality bar ([workflow.md § 10 — The quality bar](../docs/conventions/workflow.md#the-quality-bar-2026-11-08)): the best design, no shortcuts, and every artifact proven to work before it is handed over. Planned item by item with the user, and split into smaller steps when it does not fit one session.
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
 - **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes). Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
 - **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split.
@@ -50,7 +51,8 @@
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
 | 21 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 22 | M8 | Manual | Decommissioning | end of operation; D1 | — |
+| 22 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
+| 23 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
@@ -332,11 +334,21 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 - **Open questions:** —
 - **Notes:** M8 does not export the stored transactions (the user, 2026-11-04). A reinstated app downloads the history in the 5 minutes after its new API approval, as in M1, with `create-session.ps1 -HistoryStart <first day>`. It gets only as far back as Revolut then serves.
 
+### SF1 — Full versions of the cut-down kits
+
+- **Type:** Software factory
+- **Goal:** The handover package gives the factory the full version of every reusable kit, never a cut-down. For each kit in the inventory that carries a project cut-down (its Lessons column names an entry of `divergences.md`), build the full version its lesson describes, to the factory's quality bar, and prove that it works. On 2026-11-08 that is 14 lessons: R-1, R-6, R-7, R-12, R-13, R-14, R-19, R-25, R-27, R-35, R-45, R-46, R-52, R-53. The list is taken again from the inventory when the step starts, because later changes may add to it.
+- **Depends on:** M7, so the kits no longer change with the app. Before M8, while the Azure setup still exists to prove the full versions against.
+- **Inputs:** [creating-handover-package.md § Inventory](../docs/software-factory/creating-handover-package.md#inventory); [divergences.md](../docs/software-factory/divergences.md) (what each cut-down gives up); [lessons.md](../docs/software-factory/lessons.md) (each full version, its options and its research); [workflow.md § 10 — The quality bar](../docs/conventions/workflow.md#the-quality-bar-2026-11-08).
+- **Outputs:** every listed kit's full version built, proven, and listed in the inventory as the kit's template for the default answer; the cut-down that ran here stays listed for the cheaper option it answers; each lesson's *Setup produces* names both; the proof for each full version recorded, so the package README can name it ([creating-handover-package.md § Building the package](../docs/software-factory/creating-handover-package.md#building-the-package), step 5).
+- **Open questions:** —
+- **Notes:** until SF1 the project keeps only notes: each lesson and each `divergences.md` entry names the full version, and the detail is worked out here ([workflow.md § 10 — The quality bar](../docs/conventions/workflow.md#the-quality-bar-2026-11-08)). SF1 starts with a plan made with the user, one kit at a time: what the full version is, where it lives (the app switched over to it, or a separate template next to the cut-down), how it is proven (the app's own tests and CI, a deployment removed again afterwards, or tests of its own), and what it costs. Some full versions are rules or decisions rather than code (e.g. R-1, R-45); they become the template's rule or ADR. When the plan does not fit one session, it is split into SF1a, SF1b, … with the user's approval. Added 2026-11-08 (change log in `pm/progress.md`).
+
 ### M8 — Decommissioning
 
 - **Type:** Manual
 - **Goal:** After the operating period ends: revoke the consent in Enable Banking; delete the deployment stack, which deletes every project-owned Azure resource, including the stored account data (the app uses no shared resources, F0-2); purge the deleted Key Vault, which Azure otherwise keeps with its secrets for the retention period; delete the resource group and the identity GitHub Actions deploys with; delete the Entra app registration; remove access for the allowed accounts. Then build the software-factory handover package for the standalone Software Factory ([creating-handover-package.md § The target](../docs/software-factory/creating-handover-package.md#the-target)).
-- **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1.
+- **Depends on:** end of operation (approx. 2 months; at least until the end of 2026); D1; SF1, so the package carries the full versions.
 - **Inputs:** kickoff ch. 9.6; [workflow.md § 5](../docs/conventions/workflow.md#5-infrastructure); the identifiers recorded in M1, M3 and M4; [`docs/operations/`](../docs/operations/) (expiring approvals and the D1 reinstatement guide, kept for a later rebuild); [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md).
 - **Outputs:** everything revoked and deleted; the software-factory handover package built and handed over: to the factory's consolidation if the factory does not exist yet, otherwise to the factory; `pm/progress.md` closed.
 - **Open questions:** —
