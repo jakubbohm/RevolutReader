@@ -167,9 +167,9 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 17. [unit] Slice 8 — The balance header
 
-- [ ] 17.1 The header shows "Na účtu máš" as the page's heading, the amount, the koruna value and the freshness line
-- [ ] 17.2 The koruna value is spoken as `přibližně …`
-- [ ] 17.3 The freshness line is announced politely when it changes
+- [x] 17.1 The header shows "Na účtu máš" as the page's heading, the amount, the koruna value and the freshness line
+- [x] 17.2 The koruna value is spoken as `přibližně …`
+- [x] 17.3 The freshness line is announced politely when it changes
 
 ## 18. [wiring] Slice 8 — The balance on the screen
 
