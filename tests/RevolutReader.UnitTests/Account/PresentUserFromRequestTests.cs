@@ -9,8 +9,8 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
-/// The present user is read from the request a signed-in user's open or refresh sent (roadmap C13; the user's choice 1,
-/// 2026-11-08): the client address as the forwarded headers left it on the connection (c007 design.md D10) and the
+/// The present user is read from the request a signed-in user's open or refresh sent (the user, 2026-11-08, roadmap C13):
+/// the client address as the forwarded headers left it on the connection (c007 design.md D10) and the
 /// <c>User-Agent</c> header as ASP.NET reads it. An IPv4 address in IPv6 form becomes plain IPv4 (c004 design.md D2, the
 /// heads-up for C7); any other address, an IPv6 one too, is kept as it is. The browser name is kept as given, a header
 /// sent on two lines as both values joined with a comma: cleaning it is the bank header's job (c006 design.md D5). No
@@ -92,6 +92,18 @@ public sealed class PresentUserFromRequestTests {
     user.ShouldNotBeNull();
     user.UserAgent.ShouldBe("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X),Ctecka/1.0");
   }
+
+  /// <summary>
+  /// Two lines of nothing but white space are as blank as one: ASP.NET reads them as a comma between blanks (<c>" , "</c>),
+  /// which is not blank itself, so the browser name would be a lone comma.
+  /// </summary>
+  /// <param name="first">The first line: spaces or a tab.</param>
+  /// <param name="second">The second line: spaces or a tab.</param>
+  [Test]
+  [Arguments(" ", " ")]
+  [Arguments("\t", "   ")]
+  public void A_User_Agent_sent_on_two_whitespace_lines_gives_no_present_user(string first, string second) =>
+    PresentUserFromRequest.Read(Request(_documentationAddress, new StringValues([first, second]))).ShouldBeNull();
 
   [Test]
   public void A_null_context_is_rejected() {
