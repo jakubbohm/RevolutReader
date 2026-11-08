@@ -1,6 +1,6 @@
 // The shared infrastructure (c005 design.md D1, D13): the log workspace, Key Vault, the app's
-// identity with its one role, and the Container Apps environment. A feature PR changes this file
-// only when it adds something shared, e.g. C6's storage account. Everything here is managed by the
+// identity and its roles, the storage account (C6) and the Container Apps environment. A feature PR
+// changes this file only when it adds something shared. Everything here is managed by the
 // deployment stack: a resource deleted from this file is deleted from Azure on the next deploy.
 
 @description('The Azure region of every resource.')
@@ -69,6 +69,92 @@ resource appReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
+// ---- The login cookie's encryption keys (C6, c007 design.md D7) ----
+// ASP.NET Data Protection keeps its key ring in one blob, encrypted by a Key Vault key, both reached
+// with the app's identity. Someone who reads the blob still cannot forge login cookies without the
+// key, which never leaves Key Vault. C7's tables join this account.
+
+// The storage account: shared keys off, so only Azure roles give access; no anonymous blob access;
+// TLS 1.2. The environment has no network of its own and reaches it over the internet; the
+// identity's role on the container below is the guard, as for Key Vault.
+resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
+  name: 'strevolutreader'
+  location: location
+  kind: 'StorageV2'
+  sku: {
+    name: 'Standard_LRS'
+  }
+  properties: {
+    accessTier: 'Hot'
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    allowBlobPublicAccess: false
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource blobs 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
+  parent: storage
+  name: 'default'
+}
+
+// The keys blob's container, private. The blob itself (keys.xml) is written by the app on its first
+// start.
+resource keysContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
+  parent: blobs
+  name: 'dataprotection'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+// The key that encrypts the key ring: wrap and unwrap only. Created on the first deploy; a later
+// deploy finds it and writes nothing, so the key ring stays readable (Microsoft Learn, Key Vault
+// key quickstart).
+resource keysKey 'Microsoft.KeyVault/vaults/keys@2026-05-15' = {
+  parent: keyVault
+  name: 'dataprotection'
+  properties: {
+    kty: 'RSA'
+    keySize: 2048
+    keyOps: [
+      'wrapKey'
+      'unwrapKey'
+    ]
+  }
+}
+
+// Storage Blob Data Contributor, on the one container only: the app reads and writes the keys blob.
+// One of the roles the deploy identity may assign (docs/operations/azure-prerequisites.md).
+var storageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+
+resource appWritesKeyRing 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keysContainer.id, appIdentity.id, storageBlobDataContributor)
+  scope: keysContainer
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributor)
+    principalId: appIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Key Vault Crypto User, on the one key only: the app wraps and unwraps the key ring with it. The
+// fifth role the deploy identity may assign; the owner adds it to the deploy identity's condition by
+// hand before the first deploy with this role (docs/operations/azure-prerequisites.md, step 5).
+var keyVaultCryptoUser = '12338af0-0e69-4776-bea7-57ae8d297424'
+
+resource appUsesKeysKey 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keysKey.id, appIdentity.id, keyVaultCryptoUser)
+  scope: keysKey
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultCryptoUser)
+    principalId: appIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // The Container Apps environment: Azure's default "workload profiles" type with only the
 // Consumption profile, so there is no environment fee and the monthly free grant applies
 // (ADR-0006-hosting-registry-and-job). The workspace's key is read here, inside the deployment,
@@ -105,3 +191,12 @@ output keyVaultName string = keyVault.name
 
 @description('The address of that vault, ending in a slash, for the app\'s Key Vault references.')
 output keyVaultUri string = keyVault.properties.vaultUri
+
+@description('The blob that holds the login cookie\'s key ring (c007 design.md D7).')
+output keysBlobUri string = '${storage.properties.primaryEndpoints.blob}${keysContainer.name}/keys.xml'
+
+@description('The Key Vault key that encrypts the key ring, without a version, so a rotated key is picked up.')
+output keyVaultKeyUri string = keysKey.properties.keyUri
+
+@description('The client ID of the app\'s identity, which reaches the keys blob and the key.')
+output appIdentityClientId string = appIdentity.properties.clientId

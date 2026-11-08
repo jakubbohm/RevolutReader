@@ -29,6 +29,9 @@ module features 'features.bicep' = {
     // to take effect, and a new vault starts empty, so a fresh deploy's first run can fail at the
     // app on its secrets (docs/operations/deployment.md § The first deployment).
     keyVaultUri: platform.outputs.keyVaultUri
+    keysBlobUri: platform.outputs.keysBlobUri
+    keyVaultKeyUri: platform.outputs.keyVaultKeyUri
+    appIdentityClientId: platform.outputs.appIdentityClientId
   }
 }
 
