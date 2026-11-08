@@ -192,10 +192,12 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   4. follows the result to `/`.
 
   For the cancelled scenario it posts `error=access_denied`; for the work-directory scenario the token carries another issuer and tenant.
-- **DSL:**
-  - `Visitor` holds the identities: `Lucie` (allowed, "Lucie Nováková", `lucie@example.com`), a `Stranger` (`cizi.ucet@example.com`), `Anonymous`, and `WorkAccount` (a made-up work tenant);
-  - steps say "signs in", "signs in to try another account", "cancels at Microsoft", "signs out", "asks who is signed in", "time passes", "another site sends sign-out";
-  - every answer is a domain record (`WhoAnswer`, `SignInStart`, `Landing`); status codes and headers stay in the driver.
+- **DSL** (as approved at the acceptance gate, 2026-11-08):
+  - `Visitor` holds the identities: `Lucie` (allowed, "Lucie Nováková", `lucie@example.com`), a `Stranger` (`cizi.ucet@example.com`), and `WorkAccount`: Lucie's name and allowed address from a made-up work tenant, so only the issuer check can keep it out. There is no anonymous value: every test starts signed out;
+  - steps say "is on / is not on the allowlist", "starts a sign-in", "Microsoft answers with", "signs in", "has signed in", "signs in to try another account", "cancels at Microsoft", "uses the app", "signs out", "asks who is signed in", "days pass", "another site sends sign-out";
+  - the allowlist steps set nothing up, because the list is fixed when the app copy starts: they check the app copy's configured `SignIn:AllowedEmails` and throw when it differs from what the scenario states (software-factory lesson R-15: a DSL default differs from every value a scenario names);
+  - "has signed in" signs in, then asks who is signed in and throws unless the API names the visitor, so a broken sign-in can't make a "signed out" scenario pass;
+  - every answer is a domain record (`WhoAnswer`, `SignInStart`, `Landing`, `SignOutAnswer`); status codes and headers stay in the driver.
 - **What runs as production code:** the handlers and their settings, the issuer check, the cookie names and lifetimes, the allowlist policy, the 401/403 problem descriptions, the forged-request rule, the forwarded headers. Only Microsoft's endpoints are faked.
 - **testing.md § Test sign-in is updated:** the mechanics are a fake provider rather than an extra trusted key in the app's configuration. The principle "fake the signature, never the security code" is unchanged.
 
@@ -394,35 +396,50 @@ public static class DataProtectionKeysRegistration {
 
 // Drivers/FakeMicrosoft.cs — WireMock per test (D6); Configure(IWebHostBuilder) sets SignIn:* and the test services.
 public sealed class FakeMicrosoft : IDisposable {
+  public const string ALLOWED_EMAILS = "lucie@example.com";
   public static FakeMicrosoft Start();
-  public void Configure(IWebHostBuilder builder);   // settings + RequireHttpsMetadata off + ephemeral keys + FakeTimeProvider
+  public Uri Address { get; }  public string ClientId { get; }  public string ClientSecret { get; }  public FakeTimeProvider Clock { get; }
+  public void Configure(IWebHostBuilder builder);   // settings + RequireHttpsMetadata off (ConfigureAll) + ephemeral keys + Clock
   public void AnswerToken(IdentityAtMicrosoft identity, string nonce);
 }
-public sealed record IdentityAtMicrosoft(string Name, string Email, string Issuer, string TenantId);
+public sealed record IdentityAtMicrosoft(string Name, string Email, string Issuer, string TenantId) {
+  public static IdentityAtMicrosoft PersonalAccount(string name, string email);
+  public static IdentityAtMicrosoft WorkOrSchoolAccount(string name, string email);   // a made-up work tenant
+}
 
 // Drivers/SignInDriver.cs — its own HttpClient (https://localhost, no redirects, cookies kept).
-public sealed class SignInDriver {
+public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IServiceProvider services) {
+  public static WebApplicationFactoryClientOptions BrowserOptions { get; }
+  public IReadOnlyList<string> AllowedEmails();                             // the app copy's configured SignIn:AllowedEmails
   public Task<SignInStart> StartSignIn(bool anotherAccount, string? forwardedProto = null, string? host = null);
   public Task<Landing> ReturnFromMicrosoft(IdentityAtMicrosoft identity);  // code + state, cross-site headers
   public Task<Landing> CancelAtMicrosoft();                                 // error=access_denied
   public Task<WhoAnswer> AskWhoIsSignedIn();
-  public Task<WhoAnswer> SignOut(string? fromSite = null);                  // fromSite → Sec-Fetch-Site/Origin of another site
+  public Task<SignOutAnswer> SignOut(string? fromSite = null);              // fromSite → Sec-Fetch-Site/Origin of another site
   public void Advance(TimeSpan time);                                       // the app's FakeTimeProvider
 }
 
 // Dsl/
-public sealed record Visitor(string Name, string Email) { public static Visitor Lucie, Stranger, WorkAccount; }
-public sealed record SignInStart(Uri ReturnAddress, bool AccountPickerAsked);
-public sealed record Landing(bool OnStartPage);
+public sealed record Visitor(string Name, string Email, bool FromWorkOrSchoolDirectory = false) { public static Visitor Lucie, Stranger, WorkAccount; }
+public sealed record SignInStart(bool SentToMicrosoft, Uri? ReturnAddress, bool AccountPickerAsked);
+public sealed record Landing(bool OnStartPage) { public static Landing StartPage, Elsewhere; }
 public sealed record WhoAnswer(bool SignInAsked, bool Refused, string? RefusedEmail, string? Name, string? Email);  // exact shape checked by the driver
-public sealed class SignInDsl {   // AcceptanceTest.SignIn
-  public Task<Landing> SignsIn(Visitor visitor);
+//   AskedToSignIn, SomethingElse, RefusedNaming(email), SignedInAs(name, email), SignedInAs(visitor)
+public enum SignOutAnswer { SomethingElse, SignedOut, Refused }
+public sealed class SignInDsl(SignInDriver driver) {   // AcceptanceTest.SignIn; written in full, calling only the driver
+  public void IsOnTheAllowlist(string email);        // checks the configured list; throws if it doesn't hold the address
+  public void IsNotOnTheAllowlist(string email);
+  public Task<Landing> SignsIn(Visitor visitor);     // StartsSignIn, then MicrosoftAnswersWith
+  public Task HasSignedIn(Visitor visitor);          // signs in; throws unless the API then names the visitor
+  public Task<SignInStart> StartsSignIn();
   public Task<SignInStart> StartsSignInToTryAnotherAccount();
   public Task<SignInStart> StartsSignInBehindProxy(string host);
+  public Task<Landing> MicrosoftAnswersWith(Visitor visitor);
   public Task<Landing> CancelsAtMicrosoft();
   public Task<WhoAnswer> AsksWhoIsSignedIn();
-  public Task<WhoAnswer> SignsOut();
-  public Task<WhoAnswer> AnotherSiteSendsSignOut();
+  public Task UsesTheApp();
+  public Task<SignOutAnswer> SignsOut();
+  public Task<SignOutAnswer> AnotherSiteSendsSignOut();
   public void DaysPass(int days);
 }
 

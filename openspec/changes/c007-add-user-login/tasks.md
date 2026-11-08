@@ -98,7 +98,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
   Verify: build passes; green
 - [ ] 5.3 `LoginEndpoint` (`GET /api/auth/login`, anonymous) challenges OpenID Connect and returns to `/`. Verify: build passes
-- [ ] 5.4 `FakeMicrosoft`'s discovery, keys and token answers, and `SignInDriver.StartSignIn` and `ReturnFromMicrosoft` (with the cross-site headers of design.md D6) replace their stubs; `SignInDsl.SignsIn` too. Verify: the scenario runs against the app; a rejection by .NET 11's own CSRF check shows here (design.md § Risks)
+- [ ] 5.4 `FakeMicrosoft`'s discovery, keys and token answers, and `SignInDriver.StartSignIn` and `ReturnFromMicrosoft` (with the cross-site headers of design.md D6) replace their stubs (the DSL was written in full at the acceptance gate). Verify: the scenario runs against the app; a rejection by .NET 11's own CSRF check shows here (design.md § Risks)
 - [ ] 5.5 Docs: configuration.md § `appsettings.json` and § Binding mention the `SignIn` section; ADR-0003 is amended with the addresses, landing on `/` and the cookie names. Verify: they match design.md D2, D4, D11
 
 ## 6. [wiring] Slice 2 — The generated API client
