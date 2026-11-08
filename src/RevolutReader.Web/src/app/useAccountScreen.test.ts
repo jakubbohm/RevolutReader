@@ -358,3 +358,39 @@ test("Once the woken server has answered, reading again shows the stored balance
     body: "waking",
   });
 });
+
+// Spec app-shell "A refresh with no answer counts as offline", D3 (code review of PR #59, finding 7): a read the user
+// asks for after the first load is a refresh, whether or not a read has succeeded yet, so it has the 60 s cap too.
+test("A refresh after a failed first read with no answer for 60 s ends as offline, the stored balance kept", async () => {
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [bankUnavailable, noAnswerYet, balance(301.9)],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(result.current.shown, "the first read failed").toMatchObject({
+    banner: { kind: "bank unavailable" },
+  });
+
+  // "Obnovit", and the network stalls.
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(60 * SECOND);
+
+  expect(result.current.shown, "at 60 s, offline").toMatchObject({
+    screen: "account",
+    header: { balance: { amount: 286.4 } },
+    banner: { kind: "offline" },
+  });
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+  expect(
+    balanceReadsSent(),
+    "the stalled read is over: a new one goes out",
+  ).toBe(3);
+});
