@@ -6,10 +6,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Bank;
+using WireMock;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
+using WireMock.Types;
 
 namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 
@@ -26,6 +28,9 @@ public sealed class BankOnWireMock : IDisposable {
 
   /// <summary>The transactions query's parameter for a later page (API reference).</summary>
   private const string CONTINUATION_KEY = "continuation_key";
+
+  /// <summary>What the user headers' names start with (<see cref="PsuHeaders"/>).</summary>
+  private const string USER_HEADER_PREFIX = "Psu-";
 
   /// <summary>
   /// The priority of the answer to the first request only (<see cref="AnswersTheFirstRequest"/>): above every other answer
@@ -118,24 +123,55 @@ public sealed class BankOnWireMock : IDisposable {
   /// next page's key. Any other request gets WireMock's 404.
   /// </summary>
   public void AnswersPagesInARow(int pages) {
-    string path = $"/accounts/{AccountId}/transactions";
-
     for (int number = 1; number <= pages; number++) {
-      IRequestBuilder request = number == 1
-        ? Request.Create().UsingGet().WithPath(path).WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
-        : Request.Create().UsingGet().WithPath(path).WithParam(CONTINUATION_KEY, new ExactMatcher(KeyOfPage(number)));
       string nextKey = number == pages ? "null" : $"\"{KeyOfPage(number + 1)}\"";
 
-      _server.Given(request).RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", "application/json")
+      _server.Given(PageRequest(number)).RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", "application/json")
         .WithBody($$"""{ "transactions": [], "continuation_key": {{nextKey}} }"""));
     }
   }
+
+  /// <summary>
+  /// The first request for page <paramref name="number"/> of <see cref="AnswersPagesInARow"/> is answered with this status
+  /// and body instead of the page; later requests for it get the page (a WireMock.Net scenario of its own, as
+  /// <see cref="AnswersTheFirstRequest"/>).
+  /// </summary>
+  public void AnswersTheFirstRequestForPage(int number, HttpStatusCode status, string body, string contentType = "application/json") =>
+    _server.Given(PageRequest(number)).AtPriority(FIRST_REQUEST_PRIORITY).InScenario($"first request for page {number} {Guid.NewGuid()}").WillSetStateTo(ANSWERED)
+      .RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
+
+  /// <summary>Every request the server received so far, answered or not, in the order received.</summary>
+  public IReadOnlyList<ReceivedRequest> Requests() => [
+    .. _server.LogEntries.Select(static entry => Received(entry.RequestMessage ?? throw new InvalidOperationException("WireMock.Net logged a request without its message."))),
+  ];
 
   /// <summary>The server stops: nothing listens at the client's address any more.</summary>
   public void StopsListening() => _server.Stop();
 
   /// <summary>The made-up continuation key of the page with this number (2 and up), different for every page.</summary>
   public static string KeyOfPage(int number) => $"ck-page-{number}-5e1d";
+
+  /// <summary>
+  /// A <c>GET</c> of the account's transactions for page <paramref name="number"/>: the first without a continuation key,
+  /// each further one with its own (<see cref="KeyOfPage"/>).
+  /// </summary>
+  private IRequestBuilder PageRequest(int number) {
+    IRequestBuilder request = Request.Create().UsingGet().WithPath($"/accounts/{AccountId}/transactions");
+
+    return number == 1
+      ? request.WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
+      : request.WithParam(CONTINUATION_KEY, new ExactMatcher(KeyOfPage(number)));
+  }
+
+  /// <summary>What a test checks of a received request: its continuation key and its user headers.</summary>
+  private static ReceivedRequest Received(IRequestMessage request) => new(
+    request.GetParameter(CONTINUATION_KEY, ignoreCase: false)?.FirstOrDefault(),
+    [
+      .. (request.Headers ?? new Dictionary<string, WireMockList<string>>())
+        .Where(static header => header.Key.StartsWith(USER_HEADER_PREFIX, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(static header => header.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(static header => $"{header.Key}: {string.Join(", ", header.Value)}"),
+    ]);
 
   private static string CreatePrivateKey() {
     using RSA key = RSA.Create(2048);
@@ -153,3 +189,11 @@ public sealed class BankOnWireMock : IDisposable {
 
   #endregion
 }
+
+/// <summary>One request the fake bank received.</summary>
+/// <param name="ContinuationKey">The <c>continuation_key</c> it asked for; <see langword="null"/> for none (a first page, or no transactions request).</param>
+/// <param name="UserHeaders">
+/// Its user headers (<c>Psu-*</c>), ordered by name, each as <c>name: value</c> (the values of a header sent more than once
+/// joined with <c>", "</c>); none for an unattended request.
+/// </param>
+public sealed record ReceivedRequest(string? ContinuationKey, IReadOnlyList<string> UserHeaders);

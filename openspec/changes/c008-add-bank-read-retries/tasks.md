@@ -57,27 +57,27 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 8. [wiring] Slice 3 — A persistent failure
 
-- [ ] 8.1 Edge test: a present user's read against a bank that keeps reporting its own error ends as bank unavailable after 4 requests, and its log line says bank unavailable with 1 page (the line counts pages, not attempts). Verify: the test passes; green
+- [x] 8.1 Edge test: a present user's read against a bank that keeps reporting its own error ends as bank unavailable after 4 requests, and its log line says bank unavailable with 1 page (the line counts pages, not attempts). Verify: the test passes; green
 
 ## 9. [close] Slice 3 — A bank error that persists is tried four times, then reads as bank unavailable
 
-- [ ] 9.1 Acceptance 1.4 passes; green
+- [x] 9.1 Acceptance 1.4 passes; green
 
 ## 10. [wiring] Slice 4 — A retried page
 
-- [ ] 10.1 Edge test: a retried transactions page carries the same continuation key and the same user headers as its first attempt. Verify: the test passes; green
+- [x] 10.1 Edge test: a retried transactions page carries the same continuation key and the same user headers as its first attempt. Verify: the test passes; green
 
 ## 11. [close] Slice 4 — A failure on a later page retries only that page
 
-- [ ] 11.1 Acceptance 1.5 passes; green
+- [x] 11.1 Acceptance 1.5 passes; green
 
 ## 12. [wiring] Slice 5 — Unattended reads
 
-- [ ] 12.1 Edge test: an unattended transactions read whose second page fails once ends as bank unavailable, with that page requested once. Verify: the test passes; green
+- [x] 12.1 Edge test: an unattended transactions read whose second page fails once ends as bank unavailable, with that page requested once. Verify: the test passes; green
 
 ## 13. [close] Slice 5 — An unattended read is never retried
 
-- [ ] 13.1 Acceptance 1.6 passes; green
+- [x] 13.1 Acceptance 1.6 passes; green
 
 ## 14. [wiring] Slice 6 — The timeout covers the retries
 
