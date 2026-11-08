@@ -14,9 +14,9 @@ export interface ButtonProps {
 
 /**
  * The app's button (design system Button, c007 design.md D12), primary: the single main action on a screen, in
- * `color-accent` with `color-on-accent` text, 48 pt tall, `radius-control`. Pressed is `color-accent-pressed` and a
- * 0.98 scale over `duration-fast` (not under reduced motion); disabled is `color-surface-muted` with `color-ink-muted`
- * text; the focus ring is 2 px `color-focus`, offset 2 px. The ghost icon button joins with the account menu.
+ * `color-accent` with `color-on-accent` text, 48 pt tall, `radius-control`. Pressed is `color-accent-pressed`, faded in
+ * over `duration-fast`, and a 0.98 scale; under reduced motion the fill still fades, but nothing scales. Disabled is
+ * `color-surface-muted` with `color-ink-muted` text; the focus ring is 2 px `color-focus`, offset 2 px.
  */
 export function Button({
   children,
@@ -40,7 +40,7 @@ export function Button({
       onClick={tap}
       disabled={disabled}
       aria-busy={loading || undefined}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-control bg-accent px-gutter text-body-strong text-on-accent transition-transform duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-pressed disabled:bg-surface-muted disabled:text-ink-muted motion-reduce:transition-none motion-reduce:active:scale-100 ${block ? "w-full" : ""}`}
+      className={`inline-flex h-12 items-center justify-center gap-2 rounded-control bg-accent px-gutter text-body-strong text-on-accent transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-pressed disabled:bg-surface-muted disabled:text-ink-muted motion-reduce:active:scale-100 ${block ? "w-full" : ""}`}
     >
       {loading ? (
         <LoaderCircle
