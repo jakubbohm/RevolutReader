@@ -5,27 +5,87 @@ namespace RevolutReader.Api.Account;
 
 /// <summary>
 /// The bank's expected failures as the API's answers (the user, 2026-11-08, roadmap C13; the case → status table in
-/// docs/conventions/README.md § Backend code): each a problem description with a status, a <c>type</c> of its own and a
-/// fixed <c>title</c>, and no <c>detail</c>.
+/// docs/conventions/README.md § Backend code): each a problem description (RFC 9457, <c>application/problem+json</c>) with
+/// its status, a <c>type</c> of its own and a fixed <c>title</c>. The <c>type</c> is what names the case for the client,
+/// which compares it as an exact string: RFC 9457 makes it the problem's identifier and the title a fixed label for it,
+/// while a status alone never names one of these cases (the Container Apps ingress and the Vite dev server answer 502, 503
+/// and 504 themselves, in plain text, when the app cannot be reached, and ASP.NET Core's default <c>type</c> would be the
+/// same for both 503 cases). No <c>detail</c>, never the bank's error text, and no <c>Retry-After</c>: the failure records
+/// carry no wait time. Each problem is built with <c>TypedResults.Problem</c>, so it is written through
+/// <see cref="IProblemDetailsService"/> with the trace id and the app's problem customization, as every other problem is;
+/// never with FastEndpoints' own problem details, which bypass that service.
 /// </summary>
 public static class BankAnswers {
+  private const string ACCESS_EXPIRED_TYPE = "/problems/bank-access-expired";
+  private const string ACCESS_EXPIRED_TITLE = "Bank access expired";
+  private const string RATE_LIMITED_TYPE = "/problems/bank-rate-limited";
+  private const string RATE_LIMITED_TITLE = "Bank rate limit reached";
+  private const string BANK_UNAVAILABLE_TYPE = "/problems/bank-unavailable";
+  private const string BANK_UNAVAILABLE_TITLE = "Bank unavailable";
+
   /// <summary>
-  /// The read's value as a 200 answer carrying <paramref name="toResponse"/>'s response for it; each failure as its problem.
-  /// A read's value is never null (<c>notnull</c>), so a switch over the result needs no null arm, and an empty result, a
-  /// bug, throws <see cref="System.Runtime.CompilerServices.SwitchExpressionException"/>.
+  /// The read's value as a 200 answer carrying <paramref name="toResponse"/>'s response for it, each failure as its
+  /// problem: for an endpoint that answers the read as it came, its <c>ExecuteAsync</c> returning this union of results.
+  /// A read's value is never null (<c>notnull</c>), so the switch needs no null arm. An empty result holds no case, which no
+  /// read returns: a bug, so it throws <see cref="System.Runtime.CompilerServices.SwitchExpressionException"/>, as a switch
+  /// over the union does (docs/conventions/README.md § Backend code), and never becomes an answer.
   /// </summary>
-  public static Results<Ok<TResponse>, ProblemHttpResult> From<T, TResponse>(BankResult<T> result, Func<T, TResponse> toResponse) where T : notnull =>
-    throw new NotImplementedException();
+  public static Results<Ok<TResponse>, ProblemHttpResult> From<T, TResponse>(BankResult<T> result, Func<T, TResponse> toResponse) where T : notnull {
+    ArgumentNullException.ThrowIfNull(toResponse);
 
-  /// <summary>503, <c>/problems/bank-access-expired</c>, <c>Bank access expired</c>.</summary>
-  public static ProblemHttpResult Problem(BankAccessExpired failure) => throw new NotImplementedException();
+    return result switch {
+      T value => TypedResults.Ok(toResponse(value)),
+      BankAccessExpired failure => Problem(failure),
+      BankRateLimited failure => Problem(failure),
+      BankUnavailable failure => Problem(failure),
+    };
+  }
 
-  /// <summary>429, <c>/problems/bank-rate-limited</c>, <c>Bank rate limit reached</c>.</summary>
-  public static ProblemHttpResult Problem(BankRateLimited failure) => throw new NotImplementedException();
+  /// <summary>
+  /// 503, <c>/problems/bank-access-expired</c>, <c>Bank access expired</c>, for an endpoint that answers a failure itself
+  /// (e.g. from <c>HandleAsync</c> with <c>Send.ResultAsync</c>). Only the owner can renew the access, so no status fits
+  /// exactly: 503 is the closest, though RFC 9110 makes it a temporary condition, so the client tells this case by its
+  /// <c>type</c> and offers no retry for it (the user, 2026-11-08, roadmap C13).
+  /// </summary>
+  public static ProblemHttpResult Problem(BankAccessExpired failure) {
+    ArgumentNullException.ThrowIfNull(failure);
 
-  /// <summary>503, <c>/problems/bank-unavailable</c>, <c>Bank unavailable</c>.</summary>
-  public static ProblemHttpResult Problem(BankUnavailable failure) => throw new NotImplementedException();
+    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: ACCESS_EXPIRED_TITLE, type: ACCESS_EXPIRED_TYPE);
+  }
 
-  /// <summary>Declares the bank problems, a 429 and a 503 problem description, in the endpoint's API description.</summary>
-  public static RouteHandlerBuilder ProducesBankProblems(this RouteHandlerBuilder builder) => throw new NotImplementedException();
+  /// <summary>
+  /// 429, <c>/problems/bank-rate-limited</c>, <c>Bank rate limit reached</c>, for an endpoint that answers a failure itself.
+  /// No <c>Retry-After</c>: the bank's limit gives no wait time the failure could carry.
+  /// </summary>
+  public static ProblemHttpResult Problem(BankRateLimited failure) {
+    ArgumentNullException.ThrowIfNull(failure);
+
+    return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: RATE_LIMITED_TITLE, type: RATE_LIMITED_TYPE);
+  }
+
+  /// <summary>
+  /// 503, <c>/problems/bank-unavailable</c>, <c>Bank unavailable</c>, for an endpoint that answers a failure itself: the
+  /// bank's own error or timeout, no answer in time, or no connection. Its own <c>type</c> tells it from access expired,
+  /// the other 503, and from the 503 the ingress or the Vite dev server answers when the app cannot be reached.
+  /// </summary>
+  public static ProblemHttpResult Problem(BankUnavailable failure) {
+    ArgumentNullException.ThrowIfNull(failure);
+
+    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: BANK_UNAVAILABLE_TITLE, type: BANK_UNAVAILABLE_TYPE);
+  }
+
+  /// <summary>
+  /// Declares the bank problems in the endpoint's API description: a 429 and a 503 problem description
+  /// (<c>application/problem+json</c>), one 503 for both 503 cases. A problem result puts no status into the API
+  /// description by itself, while an <see cref="Ok{TValue}"/> does, so C7a's and C7b's endpoints declare the same statuses
+  /// with this, inside FastEndpoints' <c>Description(…, clearDefaults: true)</c>, as <see cref="SignIn.MeEndpoint"/>
+  /// declares its own.
+  /// </summary>
+  public static RouteHandlerBuilder ProducesBankProblems(this RouteHandlerBuilder builder) {
+    ArgumentNullException.ThrowIfNull(builder);
+
+    return builder
+      .ProducesProblem(StatusCodes.Status429TooManyRequests)
+      .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+  }
 }
