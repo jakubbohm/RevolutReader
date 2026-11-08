@@ -88,6 +88,20 @@ public sealed class BankAnswersTests {
   }
 
   /// <summary>
+  /// A read whose value could be anything (<see cref="object"/>, which a failure record also is) still answers the
+  /// failure's problem, never a 200 carrying the failure: a type pattern over the union tests the value it holds, so the
+  /// failures must be told apart before the value.
+  /// </summary>
+  [Test]
+  public void A_failed_read_whose_value_could_be_anything_is_still_that_failures_problem() {
+    BankResult<object> read = new BankRateLimited();
+
+    Results<Ok<string>, ProblemHttpResult> answer = BankAnswers.From(read, static _ => "a value");
+
+    ShouldBeTheProblem(answer.Result.ShouldBeOfType<ProblemHttpResult>(), StatusCodes.Status429TooManyRequests, RATE_LIMITED_TYPE, RATE_LIMITED_TITLE);
+  }
+
+  /// <summary>
   /// A default <see cref="BankResult{T}"/> holds no case at all, which no read returns: a bug, so it throws as a switch over
   /// it does (docs/conventions/README.md § Backend code), and never becomes an answer. The exception is the one a switch
   /// expression over the union throws (checked on .NET 11 RC3, 2026-11-08, with the value's type <c>notnull</c>).
