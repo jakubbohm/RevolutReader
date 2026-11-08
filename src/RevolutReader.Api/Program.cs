@@ -1,6 +1,7 @@
 using FastEndpoints;
 using FastEndpoints.OpenApi;
 using RevolutReader.Api.Bank;
+using RevolutReader.Api.Hosting;
 using RevolutReader.Api.Pages;
 using RevolutReader.Api.SignIn;
 using RevolutReader.ServiceDefaults;
@@ -18,6 +19,8 @@ builder.Services.AddSignIn();
 
 WebApplication app = builder.Build();
 
+// First: the scheme and the client's address as the hosting proxy received them (c007 design.md D10).
+app.UseForwardedHeadersFromIngress();
 // Every body-less error response (400–599) gets a problem description (RFC 9457), c001 design.md D4.
 app.UseStatusCodePages();
 app.UseAppPages();

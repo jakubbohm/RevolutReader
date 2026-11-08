@@ -195,7 +195,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 16. [wiring] Slice 6 — Behind the hosting proxy
 
-- [ ] 16.1 `UseForwardedHeaders` first in the pipeline (`X-Forwarded-Proto`, `X-Forwarded-For`, known proxies and networks cleared, design.md D10); `StartSignIn` sends the host and `X-Forwarded-Proto: https`. Verify: the scenario runs against the app
+- [x] 16.1 `UseForwardedHeaders` first in the pipeline (`X-Forwarded-Proto`, `X-Forwarded-For`, known proxies and networks cleared, design.md D10); `StartSignIn` sends the host and `X-Forwarded-Proto: https`. Verify: the scenario runs against the app
 
 ## 17. [close] Slice 6 — Sign-in returns to the app's own HTTPS address behind the hosting proxy
 
