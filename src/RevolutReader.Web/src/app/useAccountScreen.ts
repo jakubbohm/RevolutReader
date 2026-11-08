@@ -223,14 +223,17 @@ export function useAccountScreen(): AccountScreenModel {
   }, [askOnce, takeInAnswer]);
 
   /**
-   * The first load's answer to who is signed in: one that took 1.5 s or more woke the server, so the waking-up screen
-   * stays until the first balance read lands, whatever it brings (D2; `readTheBalance` ends the wake). The read that
+   * The first load's answer to who is signed in: a signed-in user's that took 1.5 s or more woke the server, so the
+   * waking-up screen stays until the balance read that follows at once lands, whatever it brings (D2; `readTheBalance`
+   * ends the wake). Any other late answer is no wake: no answer at all is offline (D2), and after an unexpected one no
+   * read follows until a repeated question; the sign-in and no-access screens have no waking-up screen. The read that
    * follows it is the first load's, with no limit.
    */
   const takeInFirstAnswer = useCallback(
     async (answer: Session): Promise<void> => {
       firstAnswered.current = true;
-      if (firstAnswerLate.current) setWokeUp(true);
+      if (firstAnswerLate.current && answer.kind === "signed-in")
+        setWokeUp(true);
       await takeInAnswer(answer, true);
     },
     [takeInAnswer],
