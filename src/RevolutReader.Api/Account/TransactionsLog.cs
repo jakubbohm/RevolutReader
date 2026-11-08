@@ -12,6 +12,10 @@ public static partial class TransactionsLog {
   [LoggerMessage(EventName = "HistoryGap", Level = LogLevel.Warning, Message = "The newest kept transaction is {Days} days old, more than the live read's 89 days reach back: the days in between are missing unless a history file covers them")]
   public static partial void HistoryGap(ILogger logger, int days);
 
+  /// <summary>Settled transactions without a reference, which have no key to be kept by: shown, not kept (D5). Only their count, never bank data.</summary>
+  [LoggerMessage(EventName = "SettledWithoutReference", Level = LogLevel.Warning, Message = "{Count} settled transactions came without a reference: shown, but not kept")]
+  public static partial void SettledWithoutReference(ILogger logger, int count);
+
   /// <summary>A type code the app does not know, which looks like a code, so it is quoted: the first sign of a code to add (D4c).</summary>
   [LoggerMessage(EventName = "UnknownTypeCode", Level = LogLevel.Warning, Message = "A transaction has a type code the app does not know: {Code}")]
   public static partial void UnknownTypeCode(ILogger logger, string code);

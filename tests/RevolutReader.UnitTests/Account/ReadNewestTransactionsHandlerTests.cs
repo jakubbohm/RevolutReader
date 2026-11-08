@@ -250,6 +250,54 @@ public sealed class ReadNewestTransactionsHandlerTests {
       () => warning.ShouldHoldNoBankData());
   }
 
+  // What a live read keeps (D5)
+
+  /// <summary>
+  /// With nothing kept, the read reaches back 89 days and the bank lists one settled transaction inside the window and two
+  /// before it: all three are kept, while the page shows only the window's one, and names the window's first day as where
+  /// older ones are kept, those this read has just kept counting (D10, tasks.md 33.3).
+  /// </summary>
+  [Test]
+  public async Task The_newest_page_keeps_the_settled_transactions_of_its_whole_read_days_before_the_window_included() {
+    InMemoryTransactionStore store = new();
+    StubBankAccount bank = new(Lists(
+      Settled(_november18, -12.30m),
+      Settled(new DateOnly(2026, 10, 5), -7.20m),
+      Settled(new DateOnly(2026, 9, 1), 50.00m)));
+
+    TransactionPage page = await NewestPage(bank, store);
+
+    (await store.ReadAll(CancellationToken.None)).Select(static transaction => (transaction.Date, transaction.Amount)).ShouldBe([
+      (_november18, -12.30m),
+      (new DateOnly(2026, 10, 5), -7.20m),
+      (new DateOnly(2026, 9, 1), 50.00m),
+    ], "what the store keeps after the read");
+    page.ShouldSatisfyAllConditions(
+      () => page.Transactions.Select(static transaction => (transaction.Date, transaction.Amount)).ShouldBe([(_november18, -12.30m)]),
+      () => page.OlderBefore.ShouldBe(_windowStart));
+  }
+
+  /// <summary>
+  /// Two settled transactions without a reference among one with: one warning for the read, whose only value is how many
+  /// (2), and nothing of their bank data.
+  /// </summary>
+  [Test]
+  public async Task The_newest_page_logs_settled_transactions_without_a_reference_as_a_warning_with_their_count() {
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(
+      Settled(_november19, -12.30m) with { Reference = null },
+      Settled(_november18, -7.20m),
+      Settled(_november18, 50.00m) with { Reference = null }));
+
+    _ = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    LogEntry warning = log.Warnings().ShouldHaveSingleItem("the warnings: one, for the read");
+    warning.ShouldSatisfyAllConditions(
+      () => warning.EventName.ShouldBe("SettledWithoutReference"),
+      () => warning.OwnValues().ShouldBe(["2"], "the line's values: the count alone"),
+      () => warning.ShouldHoldNoBankData());
+  }
+
   private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) =>
     new(bank, store, clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 

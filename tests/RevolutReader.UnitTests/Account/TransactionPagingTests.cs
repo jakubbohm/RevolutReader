@@ -1,5 +1,6 @@
 using System.Globalization;
 using RevolutReader.Api.Account;
+using RevolutReader.Api.Bank;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Account;
@@ -137,7 +138,63 @@ public sealed class TransactionPagingTests {
   public void With_nothing_kept_the_read_starts_89_days_before_today(string today, string readStart) =>
     TransactionPaging.LiveReadStart(Day(today), newestKeptDay: null).ShouldBe(new LiveReadStart(Day(readStart), GapDays: null));
 
+  // What a live read keeps (D5)
+
+  /// <summary>
+  /// Five settled transactions over two days, in the bank's order (newest first): each kept with its place within its day,
+  /// 0 first, in that order. A kept one carries the bank's values unchanged, its lines too (the line repeating the
+  /// counterparty among them): the shown text and the kind are worked out when answering, so a later rule needs no
+  /// migration.
+  /// </summary>
+  [Test]
+  public void Settled_transactions_are_kept_with_their_position_within_their_day_in_the_banks_order() {
+    BankTransaction withEveryField = new("e-a", TransactionStatus.Booked, Day("2026-11-19"), -12.30m, "EUR", "Pekárna U Lípy", ["Pekárna U Lípy", "Praha 2"], "CARD_PAYMENT");
+
+    ToKeep kept = TransactionPaging.ToKeep([
+      withEveryField,
+      Booked("e-b", "2026-11-19"),
+      Booked("e-c", "2026-11-18"),
+      Booked("e-d", "2026-11-18"),
+      Booked("e-e", "2026-11-18"),
+    ]);
+
+    kept.Transactions.Select(static transaction => (transaction.Reference, transaction.Date, transaction.Position)).ShouldBe([
+      ("e-a", Day("2026-11-19"), 0),
+      ("e-b", Day("2026-11-19"), 1),
+      ("e-c", Day("2026-11-18"), 0),
+      ("e-d", Day("2026-11-18"), 1),
+      ("e-e", Day("2026-11-18"), 2),
+    ]);
+    KeptTransaction first = kept.Transactions[0];
+    first.ShouldSatisfyAllConditions(
+      () => first.Amount.ShouldBe(-12.30m),
+      () => first.Currency.ShouldBe("EUR"),
+      () => first.Counterparty.ShouldBe("Pekárna U Lípy"),
+      () => first.PaymentDetails.ShouldBe(["Pekárna U Lípy", "Praha 2"]),
+      () => first.TypeCode.ShouldBe("CARD_PAYMENT"));
+  }
+
+  /// <summary>Two settled ones without a reference among three with one: they have no key to be kept by (D5).</summary>
+  [Test]
+  public void A_settled_transaction_without_a_reference_is_not_kept_and_counted() {
+    ToKeep kept = TransactionPaging.ToKeep([
+      Booked("e-a", "2026-11-19"),
+      Booked(null, "2026-11-19"),
+      Booked("e-b", "2026-11-18"),
+      Booked(null, "2026-11-17"),
+      Booked("e-c", "2026-11-17"),
+    ]);
+
+    kept.ShouldSatisfyAllConditions(
+      () => kept.Transactions.Select(static transaction => transaction.Reference).ShouldBe(["e-a", "e-b", "e-c"]),
+      () => kept.WithoutReference.ShouldBe(2));
+  }
+
   private static DateOnly Day(string isoDate) => DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+  /// <summary>A booked card payment with this reference (none: <see langword="null"/>) on this day, as the bank's read returns one.</summary>
+  private static BankTransaction Booked(string? reference, string day) =>
+    new(reference, TransactionStatus.Booked, Day(day), -4.20m, "EUR", "Trafika Můstek", ["Praha 2"], "CARD_PAYMENT");
 
   /// <summary>The first <paramref name="count"/> days before 2026-11-19, newest first: 2026-11-18, 2026-11-17, …</summary>
   private static DateOnly[] Days(int count) => [.. Enumerable.Range(1, count).Select(back => Day(BEFORE).AddDays(-back))];
