@@ -126,7 +126,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | Who | `GET /api/me` and every other protected endpoint |
   |---|---|
   | not signed in | 401, problem `Unauthorized` (the cookie handler's login redirect becomes 401) |
-  | signed in, not on the list | 403, problem `Forbidden`, with the extension `email` = the account's own email (the access-denied redirect becomes 403; `CustomizeProblemDetails` adds `email` to every 403 for a signed-in account) |
+  | signed in, not on the list | 403, problem `Forbidden`, with the extension `email` = the account's own email (the access-denied redirect becomes 403; `CustomizeProblemDetails` adds `email` to a 403 only when the allowlist refuses the signed-in account, so another 403, such as D4's refusal of a write from another site, names nobody; issue #33, finding 4) |
   | signed in, on the list | the endpoint's answer; `GET /api/me` → `{ "name": …, "email": … }` exactly |
 
 - **No email claim means not allowed:** the 403 then has no `email` extension. The name comes from the `name` claim; without one, the email stands in *(propose)*.
@@ -134,7 +134,8 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 - **The tenant check needs no code of ours.** The authority is `https://login.microsoftonline.com/consumers/v2.0`, whose discovery document names one fixed issuer (the personal-account tenant `9188040d-6c67-4c5b-b112-36a304b66dad`). The handler's issuer validation rejects any other, which is the scenario "An account from a work or school directory is not signed in".
 - **A sign-in that doesn't complete,** whether cancelled (`error=access_denied`) or failed (a bad token, a wrong issuer, a missing state cookie), goes back to `/`. The handler's `OnAccessDenied` and `OnRemoteFailure` events redirect there and log it, never the token or the email:
   - a cancel is logged as `SignInCancelled`, Information, because cancelling is normal;
-  - a failure is logged as `SignInFailed`, Warning, with only the failure's kind (the exception type or Microsoft's error code), never an exception message, which may quote the token.
+  - a failure is logged as `SignInFailed`, Warning, with only the failure's kind (the exception type or Microsoft's error code), never an exception message, which may quote the token;
+  - **it never signs out:** a login from before stays as it is (a completed sign-in replaces it). The return address takes form posts from any site (exempt from D4's rule) and even an empty form ends in `OnRemoteFailure`, so signing out there would let any site sign the visitor out, which D2 rules out for the handler's sign-out addresses (issue #33, finding 3).
 - **A sign-in by an account not on the allowlist is logged as a warning, once, at sign-in** (the user, 2026-11-07, in propose):
   - **When:** the handler's `OnTokenValidated` event checks the allowlist. If the email is missing or not on the list, it logs `SignInRefused` at Warning. The sign-in itself still completes; the refusal happens per request, as above.
   - **What the line holds:** the account's pairwise subject (`sub`), an opaque ID that means something only to this app, so repeated attempts by the same account can be grouped. It never holds the email (D8).
@@ -159,6 +160,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | path is the sign-in return `/api/auth/signin-oidc` | passed on. Microsoft's page posts it cross-site by design, and the handler's state, correlation cookie, nonce and PKCE protect it |
   | `Sec-Fetch-Site: same-origin` or `none` | allowed |
   | `Sec-Fetch-Site` present with any other value (`same-site`, `cross-site`) | refused |
+  | `Sec-Fetch-Site` or `Origin` sent more than once | refused, as ambiguous, even when the values agree (part of the pure rule since issue #33, finding 12) |
   | no `Sec-Fetch-Site`, `Origin` present | allowed only if `Origin` equals the request's own scheme and host (after forwarded headers, D10) |
   | neither header | allowed (not a browser, e.g. C9's Shortcut; such callers don't get our cookie automatically) |
 
@@ -259,13 +261,13 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 
 ### D10 — Behind the ingress: forwarded headers *(propose, from c005 design.md D5)*
 
-- **What it does:** `UseForwardedHeaders` runs first and takes `X-Forwarded-Proto` and `X-Forwarded-For`, with the known proxies and networks cleared. The app is reachable only through the Container Apps ingress, so the header can come only from it.
+- **What it does:** `UseForwardedHeaders` runs first and takes `X-Forwarded-Proto` and `X-Forwarded-For`, with the known proxies and networks cleared. The app is reachable only through the Container Apps ingress, so in production the header can come only from it (locally, the Vite dev server sends the same two, see below).
 - **Effect:**
   - the OpenID Connect handler builds `https://<app host>/api/auth/signin-oidc`;
   - the forged-request rule compares `Origin` against the right scheme;
   - C7 gets the user's address for the bank's PSU header.
 - **The host:** the ingress is expected to keep the original `Host` header. The first deploy confirms it, through the local and deployed sign-in checks. If it doesn't, `X-Forwarded-Host` is added, limited to the app's own address.
-- **Locally,** Vite connects to the API over HTTPS and keeps the host (D2), so nothing is forwarded.
+- **Locally,** Vite keeps the host (D2) and sends `X-Forwarded-Proto` and `X-Forwarded-For` as the ingress does (`xfwd`), so the return address takes the browser's https whichever API address Vite reaches (issue #33, finding 5: before, it depended on Vite reaching the API's HTTPS address).
 
 ### D11 — Settings, secrets and the owner's guided steps *(propose)*
 
@@ -379,7 +381,7 @@ public sealed record MeResponse(string Name, string Email);
 
 /// <summary>The rule against writes from other sites (D4), pure, so every row of its table is a unit test.</summary>
 public static class CrossSiteWrites {
-  public static bool IsAllowed(string method, PathString path, string? secFetchSite, string? origin, string requestOrigin);
+  public static bool IsAllowed(string method, PathString path, StringValues secFetchSite, StringValues origin, string requestOrigin);
 }
 /// <summary>Applies CrossSiteWrites; a refusal is a 403 problem description and ends the request.</summary>
 public static WebApplication UseCrossSiteWriteProtection(this WebApplication app);
@@ -485,7 +487,7 @@ export function signOut(): Promise<void>;                  // POST /api/auth/log
 | 401 for anonymous, 403 with the own email for strangers | cookie events (`OnRedirectToLogin`, `OnRedirectToAccessDenied`), `UseStatusCodePages`, `CustomizeProblemDetails` |
 | `GET /api/me` answers exactly name and email | `MeEndpoint`, `MeResponse` (exact-shape check in the scenario's driver) |
 | Personal accounts only | the consumers authority and the handler's issuer validation |
-| A sign-in that doesn't complete lands on `/`, signed out; a cancel is Information, a failure a Warning | `OnAccessDenied`, `OnRemoteFailure`, `SignInLog` |
+| A sign-in that doesn't complete lands on `/` without signing anyone in (a login from before stays); a cancel is Information, a failure a Warning | `OnAccessDenied`, `OnRemoteFailure`, `SignInLog` |
 | A sign-in by an account not on the allowlist is one warning, with the subject and without the email | `OnTokenValidated` with `Allowlist`, `SignInLog.SignInRefused`; guarded by `SignInTelemetryTests` |
 | Account picker for "try another account" | `LoginEndpoint` (`prompt=select_account`) |
 | The return address is the app's own HTTPS address | `UseForwardedHeaders` (D10) and the OpenID Connect handler |
@@ -503,7 +505,7 @@ export function signOut(): Promise<void>;                  // POST /api/auth/log
 |---|---|---|---|
 | `GET /api/me` | `MeResponse` | 401, 403 (+ `email`) as problem descriptions, produced by the authentication and authorization layer | none expected; anything else is a 500 |
 | `GET /api/auth/login` | 302 to Microsoft | — | discovery unreachable → the handler throws, 500 |
-| `POST /api/auth/signin-oidc` | 302 to `/`, signed in | cancelled or failed → 302 to `/`, signed out (`OnAccessDenied`, `OnRemoteFailure`) | — |
+| `POST /api/auth/signin-oidc` | 302 to `/`, signed in | cancelled or failed → 302 to `/`, nobody signed in, a login from before left as it is (`OnAccessDenied`, `OnRemoteFailure`) | — |
 | `POST /api/auth/logout` | 204 | 403 when refused by the forged-request rule | — |
 | Any write under `/api` | — | 403 problem when refused by the forged-request rule | — |
 | App start | — | — | `OptionsValidationException` (`SignIn`), or the Data Protection registration's exception for partly set `DataProtection` settings; messages name settings, never values |
