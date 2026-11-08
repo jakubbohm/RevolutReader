@@ -15,6 +15,7 @@ import {
   noAnswerYet,
   phoneKeeps,
   requests,
+  serverError,
   signedIn,
   signedOut,
   timeline,
@@ -286,3 +287,40 @@ test("A balance read that lands after a sign-out the server confirmed is neither
   });
   expect(await keptBalance(), "not kept").toBeNull();
 });
+
+// D6: a failed sign-out keeps the visitor signed in on the account screen, with the balance shown and kept, and says so
+// in its banner, offline or not.
+const failedSignOuts: { label: string; offline: boolean }[] = [
+  { label: "the phone is offline", offline: true },
+  { label: "the server fails it", offline: false },
+];
+
+test.each(failedSignOuts)(
+  "A failed sign-out keeps the screen and the stored balance and gives its banner, offline or not: $label",
+  async ({ offline }) => {
+    startTestClock();
+    answerWith({
+      whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
+      signOut: serverError,
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    if (offline) goOffline();
+
+    act(() => {
+      result.current.signOut();
+    });
+    await timePasses(0);
+
+    expect(result.current.shown).toMatchObject({
+      screen: "account",
+      account: { name: "Lucie Nováková", email: "lucie@example.com" },
+      header: { balance: { amount: 286.4 } },
+      banner: { kind: "sign-out failed", offline },
+    });
+    expect(await keptBalance(), "still kept").toMatchObject({
+      amount: 286.4,
+    });
+  },
+);

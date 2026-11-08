@@ -61,6 +61,14 @@ function signedInOf(body: unknown): Session | null {
 }
 
 /**
+ * A sign-out that failed (c009 design.md D6): `offline` when the phone was offline or no answer came, otherwise the
+ * server answered with an error. A stub until c009 tasks.md group 64 is implemented: its shape only.
+ */
+export class SignOutFailed extends Error {
+  declare readonly offline: boolean;
+}
+
+/**
  * Ends the login on this device (`POST /api/auth/logout`, design.md D2); the Microsoft account stays signed in.
  * Resolves once the server has answered with success; rejects when it answered otherwise or the request failed, so the
  * caller decides what that means for its screen.

@@ -12,6 +12,8 @@ export interface AccountMenuProps {
   account: Account;
   /** "Odhlásit se": ends the login on this device (c007, slice 17). */
   onSignOut?: () => void;
+  /** A sign-out is under way: "Odhlásit se" is busy and ignores taps, and the menu stays open (c009 design.md D6). */
+  signingOut?: boolean;
 }
 
 /**
