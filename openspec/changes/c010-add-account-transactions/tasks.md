@@ -99,13 +99,13 @@ The handler's tests use a hand-written `StubBankAccount`, the in-memory fake `In
 
 Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on Azurite, a table per test (design.md § Ports and contracts).
 
-- [ ] 6.1 An empty store reads as no transactions
-- [ ] 6.2 Kept transactions read back newest day first, then by their position within the day
-- [ ] 6.3 Every field reads back as kept: the amount to the cent, empty details, a missing counterparty and a missing type code
-- [ ] 6.4 A reference containing a slash, a hash, a question mark or a backslash reads back unchanged
-- [ ] 6.5 Keeping a transaction again leaves one transaction with the latest values
-- [ ] 6.6 Keeping more than 100 transactions at once keeps them all
-- [ ] 6.7 Keeping nothing changes nothing
+- [x] 6.1 An empty store reads as no transactions
+- [x] 6.2 Kept transactions read back newest day first, then by their position within the day
+- [x] 6.3 Every field reads back as kept: the amount to the cent, empty details, a missing counterparty and a missing type code
+- [x] 6.4 A reference containing a slash, a hash, a question mark or a backslash reads back unchanged
+- [x] 6.5 Keeping a transaction again leaves one transaction with the latest values
+- [x] 6.6 Keeping more than 100 transactions at once keeps them all
+- [x] 6.7 Keeping nothing changes nothing
 
 ## 7. [wiring] Slice 2 — Storage
 
