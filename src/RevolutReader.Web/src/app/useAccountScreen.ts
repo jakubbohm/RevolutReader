@@ -21,7 +21,10 @@ const WAKING_AFTER_MS = 1_500;
 /** How long it may go unanswered before the waking-up screen offers to try again (D2). */
 const SLOW_AFTER_MS = 30_000;
 
-/** How long a refresh may go unanswered before it counts as offline (D3). */
+/**
+ * How long a refresh may go unanswered before it counts as offline (D3): every balance read but the first load's own,
+ * whether or not a read has succeeded yet.
+ */
 const REFRESH_LIMIT_MS = 60_000;
 
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
@@ -101,14 +104,16 @@ export function useAccountScreen(): AccountScreenModel {
   }, []);
 
   /**
-   * Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. A refresh
-   * with no answer after `REFRESH_LIMIT_MS` is aborted, and so ends as offline (D3); the first read has no limit: the
-   * first load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor
-   * kept (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome,
-   * a wake is over: later reads show the header refreshing or the placeholder, never the waking-up screen (D2, D3).
+   * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
+   * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
+   * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
+   * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
+   * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
+   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, a wake
+   * is over: later reads show the header refreshing or the placeholder, never the waking-up screen (D2, D3).
    */
   const readTheBalance = useCallback(
-    async (as: "first" | "refresh"): Promise<void> => {
+    async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
       if (readUnderWay.current) return;
       readUnderWay.current = true;
       const login = loginsEnded.current;
@@ -116,7 +121,7 @@ export function useAccountScreen(): AccountScreenModel {
       setProblem(null);
 
       // A timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
-      const limit = as === "refresh" ? new AbortController() : undefined;
+      const limit = firstLoad ? undefined : new AbortController();
       const limitTimer =
         limit === undefined
           ? undefined
@@ -188,11 +193,12 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * Who is signed in, as the server answered: it replaces the screen's problem (offline, unexpected, or none), and for a
-   * signed-in user the balance is read next. Nobody signed in (401) or a refused account (403): the device has no
-   * allowed login, so the balance it keeps is forgotten first (D4).
+   * signed-in user the balance is read next, as the first load's read when `firstLoad` (`readTheBalance`). Nobody signed
+   * in (401) or a refused account (403): the device has no allowed login, so the balance it keeps is forgotten first
+   * (D4).
    */
   const takeInAnswer = useCallback(
-    async (answer: Session): Promise<void> => {
+    async (answer: Session, firstLoad: boolean): Promise<void> => {
       if (!onPage.current) return;
       if (answer.kind === "signed-out" || answer.kind === "refused") {
         await endLogin(answer);
@@ -205,26 +211,27 @@ export function useAccountScreen(): AccountScreenModel {
           ? { kind: answer.kind }
           : null,
       );
-      if (answer.kind === "signed-in") await readTheBalance("first");
+      if (answer.kind === "signed-in") await readTheBalance("first", firstLoad);
     },
     [endLogin, readTheBalance],
   );
 
-  /** Asks who is signed in and takes in the answer, unless the question is under way. */
+  /** Asks who is signed in again and takes in the answer, unless the question is under way; not the first load's. */
   const askWhoIsSignedIn = useCallback(async (): Promise<void> => {
     const answer = await askOnce();
-    if (answer !== null) await takeInAnswer(answer);
+    if (answer !== null) await takeInAnswer(answer, false);
   }, [askOnce, takeInAnswer]);
 
   /**
    * The first load's answer to who is signed in: one that took 1.5 s or more woke the server, so the waking-up screen
-   * stays until the first balance read lands, whatever it brings (D2; `readTheBalance` ends the wake).
+   * stays until the first balance read lands, whatever it brings (D2; `readTheBalance` ends the wake). The read that
+   * follows it is the first load's, with no limit.
    */
   const takeInFirstAnswer = useCallback(
     async (answer: Session): Promise<void> => {
       firstAnswered.current = true;
       if (firstAnswerLate.current) setWokeUp(true);
-      await takeInAnswer(answer);
+      await takeInAnswer(answer, true);
     },
     [takeInAnswer],
   );
@@ -288,10 +295,11 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; the balance read for a
-   * signed-in user, as the first read until one succeeded. Nothing for a visitor on the sign-in or no-access screen.
+   * signed-in user, shown as the first read until one succeeded, and always with the refresh's limit. Nothing for a
+   * visitor on the sign-in or no-access screen.
    */
   const repeat = useCallback((): void => {
-    if (signedIn) void readTheBalance(hasRead ? "refresh" : "first");
+    if (signedIn) void readTheBalance(hasRead ? "refresh" : "first", false);
     else if (unanswered) void askWhoIsSignedIn();
   }, [signedIn, unanswered, hasRead, readTheBalance, askWhoIsSignedIn]);
 
