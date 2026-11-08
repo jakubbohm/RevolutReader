@@ -5,11 +5,14 @@ namespace RevolutReader.Api.Account;
 /// <summary>
 /// The newest page (c010 design.md D1, D2, D3, D10): the store's rows; from their newest day, where the live read starts
 /// (<see cref="TransactionPaging.LiveReadStart"/>; a gap beyond its reach logged, <see cref="TransactionsLog.HistoryGap"/>);
-/// then the bank, read from there as the present user; then the live transactions dated from
+/// then the bank, read from there as the present user; then its settled transactions kept, every day it read, the days
+/// before the window too (<see cref="TransactionPaging.ToKeep"/>, D5; settled ones without a reference logged by count,
+/// <see cref="TransactionsLog.SettledWithoutReference"/>); then the live transactions dated from
 /// <see cref="TransactionPaging.WindowStart"/> (today being the UTC date of the clock, D3), pending ones included, in the
 /// bank's order, each with the bank's text as the app shows it (<see cref="TransactionText"/>, D4b), with the koruna rate
-/// and its date; <see cref="TransactionPage.OlderBefore"/> is the window's start when a kept transaction is older. A bank
-/// failure comes back as it is, and nothing is kept.
+/// and its date; <see cref="TransactionPage.OlderBefore"/> is the window's start when a kept transaction is older,
+/// counting those this read has just kept. A bank failure comes back as it is, and nothing is kept. The store failing is
+/// an exception: the page is not answered without its write (D5).
 /// </summary>
 public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger) {
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
@@ -20,9 +23,8 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     IReadOnlyList<KeptTransaction> kept = await store.ReadAll(cancellationToken);
     BankResult<Transactions> live = await bank.ReadTransactions(LiveReadStartAfter(kept, today), user, cancellationToken);
 
-    // Nothing is kept yet: TransactionPaging.ToKeep and the store's Keep come with slice 15.
     return live switch {
-      Transactions transactions => NewestPage(transactions.Items, kept, windowStart),
+      Transactions transactions => await KeptAndShown(transactions.Items, kept, windowStart, cancellationToken),
       BankAccessExpired expired => expired,
       BankRateLimited rateLimited => rateLimited,
       BankUnavailable unavailable => unavailable,
@@ -42,12 +44,24 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     return start.From;
   }
 
-  /// <summary>The live transactions dated from the window's start, in the bank's order; the window's start as OlderBefore when a kept one is older (D10).</summary>
-  private static TransactionPage NewestPage(IReadOnlyList<BankTransaction> live, IReadOnlyList<KeptTransaction> kept, DateOnly windowStart) => new(
-    [.. live.Where(transaction => transaction.Date >= windowStart).Select(Shown)],
-    kept.Any(transaction => transaction.Date < windowStart) ? windowStart : null,
-    KorunaRate.CzkPerEur,
-    KorunaRate.Date);
+  /// <summary>
+  /// The live read's settled transactions kept (D5), a count of those without a reference logged when there are any; then
+  /// the page: the live transactions dated from the window's start, in the bank's order, and the window's start as
+  /// OlderBefore when a transaction kept before this read, or by it, is older (D10).
+  /// </summary>
+  private async Task<TransactionPage> KeptAndShown(IReadOnlyList<BankTransaction> live, IReadOnlyList<KeptTransaction> keptBefore, DateOnly windowStart, CancellationToken cancellationToken) {
+    ToKeep toKeep = TransactionPaging.ToKeep(live);
+    await store.Keep(toKeep.Transactions, cancellationToken);
+
+    if (toKeep.WithoutReference > 0)
+      TransactionsLog.SettledWithoutReference(logger, toKeep.WithoutReference);
+
+    return new TransactionPage(
+      [.. live.Where(transaction => transaction.Date >= windowStart).Select(Shown)],
+      keptBefore.Concat(toKeep.Transactions).Any(transaction => transaction.Date < windowStart) ? windowStart : null,
+      KorunaRate.CzkPerEur,
+      KorunaRate.Date);
+  }
 
   private static ShownTransaction Shown(BankTransaction transaction) => new(
     transaction.Date,

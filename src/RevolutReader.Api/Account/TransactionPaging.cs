@@ -36,9 +36,43 @@ public static class TransactionPaging {
 
   /// <summary>
   /// Settled ones with a reference, each with its position within its day in the given order; pending ones and those
-  /// without a reference left out (the latter counted).
+  /// without a reference left out (the latter counted). What D5 keeps: the bank's values unchanged, the lines too, so the
+  /// shown text and the kind are worked out when answering. Pending ones are never kept (ADR-0001 item 6). The positions
+  /// count the kept ones only, 0 first on each day, so a pending or reference-less one between them leaves no gap.
   /// </summary>
-  public static ToKeep ToKeep(IReadOnlyList<BankTransaction> live) => throw new NotImplementedException();
+  public static ToKeep ToKeep(IReadOnlyList<BankTransaction> live) {
+    ArgumentNullException.ThrowIfNull(live);
+
+    List<KeptTransaction> kept = [];
+    Dictionary<DateOnly, int> nextPositionOn = [];
+    int withoutReference = 0;
+
+    foreach (BankTransaction transaction in live) {
+      if (transaction.Status != TransactionStatus.Booked)
+        continue;
+
+      if (transaction.Reference is not string reference) {
+        withoutReference++;
+
+        continue;
+      }
+
+      int position = nextPositionOn.GetValueOrDefault(transaction.Date);
+      nextPositionOn[transaction.Date] = position + 1;
+
+      kept.Add(new KeptTransaction(
+        reference,
+        transaction.Date,
+        position,
+        transaction.Amount,
+        transaction.Currency,
+        transaction.Counterparty,
+        transaction.PaymentDetails,
+        transaction.TypeCode));
+    }
+
+    return new ToKeep(kept, withoutReference);
+  }
 
   /// <summary>
   /// An older page (D1): the kept transactions dated before <paramref name="before"/>, in the order given (newest day

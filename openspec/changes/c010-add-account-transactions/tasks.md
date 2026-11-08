@@ -251,10 +251,10 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 33. [unit] Slice 15 — Keeping
 
-- [ ] 33.1 Settled transactions are kept with their position within their day, in the bank's order
-- [ ] 33.2 A settled transaction without a reference is not kept, and counted
-- [ ] 33.3 The newest page keeps the settled transactions of its whole read, days before the window included, and then names the window's start as where older ones are kept
-- [ ] 33.4 The newest page logs settled transactions without a reference as a warning with their count
+- [x] 33.1 Settled transactions are kept with their position within their day, in the bank's order
+- [x] 33.2 A settled transaction without a reference is not kept, and counted
+- [x] 33.3 The newest page keeps the settled transactions of its whole read, days before the window included, and then names the window's start as where older ones are kept
+- [x] 33.4 The newest page logs settled transactions without a reference as a warning with their count
 
 ## 34. [close] Slice 15 — A settled transaction stays in the history after the bank stops listing it
 
