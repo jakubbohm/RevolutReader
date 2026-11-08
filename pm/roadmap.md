@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description — see the change log in `pm/progress.md`)
 
 ---
 
@@ -274,6 +274,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
   - the balance kept on the phone ([ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)): written after every successful read, shown at once while the server wakes and when offline, deleted on sign-out;
   - the waiting screen (normal and slow) on the app's first request, `GET /api/me`, whatever the sign-in state, and the offline screens;
   - the bank's error states (bank unavailable, too many requests, bank link expired) and their single banner, which C7b's list joins;
+  - the 500 for unexpected errors: `app.UseExceptionHandler()`, so an unhandled exception (e.g. a `BankReadException`) answers a problem description, not an empty 500 (spec `api-errors`; moved here from C13, the user, 2026-11-08, change log; C13's research in its PR);
   - what the screen says when sign-out fails, whether a sign-out that fails offline still deletes the stored balance, and a busy state ([c007 design.md D5](../openspec/changes/archive/2026-11-08-c007-add-user-login/design.md), [#33](https://github.com/jakubbohm/RevolutReader/issues/33) finding 7).
 
   The screens and their states come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
