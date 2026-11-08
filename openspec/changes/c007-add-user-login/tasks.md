@@ -132,7 +132,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 7. [close] Slice 2 — An allowed user who signs in gets in
 
-- [ ] 7.1 The scenario's test passes, including the exact shape of `GET /api/me`. Verify: green, including sign-in / An allowed user who signs in gets in
+- [x] 7.1 The scenario's test passes, including the exact shape of `GET /api/me`. Verify: green, including sign-in / An allowed user who signs in gets in
 
 ## 8. [unit] Slice 3 — Allowlist
 
