@@ -273,7 +273,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 33. [wiring] Slice 14 — The no-access screen
 
-- [ ] 33.1 `Button` (primary, block), `Banner` (error tone, `role="alert"`) and `NoAccessScreen` from the "Sign-in / Access denied" board; refused → `NoAccessScreen` with the email. Verify: the scenario runs against the app; lint, format and typecheck pass
+- [x] 33.1 `Button` (primary, block), `Banner` (error tone, `role="alert"`) and `NoAccessScreen` from the "Sign-in / Access denied" board; refused → `NoAccessScreen` with the email. Verify: the scenario runs against the app; lint, format and typecheck pass
 
 ## 34. [close] Slice 14 — A refused account sees that it has no access
 

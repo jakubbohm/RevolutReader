@@ -3,6 +3,7 @@ import { needsInstallHint, type Device } from "./app/device";
 import { readSession, type Session } from "./app/session";
 import { AppShell } from "./components/AppShell";
 import { InstallHint } from "./components/InstallHint";
+import { NoAccessScreen } from "./screens/NoAccessScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 
 export interface AppProps {
@@ -16,8 +17,8 @@ export function App({ device }: AppProps): JSX.Element {
 
 /**
  * The screen picked from the server's first answer to who is signed in, asked once at start (c007 design.md D3): signed
- * out → the sign-in screen. Until the answer comes, and when it is unknown (offline, a server error), the empty frame
- * (D5); C7 hooks its waiting and offline screens onto this.
+ * out → the sign-in screen; refused → the no-access screen, naming the account. Until the answer comes, and when it is
+ * unknown (offline, a server error), the empty frame (D5); C7 hooks its waiting and offline screens onto this.
  */
 function Screens(): JSX.Element {
   const [session, setSession] = useState<Session>({ kind: "unknown" });
@@ -34,9 +35,12 @@ function Screens(): JSX.Element {
     };
   }, []);
 
-  return session.kind === "signed-out" ? (
-    <SignInScreen signedOut={session.justSignedOut} />
-  ) : (
-    <AppShell />
-  );
+  switch (session.kind) {
+    case "signed-out":
+      return <SignInScreen signedOut={session.justSignedOut} />;
+    case "refused":
+      return <NoAccessScreen email={session.email} />;
+    default:
+      return <AppShell />;
+  }
 }
