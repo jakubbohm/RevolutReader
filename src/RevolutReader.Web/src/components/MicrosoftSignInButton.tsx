@@ -25,7 +25,7 @@ export function MicrosoftSignInButton({
       type="button"
       onClick={onClick}
       aria-busy={loading || undefined}
-      className="relative inline-flex h-[41px] items-center gap-3 border border-ms-border bg-ms-surface px-3 font-['Segoe_UI',var(--font-sans)] text-[15px] leading-5 font-semibold text-ms-text transition-transform duration-(--duration-fast) ease-standard before:absolute before:inset-x-0 before:-inset-y-[2.5px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
+      className="relative inline-flex h-[41px] items-center gap-3 border border-ms-border bg-ms-surface px-3 font-['Segoe_UI',var(--font-sans)] text-[15px] leading-5 font-semibold text-ms-text transition-transform duration-(--duration-fast) ease-standard before:absolute before:inset-x-0 before:-inset-y-[2.5px] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-focus active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
     >
       <img
         src="/microsoft-logo.svg"
