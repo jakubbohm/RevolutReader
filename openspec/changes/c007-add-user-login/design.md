@@ -177,6 +177,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
 - **Heads-up for C7**, recorded in `pm/progress.md` at the close:
   - hook the waiting screen onto the app's first request, `GET /api/me`, whatever the sign-in state, so the sign-in path gets it too (the "Sign-in / Waiting" boards);
   - the server sleeps 5 minutes after the last request. If the sign-in screen stays open longer, tapping the button reaches a sleeping server and only the button's spinner shows for about 20 s, because a page can't show its own waiting screen while the browser leaves it. If that matters, the button can wake the server first (with the waiting screen) and then go to Microsoft.
+  - **a failed sign-out from the account menu shows nothing** (issue #33, finding 7; the owner, 2026-11-08: left to C7): offline or on an error, the menu closes and the account screen stays, with no message (C6 only avoids falsely saying "Odhlášení proběhlo"). C7 decides, together with the offline and error banners: what the screen says when the sign-out fails; whether a sign-out that fails offline still deletes the balance stored on the phone (ADR-0007, decision 4); and a busy state, since after the server has gone to sleep the tap shows nothing for about 20 s while it wakes.
 
 ### D6 — Test sign-in: a fake Microsoft in front of the real handlers
 
