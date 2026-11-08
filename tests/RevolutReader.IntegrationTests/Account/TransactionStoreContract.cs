@@ -13,8 +13,9 @@ namespace RevolutReader.IntegrationTests.Account;
 /// reads as no transactions; every field comes back as kept: the amount to the cent, an empty list of details as empty, a
 /// missing counterparty or type code as missing, a reference with <c>/</c>, <c>#</c>, <c>?</c> or <c>\</c>
 /// unchanged.</item>
-/// <item><c>Keep</c>: inserts or replaces each by its reference, so keeping one again leaves one with the latest values;
-/// keeping nothing changes nothing; more than 100 at once (Table Storage's limit for one batch) keeps them all.</item>
+/// <item><c>Keep</c>: inserts or replaces each by its reference, so keeping one again leaves one with the latest values,
+/// and a call naming one reference twice keeps the later entry; keeping nothing changes nothing; more than 100 at once
+/// (Table Storage's limit for one batch) keeps them all.</item>
 /// </list>
 /// Each test starts from a new, empty store of its own (<see cref="NewStore"/>: for the adapter, a table no other test
 /// uses) and keeps its own made-up transactions, with references of its own. The names are the spec's made-up ones.
@@ -120,6 +121,35 @@ public abstract class TransactionStoreContract {
       () => kept.Amount.ShouldBe(-12.40m),
       () => kept.Currency.ShouldBe("CZK"),
       () => kept.Counterparty.ShouldBeNull(),
+      () => kept.PaymentDetails.ShouldBeEmpty(),
+      () => kept.TypeCode.ShouldBeNull());
+  }
+
+  /// <summary>
+  /// One call of three, small enough for one batch: the same reference twice, the later entry differing in its day,
+  /// place, amount, counterparty, details and type code, and another transaction between them. Table Storage refuses a
+  /// whole batch that names one key twice (found in group 6), so the call must still succeed and keep the later entry
+  /// and the other transaction.
+  /// </summary>
+  [Test]
+  public async Task Keeping_the_same_reference_twice_in_one_call_keeps_the_later_one() {
+    ITransactionStore store = NewStore();
+
+    await store.Keep([
+      new KeptTransaction("e-751", _november18, Position: 0, Amount: -12.30m, Currency: "EUR", Counterparty: "Pekárna U Lípy", PaymentDetails: ["Praha 2"], TypeCode: "CARD_PAYMENT"),
+      Payment("e-752", _november18, position: 1),
+      new KeptTransaction("e-751", _november19, Position: 1, Amount: -8.90m, Currency: "EUR", Counterparty: "Kavárna Na Rohu", PaymentDetails: [], TypeCode: null),
+    ], CancellationToken.None);
+
+    IReadOnlyList<KeptTransaction> read = await store.ReadAll(CancellationToken.None);
+
+    read.Select(static transaction => transaction.Reference).ShouldBe(["e-751", "e-752"], "one transaction per reference, the later e-751 on 2026-11-19 first");
+    KeptTransaction kept = read[0];
+    kept.ShouldSatisfyAllConditions(
+      () => kept.Date.ShouldBe(_november19),
+      () => kept.Position.ShouldBe(1),
+      () => kept.Amount.ShouldBe(-8.90m),
+      () => kept.Counterparty.ShouldBe("Kavárna Na Rohu"),
       () => kept.PaymentDetails.ShouldBeEmpty(),
       () => kept.TypeCode.ShouldBeNull());
   }
