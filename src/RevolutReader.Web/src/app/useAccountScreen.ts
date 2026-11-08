@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
+import { watchRefreshTriggers } from "./refreshTriggers";
 import { shown, type Facts, type Shown } from "./screenState";
 import { readSession, signOut, type Session } from "./session";
 
@@ -17,9 +18,9 @@ export interface AccountScreenModel {
 /**
  * The account screen's sequence (c009 design.md D2, D3): at start, who is signed in (`GET /api/me`), then, only for a
  * signed-in user, the balance (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor
- * who gets the sign-in screen. "Obnovit" reads the balance again for a signed-in user. One read at a time: a refresh
- * asked for while a read is under way, the first one included, is ignored, not queued. What it learns becomes `Facts`,
- * and the screen is what `shown` makes of them.
+ * who gets the sign-in screen. "Obnovit" and every return to the screen (`watchRefreshTriggers`) read the balance again
+ * for a signed-in user. One read at a time: a refresh asked for while a read is under way, the first one included, is
+ * ignored, not queued. What it learns becomes `Facts`, and the screen is what `shown` makes of them.
  *
  * "Odhlásit se" signs out; once the server has confirmed it, the sign-in screen shows with its note that the sign-out
  * happened. A sign-out that failed (a server error, offline) leaves the visitor on the account screen, still signed in,
@@ -74,11 +75,23 @@ export function useAccountScreen(): AccountScreenModel {
     };
   }, [readOnce, takeIn]);
 
-  async function refreshTheBalance(): Promise<void> {
-    if (session === "waiting" || session.kind !== "signed-in") return;
+  const signedIn = session !== "waiting" && session.kind === "signed-in";
 
+  /** Reads the balance again and takes in what it brought, unless a read is under way. */
+  const readAgain = useCallback(async (): Promise<void> => {
     const read = await readOnce("refresh");
     if (read !== null) takeIn(read);
+  }, [readOnce, takeIn]);
+
+  // While signed in, every return to the screen reads the balance again (D3): no throttle, and a return during a read
+  // is ignored like any refresh then.
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    return watchRefreshTriggers(() => void readAgain());
+  }, [signedIn, readAgain]);
+
+  function refresh(): void {
+    if (signedIn) void readAgain();
   }
 
   async function signOutFromMenu(): Promise<void> {
@@ -104,7 +117,7 @@ export function useAccountScreen(): AccountScreenModel {
 
   return {
     shown: shown(facts),
-    refresh: () => void refreshTheBalance(),
+    refresh,
     retry: doNothingYet,
     signOut: () => void signOutFromMenu(),
   };

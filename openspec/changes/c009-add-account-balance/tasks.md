@@ -203,11 +203,11 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 24. [wiring] Slice 10 — Return to the app
 
-- [ ] 24.1 `watchRefreshTriggers` (return only so far), started and stopped by `useAccountScreen`. Verify: the scenario runs against the app
+- [x] 24.1 `watchRefreshTriggers` (return only so far), started and stopped by `useAccountScreen`. Verify: the scenario runs against the app
 
 ## 25. [close] Slice 10 — Coming back to the app reads the balance again
 
-- [ ] 25.1 The scenario's test passes. Verify: green, including account-balance / Coming back to the app reads the balance again
+- [x] 25.1 The scenario's test passes. Verify: green, including account-balance / Coming back to the app reads the balance again
 
 ## 26. [unit] Slice 11 — Offline, nothing stored
 
