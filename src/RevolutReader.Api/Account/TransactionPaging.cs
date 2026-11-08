@@ -44,22 +44,26 @@ public static class TransactionPaging {
   /// An older page (D1): the kept transactions dated before <paramref name="before"/>, in the order given (newest day
   /// first, by position within a day, as the store reads them), whole days added until the page holds at least
   /// <see cref="PAGE_SIZE"/> or nothing older is left; a day is never split, so a busy day makes the page longer.
-  /// <see cref="OlderPage.OlderBefore"/> is the page's oldest day (D10).
+  /// <see cref="OlderPage.OlderBefore"/> is the page's oldest day while something older is kept, and
+  /// <see langword="null"/> where the history ends: nothing older left, or nothing on the page at all (D10).
   /// </summary>
   public static OlderPage Older(IReadOnlyList<KeptTransaction> allNewestFirst, DateOnly before) {
     ArgumentNullException.ThrowIfNull(allNewestFirst);
 
     List<KeptTransaction> page = [];
+    bool olderKept = false;
 
     foreach (IGrouping<DateOnly, KeptTransaction> day in allNewestFirst.Where(transaction => transaction.Date < before).GroupBy(static transaction => transaction.Date)) {
-      if (page.Count >= PAGE_SIZE)
+      if (page.Count >= PAGE_SIZE) {
+        olderKept = true;
+
         break;
+      }
 
       page.AddRange(day);
     }
 
-    // The page's oldest day whether or not anything older is kept, for now: slice 14 says when nothing older is.
-    return new OlderPage(page, page.Count == 0 ? null : page[^1].Date);
+    return new OlderPage(page, olderKept ? page[^1].Date : null);
   }
 }
 
