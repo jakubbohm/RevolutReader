@@ -3,6 +3,7 @@ import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
 import { shown, type Facts, type Problem, type Shown } from "./screenState";
 import { readSession, signOut, type Session } from "./session";
+import { loadStoredBalance } from "./storedBalance";
 
 /** The phone is offline: what the phone said, or a request that got no answer (D2). */
 const OFFLINE: Problem = { kind: "offline" };
@@ -19,9 +20,9 @@ export interface AccountScreenModel {
 }
 
 /**
- * The account screen's sequence (c009 design.md D2, D3): at start, who is signed in (`GET /api/me`), then, only for a
- * signed-in user, the balance (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor
- * who gets the sign-in screen. "Obnovit" and every return to the screen (`watchRefreshTriggers`) read the balance again
+ * The account screen's sequence (c009 design.md D2, D3, D4): at start, the balance the phone keeps, shown at once until
+ * a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
+ * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. "Obnovit" and every return to the screen (`watchRefreshTriggers`) read the balance again
  * for a signed-in user. One read at a time: a refresh asked for while a read is under way, the first one included, is
  * ignored, not queued. What it learns becomes `Facts`, and the screen is what `shown` makes of them.
  *
@@ -31,6 +32,7 @@ export interface AccountScreenModel {
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
+  const [stored, setStored] = useState<Balance | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -63,6 +65,12 @@ export function useAccountScreen(): AccountScreenModel {
   useEffect(() => {
     let showing = true;
 
+    // What the phone keeps shows at once, before any answer (D2); a failing store reads as none.
+    async function loadStored(): Promise<void> {
+      const kept = await loadStoredBalance();
+      if (showing) setStored(kept);
+    }
+
     async function start(): Promise<void> {
       const answer = await readSession();
       if (!showing) return;
@@ -74,6 +82,7 @@ export function useAccountScreen(): AccountScreenModel {
       if (showing && read !== null) takeIn(read);
     }
 
+    void loadStored();
     void start();
 
     return () => {
@@ -112,8 +121,8 @@ export function useAccountScreen(): AccountScreenModel {
 
   const facts: Facts = {
     session,
-    stored: null,
-    balance,
+    stored,
+    balance: balance ?? stored,
     reading,
     wait: "short",
     wokeUp: false,

@@ -57,8 +57,9 @@ export type ShownAccount = Extract<Shown, { screen: "account" }>;
  * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7). Nobody signed in: the sign-in
  * screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the server
  * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
- * with no header, the empty frame. Offline with nothing to show, the offline state is the whole screen under the top
- * bar, in place of the header and the banner (D2; app-shell).
+ * with no header, the empty frame. Offline (D2; app-shell): with nothing to show, the offline state is the whole screen
+ * under the top bar, in place of the header and the banner; with a balance, its header, the offline banner and the
+ * offline note in the list's place (D7 a).
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -67,7 +68,8 @@ export function shown(facts: Facts): Shown {
   if (session !== "waiting" && session.kind === "refused")
     return { screen: "no access", email: session.email };
 
-  if (facts.balance === null && isOffline(facts))
+  const offline = isOffline(facts);
+  if (facts.balance === null && offline)
     return {
       screen: "account",
       account: accountOf(session),
@@ -83,11 +85,14 @@ export function shown(facts: Facts): Shown {
     screen: "account",
     account: accountOf(facts.session),
     header,
-    banner: facts.problem,
-    body: header === null ? "empty" : "list",
+    banner: offline ? OFFLINE : facts.problem,
+    body: offline ? "offline note" : header === null ? "empty" : "list",
     signingOut: facts.signingOut,
   };
 }
+
+/** The offline banner's problem, whichever request found the phone offline. */
+const OFFLINE: Problem = { kind: "offline" };
 
 /** Whether the phone is offline as far as the screen knows (D2): who is signed in found it so, or the offline problem is on record. */
 function isOffline(facts: Facts): boolean {

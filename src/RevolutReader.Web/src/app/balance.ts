@@ -76,8 +76,11 @@ export async function readBalance(options?: {
   }
 }
 
-/** The balance, when the body has its shape: the amount and the rate as numbers, the read time as a date and time. */
-function balanceOf(body: unknown): Balance | null {
+/**
+ * The balance, when the value has its shape: the amount and the rate as numbers, the read time as a date and time; only
+ * those three. For the API's answer and for the record the phone keeps (c009 design.md D4).
+ */
+export function balanceOf(body: unknown): Balance | null {
   if (typeof body !== "object" || body === null) return null;
   if (!("amount" in body && "readAt" in body && "czkPerEur" in body))
     return null;

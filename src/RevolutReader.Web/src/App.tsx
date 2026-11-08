@@ -20,7 +20,7 @@ export function App({ device }: AppProps): JSX.Element {
  * when nobody is signed in, the no-access screen for a refused account, otherwise the account screen.
  */
 function Screens(): JSX.Element {
-  const { shown, refresh, signOut } = useAccountScreen();
+  const { shown, refresh, retry, signOut } = useAccountScreen();
 
   switch (shown.screen) {
     case "sign-in":
@@ -29,7 +29,12 @@ function Screens(): JSX.Element {
       return <NoAccessScreen email={shown.email} />;
     case "account":
       return (
-        <AccountScreen shown={shown} onRefresh={refresh} onSignOut={signOut} />
+        <AccountScreen
+          shown={shown}
+          onRefresh={refresh}
+          onRetry={retry}
+          onSignOut={signOut}
+        />
       );
   }
 }

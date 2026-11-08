@@ -226,25 +226,25 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 29. [unit] Slice 12 — The stored balance
 
-- [ ] 29.1 With nothing stored, loading gives none
-- [ ] 29.2 A stored balance loads back as it was stored
-- [ ] 29.3 Storing replaces the balance stored before
-- [ ] 29.4 A stored record of the wrong shape loads as none
-- [ ] 29.5 A store that fails loads as none, and storing or forgetting into it does not throw
-- [ ] 29.6 After forgetting, loading gives none
-- [ ] 29.7 Offline with a stored balance, the screen shows its header, the offline banner and the note in the list's place
-- [ ] 29.8 A warning banner is announced as a status, an error banner as an alert
-- [ ] 29.9 A banner's action is a button under its text, and a loading action ignores taps
+- [x] 29.1 With nothing stored, loading gives none
+- [x] 29.2 A stored balance loads back as it was stored
+- [x] 29.3 Storing replaces the balance stored before
+- [x] 29.4 A stored record of the wrong shape loads as none
+- [x] 29.5 A store that fails loads as none, and storing or forgetting into it does not throw
+- [x] 29.6 After forgetting, loading gives none
+- [x] 29.7 Offline with a stored balance, the screen shows its header, the offline banner and the note in the list's place
+- [x] 29.8 A warning banner is announced as a status, an error banner as an alert
+- [x] 29.9 A banner's action is a button under its text, and a loading action ignores taps
 
 ## 30. [wiring] Slice 12 — The stored balance offline
 
-- [ ] 30.1 `storedBalance.ts` on `idb-keyval`, its own database and store (design.md D4); `useAccountScreen` loads it at start. Verify: group 29's storage tests pass
-- [ ] 30.2 `Banner`'s info and warning tones, `action` and `icon` (design.md D10); the offline banner with "Zkusit znovu" and the note. Verify: the scenario runs against the app
-- [ ] 30.3 Docs: ADR-0007, a dated note: the rate in the record, `idb-keyval`, no owner, no expiry, a failing store as none (deletion on 401/403 follows in slice 25). Verify: it matches design.md D4
+- [x] 30.1 `storedBalance.ts` on `idb-keyval`, its own database and store (design.md D4); `useAccountScreen` loads it at start. Verify: group 29's storage tests pass
+- [x] 30.2 `Banner`'s info and warning tones, `action` and `icon` (design.md D10); the offline banner with "Zkusit znovu" and the note. Verify: the scenario runs against the app
+- [x] 30.3 Docs: ADR-0007, a dated note: the rate in the record, `idb-keyval`, no owner, no expiry, a failing store as none (deletion on 401/403 follows in slice 25). Verify: it matches design.md D4
 
 ## 31. [close] Slice 12 — Offline with a stored balance shows it with the offline banner
 
-- [ ] 31.1 The scenario's test passes. Verify: green, including app-shell / Offline with a stored balance shows it with the offline banner
+- [x] 31.1 The scenario's test passes. Verify: green, including app-shell / Offline with a stored balance shows it with the offline banner
 
 ## 32. [wiring] Slice 13 — Keeping what was read
 
