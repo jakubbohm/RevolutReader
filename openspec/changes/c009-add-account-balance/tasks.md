@@ -450,8 +450,13 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## Workflow follow-up
 
-- Archive with `/opsx:archive` in the same PR, before its merge, as C5 and C6 did. The traceability check must pass first.
-- The owner reviews and squash-merges the PR `feat: add the account balance (C7a)`, which closes #41. C7b rebases on it afterwards (roadmap § Working in parallel, item 4).
+A change's path after its `[close]` commit (workflow.md § 6, from #56):
+
+- The push and a draft PR `feat: add the account balance (C7a)`, closing #41, on the owner's go, opened by Claude.
+- The owner runs `/code-review xhigh --comment` on the PR.
+- `/triage-review <PR>` works through the findings (testing.md § Code review after the apply). The test-writer's and implementer's agent IDs in `.tdd-state.md` must be current, because its fix round resumes them.
+- Archive with `/opsx:archive` on the branch, before the merge. The traceability check must pass first.
+- The owner marks the PR ready and squash-merges it. C7b rebases on it afterwards (roadmap § Working in parallel, item 4).
 - After the merge (design.md § Migration plan, step 4):
   - the deploy and its checks;
   - the balance at the production address;

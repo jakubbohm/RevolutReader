@@ -72,6 +72,7 @@
 - **Currency:** not in the answer. The account is a euro account, so a balance in any other currency is a bug: the handler throws `InvalidOperationException` and the answer is a 500. The message names neither the amount nor the currency (docs/conventions/README.md, never log bank data). Unit-tested, no scenario.
 - **The present user:** the endpoint reads it with C13's `PresentUserFromRequest.Read`. When that returns `null`, the endpoint answers C13's `BankAnswers.NoPresentUser()` (400, ASP.NET Core's default `type`, title "Bad Request") and never calls the handler, so nothing is read unattended in its place (C13's rule, the user, 2026-11-08). C13's `ProducesBankProblems()` declares that 400 together with the 429 and 503, so the endpoint's description adds no 400 of its own (C13's message, 2026-11-08).
 - **Bank failures:** C13's rules map `BankAccessExpired`, `BankRateLimited` and `BankUnavailable` to their problem descriptions. Clients compare `type` exactly, as written (a relative path, never resolved), because two cases share 503, and the ingress and Vite's dev server answer 502, 503 and 504 in plain text when the app is down.
+- **The bank problems in the contract** (C13's message, 2026-11-08): `ProducesBankProblems()` describes the 429 and 503 bodies as C13's `BankProblem`, whose `type` is required and limited to the enum `BankProblemType` (exactly the three strings). Once this endpoint calls it and the client is regenerated, `schema.d.ts` carries it as `components["schemas"]["RevolutReaderApiAccountBankProblem"]`. *(propose)* `readBalance` types a 429 or 503 body by that schema and compares `type` against its enum's literals, so a type renamed on either side fails the type check or CI's drift check instead of reading silently as unexpected.
 - **The 500** (C13's research, checked against the ASP.NET Core 11 RC3 sources and a scratch copy of the API):
   - `app.UseExceptionHandler()` with no arguments (`AddProblemDetails` is already registered), placed directly after `app.UseStatusCodePages()` and before `app.UseAppPages()`; forwarded headers stay first;
   - it answers 500 `application/problem+json` with the title "Internal Server Error", RFC 9110's `type` and a `traceId`, and no exception text;
@@ -276,7 +277,8 @@ public static class BalanceRegistration {
 
 // C13, its branch's names on 2026-11-08 (confirmed or replaced at the bootstrap, once merged):
 // PresentUserFromRequest.Read(HttpContext) → PresentUser?; BankAnswers.NoPresentUser() (the 400) and the bank failure →
-// problem description rules; ProducesBankProblems() (declares 400, 429, 503); the rate constant (24.3).
+// problem description rules; ProducesBankProblems() (declares 400 as a plain problem description, 429 and 503 as
+// BankProblem, whose type is the enum BankProblemType of the three strings); the rate constant (24.3).
 
 // Program.cs order: UseForwardedHeadersFromIngress → UseStatusCodePages → UseExceptionHandler → UseAppPages →
 // MapApiNotFound → UseSignIn → UseFastEndpoints. Services: AddBalance() after AddEnableBanking().
@@ -332,7 +334,8 @@ public sealed class BalanceDsl(BalanceDriver driver) {
 export interface Balance { amount: number; readAt: string; czkPerEur: number }   // as answered and as kept; readAt ISO 8601
 export type BalanceRead =
   | { kind: "read"; balance: Balance }
-  | { kind: "bank access expired" } | { kind: "bank rate limited" } | { kind: "bank unavailable" }   // by `type`, exactly
+  | { kind: "bank access expired" } | { kind: "bank rate limited" } | { kind: "bank unavailable" }   // by `type`, exactly,
+                                                    // typed from the schema's RevolutReaderApiAccountBankProblem (D1)
   | { kind: "signed out" }                          // 401
   | { kind: "refused"; email: string | null }       // 403
   | { kind: "unexpected" }                          // any other answer, or a body that is not a balance
