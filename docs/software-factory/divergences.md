@@ -4,7 +4,7 @@
 
 Where RevolutReader knowingly runs a cut-down version of what the software factory recommends for a real, long-lived project: the full version in [lessons.md](lessons.md) or in DoseUp's catalog (`D:\source\jakubbohm\DoseUp\docs\software-factory.md`). Each entry says what RevolutReader does instead, why, what it gives up, and when it would switch back.
 
-Read it whenever the project's constraints change: it lives longer than planned, gets more screens or users, or is brought back after decommissioning (roadmap D1). Every entry whose *Switch back when* now holds is a candidate for a change.
+Read it whenever the project's constraints change: it lives longer than planned, gets more screens or users, or is brought back after decommissioning (roadmap D1). Every entry whose *Switch back when* now holds is a candidate for a change. An entry whose cut-down sits in a reusable kit also gets its full version built before the handover, whatever its *Switch back when* says (roadmap step SF1, [workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)).
 
 ## What goes in
 
