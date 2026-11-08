@@ -150,6 +150,11 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+  /* Tailwind v4's Preflight resets buttons to the default cursor; the design system gives every control a pointer. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* A plain box-shadow from the variable, so the dark value (none included) applies. Not combined with ring-* or shadow-<colour>. */
@@ -161,4 +166,17 @@
 }
 @utility shadow-sheet {
   box-shadow: var(--shadow-sheet);
+}
+
+/*
+ * A fade in over duration-fast, as the design system's menu opens (its `tp-fade`). It stays under reduced motion:
+ * a fade is not a movement (design system README, Reduced motion).
+ */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@utility animate-fade-in {
+  animation: fade-in var(--duration-fast) var(--ease-standard);
 }

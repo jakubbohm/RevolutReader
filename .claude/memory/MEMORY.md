@@ -9,6 +9,10 @@
 - [Azure grants are run by the owner](azure-grants-run-by-owner.md) — the classifier blocks Claude's role assignments even with a go; hand over the exact PowerShell block, then check read-only
 - [Orchestrate, subagents implement](orchestrate-with-subagents.md) — in long fix rounds the main session explains, decides with the user and verifies; subagents edit; state to a scratchpad file before compaction
 - [Git Bash sed breaks CRLF](git-bash-sed-crlf.md) — sed -i rewrites .cs files as LF; use the Edit tool, then the whitespace check
+- [Parallel PRs and squash merges](parallel-prs-squash-merge.md) — merge the earlier PR's tip before it squashes; after it, take your side and prove the delta is unchanged
+- [az.cmd mangles & and ( )](az-cmd-mangles-arguments.md) — page ARM lists with Invoke-RestMethod; filter by principalId, not --assignee
+- [PowerShell bulk-replace pitfalls](powershell-bulk-replace-pitfalls.md) — one-pair arrays flatten, comma beats +; prefer Edit, check diff --stat
+- [Aspire from a worktree](aspire-worktree-isolated-check.md) — `aspire start --isolated`; a throwaway check passes Parameters__* env vars, never writes the shared user-secrets
 - [Personal data: public vs private](public-vs-private-personal-data.md) — public places: no personal data, bank data or secrets; private telemetry: personal data fine, secrets never, bank data only by a recorded decision
 - [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup
 - [Tickets are GitHub issues](tickets-are-github-issues.md) — no Jira in this project; "ticket"/"Jira ticket" means a GitHub issue here; never touch the employer's Atlassian site

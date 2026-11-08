@@ -21,6 +21,20 @@ public sealed class HealthDriver {
   public async Task<HealthAnswer> GetHealth() {
     using HttpResponseMessage response = await _http.GetAsync(new Uri(PATH, UriKind.Relative));
 
+    return await AnswerOf(response);
+  }
+
+  /// <summary>The health check, carrying <paramref name="header"/> once per value, each on its own line (<see cref="HeaderLines"/>).</summary>
+  public async Task<HealthAnswer> GetHealthWithHeaderLines(string header, params string[] values) {
+    using HttpRequestMessage request = new(HttpMethod.Get, new Uri(PATH, UriKind.Relative));
+    HeaderLines.AddEachOnItsOwnLine(request.Headers, header, values);
+
+    using HttpResponseMessage response = await _http.SendAsync(request);
+
+    return await AnswerOf(response);
+  }
+
+  private static async Task<HealthAnswer> AnswerOf(HttpResponseMessage response) {
     if (response.StatusCode != HttpStatusCode.OK)
       return HealthAnswer.NotHealthy;
 

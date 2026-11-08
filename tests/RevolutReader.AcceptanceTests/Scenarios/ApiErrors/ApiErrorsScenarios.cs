@@ -8,4 +8,7 @@ namespace RevolutReader.AcceptanceTests.Scenarios.ApiErrors;
 public sealed class ApiErrorsScenarios : AcceptanceTest {
   [Test, Scenario("api-errors", "Unknown API address answers with a problem description")]
   public async Task Unknown_API_address_answers_with_a_problem_description() => (await Api.AskForAnAddressThatDoesNotExist()).ShouldBe(ProblemDescription.NotFound);
+
+  [Test, Scenario("api-errors", "A write to an unknown API address answers with a problem description")]
+  public async Task A_write_to_an_unknown_API_address_answers_with_a_problem_description() => (await Api.SendAWriteToAnAddressThatDoesNotExist()).ShouldBe(ProblemDescription.NotFound);
 }

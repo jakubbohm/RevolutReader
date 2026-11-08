@@ -1,6 +1,6 @@
 # ADR-0004: Account allowlist — personal Microsoft accounts checked against an email list kept out of the repo
 
-**Status:** Accepted (the user's decision, 2026-11-05) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M2, M4, C6 · **Questions:** Q1
+**Status:** Accepted (the user's decision, 2026-11-05); amended 2026-11-08 in C6: the list's format, no email in logs, a refused sign-in logged once (Decision, item 7) · **Date:** 2026-11-05 · **Roadmap:** F0-2; applied in M2, M4, C6 · **Questions:** Q1
 
 > Findings verified on 2026-11-05 against the sources linked with each one.
 
@@ -38,6 +38,10 @@ Decided by the user, 2026-11-05:
 4. **Key Vault holds secrets and other values that must not be public.** This widens the kickoff's "Key Vault is for secrets only" (the user: a value kept out of the repo is effectively a secret anyway).
 5. **Automated tests use made-up addresses that the harness sets.** The real list never reaches tests, CI or GitHub: there is no GitHub secret for it, and GitHub Actions does not read Key Vault.
 6. **No invitations, no External ID, no Apple.**
+7. **How the list is written, checked and logged** *(amended in C6, 2026-11-08, with the user in explore; c007 design.md D3, D8)*:
+   - **One comma-separated value**, the setting `SignIn:AllowedEmails` (Key Vault `SignIn--AllowedEmails`). Entries are trimmed and compared ignoring case. At start the app refuses a list with no entry, an empty entry, or an entry that is not text, one `@`, text; the message names the setting, never an address. An array setting was rejected: from Key Vault each address would be its own secret, and adding a person would mean a code change.
+   - **Sign-in is not refused; every request is.** Any valid personal Microsoft account gets the login cookie. Every API request then checks the `email` claim against the list: a stranger gets 403, and the problem description names their own email, so the page can say which account has no access. An account without an email claim is not allowed. Removing someone takes effect on their next request once the app restarts with the new list.
+   - **No email address in any log line.** A sign-in by an account not on the list is logged once, as the warning `SignInRefused`, with the account's opaque pairwise subject (`sub`), so repeated attempts can be grouped. The per-request 403s are not warned.
 
 ## Alternatives considered
 

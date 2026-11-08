@@ -19,6 +19,13 @@ public sealed class PagesDriver {
   public async Task<PageAnswer> GetPage(string path) {
     using HttpResponseMessage response = await _http.GetAsync(new Uri(path, UriKind.Relative));
 
+    return await ReadPage(response);
+  }
+
+  /// <summary>What <paramref name="response"/> answered, by the rule above; also for <see cref="SignInDriver"/>'s landing.</summary>
+  public static async Task<PageAnswer> ReadPage(HttpResponseMessage response) {
+    ArgumentNullException.ThrowIfNull(response);
+
     if (response.StatusCode != HttpStatusCode.OK)
       return PageAnswer.SomethingElse;
 

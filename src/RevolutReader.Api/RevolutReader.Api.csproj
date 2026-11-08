@@ -2,10 +2,20 @@
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
+    <!-- The XML doc file is still built (IDE0005 needs it, Directory.Build.props) but never copied next to the
+         assembly: FastEndpoints.OpenApi reads it from there and would copy doc comments into openapi.json. The API
+         description's texts are set in code instead, so editing a doc comment never changes the contract (c007 D9). -->
+    <CopyDocumentationFileToOutputDirectory>false</CopyDocumentationFileToOutputDirectory>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" />
+    <PackageReference Include="Azure.Identity" />
     <PackageReference Include="FastEndpoints" />
+    <PackageReference Include="FastEndpoints.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
   <ItemGroup>

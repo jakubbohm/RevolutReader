@@ -19,7 +19,6 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item>A received request's user headers are <c>Psu-Ip-Address</c> and <c>Psu-User-Agent</c>; a request carrying no
 /// <c>Psu-*</c> header at all has none (<see cref="RequestAtBank.WithoutUserHeaders"/>).</item>
 /// </list>
-/// Filled in by the wiring groups; until then every method throws.
 /// </summary>
 public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// <summary>As the API reference writes a calendar date.</summary>

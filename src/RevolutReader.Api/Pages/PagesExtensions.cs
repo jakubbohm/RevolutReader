@@ -4,7 +4,8 @@ namespace RevolutReader.Api.Pages;
 
 /// <summary>
 /// Serves the app's pages from the web root (spec app-delivery, c003 design.md D5). In production the web root holds the
-/// frontend build (ADR-0002); locally it is empty, and Aspire's <c>web</c> resource serves the pages (D11).
+/// frontend build (ADR-0002); locally it is empty, and Aspire's <c>web</c> resource serves the pages (D11). The addresses
+/// under <c>/api</c> are the API's: an unknown one answers 404 (<see cref="MapApiNotFound"/>).
 /// </summary>
 public static class PagesExtensions {
   /// <summary>
@@ -14,6 +15,12 @@ public static class PagesExtensions {
   /// </summary>
   private const string PAGE_ADDRESS = "{*path:regex(^(?!api(/|$)).*$):nonfile}";
 
+  /// <summary>The API's catch-all route: every address under <c>/api</c>.</summary>
+  private const string API_ADDRESS = "/api/{**path}";
+
+  /// <summary>The catch-all's name (c007 design.md D3).</summary>
+  private const string API_NOT_FOUND = "ApiNotFound";
+
   /// <summary>The app's page in the web root.</summary>
   private const string START_PAGE = "index.html";
 
@@ -21,10 +28,10 @@ public static class PagesExtensions {
   /// The app's pages: default and static files from the web root, so <c>/</c> gets its <c>index.html</c> and every
   /// existing file is served as it is; then the page fallback, which answers every other page address with
   /// <c>index.html</c>, so the app opens at any address of its own. The files are middleware; the fallback is a route
-  /// endpoint for <c>GET</c> and <c>HEAD</c>, listed on the anonymous-endpoint allowlist. With sign-in (C6) the fallback
-  /// must stay anonymous and the files must run before authorization, because the sign-in screen is one of these pages.
-  /// Both share one set of file options, so every file they send carries the caching rule of <see cref="PageCaching"/>.
-  /// Call it after <c>UseStatusCodePages</c> and before <c>UseFastEndpoints</c>.
+  /// endpoint for <c>GET</c> and <c>HEAD</c>, anonymous and listed on the anonymous-endpoint allowlist, and the files run
+  /// before sign-in's authorization, because the sign-in screen is one of these pages (c007 design.md D3). Both share one
+  /// set of file options, so every file they send carries the caching rule of <see cref="PageCaching"/>. Call it after
+  /// <c>UseStatusCodePages</c> and before <c>UseSignIn</c>.
   /// </summary>
   public static WebApplication UseAppPages(this WebApplication app) {
     ArgumentNullException.ThrowIfNull(app);
@@ -33,9 +40,35 @@ public static class PagesExtensions {
 
     app.UseDefaultFiles();
     app.UseStaticFiles(files);
-    app.MapFallbackToFile(PAGE_ADDRESS, START_PAGE, files);
+    app.MapFallbackToFile(PAGE_ADDRESS, START_PAGE, files).AllowAnonymous();
 
     return app;
+  }
+
+  /// <summary>
+  /// <c>ApiNotFound</c> (spec api-errors, c007 design.md D3): every address under <c>/api</c> that no endpoint serves
+  /// answers 404 without a body, whatever its method and whether or not the caller is signed in, and
+  /// <c>UseStatusCodePages</c> writes the problem description <c>Not Found</c>. Without it, a write to an unknown address
+  /// would land on the router's "405 method not allowed" rejection, which the fallback policy turns into 401 for anonymous
+  /// callers. A fallback for every method, so every real address wins over it, also for a wrong method on a real address
+  /// (<c>POST /api/me</c> answers 404 too). Anonymous and on the anonymous-endpoint allowlist: it can only answer 404.
+  /// Left out of the API description.
+  /// </summary>
+  public static WebApplication MapApiNotFound(this WebApplication app) {
+    ArgumentNullException.ThrowIfNull(app);
+
+    app.MapFallback(API_ADDRESS, AnswerNotFound)
+      .WithDisplayName(API_NOT_FOUND)
+      .AllowAnonymous()
+      .ExcludeFromDescription();
+
+    return app;
+  }
+
+  private static Task AnswerNotFound(HttpContext context) {
+    context.Response.StatusCode = StatusCodes.Status404NotFound;
+
+    return Task.CompletedTask;
   }
 
   /// <summary>
