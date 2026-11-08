@@ -402,7 +402,7 @@ export function shown(facts: Facts): Shown;
 // the 60 s cap on a refresh; the stored record loaded at start, written after a read, forgotten on 401/403 and a
 // confirmed sign-out; "Zkusit znovu" repeats what failed.
 export function useAccountScreen(): {
-  shown: Shown; refresh(): void; retry(): void; signOut(): void;
+  shown: Shown; refresh(): void; retry(): void; signOut(): Promise<void>;   // signOut never rejects; the menu closes when it settles
 };
 
 // refreshTriggers.ts — return to the screen (the document's visibilitychange to visible) and back online (the window's
@@ -423,7 +423,7 @@ export function pingServer(): void;   // fetch("/health"), never awaited, failur
 // Banner({ tone: "info" | "warning" | "error", title?, children?, action?: { label, onClick, loading? }, icon?: "wifi-off" })
 // Button({ …, variant?: "primary" | "secondary" | "ghost", icon? })
 // WakingUp({ slow, onRetry })   Skeleton({ variant: "balance" })   EmptyState({ variant?: "default" | "note", title?, children, icon? })
-// AccountMenu({ account, onSignOut, signingOut? })   AppShell passes signingOut through
+// AccountMenu({ account, onSignOut, signingOut? }), onSignOut returning a promise   AppShell passes signingOut through
 // AccountScreen({ shown, onRefresh, onRetry, onSignOut })   App: install hint, else the screen useAccountScreen picks
 
 // ---- src/RevolutReader.Web/src/test (the test-writer's, group 1) ----
