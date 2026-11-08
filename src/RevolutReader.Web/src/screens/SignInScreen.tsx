@@ -1,4 +1,4 @@
-import { useState, type JSX } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { startSignIn } from "../app/session";
 import { MicrosoftSignInButton } from "../components/MicrosoftSignInButton";
 
@@ -11,10 +11,24 @@ export interface SignInScreenProps {
  * The screen when nobody is signed in (spec sign-in, laid out as the Screens board "Sign-in / Start", light and dark;
  * c007 design.md D12): no top bar; the app icon and its Spanish name with one line about the app, centred; the
  * Microsoft sign-in button and its muted line at the bottom, above the home-indicator inset. Tapping the button starts
- * the sign-in, and the button shows it is loading while the page leaves for Microsoft; a second tap does nothing.
+ * the sign-in, and the button shows it is loading while the page leaves for Microsoft; a second tap does nothing. When
+ * the visitor comes back with the browser's back button and the page is restored from the back-forward cache, the
+ * button is ready again.
  */
 export function SignInScreen(_props: SignInScreenProps): JSX.Element {
   const [leaving, setLeaving] = useState(false);
+
+  useEffect(() => {
+    function restored(event: PageTransitionEvent): void {
+      if (event.persisted) setLeaving(false);
+    }
+
+    window.addEventListener("pageshow", restored);
+
+    return () => {
+      window.removeEventListener("pageshow", restored);
+    };
+  }, []);
 
   function signIn(): void {
     if (leaving) return;
