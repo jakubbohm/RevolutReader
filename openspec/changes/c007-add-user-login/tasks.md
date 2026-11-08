@@ -231,11 +231,11 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 25. [close] Slice 10 — A login unused for 30 days has ended
 
-- [ ] 25.1 The scenario's test passes. Verify: green, including sign-in / A login unused for 30 days has ended
+- [x] 25.1 The scenario's test passes. Verify: green, including sign-in / A login unused for 30 days has ended
 
 ## 26. [close] Slice 11 — Using the app keeps the login alive
 
-- [ ] 26.1 The scenario's test passes with slice 2's sliding renewal; if not, fix the cookie settings here. Verify: green, including sign-in / Using the app keeps the login alive
+- [x] 26.1 The scenario's test passes with slice 2's sliding renewal; if not, fix the cookie settings here. Verify: green, including sign-in / Using the app keeps the login alive
 
 ## 27. [unit] Slice 12 — Session
 
