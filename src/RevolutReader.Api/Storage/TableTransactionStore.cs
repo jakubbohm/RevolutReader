@@ -65,7 +65,9 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
 
   /// <summary>
   /// Upserts each row whole, replacing a row with the same key rather than merging into it, in transactions of at most
-  /// <see cref="MOST_PER_BATCH"/>, in the order given; not atomic across them. Nothing to keep: no request at all.
+  /// <see cref="MOST_PER_BATCH"/>, in the order given; not atomic across them. A reference named twice is kept once, with
+  /// the later values, as keeping them one after the other would leave it: a transaction naming a key twice is refused
+  /// whole. Nothing to keep: no request at all.
   /// </summary>
   public async Task Keep(IReadOnlyList<KeptTransaction> transactions, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(transactions);
@@ -75,7 +77,12 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
 
     await TableCreated(cancellationToken);
 
-    foreach (KeptTransaction[] batch in transactions.Chunk(MOST_PER_BATCH))
+    // Distinct references have distinct keys: the escaping escapes the % it writes, so it never maps two onto one.
+    IEnumerable<KeptTransaction> latest = transactions
+      .GroupBy(static transaction => transaction.Reference, StringComparer.Ordinal)
+      .Select(static named => named.Last());
+
+    foreach (KeptTransaction[] batch in latest.Chunk(MOST_PER_BATCH))
       await _table.SubmitTransactionAsync([.. batch.Select(static transaction => new TableTransactionAction(TableTransactionActionType.UpsertReplace, Row(transaction)))], cancellationToken);
   }
 
