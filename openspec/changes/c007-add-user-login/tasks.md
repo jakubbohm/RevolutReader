@@ -285,7 +285,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 36. [close] Slice 15 — Trying another account signs out and starts a new sign-in
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including sign-in / Trying another account signs out and starts a new sign-in
+- [x] 36.1 The scenario's test passes. Verify: green, including sign-in / Trying another account signs out and starts a new sign-in
 
 ## 37. [wiring] Slice 16 — The account menu
 
