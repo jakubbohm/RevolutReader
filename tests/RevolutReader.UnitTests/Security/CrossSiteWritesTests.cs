@@ -63,7 +63,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("OPTIONS")]
   [Arguments("get")]
   public void A_read_passes_whatever_its_headers(string method) =>
-    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), headers.SecFetchSite, headers.Origin, APP))
+    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), Received(headers.SecFetchSite), Received(headers.Origin), APP))
       .ShouldBeEmpty($"{method} refused with these headers");
 
   [Test]
@@ -73,7 +73,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("DELETE", APP)]
   [Arguments("POST", null)] // a page's write without an Origin header
   public void A_write_from_the_apps_own_page_is_allowed(string method, string? origin) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), SAME_ORIGIN, origin, APP).ShouldBeTrue();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), Received(SAME_ORIGIN), Received(origin), APP).ShouldBeTrue();
 
   [Test]
   [Arguments("POST")]
@@ -81,7 +81,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("PATCH")]
   [Arguments("DELETE")]
   public void A_write_the_user_started_directly_is_allowed(string method) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), NONE, origin: null, APP).ShouldBeTrue();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), Received(NONE), origin: StringValues.Empty, APP).ShouldBeTrue();
 
   [Test]
   [Arguments("POST", SAME_SITE, NEIGHBOUR)]
@@ -92,7 +92,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("POST", "Same-Site", NEIGHBOUR)] // the value in other letter case is still not same-origin or none
   [Arguments("POST", SAME_SITE, APP)] // Sec-Fetch-Site decides when present; the Origin cannot overrule it
   public void A_write_from_a_neighbouring_site_on_the_same_domain_is_refused(string method, string secFetchSite, string origin) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite, origin, APP).ShouldBeFalse();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), Received(secFetchSite), Received(origin), APP).ShouldBeFalse();
 
   [Test]
   [Arguments("POST", SIGN_OUT, CROSS_SITE)]
@@ -105,7 +105,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("POST", "/api/no-such-address", CROSS_SITE)] // an address nothing serves is still under /api
   [Arguments("POST", $"{SIGN_IN_RETURN}/more", CROSS_SITE)] // only the sign-in return itself is exempt, not what lies below it
   public void A_write_from_another_site_is_refused(string method, string path, string secFetchSite) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(path), secFetchSite, OTHER_SITE, APP).ShouldBeFalse();
+    CrossSiteWrites.IsAllowed(method, new PathString(path), Received(secFetchSite), Received(OTHER_SITE), APP).ShouldBeFalse();
 
   [Test]
   [Arguments("POST")]
@@ -113,7 +113,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("PATCH")]
   [Arguments("DELETE")]
   public void A_write_without_fetch_metadata_but_with_the_apps_own_origin_is_allowed(string method) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: null, APP, APP).ShouldBeTrue();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: StringValues.Empty, Received(APP), APP).ShouldBeTrue();
 
   [Test]
   [Arguments("POST", NEIGHBOUR)]
@@ -125,7 +125,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("POST", "https://tarjeta.example.net:8443")] // the app's host on another port
   [Arguments("POST", "https://tarjeta.example.net.example.org")] // starts with the app's origin
   public void A_write_without_fetch_metadata_from_another_origin_is_refused(string method, string origin) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: null, origin, APP).ShouldBeFalse();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: StringValues.Empty, Received(origin), APP).ShouldBeFalse();
 
   [Test]
   [Arguments("POST")]
@@ -133,13 +133,13 @@ public sealed class CrossSiteWritesTests {
   [Arguments("PATCH")]
   [Arguments("DELETE")]
   public void A_write_with_neither_header_is_allowed(string method) =>
-    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: (string?)null, origin: (string?)null, APP).ShouldBeTrue();
+    CrossSiteWrites.IsAllowed(method, new PathString(SIGN_OUT), secFetchSite: StringValues.Empty, origin: StringValues.Empty, APP).ShouldBeTrue();
 
   [Test]
   [Arguments(SIGN_IN_RETURN)]
   [Arguments("/API/Auth/SignIn-OIDC")] // as the handler matches its return address: ignoring letter case
   public void The_sign_in_return_is_passed_on_whatever_its_headers(string path) =>
-    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed("POST", new PathString(path), headers.SecFetchSite, headers.Origin, APP))
+    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed("POST", new PathString(path), Received(headers.SecFetchSite), Received(headers.Origin), APP))
       .ShouldBeEmpty($"POST {path} refused with these headers");
 
   [Test]
@@ -149,7 +149,7 @@ public sealed class CrossSiteWritesTests {
   [Arguments("DELETE", "/apix")] // not under /api: another first segment
   [Arguments("POST", "/apix/auth/logout")]
   public void A_write_outside_api_is_passed_on(string method, string path) =>
-    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed(method, new PathString(path), headers.SecFetchSite, headers.Origin, APP))
+    _anyHeaders.Where(headers => !CrossSiteWrites.IsAllowed(method, new PathString(path), Received(headers.SecFetchSite), Received(headers.Origin), APP))
       .ShouldBeEmpty($"{method} {path} refused with these headers");
 
   [Test]
@@ -167,7 +167,10 @@ public sealed class CrossSiteWritesTests {
   public void A_request_the_rule_does_not_apply_to_passes_even_with_both_headers_repeated(string method, string path) =>
     CrossSiteWrites.IsAllowed(method, new PathString(path), Received($"{SAME_ORIGIN}|{CROSS_SITE}"), Received($"{APP}|{OTHER_SITE}"), APP).ShouldBeTrue();
 
-  /// <summary>A header's values as the request carried them, written here with <c>|</c> between them; empty: the header was not sent.</summary>
+  /// <summary>
+  /// A header's values as the request carried them: one value as it is, several written here with <c>|</c> between them;
+  /// <see langword="null"/> or empty: the header was not sent.
+  /// </summary>
   private static StringValues Received(string? values) => string.IsNullOrEmpty(values) ? StringValues.Empty : new StringValues(values.Split('|'));
 
   /// <summary>A request's <c>Sec-Fetch-Site</c> and <c>Origin</c>; <see langword="null"/>: the header is missing.</summary>
