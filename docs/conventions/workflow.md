@@ -216,3 +216,18 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 - [`divergences.md`](../software-factory/divergences.md): where this project runs a cut-down version of that full version, what it gives up and when it would switch back. It stays with the project.
 - [`creating-handover-package.md`](../software-factory/creating-handover-package.md): where the package goes (the standalone Software Factory), the inventory of reusable artifacts, how to build the handover package at the end of the project (M8), and how the factory takes it in.
 - Add the lesson, and the divergence if there is one, in the same change or session that makes the decision. A step that creates or substantially changes a reusable artifact updates the inventory. Entry formats are in the files.
+
+### The quality bar (2026-11-08)
+
+The app may take shortcuts for speed ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)). The software factory never does: it always gets the best solution, the design and practice a very mature software architect would choose for a real, long-lived system. Speed is never a reason to give it less. Software-factory work is:
+
+- everything in `docs/software-factory/`: the lessons, the inventory and the handover process;
+- the handover package and what it delivers to the factory;
+- every artifact in the [inventory](../software-factory/creating-handover-package.md#inventory), taken as a reusable artifact: its design, how general it is, and its documentation.
+
+**During the project, notes are enough.** When the project decides something, nothing has to be specified in detail for the factory yet. It records what will later lead to the best solution:
+
+- a lesson that names the full version, if need be as a quick entry with `TBD` ([lessons.md § Entry format](../software-factory/lessons.md#entry-format));
+- for a project cut-down, in the app or in an inventory artifact: the user's decision, and a `divergences.md` entry that names the full version.
+
+**At the handover, the notes become the best solution.** Roadmap step SF1 builds the full version of every kit that carries a cut-down and proves that it works. Building the package then brings every lesson to this bar (current, dated sources, every option weighed, the full version worked out) and hands over each kit's full version as its template, so a cut-down never reaches the factory as its default ([creating-handover-package.md § Building the package](../software-factory/creating-handover-package.md#building-the-package), steps 1 and 5). A full version that has not run yet is a reason to build and prove it then, never to hand over less. If that work costs too much, Claude says so and the user decides when it is done. Claude never quietly delivers less.

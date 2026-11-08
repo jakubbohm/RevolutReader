@@ -4,7 +4,7 @@
 
 Where RevolutReader knowingly runs a cut-down version of what the software factory recommends for a real, long-lived project: the full version in [lessons.md](lessons.md) or in DoseUp's catalog (`D:\source\jakubbohm\DoseUp\docs\software-factory.md`). Each entry says what RevolutReader does instead, why, what it gives up, and when it would switch back.
 
-Read it whenever the project's constraints change: it lives longer than planned, gets more screens or users, or is brought back after decommissioning (roadmap D1). Every entry whose *Switch back when* now holds is a candidate for a change.
+Read it whenever the project's constraints change: it lives longer than planned, gets more screens or users, or is brought back after decommissioning (roadmap D1). Every entry whose *Switch back when* now holds is a candidate for a change. An entry whose cut-down sits in a reusable kit also gets its full version built before the handover, whatever its *Switch back when* says (roadmap step SF1, [workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)).
 
 ## What goes in
 
@@ -27,9 +27,9 @@ Given up: <what it costs>.
 
 ## Entries
 
-**R-1 · Speed of delivery comes before architecture**
+**R-1 · Speed of delivery comes before architecture in the app**
 Full version: architectural quality is the highest priority ([lessons.md R-1](lessons.md), DoseUp F-42).
-Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option.
+Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option. It covers the app only: software-factory work keeps the full bar ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08), 2026-11-08).
 Given up: shortcuts a longer-lived system would pay for later; R-12, R-14 and R-19 follow from this one.
 *Switch back when:* the app has to outlive its first purpose (operation well beyond the planned period), or someone else will maintain it.
 
