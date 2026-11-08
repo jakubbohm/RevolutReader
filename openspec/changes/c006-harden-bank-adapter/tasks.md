@@ -25,10 +25,10 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 4. [unit] Transaction mapping: the sign
 
-- [ ] 4.1 A booked transaction with a negative amount is an error whose message quotes no amount
-- [ ] 4.2 A pending transaction with a negative amount is an error
-- [ ] 4.3 A spent transaction of zero comes out as zero, not as a negative zero
-- [ ] 4.4 A cancelled transaction with a negative amount is only left out, its amount unread
+- [x] 4.1 A booked transaction with a negative amount is an error whose message quotes no amount
+- [x] 4.2 A pending transaction with a negative amount is an error
+- [x] 4.3 A spent transaction of zero comes out as zero, not as a negative zero
+- [x] 4.4 A cancelled transaction with a negative amount is only left out, its amount unread
 
 ## 5. [unit] Transaction pages: the cap
 
