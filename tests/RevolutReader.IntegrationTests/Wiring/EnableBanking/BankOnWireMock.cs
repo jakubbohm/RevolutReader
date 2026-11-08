@@ -22,14 +22,21 @@ namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 /// The Enable Banking client on its production wiring (<see cref="EnableBankingRegistration.AddEnableBanking"/>: settings,
 /// key, token, typed <c>HttpClient</c> with the bank's retries, no wait between them unless a test sets one) in front of a
 /// WireMock.Net server that answers every request the same way, except a first request a test answers on its own. The
-/// settings are made up and the key is generated once per run, as the acceptance harness's fake bank does; no real secret
-/// and no real account data. A test of a fault WireMock.Net cannot produce points the client at another address instead.
-/// The client's log lines are kept for the tests (<see cref="CapturedLogLines"/>), and every request is noted as it
+/// settings are the app's own <c>appsettings.json</c>, its log levels included, with the bank's section made up over it;
+/// the key is generated once per run, as the acceptance harness's fake bank does; no real secret and no real account data.
+/// A test of a fault WireMock.Net cannot produce points the client at another address instead. The client's and the
+/// resilience library's log lines are kept for the tests (<see cref="CapturedLogLines"/>), and every request is noted as it
 /// arrives, in front of WireMock.Net's own handling: WireMock.Net logs a request only once its answer is ready, so a
 /// request the client gave up on before a delayed answer would be missing from its log.
 /// </summary>
 public sealed class BankOnWireMock : IDisposable {
   private const string SECTION = "EnableBanking";
+
+  /// <summary>The app's own settings file, which the build copies next to the tests from the API project.</summary>
+  private const string APP_SETTINGS = "appsettings.json";
+
+  /// <summary>The settings section of the app's log levels.</summary>
+  private const string LOGGING = "Logging";
 
   /// <summary>The transactions query's parameter for a later page (API reference).</summary>
   private const string CONTINUATION_KEY = "continuation_key";
@@ -63,6 +70,9 @@ public sealed class BankOnWireMock : IDisposable {
   /// <summary>The lines the client has logged so far (one per read).</summary>
   public IReadOnlyList<LogLine> LogLines => _log.Lines;
 
+  /// <summary>The lines the resilience library behind the retries has logged so far, as the app's log levels let them through.</summary>
+  public IReadOnlyList<LogLine> LibraryLogLines => _log.LibraryLines;
+
   /// <summary>How many requests reached the server so far, answered or not.</summary>
   public int RequestsReceived => _arrivals.Count;
 
@@ -84,6 +94,7 @@ public sealed class BankOnWireMock : IDisposable {
     });
 
     IConfiguration configuration = new ConfigurationBuilder()
+      .AddJsonFile(Path.Combine(AppContext.BaseDirectory, APP_SETTINGS), optional: false)
       .AddInMemoryCollection(new Dictionary<string, string?> {
         [$"{SECTION}:ApiBaseUrl"] = apiBaseUrl?.ToString() ?? _server.Url,
         [$"{SECTION}:ApplicationId"] = Guid.NewGuid().ToString(),
@@ -98,6 +109,8 @@ public sealed class BankOnWireMock : IDisposable {
     ServiceCollection services = new();
 
     services.AddSingleton(configuration);
+    // The app's log levels, as the host applies them from its "Logging" section.
+    services.AddLogging(logging => logging.AddConfiguration(configuration.GetSection(LOGGING)));
     services.AddSingleton<ILoggerProvider>(_log);
     services.AddEnableBanking();
 

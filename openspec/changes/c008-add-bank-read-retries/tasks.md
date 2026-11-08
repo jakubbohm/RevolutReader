@@ -90,7 +90,7 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 16. [wiring] The library's log lines
 
-- [ ] 16.1 `Logging:LogLevel:Polly` = `Warning` in `appsettings.json` (design.md D9). Verify: edge tests with a capturing logger that also keeps the `Polly` category: a read answered at once writes no line of the library; a read retried once writes the library's retry warnings and still exactly one read line; green
+- [x] 16.1 `Logging:LogLevel:Polly` = `Warning` in `appsettings.json` (design.md D9). Verify: edge tests with a capturing logger that also keeps the `Polly` category: a read answered at once writes no line of the library; a read retried once writes the library's retry warnings and still exactly one read line; green
 - [ ] 16.2 `Conventions/BankTelemetryTests` adds a read retried once, for the guard's own present user: no line of the library and no exported trace holds the account id, the session id, or the user's address or browser. Verify: the test passes; green
 - [ ] 16.3 deployment.md § Checks: a ready query in PowerShell 7 listing the bank retries in a period (the library's warnings in `AppTraces`), next to the existing ready queries and in their form, marked to confirm once the first real retry lines arrive. Verify: the columns match the existing queries'; the link to Microsoft's columns resolves
 
