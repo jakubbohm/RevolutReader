@@ -356,8 +356,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 45. [close] Acceptance green
 
-- [ ] 45.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
-- [ ] 45.2 `pm/progress.md`: the C6 row, the heads-up for C7 (design.md D5: the waiting screen on the first request, the sleeping server on tap, the failed sign-out that shows nothing), and Q1/Q2 marked as applied. `CLAUDE.md` checked against every command this change added. Verify: the row links the change; `CLAUDE.md`'s commands run as written
+- [x] 45.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
+- [x] 45.2 `pm/progress.md`: the C6 row, the heads-up for C7 (design.md D5: the waiting screen on the first request, the sleeping server on tap, the failed sign-out that shows nothing), and Q1/Q2 marked as applied. `CLAUDE.md` checked against every command this change added. Verify: the row links the change; `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 
