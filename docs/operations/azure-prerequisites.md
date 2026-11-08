@@ -1,8 +1,8 @@
 # Azure prerequisites
 
-> What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, and C4's one addition (item 7): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
+> What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, C4's one addition (item 7) and C11's widened role condition (item 5): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-06 (C4: the owner's Key Vault role, applied; the first login).
+> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-08 (C11: the deploy identity may assign a fifth role).
 
 ## Identifiers (non-secret)
 
@@ -29,16 +29,17 @@ None of these is a credential: knowing them gives no access. They are public, he
    - This repository's prefix comes from `gh api repos/jakubbohm/RevolutReader/actions/oidc/customization/sub` (`use_immutable_subject: true`, `sub_claim_prefix`, read 2026-11-05). The `:environment:production` suffix follows GitHub's documented pattern; GitHub shows immutable examples only for branches, so the first login in C4 was the real check, and it passed (see [Checks](#checks)).
 5. **Roles on `rg-revolutreader` only:**
    - **Contributor:** creates and changes resources, including the deployment stack. It cannot manage a stack's deny settings, which the project does not use.
-   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for four roles only. These are the roles Bicep grants in C4, C6 and C7. The pipeline cannot grant Owner or widen its own rights.
+   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for five roles only. These are the roles Bicep grants in C4, C6, C7 and C11. The pipeline cannot grant Owner or widen its own rights.
 
-     | Role | ID |
-     |---|---|
-     | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` |
-     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` |
-     | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` |
-     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` |
+     | Role | ID | Added |
+     |---|---|---|
+     | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | M3 |
+     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` | M3 |
+     | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | M3 |
+     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` | M3 |
+     | Monitoring Metrics Publisher: lets the app's identity write its telemetry to Application Insights ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)) | `3913510d-42f4-4e42-8a64-420c390055eb` ([Microsoft Learn: built-in roles for Monitor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#monitoring-metrics-publisher), updated 2026-07-01, read 2026-11-08) | C11 |
 
-     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below).
+     A change that needs another role widens the condition by hand: delete this assignment and create it again with the new ID added to `$roles` (step 5 below). **Widened on 2026-11-08 (C11)** from four roles to five, before the merge whose deploy grants Monitoring Metrics Publisher; without it, that deploy fails at the new role assignment. The command: [Commands](#commands), "Widening step 5's condition"; Claude read the condition back with step 5's check ([Checks](#checks)).
 6. **GitHub environment `production`** with a deployment branch policy allowing only `main`, so a job on any other branch never gets a token Azure accepts. Workflows triggered by pull requests from forks get no OIDC token at all.
 7. **The owner's access to secret values (C4,** c005 design.md D17). Owner of the subscription gives no access to the values in a vault that uses Azure roles, and the guided tasks (Enable Banking in C4, later C6 and C8) and every renewal write secrets. So the owner's account gets **Key Vault Secrets Officer on `rg-revolutreader`**, inherited by every vault in the group, including one the stack creates again.
    - **Why by hand and not in the Bicep:** the Bicep would need the owner's account ID in the public repository. As a GitHub variable it would be unversioned, unreviewed and against [configuration.md](../conventions/configuration.md) (GitHub variables hold only what the workflow needs before Bicep runs). This is the one exception to "manual only for what cannot be automated" ([workflow.md § 5](../conventions/workflow.md#5-infrastructure), [lessons.md R-50](../software-factory/lessons.md)).
@@ -78,7 +79,8 @@ az identity federated-credential create --subscription $sub --resource-group $rg
 az role assignment create --subscription $sub --assignee-object-id $principalId `
     --assignee-principal-type ServicePrincipal --role Contributor --scope $scope
 
-$roles = '4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+$publisher = az role definition list --subscription $sub --name 'Monitoring Metrics Publisher' --query '[0].name' --output tsv
+$roles = "4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, $publisher"
 $condition = "((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles}))"
 az role assignment create --subscription $sub --assignee-object-id $principalId `
     --assignee-principal-type ServicePrincipal --role 'Role Based Access Control Administrator' `
@@ -95,7 +97,33 @@ gh variable set AZURE_SUBSCRIPTION_ID --repo $repo --env production --body $sub
 gh variable set AZURE_RESOURCE_GROUP  --repo $repo --env production --body $rg
 ```
 
-The condition string in step 5 was checked on 2026-11-05: it equals the condition Azure stored, and it reaches the CLI unchanged through `az.cmd` in PowerShell 7.
+The condition string in step 5 was checked on 2026-11-05, with the four roles of M3: it equals the condition Azure stored, and it reaches the CLI unchanged through `az.cmd` in PowerShell 7. Since C11, `$roles` holds a fifth ID, looked up by the role's name.
+
+**Widening step 5's condition (C11),** run once by the owner in the owner's own PowerShell 7 window, while no deploy runs, before the merge of C11 (Claude Code's permission check blocks a role assignment by Claude even with the owner's go). It looks up the new role's ID by name, then deletes the deploy identity's Role Based Access Control Administrator assignment and creates it again with the same condition, now listing five IDs. When it ran: item 5 above; read back with step 5's check below.
+
+```powershell
+$sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg    = 'rg-revolutreader'
+$scope = "/subscriptions/$sub/resourceGroups/$rg"
+$principalId = az identity show --subscription $sub --resource-group $rg --name id-revolutreader-deploy --query principalId -o tsv
+
+# The fifth role's ID, looked up by its name
+$publisher = az role definition list --subscription $sub --name 'Monitoring Metrics Publisher' --query '[0].name' --output tsv
+if ($publisher -notmatch '^[0-9a-f-]{36}$') { throw 'The role Monitoring Metrics Publisher was not found.' }
+
+# Step 5's condition, with the fifth ID
+$roles = "4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7, ba92f5b4-2d11-453d-a403-e96b0029c9fe, 0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3, $publisher"
+$condition = "((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles}))"
+
+# Delete the current assignment (none left if an earlier run stopped after the delete), then create it with the wider condition
+$current = @(az role assignment list --subscription $sub --scope $scope --role 'Role Based Access Control Administrator' `
+    --query "[?principalId=='$principalId'].id" --output tsv)
+if ($current.Count -gt 1) { throw "Expected at most one Role Based Access Control Administrator assignment, found $($current.Count)." }
+if ($current.Count -eq 1) { az role assignment delete --subscription $sub --ids $current[0] }
+az role assignment create --subscription $sub --assignee-object-id $principalId `
+    --assignee-principal-type ServicePrincipal --role 'Role Based Access Control Administrator' `
+    --scope $scope --condition $condition --condition-version 2.0 --output none
+```
 
 Step 7 (C4), run once by the owner in the owner's own PowerShell 7 window, after the first deployment created the vault ([deployment.md § The first deployment](deployment.md#the-first-deployment)). Claude Code's permission check blocks a role assignment by Claude even with the owner's go (2026-11-06). It prints nothing. **Applied on 2026-11-06** by the owner; read back with step 7's check below: one user holds Key Vault Secrets Officer on `rg-revolutreader`. The owner's ID is in no file (searched).
 
@@ -124,6 +152,10 @@ az role assignment list --subscription $sub --scope $scope `
 az identity federated-credential list --subscription $sub --resource-group $rg `
     --identity-name id-revolutreader-deploy --query "[].{name:name, subject:subject}" -o table
 gh variable list --repo $repo --env production
+
+# Step 5 (since C11): the deploy identity's condition lists five role IDs, the fifth 3913510d-42f4-4e42-8a64-420c390055eb
+az role assignment list --subscription $sub --scope $scope --role 'Role Based Access Control Administrator' `
+    --query "[].condition" --output tsv
 
 # Step 7 (C4): one user holds Key Vault Secrets Officer on the resource group; no ID is printed
 az role assignment list --subscription $sub --scope $scope --role 'Key Vault Secrets Officer' `

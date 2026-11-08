@@ -2,7 +2,7 @@
 
 > How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-07 (since C5, a fresh deploy's first run fails at the app's secrets).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-08 (C11: Application Insights, the 0.16 GB cap, the queries for failed bank reads).
 
 ## Identifiers (non-secret)
 
@@ -11,9 +11,10 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | What | Value |
 |---|---|
 | Deployment stack | `revolutreader`; deletes what the Bicep no longer declares; no deny settings |
-| Log Analytics workspace | `log-revolutreader` (30 days, 0.1 GB daily cap) |
+| Log Analytics workspace | `log-revolutreader` (30 days; 0.16 GB daily cap since C11, the free 5 GB a month ÷ 31, was 0.1 GB: [ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)). The cap covers the Application Insights tables too, which live in the workspace and follow its retention |
+| Application Insights | `appi-revolutreader` (C11), workspace-based on `log-revolutreader`, local authentication off: only an identity with Monitoring Metrics Publisher on it can write. The deployed app sends its logs and traces there, not its metrics; the resource keeps its own default cap. Its connection string reaches the app as `APPLICATIONINSIGHTS_CONNECTION_STRING` ([configuration.md § Telemetry settings](../conventions/configuration.md#telemetry-settings)) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
-| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded`, principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
+| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault and, since C11, Monitoring Metrics Publisher on Application Insights; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded` (reaches the app as `AZURE_CLIENT_ID`), principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
 | The app's address | `https://tarjeta-papa.livelyground-53b2e5ad.germanywestcentral.azurecontainerapps.io` (the stack's output `appUrl`; plain HTTP is redirected to HTTPS). Azure generated the part after the app's name; a new environment gets a new one |
@@ -61,7 +62,7 @@ Done once, after the merge of the PR that added the deploy (2026-11-06: PR [#21]
 2. **If the image check stops the run** (the package is private: e.g. one created again at a reinstatement, or GitHub changes this behaviour), the `deploy` job fails at its first step, before any Azure step, with the settings link. The owner makes the package public: open the [package settings](https://github.com/users/jakubbohm/packages/container/revolutreader/settings), then Danger Zone, Change visibility, Public. This cannot be undone, and nothing in the image is private ([ADR-0006 § Decision](../adr/0006-hosting-registry-and-job.md#decision), item 3).
 3. **Then re-run the failed job:** on the run's page, Re-run jobs, Re-run failed jobs. The image check now passes.
 4. **The first Azure login.** It succeeded on 2026-11-06 with the subject M3 set. If `azure/login` fails with `AADSTS700213`, the federated credential's subject is wrong: fix it as [azure-prerequisites.md § Checks](azure-prerequisites.md#checks) says, with the owner's go, and re-run the failed job.
-5. **The stack** creates the workspace, the vault, the app's identity and its role, the environment and the container app: exactly these six on 2026-11-06. Creating the environment takes a few minutes. On 2026-11-06 the role was created 2 min 22 s before the app (22:13:08 and 22:15:30 UTC). **At a reinstatement, since C5, this first run fails at the container app.** Its four Enable Banking settings are Key Vault references, and Container Apps reads each one when it creates or updates the app, failing the write if it cannot ([microsoft/azure-container-apps#1291](https://github.com/microsoft/azure-container-apps/issues/1291), read 2026-11-07). The new vault is still empty, and the identity's new role can take up to 10 minutes to take effect ([Microsoft Learn: Troubleshoot Azure RBAC](https://learn.microsoft.com/en-us/azure/role-based-access-control/troubleshooting), read 2026-11-07). The stack step most likely shows `ContainerAppOperationError` with `Unable to get value using Managed identity … for secret enablebanking-…`, an error that does not name the cause ([Azure OSS Developer Support blog](https://azureossd.github.io/2024/08/27/Troubleshooting-general-secret-issues-on-Container-Apps), read 2026-11-07); the other five resources are created. Do steps 7 and 8 (the owner's new role, too, can take up to 10 minutes before the writes succeed), then on the run's page Re-run jobs, Re-run failed jobs: the stack should now create the app, and step 6 follows. On 2026-11-06 the app had no secrets yet, so this order was not exercised.
+5. **The stack** creates the workspace, the vault, the app's identity and its role, the environment and the container app: exactly these six on 2026-11-06. Since C11 it also creates Application Insights and the identity's second role, on it; the deploy identity may assign that role only once [azure-prerequisites.md](azure-prerequisites.md), item 5, lists it. Creating the environment takes a few minutes. On 2026-11-06 the role was created 2 min 22 s before the app (22:13:08 and 22:15:30 UTC). **At a reinstatement, since C5, this first run fails at the container app.** Its four Enable Banking settings are Key Vault references, and Container Apps reads each one when it creates or updates the app, failing the write if it cannot ([microsoft/azure-container-apps#1291](https://github.com/microsoft/azure-container-apps/issues/1291), read 2026-11-07). The new vault is still empty, and the identity's new role can take up to 10 minutes to take effect ([Microsoft Learn: Troubleshoot Azure RBAC](https://learn.microsoft.com/en-us/azure/role-based-access-control/troubleshooting), read 2026-11-07). The stack step most likely shows `ContainerAppOperationError` with `Unable to get value using Managed identity … for secret enablebanking-…`, an error that does not name the cause ([Azure OSS Developer Support blog](https://azureossd.github.io/2024/08/27/Troubleshooting-general-secret-issues-on-Container-Apps), read 2026-11-07); the other five resources are created. Do steps 7 and 8 (the owner's new role, too, can take up to 10 minutes before the writes succeed), then on the run's page Re-run jobs, Re-run failed jobs: the stack should now create the app, and step 6 follows. On 2026-11-06 the app had no secrets yet, so this order was not exercised.
 6. **The check after the deploy** passes, and the summary shows the app's address. Record the address and the identity's IDs in [Identifiers](#identifiers-non-secret). On 2026-11-06 the first run's check failed only at its last step, on the state `RunningAtMaxScale`, which the Azure references do not list; [#22](https://github.com/jakubbohm/RevolutReader/pull/22) accepts it, and its deploy, run [42305043086](https://github.com/jakubbohm/RevolutReader/actions/runs/42305043086), passed every step.
 7. **The owner's access to the vault's secrets:** the hand-made role in [azure-prerequisites.md](azure-prerequisites.md), item 7, with the owner's go. Applied on 2026-11-06 (recorded there).
 8. **The Enable Banking values** into Key Vault: the guided task below, with the owner's go. Done on 2026-11-06 (recorded there).
@@ -128,13 +129,45 @@ $workspace = az monitor log-analytics workspace show --subscription $sub --resou
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
     --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1d) | project TimeGenerated, RevisionName_s, Log_s | order by TimeGenerated desc | take 50"
 
+# Since C11, the app's telemetry of the last day in Application Insights, from the same workspace: its log lines, then its requests
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "AppTraces | where TimeGenerated > ago(1d) | project TimeGenerated, SeverityLevel, Message | order by TimeGenerated desc | take 50"
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "AppRequests | where TimeGenerated > ago(1d) | project TimeGenerated, Name, ResultCode, DurationMs | order by TimeGenerated desc | take 50"
+
 # The names in the vault, never the values
 az keyvault secret list --subscription $sub --vault-name kv-revolutreader --query '[].name' --output tsv
 ```
 
-The logs never hold bank data (CLAUDE.md); Claude reads them only to diagnose, read-only.
+The logs and the telemetry never hold secrets, bank data or account identifiers (CLAUDE.md). Request telemetry in Application Insights does hold the users' browser names, which is allowed there because only the owner's Azure access can read it ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 6); never copy such rows into an issue, a PR or any other public place. Claude reads them only to diagnose, read-only.
 
 **First run, 2026-11-06,** after the first two deploys, from Claude's machine: the stack read `succeeded` with six resources, its outputs at the top level (`outputs.appUrl.value`, as above); `/health` answered `Healthy` (HTTP 200, 0.35 s), `/` returned the page, and plain HTTP was redirected to HTTPS (301). Within minutes the workspace held the platform's events (`ContainerAppSystemLogs_CL`) and the app's start lines (`ContainerAppConsoleLogs_CL`); the log query above worked as written.
+
+### Bank reads that did not end as read (C11)
+
+Every bank read writes one log line, whatever ends it: who triggered it, the outcome, the HTTP status, the Enable Banking error code (`none`, or `unrecognised` for a value not shaped like a code) and, for an unexpected end, the reason (c006 design.md D8). These two read-only queries find the reads that did not end as `read`: every one in a period, and the same counted by reason, to spot cases nothing handles yet. Set the period first: from the first day, up to but not including the last, in UTC.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg  = 'rg-revolutreader'
+$workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+    --workspace-name log-revolutreader --query customerId --output tsv
+
+$from = '2026-11-01'; $to = '2026-11-09'
+$bankReads = "AppTraces | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | extend Category = tostring(Properties.CategoryName), EventId = tostring(Properties.EventId), Outcome = tostring(Properties.Outcome) | where Category == 'RevolutReader.Api.Bank.EnableBankingClient' and EventId in ('1', '2') and Outcome != 'read'"
+
+# Every bank read in the period that did not end as read, newest first
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$bankReads | project TimeGenerated, Read = iff(EventId == '1', 'balance', 'transactions'), Who = tostring(Properties.Who), Outcome, Status = tostring(Properties.Status), ErrorCode = tostring(Properties.ErrorCode), Reason = tostring(Properties.Reason) | order by TimeGenerated desc"
+
+# The same, counted by reason, the most frequent first
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$bankReads | summarize Reads = count(), Last = max(TimeGenerated) by Reason = tostring(Properties.Reason), Outcome, ErrorCode = tostring(Properties.ErrorCode) | order by Reads desc"
+```
+
+- **Where the fields are:** a log entry lands in `AppTraces`, its text in `Message`, its level in `SeverityLevel`, and its fields (`Who`, `Outcome`, `Status`, `ErrorCode`, `Reason`, …) in the dynamic column `Properties` ([Microsoft Learn: Application Insights telemetry data model](https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete), updated 2026-10-09; [AppTraces table reference](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apptraces), updated 2026-07-28; both read 2026-11-08). The Azure Monitor exporter adds the logger's category as `CategoryName` and a non-zero event ID as `EventId` (balance reads are 1, transaction reads 2), and sends an entry that carries an exception to `AppExceptions` instead; the bank-read lines carry none ([the exporter's `LogsHelper.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Internals/LogsHelper.cs), read 2026-11-08).
+- **Columns to be confirmed with C7's first bank lines:** written from those sources before any bank line reached Application Insights, since nothing calls the adapter before C7. If the queries come back empty although the app has read the bank, look at a raw row and adjust the names here: `AppTraces | where Message startswith 'Bank ' | project TimeGenerated, Message, Properties | take 5`.
+- **Reasons:** `Reason` is `none` except for an unexpected end, where it is a fixed text that quotes no bank data, or another exception's type name. A new value there is a case the adapter does not handle yet.
 
 ## Rolling back
 

@@ -149,3 +149,10 @@ Here ([deployment.md § Identifiers](../operations/deployment.md#identifiers-non
 Given up: a second line of defence. A stolen credential with a role on the vault could read the four Enable Banking values from anywhere, and later the allowlist and the push keys too.
 
 *Switch back when:* the app outlives its planned ~2 months, the vault holds more than the bank link's secrets and a few keys, or the environment is rebuilt anyway (a reinstatement, D1). Then create the environment with its own network and close the vault.
+
+**R-53 · Application Insights gets the app's logs and traces, not its metrics**
+Full version: all three signals, metrics included, sent by the vendor's exporter in the app's own pipeline ([lessons.md R-53](lessons.md)).
+Here ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 3, 2026-11-08): **the exporter is registered for logs and traces only.** The platform's free metrics cover requests, errors, response time and resources, and an app that runs minutes at a time for one user is unlikely to need a leak or a slowdown inside it explained.
+Given up: the app's own runtime metrics in production (garbage collection, heap size, thread pool, exception counts) and per-minute sums by route; they show only locally, in the Aspire dashboard.
+
+*Switch back when:* the app runs well beyond its planned period or for more users, a slowdown or growing memory needs explaining, or [#17](https://github.com/jakubbohm/RevolutReader/issues/17) shows room under the daily cap. Switching on is a one-line change in ServiceDefaults.
