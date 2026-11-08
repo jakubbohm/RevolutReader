@@ -43,6 +43,15 @@ export function signedIn(name: string, email: string): WhoIsSignedIn {
   return { kind: "signed in", name, email };
 }
 
+/** What the server answers to the sign-out, `POST /api/auth/logout` (design.md D2). */
+export type SignOutAnswer =
+  /** 204, and the login has ended: afterwards nobody is signed in. */
+  | { kind: "signed out" }
+  /** 500 with the problem description `Internal Server Error`; the login stays as it was. */
+  | { kind: "server error" }
+  /** The request fails, as when the phone is offline; the login stays as it was. */
+  | { kind: "no connection" };
+
 /** The server's answers for one test. */
 export interface ServerAnswers {
   /**
@@ -50,9 +59,10 @@ export interface ServerAnswers {
    * shows before any answer. After a sign-out the server answers that nobody is signed in, as the real one does.
    */
   whoIsSignedIn?: WhoIsSignedIn;
+  /** `POST /api/auth/logout`. Without one, the sign-out succeeds. */
+  signOut?: SignOutAnswer;
 }
 
-/** The sign-out (design.md D2): 204, and the login has ended. */
 const SIGN_OUT = "POST /api/auth/logout";
 const WHO_IS_SIGNED_IN = "GET /api/me";
 
@@ -64,6 +74,7 @@ type Outcome =
 
 let page = new URL("http://localhost:3000/");
 let whoIsSignedIn: WhoIsSignedIn = { kind: "no answer yet" };
+let signOut: SignOutAnswer = { kind: "signed out" };
 let entries: string[] = [];
 /** Counts the tests, so an answer still under way when a test ends never reaches the next test's timeline. */
 let generation = 0;
@@ -71,6 +82,7 @@ let generation = 0;
 /** Sets the server's answers for this test. */
 export function answerWith(answers: ServerAnswers): void {
   whoIsSignedIn = answers.whoIsSignedIn ?? { kind: "no answer yet" };
+  signOut = answers.signOut ?? { kind: "signed out" };
 }
 
 /** The timeline so far (see the module's description). */
@@ -92,6 +104,7 @@ export function navigations(): string[] {
 export function resetFakeServer(): void {
   generation += 1;
   whoIsSignedIn = { kind: "no answer yet" };
+  signOut = { kind: "signed out" };
   entries = [];
 }
 
@@ -150,16 +163,29 @@ async function fakeFetch(
 }
 
 function outcomeOf(request: string): Outcome {
-  if (request === SIGN_OUT)
-    return {
-      kind: "answer",
-      response: () => {
-        whoIsSignedIn = nobodySignedIn;
-        return new Response(null, { status: 204 });
-      },
-    };
+  if (request === SIGN_OUT) return signOutOutcome(signOut);
   if (request === WHO_IS_SIGNED_IN) return whoIsSignedInOutcome(whoIsSignedIn);
   return { kind: "answer", response: () => problem(404, "Not Found") };
+}
+
+function signOutOutcome(answer: SignOutAnswer): Outcome {
+  switch (answer.kind) {
+    case "signed out":
+      return {
+        kind: "answer",
+        response: () => {
+          whoIsSignedIn = nobodySignedIn;
+          return new Response(null, { status: 204 });
+        },
+      };
+    case "server error":
+      return {
+        kind: "answer",
+        response: () => problem(500, "Internal Server Error"),
+      };
+    case "no connection":
+      return { kind: "failure" };
+  }
 }
 
 function whoIsSignedInOutcome(answer: WhoIsSignedIn): Outcome {
