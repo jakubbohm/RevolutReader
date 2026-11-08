@@ -320,7 +320,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 - [x] 43.2 Guided, with the owner's go: the Entra redirect URIs, `https://localhost/api/auth/signin-oidc` and the production address, replacing the two old ones (Graph `PATCH`, design.md D11); read back with entra-id.md § Checks. Verify: the read-back lists exactly the two new addresses
 - [x] 43.3 Guided (owner): the 12-month client secret, straight into Key Vault `SignIn--ClientSecret`, the AppHost's user-secrets and the backup vault, never printed; its expiry date noted. Verify: the names exist in all three places (values not shown); the registration lists one secret with that expiry
 - [x] 43.4 Guided (owner): the allowlist, typed at a prompt, into Key Vault `SignIn--AllowedEmails`, the user-secrets and the backup vault, never printed. The daughter's entry is her personal Microsoft account (the owner confirms it exists; a school account cannot sign in, ADR-0004). Verify: the names exist in all three places
-- [ ] 43.5 Local check in a browser with `aspire start`, signing in as the owner (design.md § Migration plan, step 2):
+- [x] 43.5 Local check in a browser with `aspire start`, signing in as the owner (design.md § Migration plan, step 2):
   - the owner's account gets in and sees the account menu;
   - sign-out shows the signed-out screen;
   - the second personal account sees the no-access screen;
