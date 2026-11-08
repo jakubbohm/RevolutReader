@@ -7,6 +7,7 @@
 - **Riskiest assumption:** signing in works inside the iPhone Home Screen app (ADR-0003). It is checked right after the merge deploys; the fallbacks are a follow-up change.
 - **Scenarios added** (`sign-in`): An anonymous visitor is asked to sign in · An allowed user who signs in gets in · A stranger who signs in is refused, with their own email · Signing in again with another account opens Microsoft's account picker · Sign-in returns to the app's own HTTPS address behind the hosting proxy · A sign-in cancelled at Microsoft leaves the visitor signed out · An account from a work or school directory is not signed in · A login unused for 30 days has ended · Using the app keeps the login alive · Signing out ends the login · A write request from another site is refused · The sign-in screen shows when nobody is signed in · Tapping the sign-in button starts the Microsoft sign-in · A refused account sees that it has no access · Trying another account signs out and starts a new sign-in · Signing out from the account menu shows the signed-out screen · Signing in from the Home Screen app opens the app (manual) · The Home Screen app stays signed in after it is closed (manual)
 - **Scenarios added** (`app-shell`): The account menu shows who is signed in · **modified:** The top bar shows the app name (now with someone signed in, because the sign-in screens have no top bar)
+- **Scenario added** (`api-errors`, after slice 1's review, 2026-11-08): A write to an unknown API address answers with a problem description (the requirement now says 404 whatever the method and whether or not the caller is signed in; writes answered 405 since C3)
 
 ## Why
 
@@ -65,6 +66,8 @@ Roadmap step **C6** (`pm/roadmap.md`), use case **UC1** (kickoff ch. 5): a signe
   - the top bar gains the account menu (name, email, "Odhlásit se") when someone is signed in;
   - the sign-in, no-access and signed-out screens join the install hint as screens without the top bar, because the Screens design shows the app's name large in their middle;
   - the existing scenario therefore states that someone is signed in.
+
+- `api-errors` (after slice 1's review): an unknown API address answers 404 whatever the method and whether or not the caller is signed in, with a scenario for a write (design.md D3).
 
 The other capabilities keep their requirements. `service-health`'s `GET /health` and `app-delivery`'s pages stay open to every caller. `api-errors` already covers 401 and 403 as problem descriptions, and `bank-reads` is untouched.
 
