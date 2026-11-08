@@ -159,7 +159,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 11. [wiring] Slice 4 — Signing out
 
-- [ ] 11.1 `LogoutEndpoint` (`POST /api/auth/logout`, anonymous, 204) signs out of the cookie scheme only. Its OpenAPI description, then regenerate the TS client. `SignInDriver.SignOut` replaces its stub. Verify: the scenario runs against the app; `regenerate` leaves no diff
+- [x] 11.1 `LogoutEndpoint` (`POST /api/auth/logout`, anonymous, 204) signs out of the cookie scheme only. Its OpenAPI description, then regenerate the TS client. `SignInDriver.SignOut` replaces its stub. Verify: the scenario runs against the app; `regenerate` leaves no diff
 
 ## 12. [close] Slice 4 — Signing out ends the login
 

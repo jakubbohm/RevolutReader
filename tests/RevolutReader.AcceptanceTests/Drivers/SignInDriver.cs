@@ -48,6 +48,9 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   private const string LOGIN = "/api/auth/login";
   private const string ANOTHER_ACCOUNT = "?anotherAccount=true";
 
+  /// <summary>Signing out (D2).</summary>
+  private const string LOGOUT = "/api/auth/logout";
+
   /// <summary>Where every sign-in lands (D2).</summary>
   private const string START_PAGE = "/";
 
@@ -75,6 +78,7 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   private const string SEC_FETCH_MODE = "Sec-Fetch-Mode";
   private const string SEC_FETCH_DEST = "Sec-Fetch-Dest";
   private const string SAME_SITE = "same-site";
+  private const string SAME_ORIGIN = "same-origin";
   private const string NO_CORS = "no-cors";
   private const string IMAGE = "image";
   private const string NAVIGATE = "navigate";
@@ -214,7 +218,25 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// <c>Sec-Fetch-Site: same-site</c>, because the hosting domain is not on the Public Suffix List, and
   /// <c>Origin: </c><paramref name="fromSite"/>.
   /// </summary>
-  public Task<SignOutAnswer> SignOut(string? fromSite = null) => throw new NotImplementedException();
+  public async Task<SignOutAnswer> SignOut(string? fromSite = null) {
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(LOGOUT, UriKind.Relative));
+    request.Headers.Add(SEC_FETCH_SITE, fromSite is null ? SAME_ORIGIN : SAME_SITE);
+    request.Headers.Add(ORIGIN, fromSite ?? _appAddress.GetLeftPart(UriPartial.Authority));
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    if (response.StatusCode == HttpStatusCode.NoContent)
+      return SignOutAnswer.SignedOut;
+
+    if (response.StatusCode != HttpStatusCode.Forbidden)
+      return SignOutAnswer.SomethingElse;
+
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+    bool refused = JsonObjectOrNull(await response.Content.ReadAsStringAsync()) is JsonElement body && IsProblem(mediaType, body, response.StatusCode, FORBIDDEN);
+
+    return refused ? SignOutAnswer.Refused : SignOutAnswer.SomethingElse;
+  }
 
   /// <summary>Moves the app copy's clock (<see cref="FakeMicrosoft.Clock"/>) forward by <paramref name="time"/>.</summary>
   public void Advance(TimeSpan time) => throw new NotImplementedException();

@@ -19,6 +19,20 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "Ends the sign-in on this device",
+        "operationId": "RevolutReaderApiSignInLogoutEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
