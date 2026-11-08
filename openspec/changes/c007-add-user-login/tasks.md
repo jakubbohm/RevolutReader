@@ -155,7 +155,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 10. [close] Slice 3 — A stranger who signs in is refused, with their own email
 
-- [ ] 10.1 The scenario's test and the guard 1.3 pass. Verify: green, including sign-in / A stranger who signs in is refused, with their own email and `SignInTelemetryTests`
+- [x] 10.1 The scenario's test and the guard 1.3 pass. Verify: green, including sign-in / A stranger who signs in is refused, with their own email and `SignInTelemetryTests`
 
 ## 11. [wiring] Slice 4 — Signing out
 
