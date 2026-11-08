@@ -143,11 +143,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 11. [wiring] Slice 3 — The shown details
 
-- [ ] 11.1 The newest page's transactions carry `TransactionText.Details`. Verify: the scenario runs against the app
+- [x] 11.1 The newest page's transactions carry `TransactionText.Details`. Verify: the scenario runs against the app
 
 ## 12. [close] Slice 3 — The bank's text leaves out the line that repeats the counterparty
 
-- [ ] 12.1 The scenario's test passes. Verify: green, including account-transactions / The bank's text leaves out the line that repeats the counterparty
+- [x] 12.1 The scenario's test passes. Verify: green, including account-transactions / The bank's text leaves out the line that repeats the counterparty
 
 ## 13. [unit] Slice 4 — Transaction kinds
 
