@@ -16,14 +16,14 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), as signatures whose members throw `NotImplementedException`, exactly as design.md § Public API sketch:
+- [x] 1.1 Foundation (API), as signatures whose members throw `NotImplementedException`, exactly as design.md § Public API sketch:
   - `Drivers/BalanceDriver`;
   - `Dsl/BalanceDsl` and `Dsl/BalanceReading`;
   - `Dsl/ProblemDescription` gains `Type` (default `null`) and the values `BankAccessExpired`, `BankRateLimited`, `BankUnavailable` and `InternalServerError`;
   - `AcceptanceTest.Balance`.
 
   Verify: build passes; every acceptance test that was green stays green
-- [ ] 1.2 Foundation (frontend), the test kit of design.md § Public API sketch:
+- [x] 1.2 Foundation (frontend), the test kit of design.md § Public API sketch:
   - `fake-indexeddb` in `src/test/setup.ts`, a fresh database per test;
   - `src/test/server.ts`:
     - the balance answers (one per read in order, the last repeating), `after: <ms>` on any answer;
@@ -35,38 +35,38 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
   - a short note in each helper on using it with fake timers.
 
   Verify: the existing frontend tests stay green
-- [ ] 1.3 Acceptance: account-balance / The balance comes with the time it was read and the koruna rate
-- [ ] 1.4 Acceptance: account-balance / The bank sees the signed-in user's address and browser
-- [ ] 1.5 Acceptance: account-balance / A balance request without a browser name reads nothing at the bank
-- [ ] 1.6 Acceptance: account-balance / Expired bank access answers its own problem
-- [ ] 1.7 Acceptance: account-balance / A reached bank limit answers its own problem
-- [ ] 1.8 Acceptance: account-balance / A bank that does not answer is its own problem
-- [ ] 1.9 Acceptance: api-errors / An unexpected failure answers with a problem description that reveals nothing
-- [ ] 1.10 Acceptance: account-balance / The account screen shows the balance, its koruna value and when it was read (frontend)
-- [ ] 1.11 Acceptance: account-balance / Tapping "Obnovit" reads the balance again (frontend)
-- [ ] 1.12 Acceptance: account-balance / Coming back to the app reads the balance again (frontend)
-- [ ] 1.13 Acceptance: app-shell / Offline with nothing stored says the balance loads once online (frontend)
-- [ ] 1.14 Acceptance: app-shell / Offline with a stored balance shows it with the offline banner (frontend)
-- [ ] 1.15 Acceptance: account-balance / A balance read replaces the one the phone keeps (frontend)
-- [ ] 1.16 Acceptance: app-shell / Coming back online loads what was waiting (frontend)
-- [ ] 1.17 Acceptance: app-shell / A stored balance shows at once while the server wakes (frontend)
-- [ ] 1.18 Acceptance: app-shell / A sleeping server shows the waking-up screen after 1.5 seconds (frontend)
-- [ ] 1.19 Acceptance: app-shell / A slow wake offers to try again after 30 seconds (frontend)
-- [ ] 1.20 Acceptance: account-balance / A bank that does not answer shows a banner with a retry (frontend)
-- [ ] 1.21 Acceptance: account-balance / Too many refreshes shows a warning with no action (frontend)
-- [ ] 1.22 Acceptance: account-balance / Expired bank access asks to let Dad know (frontend)
-- [ ] 1.23 Acceptance: account-balance / An unexpected answer to the balance read shows a banner with a retry (frontend)
-- [ ] 1.24 Acceptance: app-shell / An unexpected answer to who is signed in shows a banner with a retry (frontend)
-- [ ] 1.25 Acceptance: app-shell / A refresh with no answer for 60 seconds counts as offline (frontend)
-- [ ] 1.26 Acceptance: account-balance / Signing out forgets the balance on the phone (frontend)
-- [ ] 1.27 Acceptance: account-balance / A login that has ended forgets the balance on the phone (frontend)
-- [ ] 1.28 Acceptance: sign-in / A login that ends while the app is open shows the sign-in screen (frontend)
-- [ ] 1.29 Acceptance: sign-in / A sign-out that fails offline says to try again online (frontend)
-- [ ] 1.30 Acceptance: sign-in / A sign-out the server fails says to try again later (frontend)
-- [ ] 1.31 Acceptance: sign-in / The menu shows the sign-out under way (frontend)
-- [ ] 1.32 Acceptance: app-shell / The app keeps the server awake while it is on the screen (frontend)
-- [ ] 1.33 Acceptance: app-shell / The app lets the server sleep after 30 minutes without use (frontend)
-- [ ] 1.34 Docs:
+- [x] 1.3 Acceptance: account-balance / The balance comes with the time it was read and the koruna rate
+- [x] 1.4 Acceptance: account-balance / The bank sees the signed-in user's address and browser
+- [x] 1.5 Acceptance: account-balance / A balance request without a browser name reads nothing at the bank
+- [x] 1.6 Acceptance: account-balance / Expired bank access answers its own problem
+- [x] 1.7 Acceptance: account-balance / A reached bank limit answers its own problem
+- [x] 1.8 Acceptance: account-balance / A bank that does not answer is its own problem
+- [x] 1.9 Acceptance: api-errors / An unexpected failure answers with a problem description that reveals nothing
+- [x] 1.10 Acceptance: account-balance / The account screen shows the balance, its koruna value and when it was read (frontend)
+- [x] 1.11 Acceptance: account-balance / Tapping "Obnovit" reads the balance again (frontend)
+- [x] 1.12 Acceptance: account-balance / Coming back to the app reads the balance again (frontend)
+- [x] 1.13 Acceptance: app-shell / Offline with nothing stored says the balance loads once online (frontend)
+- [x] 1.14 Acceptance: app-shell / Offline with a stored balance shows it with the offline banner (frontend)
+- [x] 1.15 Acceptance: account-balance / A balance read replaces the one the phone keeps (frontend)
+- [x] 1.16 Acceptance: app-shell / Coming back online loads what was waiting (frontend)
+- [x] 1.17 Acceptance: app-shell / A stored balance shows at once while the server wakes (frontend)
+- [x] 1.18 Acceptance: app-shell / A sleeping server shows the waking-up screen after 1.5 seconds (frontend)
+- [x] 1.19 Acceptance: app-shell / A slow wake offers to try again after 30 seconds (frontend)
+- [x] 1.20 Acceptance: account-balance / A bank that does not answer shows a banner with a retry (frontend)
+- [x] 1.21 Acceptance: account-balance / Too many refreshes shows a warning with no action (frontend)
+- [x] 1.22 Acceptance: account-balance / Expired bank access asks to let Dad know (frontend)
+- [x] 1.23 Acceptance: account-balance / An unexpected answer to the balance read shows a banner with a retry (frontend)
+- [x] 1.24 Acceptance: app-shell / An unexpected answer to who is signed in shows a banner with a retry (frontend)
+- [x] 1.25 Acceptance: app-shell / A refresh with no answer for 60 seconds counts as offline (frontend)
+- [x] 1.26 Acceptance: account-balance / Signing out forgets the balance on the phone (frontend)
+- [x] 1.27 Acceptance: account-balance / A login that has ended forgets the balance on the phone (frontend)
+- [x] 1.28 Acceptance: sign-in / A login that ends while the app is open shows the sign-in screen (frontend)
+- [x] 1.29 Acceptance: sign-in / A sign-out that fails offline says to try again online (frontend)
+- [x] 1.30 Acceptance: sign-in / A sign-out the server fails says to try again later (frontend)
+- [x] 1.31 Acceptance: sign-in / The menu shows the sign-out under way (frontend)
+- [x] 1.32 Acceptance: app-shell / The app keeps the server awake while it is on the screen (frontend)
+- [x] 1.33 Acceptance: app-shell / The app lets the server sleep after 30 minutes without use (frontend)
+- [x] 1.34 Docs:
   - testing.md: fake timers and `fake-indexeddb` for frontend scenarios that wait or store, and the fake server's delays and abort;
   - its `.claude/rules/` mirror;
   - R-15's inventory row: the test kit's new helpers.

@@ -26,6 +26,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private BankDsl? _bank;
   private SignInDriver? _signInDriver;
   private SignInDsl? _signIn;
+  private BalanceDsl? _balance;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
 
@@ -53,6 +54,12 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// itself (cookie attributes, requests other sites make the browser send). Scenarios use <see cref="SignIn"/> only.
   /// </summary>
   protected SignInDriver SignInDriver => _signInDriver ??= new(Browser, FakeMicrosoft, Services);
+
+  /// <summary>
+  /// The balance through the API, asked for in the browser <see cref="SignIn"/> signs in with, against this test's fake bank
+  /// and on the app copy's clock (spec account-balance, c009 design.md D1).
+  /// </summary>
+  protected BalanceDsl Balance => _balance ??= new(new BalanceDriver(Browser, FakeBank, FakeMicrosoft.Clock));
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();
