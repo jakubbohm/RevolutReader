@@ -85,13 +85,24 @@ function accountOf(session: Facts["session"]): ShownAccount["account"] {
 }
 
 /**
- * The header: the balance, the latest read or else the stored one, refreshing while a refresh runs; with no balance,
- * the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen
- * stays instead, never a placeholder); otherwise none.
+ * The header: the balance, the latest read or else the stored one, refreshing while it is read again (`readsOnAwake`);
+ * with no balance, the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake
+ * the waking-up screen stays instead, never a placeholder); otherwise none.
  */
 function headerOf(facts: Facts): ShownAccount["header"] {
   if (facts.balance !== null)
-    return { balance: facts.balance, refreshing: facts.reading === "refresh" };
+    return { balance: facts.balance, refreshing: readsOnAwake(facts) };
   if (facts.reading === "first" && !facts.wokeUp) return "placeholder";
   return null;
+}
+
+/**
+ * Whether the balance shown is being read again on an awake server (D2, D3): a refresh, or the first read once the
+ * server answered within 1.5 s. After a wake, the first read runs under the waking-up screen instead, and the header
+ * stays as it was.
+ */
+function readsOnAwake(facts: Facts): boolean {
+  return (
+    facts.reading === "refresh" || (facts.reading === "first" && !facts.wokeUp)
+  );
 }

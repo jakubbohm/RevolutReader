@@ -183,17 +183,17 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 20. [unit] Slice 9 — Refresh
 
-- [ ] 20.1 While a refresh reads, the header shows the balance in its refreshing state
-- [ ] 20.2 "Obnovit" in the refreshing state reads "Obnovuji…", spins and ignores taps
-- [ ] 20.3 A refresh asked for while a read is under way sends no second request
+- [x] 20.1 While a refresh reads, the header shows the balance in its refreshing state
+- [x] 20.2 "Obnovit" in the refreshing state reads "Obnovuji…", spins and ignores taps
+- [x] 20.3 A refresh asked for while a read is under way sends no second request
 
 ## 21. [wiring] Slice 9 — "Obnovit"
 
-- [ ] 21.1 `useAccountScreen.refresh` (one read at a time) wired to "Obnovit". Verify: the scenario runs against the app
+- [x] 21.1 `useAccountScreen.refresh` (one read at a time) wired to "Obnovit". Verify: the scenario runs against the app
 
 ## 22. [close] Slice 9 — Tapping "Obnovit" reads the balance again
 
-- [ ] 22.1 The scenario's test passes. Verify: green, including account-balance / Tapping "Obnovit" reads the balance again
+- [x] 22.1 The scenario's test passes. Verify: green, including account-balance / Tapping "Obnovit" reads the balance again
 
 ## 23. [unit] Slice 10 — Refresh triggers
 

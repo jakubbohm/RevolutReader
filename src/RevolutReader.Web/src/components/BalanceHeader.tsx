@@ -29,12 +29,16 @@ export interface BalanceHeaderProps {
  * its koruna value (`text-subhead`, muted), spoken "přibližně … Kč"; both in tabular figures. Below them, the freshness
  * line (`text-footnote`, muted) in a polite live region that stays in place while its text changes, and the ghost
  * "Obnovit" with `refresh-cw`, which stands in for pull-to-refresh.
+ *
+ * While a read is under way, the line reads "Obnovuji…" in the same live region, and "Obnovit" keeps its label as the
+ * busy button: a spinner in place of its icon, `aria-busy`, taps ignored. The amount stays shown, never blanked.
  */
 export function BalanceHeader({
   amount,
   rate,
   readAt,
   now,
+  refreshing,
   onRefresh,
 }: BalanceHeaderProps): JSX.Element {
   const labelId = useId();
@@ -57,9 +61,14 @@ export function BalanceHeader({
       </p>
       <div className="mt-2 flex items-center justify-between gap-3">
         <p aria-live="polite" className="text-footnote text-ink-muted">
-          {formatUpdated(readAt, now)}
+          {refreshing ? "Obnovuji…" : formatUpdated(readAt, now)}
         </p>
-        <Button variant="ghost" icon={RefreshCw} onClick={onRefresh}>
+        <Button
+          variant="ghost"
+          icon={RefreshCw}
+          loading={refreshing}
+          onClick={onRefresh}
+        >
           Obnovit
         </Button>
       </div>
