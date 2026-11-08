@@ -64,7 +64,7 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 ## 10. [wiring] Ready queries and the lesson
 
 - [ ] 10.1 deployment.md § Checks: the two ready queries in PowerShell 7 (`az monitor app-insights query` or the workspace query, with `--subscription`): every bank read in a given period that did not end as read (time, who, outcome, status, error code, reason), and the same counted by reason, against the Application Insights tables (design.md D8 c), marked as confirmed once the first real bank lines arrive (C7). Verify: the queries follow the columns Microsoft documents for OpenTelemetry logs in Application Insights (link and date in the doc)
-- [ ] 10.2 lessons.md: the lesson (R-53, or the next free number when written; design.md § Cross-cutting effects). Verify: its options, choice and "Generalizes" line match design.md D8
+- [ ] 10.2 lessons.md: the two lessons (R-53 and R-54, or the next free numbers when written; design.md § Cross-cutting effects): the app's telemetry in Application Insights (D8–D10) and where personal data, bank data and secrets may go, public against private (D13's software-factory rule). Verify: their options, choices and "Generalizes" lines match design.md D8–D10 and D13, in the file's current entry format
 
 ## 11. [close] Acceptance green
 
