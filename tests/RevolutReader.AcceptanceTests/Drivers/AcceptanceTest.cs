@@ -12,12 +12,18 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// c003 design.md D6); Enable Banking is the test's own fake bank (<see cref="Drivers.FakeBank"/>, c004 design.md D6);
 /// Microsoft's sign-in is the test's own fake Microsoft (<see cref="Drivers.FakeMicrosoft"/>, c007 design.md D6), which
 /// also brings the ephemeral cookie keys and the app copy's clock. Every app copy gets both fakes' settings.
+/// <para>
+/// Storage is real: the test session's Azurite (<see cref="AzuriteStorage"/>, c010 design.md D12), with a table of each
+/// app copy's own. Every app copy gets its settings too.
+/// </para>
 /// </summary>
 public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private HttpClient? _http;
   private HttpClient? _browser;
   private FakeBank? _fakeBank;
   private FakeMicrosoft? _fakeMicrosoft;
+  private ScenarioCalendar? _calendar;
+  private TransactionsDsl? _transactions;
   private HealthDriver? _healthDriver;
   private HealthDsl? _health;
   private ApiDriver? _apiDriver;
@@ -66,6 +72,19 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// <summary>This test's fake Microsoft; started when the app copy is configured, so before it starts; stopped after the test.</summary>
   private FakeMicrosoft FakeMicrosoft => _fakeMicrosoft ??= FakeMicrosoft.Start();
 
+  /// <summary>The test session's Azurite, shared by every app copy (c010 design.md D12); started before the first test, removed after the last.</summary>
+  [ClassDataSource<AzuriteStorage>(Shared = SharedType.PerTestSession)]
+  public required AzuriteStorage Azurite { get; init; }
+
+  /// <summary>
+  /// The transactions through the API, asked for in the browser <see cref="SignIn"/> signs in with, against this test's fake
+  /// bank and storage, on the scenario's calendar (spec account-transactions, c010 design.md D12).
+  /// </summary>
+  protected TransactionsDsl Transactions => _transactions ??= new(new TransactionsDriver(Browser, FakeBank, Calendar, Services), Calendar);
+
+  /// <summary>The scenario's dates on the app copy's clock; the scenario's today is <see cref="TransactionsDsl.DefaultToday"/> until it names another.</summary>
+  private ScenarioCalendar Calendar => _calendar ??= new(TransactionsDsl.DefaultToday, FakeMicrosoft.Clock);
+
   [After(Test)]
   public void DisposeHttpClient() => _http?.Dispose();
 
@@ -84,6 +103,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
     builder.UseEnvironment(Environments.Production);
     builder.UseWebRoot(StandInPages.Folder);
     FakeBank.Configure(builder);
+    Azurite.Configure(builder);
     FakeMicrosoft.Configure(builder);
   }
 }

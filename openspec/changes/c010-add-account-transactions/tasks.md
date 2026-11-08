@@ -14,55 +14,55 @@ Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API): `Drivers/AzuriteStorage`, one container per test session (a TUnit shared data source), image `mcr.microsoft.com/azure-storage/azurite:3.37.0` pinned; it stops with a message when Docker is not running. Every app copy gets `ConnectionStrings:tables` = its connection string and `Transactions:TableName` = a unique name from the DSL (design.md D12). `AcceptanceTest.ConfigureWebHostBuilder` sets them next to `FakeBank.Configure`. Verify: every acceptance test that was green stays green
-- [ ] 1.2 Foundation (API), as design.md § Public API sketch:
+- [x] 1.1 Foundation (API): `Drivers/AzuriteStorage`, one container per test session (a TUnit shared data source), image `mcr.microsoft.com/azure-storage/azurite:3.37.0` pinned; it stops with a message when Docker is not running. Every app copy gets `ConnectionStrings:tables` = its connection string and `Transactions:TableName` = a unique name from the DSL (design.md D12). `AcceptanceTest.ConfigureWebHostBuilder` sets them next to `FakeBank.Configure`. Verify: every acceptance test that was green stays green
+- [x] 1.2 Foundation (API), as design.md § Public API sketch:
   - `ScenarioCalendar`, `TransactionsDriver`, `TransactionsDsl`, `TransactionsReading`, `TransactionSeenInApi` and `KeptAtApp` as signatures whose methods throw `NotImplementedException`; `AcceptanceTest.Transactions`;
   - `TransactionAtBank` gains `TypeCode` (defaults `CARD_PAYMENT` for `Payment`, `TRANSFER` for `TransferReceived`) and the factories `Refund` and `CashWithdrawal`; `FakeBank` writes it as `bank_transaction_code.code`, in the Mock ASPSP capture's shape;
   - `Dsl/ProblemDescription` gains `Type` and the three bank values, exactly as C7a's design sketches them (design.md D13).
 
   Verify: build passes; every acceptance test that was green stays green
-- [ ] 1.3 Guard: `Conventions/TransactionTelemetryTests` (design.md D12):
+- [x] 1.3 Guard: `Conventions/TransactionTelemetryTests` (design.md D12):
   - a transaction with an unknown, code-shaped type code logs one warning carrying the code and no other field;
   - a type code that does not look like a code is not quoted;
   - no captured line contains a counterparty, an amount or a detail of the transactions read.
 
   Verify: fails at runtime until slice 4
-- [ ] 1.4 Foundation (frontend): `src/test/server.ts` answers `GET /api/transactions` and `GET /api/transactions/older?before=` (a page; the three bank problems by `type`; 401; 403; a 500 problem; a 502 hosting page in plain text; no connection; no answer yet; `after: <ms>` on the test's clock; one answer per request in order, the last repeating; older pages by `before`), and requests honour their `AbortSignal`. `src/test/intersection.ts`: the `IntersectionObserver` stand-in with `scrollToEnd()`, installed by `setup.ts`. Verify: the existing frontend tests stay green
-- [ ] 1.5 Acceptance: bank-reads / A transaction comes back with the bank's type code
-- [ ] 1.6 Acceptance: account-transactions / The newest transactions come live with the koruna rate
-- [ ] 1.7 Acceptance: account-transactions / The bank's text leaves out the line that repeats the counterparty
-- [ ] 1.8 Acceptance: account-transactions / A refund is told by the bank's type code
-- [ ] 1.9 Acceptance: account-transactions / The bank sees the signed-in user's address and browser
-- [ ] 1.10 Acceptance: account-transactions / A transactions request without a browser name reads nothing at the bank
-- [ ] 1.11 Acceptance: account-transactions / Expired bank access answers its own problem
-- [ ] 1.12 Acceptance: account-transactions / A reached bank limit answers its own problem
-- [ ] 1.13 Acceptance: account-transactions / A bank that does not answer is its own problem
-- [ ] 1.14 Acceptance: account-transactions / The live read covers the last 31 days
-- [ ] 1.15 Acceptance: account-transactions / After a long pause, the live read reaches back to the newest kept day
-- [ ] 1.16 Acceptance: account-transactions / With nothing kept, the live read reaches back 89 days
-- [ ] 1.17 Acceptance: account-transactions / Older transactions come from storage in pages of whole days
-- [ ] 1.18 Acceptance: account-transactions / The oldest page says nothing older is kept
-- [ ] 1.19 Acceptance: account-transactions / A settled transaction stays in the history after the bank stops listing it
-- [ ] 1.20 Acceptance: account-transactions / A pending transaction is never kept
-- [ ] 1.21 Acceptance: account-transactions / The list shows placeholders while the transactions load (frontend)
-- [ ] 1.22 Acceptance: account-transactions / The account screen lists the transactions by day, newest first (frontend)
-- [ ] 1.23 Acceptance: account-transactions / A row shows the counterparty, the bank's text and the amount with its koruna value (frontend)
-- [ ] 1.24 Acceptance: account-transactions / A row without the bank's own text names the kind of payment (frontend)
-- [ ] 1.25 Acceptance: account-transactions / A row without a counterparty names the kind of transaction (frontend)
-- [ ] 1.26 Acceptance: account-transactions / A row without a counterparty or text names an unknown kind by its direction (frontend)
-- [ ] 1.27 Acceptance: account-transactions / Tapping a transaction opens its details (frontend)
-- [ ] 1.28 Acceptance: account-transactions / The details leave out the description when the bank gave no text of its own (frontend)
-- [ ] 1.29 Acceptance: account-transactions / A pending transaction is marked as waiting (frontend)
-- [ ] 1.30 Acceptance: account-transactions / A refund is marked as one in the list and in its details (frontend)
-- [ ] 1.31 Acceptance: account-transactions / An account with no transactions says so (frontend)
-- [ ] 1.32 Acceptance: account-transactions / Expired bank access asks to let Dad know about the transactions (frontend)
-- [ ] 1.33 Acceptance: account-transactions / Too many refreshes shows a warning instead of the transactions (frontend)
-- [ ] 1.34 Acceptance: account-transactions / A bank that does not answer the transactions shows a retry (frontend)
-- [ ] 1.35 Acceptance: account-transactions / An unexpected answer to the transactions read shows a retry (frontend)
-- [ ] 1.36 Acceptance: account-transactions / Offline, the transactions load once the phone is back online (frontend; the stored balance joins its setup at the join, design.md D8)
-- [ ] 1.37 Acceptance: account-transactions / Older transactions load when the list reaches its end (frontend)
-- [ ] 1.38 Acceptance: account-transactions / Older transactions that failed to load can be tried again (frontend)
-- [ ] 1.39 Acceptance: account-transactions / The list ends where the history ends (frontend)
+- [x] 1.4 Foundation (frontend): `src/test/server.ts` answers `GET /api/transactions` and `GET /api/transactions/older?before=` (a page; the three bank problems by `type`; 401; 403; a 500 problem; a 502 hosting page in plain text; no connection; no answer yet; `after: <ms>` on the test's clock; one answer per request in order, the last repeating; older pages by `before`), and requests honour their `AbortSignal`. `src/test/intersection.ts`: the `IntersectionObserver` stand-in with `scrollToEnd()`, installed by `setup.ts`. Verify: the existing frontend tests stay green
+- [x] 1.5 Acceptance: bank-reads / A transaction comes back with the bank's type code
+- [x] 1.6 Acceptance: account-transactions / The newest transactions come live with the koruna rate
+- [x] 1.7 Acceptance: account-transactions / The bank's text leaves out the line that repeats the counterparty
+- [x] 1.8 Acceptance: account-transactions / A refund is told by the bank's type code
+- [x] 1.9 Acceptance: account-transactions / The bank sees the signed-in user's address and browser
+- [x] 1.10 Acceptance: account-transactions / A transactions request without a browser name reads nothing at the bank
+- [x] 1.11 Acceptance: account-transactions / Expired bank access answers its own problem
+- [x] 1.12 Acceptance: account-transactions / A reached bank limit answers its own problem
+- [x] 1.13 Acceptance: account-transactions / A bank that does not answer is its own problem
+- [x] 1.14 Acceptance: account-transactions / The live read covers the last 31 days
+- [x] 1.15 Acceptance: account-transactions / After a long pause, the live read reaches back to the newest kept day
+- [x] 1.16 Acceptance: account-transactions / With nothing kept, the live read reaches back 89 days
+- [x] 1.17 Acceptance: account-transactions / Older transactions come from storage in pages of whole days
+- [x] 1.18 Acceptance: account-transactions / The oldest page says nothing older is kept
+- [x] 1.19 Acceptance: account-transactions / A settled transaction stays in the history after the bank stops listing it
+- [x] 1.20 Acceptance: account-transactions / A pending transaction is never kept
+- [x] 1.21 Acceptance: account-transactions / The list shows placeholders while the transactions load (frontend)
+- [x] 1.22 Acceptance: account-transactions / The account screen lists the transactions by day, newest first (frontend)
+- [x] 1.23 Acceptance: account-transactions / A row shows the counterparty, the bank's text and the amount with its koruna value (frontend)
+- [x] 1.24 Acceptance: account-transactions / A row without the bank's own text names the kind of payment (frontend)
+- [x] 1.25 Acceptance: account-transactions / A row without a counterparty names the kind of transaction (frontend)
+- [x] 1.26 Acceptance: account-transactions / A row without a counterparty or text names an unknown kind by its direction (frontend)
+- [x] 1.27 Acceptance: account-transactions / Tapping a transaction opens its details (frontend)
+- [x] 1.28 Acceptance: account-transactions / The details leave out the description when the bank gave no text of its own (frontend)
+- [x] 1.29 Acceptance: account-transactions / A pending transaction is marked as waiting (frontend)
+- [x] 1.30 Acceptance: account-transactions / A refund is marked as one in the list and in its details (frontend)
+- [x] 1.31 Acceptance: account-transactions / An account with no transactions says so (frontend)
+- [x] 1.32 Acceptance: account-transactions / Expired bank access asks to let Dad know about the transactions (frontend)
+- [x] 1.33 Acceptance: account-transactions / Too many refreshes shows a warning instead of the transactions (frontend)
+- [x] 1.34 Acceptance: account-transactions / A bank that does not answer the transactions shows a retry (frontend)
+- [x] 1.35 Acceptance: account-transactions / An unexpected answer to the transactions read shows a retry (frontend)
+- [x] 1.36 Acceptance: account-transactions / Offline, the transactions load once the phone is back online (frontend; the stored balance joins its setup at the join, design.md D8)
+- [x] 1.37 Acceptance: account-transactions / Older transactions load when the list reaches its end (frontend)
+- [x] 1.38 Acceptance: account-transactions / Older transactions that failed to load can be tried again (frontend)
+- [x] 1.39 Acceptance: account-transactions / The list ends where the history ends (frontend)
 
 ## 2. [unit] Slice 1 — Transaction mapping
 

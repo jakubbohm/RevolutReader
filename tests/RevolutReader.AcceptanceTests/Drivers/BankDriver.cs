@@ -304,8 +304,8 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     BankUnavailable => TransactionsAnswer.BankUnavailable,
   };
 
-  /// <summary>Field by field; the details become <see cref="Lines"/>.</summary>
-  private static TransactionSeen Seen(BankTransaction transaction) => new(
+  /// <summary>Field by field; the details become <see cref="Lines"/>; the type code is always stated (<see cref="TypeCodeOf"/>).</summary>
+  private static TransactionSeen Seen(BankTransaction transaction) => new TransactionSeen(
     transaction.Reference,
     transaction.Status switch {
       TransactionStatus.Booked => TransactionSeen.STATUS_BOOKED,
@@ -316,7 +316,14 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     transaction.Amount,
     transaction.Currency,
     transaction.Counterparty,
-    new Lines(transaction.PaymentDetails));
+    new Lines(transaction.PaymentDetails)).WithTypeCode(TypeCodeOf(transaction));
+
+  /// <summary>
+  /// The transaction's type code. The port's <see cref="BankTransaction"/> has none until c010's wiring (tasks.md 3.1, design.md
+  /// § Public API sketch: <c>BankTransaction.TypeCode</c>), so until then every read states none, and only a scenario that
+  /// names a type code notices; the wiring returns <c>transaction.TypeCode</c> here.
+  /// </summary>
+  private static string? TypeCodeOf(BankTransaction transaction) => null;
 
   private static PresentUser Present(UserAtDevice user) => new(IPAddress.Parse(user.IpAddress), user.Browser);
 
@@ -345,7 +352,8 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
       BookingDate: booked ? day : null,
       ValueDate: booked ? day : null,
       TransactionDate: booked ? null : day,
-      transaction.Details.Items);
+      transaction.Details.Items,
+      transaction.TypeCode);
   }
 
   /// <summary>
@@ -414,7 +422,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
       "debtor": {{Party(transaction.Debtor)}},
       "debtor_account": null,
       "debtor_agent": null,
-      "bank_transaction_code": null,
+      "bank_transaction_code": {{TransactionCode(transaction.TypeCode)}},
       "credit_debit_indicator": {{JsonString(transaction.Indicator)}},
       "status": {{JsonString(transaction.Status)}},
       "booking_date": {{JsonString(transaction.BookingDate)}},
@@ -443,6 +451,21 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     }
     """;
 
+  /// <summary>
+  /// A <c>bank_transaction_code</c> with this code and nothing else; <c>null</c> when there is none, as the capture writes
+  /// it. Written from the Enable Banking API reference (<c>BankTransactionCode</c>: <c>description</c>, <c>code</c>,
+  /// <c>sub_code</c>), not captured: the Mock ASPSP returns the field as <c>null</c> (spikes/enable-banking-mock/README.md,
+  /// finding 4). The M1 history file carries it on every transaction, with no sub-code and an empty description (c010
+  /// design.md § Context, counts only); only the code is read (D4).
+  /// </summary>
+  private static string TransactionCode(string? code) => code is null ? "null" : $$"""
+    {
+      "description": null,
+      "code": {{JsonString(code)}},
+      "sub_code": null
+    }
+    """;
+
   private static string BankStatus(StatusAtBank status) => status switch {
     StatusAtBank.Booked => "BOOK",
     StatusAtBank.Pending => "PDNG",
@@ -462,7 +485,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   /// <summary>
   /// A transaction's values as the bank writes them, for the fields of the capture's shape that hold one in the capture
-  /// or the DSL; <see langword="null"/> or no lines is absent.
+  /// or the DSL; <see langword="null"/> or no lines is absent. The capture's own transactions have no type code.
   /// </summary>
   private sealed record WireTransaction(
     string Status,
@@ -475,5 +498,6 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     string? BookingDate,
     string? ValueDate,
     string? TransactionDate,
-    IReadOnlyList<string> Details);
+    IReadOnlyList<string> Details,
+    string? TypeCode = null);
 }
