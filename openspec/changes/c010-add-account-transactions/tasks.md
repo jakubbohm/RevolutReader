@@ -224,12 +224,12 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 28. [unit] Slice 13 — Older pages
 
-- [ ] 28.1 An older page holds only transactions dated before the given day, newest first
-- [ ] 28.2 An older page adds whole days until it holds at least 30 transactions
-- [ ] 28.3 A day is never split across pages, even when it makes the page longer than 30
-- [ ] 28.4 An older page names its oldest day when older transactions are kept
-- [ ] 28.5 An older page carries the koruna rate and its date
-- [ ] 28.6 An older page reads only the store
+- [x] 28.1 An older page holds only transactions dated before the given day, newest first
+- [x] 28.2 An older page adds whole days until it holds at least 30 transactions
+- [x] 28.3 A day is never split across pages, even when it makes the page longer than 30
+- [x] 28.4 An older page names its oldest day when older transactions are kept
+- [x] 28.5 An older page carries the koruna rate and its date
+- [x] 28.6 An older page reads only the store
 
 ## 29. [wiring] Slice 13 — The older page's endpoint
 

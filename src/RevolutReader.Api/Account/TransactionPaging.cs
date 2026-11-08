@@ -40,8 +40,27 @@ public static class TransactionPaging {
   /// </summary>
   public static ToKeep ToKeep(IReadOnlyList<BankTransaction> live) => throw new NotImplementedException();
 
-  /// <summary>Whole days before <paramref name="before"/>, newest first, until at least <see cref="PAGE_SIZE"/>; OlderBefore as D10.</summary>
-  public static OlderPage Older(IReadOnlyList<KeptTransaction> allNewestFirst, DateOnly before) => throw new NotImplementedException();
+  /// <summary>
+  /// An older page (D1): the kept transactions dated before <paramref name="before"/>, in the order given (newest day
+  /// first, by position within a day, as the store reads them), whole days added until the page holds at least
+  /// <see cref="PAGE_SIZE"/> or nothing older is left; a day is never split, so a busy day makes the page longer.
+  /// <see cref="OlderPage.OlderBefore"/> is the page's oldest day (D10).
+  /// </summary>
+  public static OlderPage Older(IReadOnlyList<KeptTransaction> allNewestFirst, DateOnly before) {
+    ArgumentNullException.ThrowIfNull(allNewestFirst);
+
+    List<KeptTransaction> page = [];
+
+    foreach (IGrouping<DateOnly, KeptTransaction> day in allNewestFirst.Where(transaction => transaction.Date < before).GroupBy(static transaction => transaction.Date)) {
+      if (page.Count >= PAGE_SIZE)
+        break;
+
+      page.AddRange(day);
+    }
+
+    // The page's oldest day whether or not anything older is kept, for now: slice 14 says when nothing older is.
+    return new OlderPage(page, page.Count == 0 ? null : page[^1].Date);
+  }
 }
 
 /// <summary>Where the live read starts, and the gap's days when the newest kept day is beyond <see cref="TransactionPaging.MOST_DAYS_BACK"/> days.</summary>
