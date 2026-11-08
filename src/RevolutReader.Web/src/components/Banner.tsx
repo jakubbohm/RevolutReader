@@ -19,14 +19,14 @@ export function Banner({ title, children }: BannerProps): JSX.Element {
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-card bg-danger-soft px-gutter py-row"
+      className="flex items-start gap-3 rounded-card bg-danger-soft pt-row pr-2 pb-row pl-gutter"
     >
       <CircleAlert
         size={20}
         aria-hidden="true"
-        className="flex-none text-danger"
+        className="mt-px flex-none text-danger"
       />
-      <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5">
         {title ? <p className="text-body-strong text-danger">{title}</p> : null}
         {children ? (
           <p className="text-subhead wrap-anywhere text-ink">{children}</p>

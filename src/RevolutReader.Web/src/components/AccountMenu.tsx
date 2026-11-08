@@ -18,8 +18,9 @@ export interface AccountMenuProps {
  * The top bar's account menu (design system AppShell, c007 design.md D12), a Radix `DropdownMenu` that leaves the page
  * unlocked (`modal={false}`): the trigger is a ghost icon button, 44 × 44 and round, with `circle-user-round` at 24 px,
  * labelled "Účet a odhlášení"; the menu holds the label "Přihlášený účet", the name and the email (cut with an ellipsis
- * when long), a separator, and one item, "Odhlásit se" with `log-out`, 44 pt tall. Nothing else goes in this menu.
- * Keyboard, VoiceOver, Escape and a tap outside work through Radix.
+ * when long), a separator, and one item, "Odhlásit se" with `log-out`, 44 pt tall. Nothing else goes in this menu. It
+ * fades in over `duration-fast`, also under reduced motion (a fade, not a movement). Keyboard, VoiceOver, Escape and a
+ * tap outside work through Radix.
  */
 export function AccountMenu({
   account,
@@ -29,7 +30,7 @@ export function AccountMenu({
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger
         aria-label="Účet a odhlášení"
-        className="inline-flex size-touch items-center justify-center rounded-full text-accent transition-transform duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-soft data-[state=open]:bg-accent-soft motion-reduce:transition-none motion-reduce:active:scale-100"
+        className="inline-flex size-touch items-center justify-center rounded-full text-accent transition-transform duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-soft motion-reduce:transition-none motion-reduce:active:scale-100"
       >
         <CircleUserRound size={24} aria-hidden="true" />
       </DropdownMenu.Trigger>
@@ -38,7 +39,7 @@ export function AccountMenu({
           align="end"
           sideOffset={4}
           collisionPadding={12}
-          className="z-30 flex w-64 max-w-[calc(100vw-24px)] flex-col rounded-card border border-border bg-surface p-1 text-ink shadow-menu"
+          className="z-30 flex max-w-[min(320px,calc(100vw-24px))] min-w-62 animate-fade-in flex-col rounded-card border border-border bg-surface p-1.5 text-ink shadow-menu"
         >
           <DropdownMenu.Label className="flex min-w-0 flex-col px-3 py-2">
             <span className="text-footnote text-ink-muted">
@@ -49,12 +50,12 @@ export function AccountMenu({
               {account.email}
             </span>
           </DropdownMenu.Label>
-          <DropdownMenu.Separator className="mx-1 my-1 h-px bg-border" />
+          <DropdownMenu.Separator className="my-1 h-px bg-border" />
           <DropdownMenu.Item
             onSelect={onSignOut}
-            className="flex min-h-touch cursor-default items-center gap-3 rounded-control px-3 text-body outline-none select-none data-[highlighted]:bg-surface-muted"
+            className="flex min-h-touch cursor-pointer items-center gap-3 rounded-control px-3 text-body outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus data-[highlighted]:bg-surface-muted"
           >
-            <LogOut size={20} aria-hidden="true" className="text-ink-muted" />
+            <LogOut size={20} aria-hidden="true" />
             Odhlásit se
           </DropdownMenu.Item>
         </DropdownMenu.Content>

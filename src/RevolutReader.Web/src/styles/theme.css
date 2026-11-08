@@ -162,3 +162,16 @@
 @utility shadow-sheet {
   box-shadow: var(--shadow-sheet);
 }
+
+/*
+ * A fade in over duration-fast, as the design system's menu opens (its `tp-fade`). It stays under reduced motion:
+ * a fade is not a movement (design system README, Reduced motion).
+ */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@utility animate-fade-in {
+  animation: fade-in var(--duration-fast) var(--ease-standard);
+}
