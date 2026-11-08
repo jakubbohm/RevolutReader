@@ -134,12 +134,12 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 10. [unit] Slice 3 — Transaction text
 
-- [ ] 10.1 A line equal to the counterparty is left out of the details
-- [ ] 10.2 A line repeating the counterparty in other letter case, without its accents or with other spacing is left out
-- [ ] 10.3 Blank lines are left out
-- [ ] 10.4 Runs of spaces inside a kept line collapse to one
-- [ ] 10.5 Without a counterparty, every line that is not blank stays
-- [ ] 10.6 A line that holds the counterparty's name among other words stays
+- [x] 10.1 A line equal to the counterparty is left out of the details
+- [x] 10.2 A line repeating the counterparty in other letter case, without its accents or with other spacing is left out
+- [x] 10.3 Blank lines are left out
+- [x] 10.4 Runs of spaces inside a kept line collapse to one
+- [x] 10.5 Without a counterparty, every line that is not blank stays
+- [x] 10.6 A line that holds the counterparty's name among other words stays
 
 ## 11. [wiring] Slice 3 — The shown details
 
