@@ -12,6 +12,11 @@
          listing every endpoint, in every environment. 9.0 maps it only when
          FastEndpoints:ExposeTestUrlCache is true; never set it. -->
     <PackageVersion Include="FastEndpoints" Version="9.0.0-beta.7" />
+    <!-- The bank client's retries, and only those (c008 design.md D3, D10; verified on nuget.org on
+         2026-11-08: stable since 2026-10-14, MIT). Referenced by the API alone: an outgoing client
+         gets retries only when its own change decides a policy, so never add a resilience handler
+         in ServiceDefaults (a convention test fails if one appears). -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
@@ -21,8 +26,8 @@
   </ItemGroup>
 
   <ItemGroup Label="ServiceDefaults">
-    <!-- No Microsoft.Extensions.Http.Resilience: outgoing HTTP calls get no default retries
-         (c001 design.md D5, ADR-0001-bank-data-access). -->
+    <!-- No resilience handler here: outgoing HTTP calls get no default retries (c001 design.md D5,
+         c008 design.md D10). The bank client's own policy lives in the API. -->
     <!-- The app's logs and traces go to Application Insights through the in-app exporter, signed
          in with the app's managed identity (c006 design.md D8 b, D10; verified on nuget.org on
          2026-11-08). The exporter needs OpenTelemetry.Extensions.Hosting 1.18.0 or later. -->
