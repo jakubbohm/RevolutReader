@@ -5,10 +5,55 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
-/// The page rules (c010 design.md D1, D3, D10), pure: the newest page's window, and where the live read starts. The days
-/// are written out, never computed from the class's own constants: they are the rule the screen and the scenarios count on.
+/// The page rules (c010 design.md D1, D3, D10), pure: the newest page's window, where the live read starts, and an older
+/// page (whole days from the kept transactions before a day, newest first, added until the page holds at least 30). The
+/// days and counts are written out, never computed from the class's own constants: they are the rule the screen and the
+/// scenarios count on. Kept transactions are given as the store reads them: newest day first, by position within a day.
 /// </summary>
 public sealed class TransactionPagingTests {
+  /// <summary>The day the older pages here are asked before, unless a test says otherwise.</summary>
+  private const string BEFORE = "2026-11-19";
+
+  // An older page (D1, D10)
+
+  /// <summary>
+  /// Two days after the given one, the given day itself, and two days before it, few enough that the page takes them all:
+  /// only the two days before it, in the order kept (newest day first, by position within a day).
+  /// </summary>
+  [Test]
+  public void An_older_page_holds_only_transactions_dated_before_the_given_day_newest_first() {
+    OlderPage page = TransactionPaging.Older(KeptDays(("2026-11-20", 2), ("2026-11-19", 2), ("2026-11-18", 3), ("2026-11-17", 2)), Day(BEFORE));
+
+    page.Transactions.Select(static transaction => transaction.Reference).ShouldBe(["e-1118-0", "e-1118-1", "e-1118-2", "e-1117-0", "e-1117-1"]);
+  }
+
+  /// <param name="days">How many are kept on each day before 2026-11-19, newest first.</param>
+  /// <param name="pageSize">The page: the whole days, newest first, until it holds at least 30.</param>
+  /// <param name="daysOnThePage">How many of those days the page holds.</param>
+  [Test]
+  [Arguments("10, 15, 10, 10", 35, 3)]
+  [Arguments("10, 20, 10", 30, 2)]
+  public void An_older_page_adds_whole_days_until_it_holds_at_least_30_transactions(string days, int pageSize, int daysOnThePage) {
+    OlderPage page = TransactionPaging.Older(KeptDays(Counts(days)), Day(BEFORE));
+
+    page.ShouldSatisfyAllConditions(
+      () => page.Transactions.Count.ShouldBe(pageSize),
+      () => page.Transactions.Select(static transaction => transaction.Date).Distinct().ShouldBe(Days(daysOnThePage)));
+  }
+
+  /// <param name="days">How many are kept on each day before 2026-11-19, newest first: a busy second day, or one day of 40 on its own.</param>
+  /// <param name="pageSize">The page: always whole days, so more than 30.</param>
+  [Test]
+  [Arguments("25, 20, 5", 45)]
+  [Arguments("40, 5", 40)]
+  public void A_day_is_never_split_across_pages_even_when_it_makes_the_page_longer_than_30(string days, int pageSize) =>
+    TransactionPaging.Older(KeptDays(Counts(days)), Day(BEFORE)).Transactions.Count.ShouldBe(pageSize);
+
+  /// <summary>10, 15, 10 and 10 kept on the four days before 2026-11-19: the page holds three of them, and a fourth is older.</summary>
+  [Test]
+  public void An_older_page_names_its_oldest_day_when_older_transactions_are_kept() =>
+    TransactionPaging.Older(KeptDays(Counts("10, 15, 10, 10")), Day(BEFORE)).OlderBefore.ShouldBe(Day("2026-11-16"));
+
   /// <param name="today">The scenarios' today, and two whose 31 days back cross a short February and a year's end.</param>
   /// <param name="windowStart">31 days before it: the newest page's first day.</param>
   [Test]
@@ -63,4 +108,33 @@ public sealed class TransactionPagingTests {
     TransactionPaging.LiveReadStart(Day(today), newestKeptDay: null).ShouldBe(new LiveReadStart(Day(readStart), GapDays: null));
 
   private static DateOnly Day(string isoDate) => DateOnly.ParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+  /// <summary>The first <paramref name="count"/> days before 2026-11-19, newest first: 2026-11-18, 2026-11-17, …</summary>
+  private static DateOnly[] Days(int count) => [.. Enumerable.Range(1, count).Select(back => Day(BEFORE).AddDays(-back))];
+
+  /// <summary>The counts written as "10, 15, 10", for the days before 2026-11-19, newest first.</summary>
+  private static (string Day, int Count)[] Counts(string counts) {
+    ArgumentNullException.ThrowIfNull(counts);
+
+    return [
+      .. counts.Split(',', StringSplitOptions.TrimEntries)
+        .Select((count, index) => (Day(BEFORE).AddDays(-(index + 1)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), int.Parse(count, CultureInfo.InvariantCulture))),
+    ];
+  }
+
+  /// <summary>
+  /// The kept transactions of these days, given newest first, as the store reads them: on each day, settled payments at
+  /// positions 0, 1, …, each with the reference <c>e-MMdd-position</c> and an amount of its own.
+  /// </summary>
+  private static KeptTransaction[] KeptDays(params (string Day, int Count)[] days) => [
+    .. days.SelectMany(static day => Enumerable.Range(0, day.Count).Select(position => new KeptTransaction(
+      Reference: FormattableString.Invariant($"e-{Day(day.Day):MMdd}-{position}"),
+      Date: Day(day.Day),
+      Position: position,
+      Amount: -(1.00m + (position / 100m)),
+      Currency: "EUR",
+      Counterparty: "Knihkupectví Luxor",
+      PaymentDetails: [],
+      TypeCode: "CARD_PAYMENT"))),
+  ];
 }
