@@ -15,9 +15,6 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// </para>
 /// </summary>
 public sealed class BalanceDsl(BalanceDriver driver) {
-  /// <summary>The koruna rate the API answers with: C13's constant (<c>KorunaRate.CzkPerEur</c>).</summary>
-  public const decimal KORUNA_RATE = 24.3m;
-
   /// <summary>The app's clock, which the answer's read time comes from; it does not move by itself.</summary>
   public DateTimeOffset Now => driver.Now;
 
