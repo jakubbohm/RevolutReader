@@ -90,7 +90,7 @@
 - **Start** = the earlier of 31 days before today and the newest day of the kept transactions, but never earlier than 89 days before today (the user, option A). The newest kept day is read again, because more of its transactions may have settled since.
 - **Why:** after a pause longer than 31 days (or a deploy later than about 2026-12-05, roadmap C7b notes), the read reaches back to close the gap while the bank still serves those days (90 days; 89 leaves a day for the bank's UTC dates).
 - **Only the newest page's 31 days are shown;** the extra days are only kept, and appear on older pages.
-- **A gap longer than 89 days** (the newest kept day earlier than 89 days before today) is logged as a warning, with the number of days and no bank data: those days are lost unless a history file covers them.
+- **A gap longer than 89 days** (the newest kept day earlier than 89 days before today) is logged as a warning, with the number of days and no bank data: those days are lost unless a history file covers them. The number is the gap's length, from the newest kept day to today (always more than 89 when logged; 92 for 2026-08-20 on 2026-11-20), as the sketch's `GapDays` reports it (settled in group 24).
 - **With nothing kept, the read starts 89 days back** (the explore summary, shown to the user, no objection): the first open after the deploy, before the import, keeps as much as the bank serves.
 - *(propose)* **Today** is the UTC date of the app's `TimeProvider`, as Enable Banking reads dates (spikes/enable-banking/export-history.ps1, line 21). The screen's day headings use the phone's date (D14).
 
