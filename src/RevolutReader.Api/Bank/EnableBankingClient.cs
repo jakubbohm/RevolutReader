@@ -39,61 +39,79 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   /// <summary>The configured account's path, relative to the API address.</summary>
   private string AccountPath => $"accounts/{Uri.EscapeDataString(options.Value.AccountId)}";
 
-  /// <summary><c>GET /accounts/{account}/balances</c>, then the available balance (D3); one log line.</summary>
+  /// <summary>
+  /// <c>GET /accounts/{account}/balances</c>, then the available balance (D3); one log line, whatever ends the read (c006
+  /// design.md D6): an exception passes on unchanged after it.
+  /// </summary>
   public async Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) {
     ReadRecord record = new(time);
+    BankResult<Balance> result;
 
     try {
-      BankResult<Balance> result = (await Get<EbBalances>($"{AccountPath}/balances", trigger, HoldsBalances, record, cancellationToken)) switch {
+      result = (await Get<EbBalances>($"{AccountPath}/balances", trigger, HoldsBalances, record, cancellationToken)) switch {
         EbBalances balances => BalanceSelection.Available(balances),
         BankAccessExpired expired => expired,
         BankRateLimited rateLimited => rateLimited,
         BankUnavailable unavailable => unavailable,
       };
-
-      BalanceReadEnded(LevelOf(result), trigger, OutcomeOf(result), record);
-
-      return result;
     }
-    catch (BankReadException) {
-      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, record);
+    catch (BankReadException exception) {
+      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, exception.Message, record);
 
       throw;
     }
     catch (OperationCanceledException) {
-      BalanceReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, record);
+      BalanceReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, NONE, record);
 
       throw;
     }
+    catch (Exception exception) {
+      BalanceReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, ReasonOf(exception), record);
+
+      throw;
+    }
+
+    BalanceReadEnded(LevelOf(result), trigger, OutcomeOf(result), NONE, record);
+
+    return result;
   }
 
-  /// <summary>Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read; one log line.</summary>
+  /// <summary>
+  /// Every page from <paramref name="from"/> (D7), joined, then the mapping (D3); a failed page fails the read; one log
+  /// line, whatever ends the read (c006 design.md D6): an exception passes on unchanged after it.
+  /// </summary>
   public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
     ReadRecord record = new(time);
     int leftOut = 0;
+    BankResult<Transactions> result;
 
     try {
-      BankResult<Transactions> result = (await TransactionPages.ReadAll(continuationKey => ReadPage(from, continuationKey, trigger, record, cancellationToken))) switch {
+      result = (await TransactionPages.ReadAll(continuationKey => ReadPage(from, continuationKey, trigger, record, cancellationToken))) switch {
         JoinedPages joined => KeptOf(joined, out leftOut),
         BankAccessExpired expired => expired,
         BankRateLimited rateLimited => rateLimited,
         BankUnavailable unavailable => unavailable,
       };
-
-      TransactionsReadEnded(LevelOf(result), trigger, OutcomeOf(result), record, leftOut);
-
-      return result;
     }
-    catch (BankReadException) {
-      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, record, leftOut);
+    catch (BankReadException exception) {
+      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, exception.Message, record, leftOut);
 
       throw;
     }
     catch (OperationCanceledException) {
-      TransactionsReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, record, leftOut);
+      TransactionsReadEnded(LogLevel.Information, trigger, Outcome.CANCELLED, NONE, record, leftOut);
 
       throw;
     }
+    catch (Exception exception) {
+      TransactionsReadEnded(LogLevel.Error, trigger, Outcome.UNEXPECTED, ReasonOf(exception), record, leftOut);
+
+      throw;
+    }
+
+    TransactionsReadEnded(LevelOf(result), trigger, OutcomeOf(result), NONE, record, leftOut);
+
+    return result;
   }
 
   /// <summary>
@@ -244,30 +262,40 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   };
 
   /// <summary>The balance read's one log line (<see cref="LogBalanceRead"/>), its values worked out only when the level is on.</summary>
-  private void BalanceReadEnded(LogLevel level, ReadTrigger trigger, string outcome, ReadRecord record) {
+  private void BalanceReadEnded(LogLevel level, ReadTrigger trigger, string outcome, string reason, ReadRecord record) {
     if (!logger.IsEnabled(level))
       return;
 
     string who = WhoOf(trigger);
 
-    LogBalanceRead(logger, level, who, outcome, record.Status, record.ErrorCode, record.Milliseconds);
+    LogBalanceRead(logger, level, who, outcome, record.Status, record.ErrorCode, reason, record.Milliseconds);
   }
 
   /// <summary>The transactions read's one log line (<see cref="LogTransactionsRead"/>), its values worked out only when the level is on.</summary>
-  private void TransactionsReadEnded(LogLevel level, ReadTrigger trigger, string outcome, ReadRecord record, int leftOut) {
+  private void TransactionsReadEnded(LogLevel level, ReadTrigger trigger, string outcome, string reason, ReadRecord record, int leftOut) {
     if (!logger.IsEnabled(level))
       return;
 
     string who = WhoOf(trigger);
 
-    LogTransactionsRead(logger, level, who, outcome, record.Status, record.ErrorCode, record.Requests, leftOut, record.Milliseconds);
+    LogTransactionsRead(logger, level, who, outcome, record.Status, record.ErrorCode, reason, record.Requests, leftOut, record.Milliseconds);
   }
 
-  /// <summary>Who triggers the read, as the log line says it: never the user's address or browser (D5).</summary>
-  private static string WhoOf(ReadTrigger trigger) => trigger switch {
+  /// <summary>
+  /// Who triggers the read, as the log line says it: never the user's address or browser (D5). An empty
+  /// <see cref="ReadTrigger"/> ends the read as an exception, and its line is still written (c006 design.md D6).
+  /// </summary>
+  private static string WhoOf(ReadTrigger trigger) => trigger.Value switch {
     PresentUser => "a present user",
     Unattended => "nobody (unattended)",
+    _ => "an empty trigger",
   };
+
+  /// <summary>
+  /// The reason an exception other than <see cref="BankReadException"/> gives in the log line: its type name only, never
+  /// its message, which could hold anything (c006 design.md D8 a).
+  /// </summary>
+  private static string ReasonOf(Exception exception) => exception.GetType().Name;
 
   private static string OutcomeOf<T>(BankResult<T> result) => result.Value switch {
     BankAccessExpired => Outcome.ACCESS_EXPIRED,
@@ -281,15 +309,16 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
 
   /// <summary>
   /// The balance read's line: who triggered it, how it ended, the answer's HTTP status (or why there was none), the
-  /// Enable Banking error code, the time taken. The trace id comes with the logging scope (the host's default activity
-  /// tracking, D5).
+  /// Enable Banking error code, the reason for an unexpected end (c006 design.md D8 a: the
+  /// <see cref="BankReadException"/>'s message, another exception's type name, <c>none</c> otherwise), the time taken. The
+  /// trace id comes with the logging scope (the host's default activity tracking, D5).
   /// </summary>
-  [LoggerMessage(EventId = 1, Message = "Bank balance read for {Who}: {Outcome}; HTTP status {Status}, error code {ErrorCode}, {DurationMs} ms")]
-  private static partial void LogBalanceRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, long durationMs);
+  [LoggerMessage(EventId = 1, Message = "Bank balance read for {Who}: {Outcome}; HTTP status {Status}, error code {ErrorCode}, reason {Reason}, {DurationMs} ms")]
+  private static partial void LogBalanceRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, string reason, long durationMs);
 
   /// <summary>The transactions read's line: as the balance read's, with the status of the last page, the pages requested and how many transactions were left out (D3).</summary>
-  [LoggerMessage(EventId = 2, Message = "Bank transactions read for {Who}: {Outcome}; HTTP status {Status} on the last page, error code {ErrorCode}, {Pages} pages, {LeftOut} left out, {DurationMs} ms")]
-  private static partial void LogTransactionsRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, int pages, int leftOut, long durationMs);
+  [LoggerMessage(EventId = 2, Message = "Bank transactions read for {Who}: {Outcome}; HTTP status {Status} on the last page, error code {ErrorCode}, reason {Reason}, {Pages} pages, {LeftOut} left out, {DurationMs} ms")]
+  private static partial void LogTransactionsRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, string reason, int pages, int leftOut, long durationMs);
 
   /// <summary>
   /// What an error answer carried as its <c>error</c> value (c006 design.md D3, D7): a code (<see cref="Code"/>, a value of

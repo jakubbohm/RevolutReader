@@ -49,9 +49,9 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 8. [wiring] The log line: a reason, on every end
 
-- [ ] 8.1 Both log lines carry `Reason`: the `BankReadException`'s message for an unexpected end, `none` otherwise (design.md D8 a). Verify: edge tests with a capturing logger; green
-- [ ] 8.2 Any other exception ending a read writes the line at `Error` as unexpected, with the exception's type name as `Reason`, and passes on unchanged (design.md D6). Verify: an edge test reading with a default `ReadTrigger` sees the line and the original exception; green
-- [ ] 8.3 The page cap through the client: a fake bank that answers 20 pages, each with a new key, ends the read as an error after exactly 20 requests, and the line's `Reason` names the cap (design.md D4). Verify: an edge test in `IntegrationTests/Wiring/EnableBanking/`; green
+- [x] 8.1 Both log lines carry `Reason`: the `BankReadException`'s message for an unexpected end, `none` otherwise (design.md D8 a). Verify: edge tests with a capturing logger; green
+- [x] 8.2 Any other exception ending a read writes the line at `Error` as unexpected, with the exception's type name as `Reason`, and passes on unchanged (design.md D6). Verify: an edge test reading with a default `ReadTrigger` sees the line and the original exception; green
+- [x] 8.3 The page cap through the client: a fake bank that answers 20 pages, each with a new key, ends the read as an error after exactly 20 requests, and the line's `Reason` names the cap (design.md D4). Verify: an edge test in `IntegrationTests/Wiring/EnableBanking/`; green
 
 ## 9. [wiring] Application Insights
 
