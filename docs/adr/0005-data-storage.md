@@ -46,7 +46,7 @@ Decided by the user, 2026-11-05:
 1. **Azure Table Storage, in a storage account owned by the app.** It is declared in the app's Bicep and is part of its deployment stack.
 2. **Access through the app's managed identity** with the Storage Table Data Contributor role. Shared-key access is off, so there are no keys and no secret.
 3. **Locally, Aspire runs Azurite. Tests use Azurite in a test container** with the image pinned explicitly.
-4. **What the tables hold:** settled transactions, keyed so that a date range is a key query; the last view per user; and the push subscriptions (C8). Each change designs its own tables.
+4. **What the tables hold:** settled transactions, keyed so that a date range is a key query; the last view per user; and the push subscriptions (C8). Each change designs its own tables. *(2026-11-08: no last view is stored, [ADR-0001-bank-data-access § Decision](0001-bank-data-access.md#decision) items 4–5 amended; the notification check keeps its own record instead, C9.)*
 5. **The shared Cosmos DB free-tier account is not used.**
 
 ## Alternatives considered
@@ -71,7 +71,7 @@ Decided by the user, 2026-11-05:
   - M3 and M6 no longer prepare access to the shared Cosmos DB account;
   - M8's stack deletion deletes the stored bank data with everything else (kickoff ch. 9.6).
 - **C6 creates the storage account,** for the sign-in cookie's Data Protection keys in Blob Storage ([ADR-0006-hosting-registry-and-job § Decision](0006-hosting-registry-and-job.md#decision), item 2). That covers the Bicep, the `.bicepparam` and the AppHost.
-- **C7, or its first slice:**
+- **C7, or its first slice** (C7b since C7's split, 2026-11-08)**:**
   - the table role assignment and the table design in that account;
   - importing the M1 history file.
 - **C8:** the push subscriptions go into a table.

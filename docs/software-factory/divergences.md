@@ -48,7 +48,7 @@ Given up: work cannot be merged switched off and turned on later; a release cann
 **R-6 · Plan and status in repository files, not a tracker**
 Full version: GitHub issues, milestones and a project board, with open decisions as issues ([lessons.md R-6](lessons.md), DoseUp F-77, F-79, F-80).
 Here ([docs/conventions/workflow.md § 9](../conventions/workflow.md#9-project-management), 2026-11-04): **`pm/roadmap.md` and `pm/progress.md`**, decisions in ADRs — a fixed plan of about 20 steps, one session each.
-Given up: no board view, and no links between work items and commits or PRs.
+Given up: no board view, and no links between work items and commits or PRs. *(Since 2026-11-08 every piece of planned work also has a GitHub issue, so PRs link to their work items; only the board view, milestones and decisions as issues remain given up.)*
 *Switch back when:* the backlog outgrows the fixed plan, or a second contributor joins.
 
 **R-7 · The design system ships no CSS file of its tokens**

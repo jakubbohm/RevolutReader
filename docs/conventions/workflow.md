@@ -207,7 +207,11 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 
 ## 9. Project management
 
-- Work items live in `pm/roadmap.md` and `pm/progress.md`, not in a tracker. CLAUDE.md § Project management says how sessions use them.
+- Work items live in `pm/roadmap.md` and `pm/progress.md`: the order, the status and the decision trail. CLAUDE.md § Project management says how sessions use them.
+- **Every piece of planned work also gets a GitHub issue** (the user, 2026-11-08): each roadmap step, and any other planned work, such as a follow-up, a fix between steps or an enhancement for later. Claude files it when the work is planned, for a roadmap step when the step is added or split:
+  - the issue states the goal in a few lines and links the roadmap entry, which stays the one home of the detail; the roadmap entry and its `pm/progress.md` row link the issue;
+  - the PR that finishes the work closes the issue;
+  - it is the default, not a wall: the user may say for a specific item that it gets no issue.
 - Changing the roadmap needs the user's approval; every change is logged in `pm/progress.md` § Roadmap change log.
 
 ## 10. Software factory
