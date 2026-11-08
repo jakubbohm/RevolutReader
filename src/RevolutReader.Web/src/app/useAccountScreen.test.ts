@@ -13,6 +13,7 @@ import {
   kept,
   keptBalance,
   noAnswerYet,
+  noConnection,
   phoneKeeps,
   requests,
   serverError,
@@ -393,4 +394,34 @@ test("A refresh after a failed first read with no answer for 60 s ends as offlin
     balanceReadsSent(),
     "the stalled read is over: a new one goes out",
   ).toBe(3);
+});
+
+// D2 (code review of PR #59, finding 9): the server woke only when its first answer took 1.5 s or more. A first
+// question that got no answer at all, however long it took, is offline, not a woken server: back online, an awake
+// server's read shows the stored header refreshing ("Obnovuji…"), never the waking-up screen.
+test("A first question that fails with no answer after 1.5 s does not count as a woken server", async () => {
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: [after(5 * SECOND, noConnection), LUCIE],
+    balance: after(READ_TIME, balance(301.9)),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(5 * SECOND);
+  expect(result.current.shown, "no answer: offline").toMatchObject({
+    banner: { kind: "offline" },
+  });
+
+  // The phone's network comes back; who is signed in answers at once, and the balance read runs.
+  goOffline();
+  goOnline();
+  await timePasses(0);
+
+  expect(result.current.shown, "while the read runs").toMatchObject({
+    screen: "account",
+    header: { balance: { amount: 286.4 }, refreshing: true },
+  });
+  expect(result.current.shown, "no waking-up screen").not.toMatchObject({
+    body: "waking",
+  });
 });
