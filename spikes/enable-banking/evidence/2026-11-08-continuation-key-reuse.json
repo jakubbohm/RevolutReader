@@ -1,0 +1,34 @@
+{
+  "note": "Redacted: outcomes, counts and durations only. No amounts, names, texts, references, keys, ids or PSU header values. c008 design.md D11.",
+  "run_utc": "2026-11-08T13:11:10Z",
+  "transactions_days": 89,
+  "psu_headers_sent": [
+    "Psu-Ip-Address",
+    "Psu-User-Agent"
+  ],
+  "first_page_announces_another": true,
+  "requests": [
+    {
+      "request": "page 1",
+      "outcome": "read",
+      "duration_ms": 1080,
+      "transactions": 50,
+      "announces_another": true
+    },
+    {
+      "request": "page 2, first time",
+      "outcome": "read",
+      "duration_ms": 397,
+      "transactions": 50,
+      "announces_another": true
+    },
+    {
+      "request": "page 2, same key again",
+      "outcome": "read",
+      "duration_ms": 459,
+      "transactions": 50,
+      "announces_another": true
+    }
+  ],
+  "second_page_answers_hold_the_same_transactions": true
+}

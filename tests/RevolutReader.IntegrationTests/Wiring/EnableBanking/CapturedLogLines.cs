@@ -6,16 +6,22 @@ using RevolutReader.Api.Bank;
 namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 
 /// <summary>
-/// A logger provider that keeps every line the bank client writes (its category only, so nothing else the wiring logs gets
-/// in the way): its level, its text as formatted, and its structured values by name.
+/// A logger provider that keeps every line the bank client writes and, apart from them, every line of the resilience
+/// library behind its retries (c008 design.md D9); nothing else the wiring logs gets in the way. Each line keeps its level,
+/// its text as formatted, and its structured values by name. The logging's own filter runs first, so a line the app's
+/// configured levels drop never arrives here.
 /// </summary>
 public sealed class CapturedLogLines : ILoggerProvider {
+  /// <summary>The category the resilience library (Polly) logs under.</summary>
+  private const string LIBRARY_CATEGORY = "Polly";
+
   private static readonly string _clientCategory = typeof(EnableBankingClient).FullName!;
 
   private readonly Lock _lock = new();
   private readonly List<LogLine> _lines = [];
+  private readonly List<LogLine> _libraryLines = [];
 
-  /// <summary>The lines so far, in the order they were written.</summary>
+  /// <summary>The client's lines so far, in the order they were written.</summary>
   public IReadOnlyList<LogLine> Lines {
     get {
       lock (_lock)
@@ -23,15 +29,26 @@ public sealed class CapturedLogLines : ILoggerProvider {
     }
   }
 
-  public ILogger CreateLogger(string categoryName) =>
-    string.Equals(categoryName, _clientCategory, StringComparison.Ordinal) ? new CapturingLogger(this) : NullLogger.Instance;
-
-  private void Add(LogLine line) {
-    lock (_lock)
-      _lines.Add(line);
+  /// <summary>The resilience library's lines so far, in the order they were written.</summary>
+  public IReadOnlyList<LogLine> LibraryLines {
+    get {
+      lock (_lock)
+        return [.. _libraryLines];
+    }
   }
 
-  private sealed class CapturingLogger(CapturedLogLines lines) : ILogger {
+  public ILogger CreateLogger(string categoryName) => categoryName switch {
+    _ when string.Equals(categoryName, _clientCategory, StringComparison.Ordinal) => new CapturingLogger(line => Add(_lines, line)),
+    LIBRARY_CATEGORY => new CapturingLogger(line => Add(_libraryLines, line)),
+    _ => NullLogger.Instance,
+  };
+
+  private void Add(List<LogLine> lines, LogLine line) {
+    lock (_lock)
+      lines.Add(line);
+  }
+
+  private sealed class CapturingLogger(Action<LogLine> add) : ILogger {
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
@@ -46,7 +63,7 @@ public sealed class CapturedLogLines : ILoggerProvider {
           values[name] = Convert.ToString(value, CultureInfo.InvariantCulture);
       }
 
-      lines.Add(new LogLine(logLevel, formatter(state, exception), values));
+      add(new LogLine(logLevel, formatter(state, exception), values));
     }
   }
 
@@ -58,7 +75,7 @@ public sealed class CapturedLogLines : ILoggerProvider {
   #endregion
 }
 
-/// <summary>One line the bank client wrote.</summary>
+/// <summary>One line the bank client, or the resilience library, wrote.</summary>
 /// <param name="Level">Its level.</param>
 /// <param name="Text">Its text, as formatted.</param>
 /// <param name="Values">The structured values by placeholder name, such as <c>ErrorCode</c>, each as invariant text.</param>

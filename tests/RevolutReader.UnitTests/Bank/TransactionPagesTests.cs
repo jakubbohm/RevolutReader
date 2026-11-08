@@ -119,8 +119,9 @@ public sealed class TransactionPagesTests {
 
   /// <param name="failure">
   /// Each of the bank's expected failures, on page 2 of 3 (spec bank-reads, "A failure on a later page fails the whole
-  /// read"; D7). The read ends with that failure, no partial list; page 2 is not asked for again (never retried,
-  /// ADR-0001), and page 3 is never asked for.
+  /// read"; D7). The read ends with that failure, no partial list; <see cref="TransactionPages"/> does not ask for page 2
+  /// again (a retry, if any, happens below it, in the bank client's HTTP handler: c008 design.md D3), and page 3 is never
+  /// asked for.
   /// </param>
   [Test]
   [Arguments("access expired")]

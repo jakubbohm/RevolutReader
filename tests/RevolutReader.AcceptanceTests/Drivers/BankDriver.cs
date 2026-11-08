@@ -9,8 +9,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 
 /// <summary>
 /// Drives the app's bank port (spec bank-reads, c004 design.md D1): takes <see cref="IBankAccount"/> from the test's own
-/// app copy, so the reads run on the production wiring (settings, <c>HttpClient</c>, no retries) against
-/// <see cref="FakeBank"/>. Turns the DSL's facts into the fake bank's answers, and the port's results into DSL answers.
+/// app copy, so the reads run on the production wiring (settings, <c>HttpClient</c> with the bank client's retries, at a
+/// zero wait: <see cref="FakeBank.RetryDelay"/>) against <see cref="FakeBank"/>. Turns the DSL's facts into the fake bank's
+/// answers, and the port's results into DSL answers.
 /// <list type="bullet">
 /// <item>A <see cref="BankResult{T}"/> becomes the answer's outcome: the value is <see cref="BankOutcome.Read"/>, each
 /// failure its own outcome, with no value.</item>
@@ -102,6 +103,9 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// </summary>
   private string? _listedPage;
 
+  /// <summary>The page each continuation key this test's fake bank hands out asks for (<see cref="ContinuationKeyOf"/>), for <see cref="PagesRequested"/>.</summary>
+  private readonly Dictionary<string, int> _pageOfKey = [];
+
   /// <summary>The fake bank this test's app copy reads.</summary>
   private FakeBank Bank => bank;
 
@@ -161,8 +165,8 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
     ];
 
     for (int page = 1; page <= pages; page++) {
-      string? keyOfThisPage = page == 1 ? null : MadeUpContinuationKey(page);
-      string? keyOfNextPage = page == pages ? null : MadeUpContinuationKey(page + 1);
+      string? keyOfThisPage = page == 1 ? null : ContinuationKeyOf(page);
+      string? keyOfNextPage = page == pages ? null : ContinuationKeyOf(page + 1);
       WireTransaction[] onThisPage = transactions[((page - 1) * count / pages)..(page * count / pages)];
 
       Bank.AnswerTransactionsPage(since, keyOfThisPage, PageJson(onThisPage, keyOfNextPage));
@@ -176,10 +180,23 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// single page (design.md § Bootstrap). The second page's error is written from the API reference.
   /// </summary>
   public void ListsFirstPageThenFails(DateOnly since) {
-    string keyOfPage2 = MadeUpContinuationKey(2);
+    string keyOfPage2 = ContinuationKeyOf(2);
 
     Bank.AnswerTransactionsPage(since, continuationKey: null, PageJson(_captured, keyOfPage2));
     Bank.AnswerTransactionsPageError(since, keyOfPage2, OWN_ERROR_STATUS, OWN_ERROR);
+  }
+
+  /// <summary>
+  /// As <see cref="ListsInPages"/>, and the first request for page <paramref name="failingPage"/> (with its continuation key,
+  /// none for page 1) gets the bank's own error (<see cref="OWN_ERROR"/>, written from the API reference) instead; a later
+  /// request for that page gets the page. Not captured: the Mock ASPSP neither pages nor fails on demand.
+  /// </summary>
+  public void ListsInPagesWithOneErrorOnPage(DateOnly since, int count, int pages, int failingPage) {
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(failingPage);
+    ArgumentOutOfRangeException.ThrowIfGreaterThan(failingPage, pages);
+
+    ListsInPages(since, count, pages);
+    Bank.AnswerTransactionsPageErrorOnce(since, failingPage == 1 ? null : ContinuationKeyOf(failingPage), OWN_ERROR_STATUS, OWN_ERROR);
   }
 
   /// <summary>
@@ -214,6 +231,19 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   /// <summary>Every request: the bank reports an error of its own (<see cref="OWN_ERROR"/>).</summary>
   public void ReportsOwnError() => Bank.AnswerError(OWN_ERROR_STATUS, OWN_ERROR);
+
+  /// <summary>
+  /// The first request: the bank reports an error of its own (<see cref="OWN_ERROR"/>), whatever else the test set up;
+  /// later requests get that.
+  /// </summary>
+  public void ReportsOwnErrorForTheFirstRequest() => Bank.AnswerErrorOnce(OWN_ERROR_STATUS, OWN_ERROR);
+
+  /// <summary>
+  /// The first request: the answer the test set up for it starts and the connection breaks while it comes in
+  /// (<see cref="FakeBank.BreakTheNextAnswer"/>); later requests get their answers whole. Not captured: the Mock ASPSP
+  /// cannot break a connection.
+  /// </summary>
+  public void BreaksConnectionWhileAnsweringTheFirstRequest() => Bank.BreakTheNextAnswer();
 
   /// <summary>Every request: a gateway in front of the bank answers that the service is unavailable, with its own maintenance page (<see cref="MAINTENANCE_PAGE"/>).</summary>
   public void GatewayAnswersWithMaintenancePage() => Bank.AnswerHtmlPage(MAINTENANCE_PAGE_STATUS, MAINTENANCE_PAGE);
@@ -251,6 +281,12 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// all; otherwise <c>Psu-Ip-Address</c> and <c>Psu-User-Agent</c>, each missing one <see langword="null"/>.
   /// </summary>
   public IReadOnlyList<RequestAtBank> RequestsReceived() => [.. Bank.RequestHeadersReceived().Select(RequestOf)];
+
+  /// <summary>
+  /// The page every transactions request the fake bank received asked for, in order: 1 without a continuation key, else
+  /// the page this test handed that key out for. A key the test never handed out fails the test.
+  /// </summary>
+  public IReadOnlyList<int> PagesRequested() => [.. Bank.ContinuationKeysReceived().Select(PageOf)];
 
   /// <summary>The value is <see cref="BankOutcome.Read"/> with the balance; each failure is its own outcome, with no balance.</summary>
   private static BalanceAnswer AnswerOf(BankResult<Balance> result) => result switch {
@@ -335,6 +371,20 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   /// <summary>A made-up key for the page with this number (2 and up), with characters a query must escape.</summary>
   private static string MadeUpContinuationKey(int page) => $"c004+page/{page}==";
+
+  /// <summary>The made-up key of the page with this number (2 and up), remembered as that page's, for <see cref="PagesRequested"/>.</summary>
+  private string ContinuationKeyOf(int page) {
+    string key = MadeUpContinuationKey(page);
+    _pageOfKey[key] = page;
+
+    return key;
+  }
+
+  /// <summary>The page a transactions request with this continuation key asked for: 1 without one.</summary>
+  private int PageOf(string? continuationKey) =>
+    continuationKey is null ? 1
+    : _pageOfKey.TryGetValue(continuationKey, out int page) ? page
+    : throw new InvalidOperationException("The fake bank received a continuation key this test never handed out.");
 
   /// <summary>One page in the capture's shape: these transactions, then the key of the next page, <c>null</c> on the last.</summary>
   private static string PageJson(IEnumerable<WireTransaction> transactions, string? continuationKey) => $$"""

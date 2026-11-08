@@ -39,6 +39,10 @@ public sealed class BankDsl(BankDriver driver) {
   /// <summary>The bank returns the first page of transactions since <paramref name="since"/>, then reports an error of its own for the second page.</summary>
   public void ListsFirstPageThenFails(DateOnly since) => driver.ListsFirstPageThenFails(since);
 
+  /// <summary>As <see cref="ListsInPages"/>, and the first request for page <paramref name="failingPage"/> gets the bank's own error.</summary>
+  public void ListsInPagesWithOneErrorOnPage(DateOnly since, int count, int pages, int failingPage) =>
+    driver.ListsInPagesWithOneErrorOnPage(since, count, pages, failingPage);
+
   /// <summary>Every request: the bank reports that the session has expired.</summary>
   public void ReportsExpiredSession() {
     _balanceAnswerGiven = true;
@@ -56,6 +60,16 @@ public sealed class BankDsl(BankDriver driver) {
     _balanceAnswerGiven = true;
     driver.ReportsOwnError();
   }
+
+  /// <summary>The first request: the bank reports an error of its own; later requests get what the scenario set up (the default balance otherwise).</summary>
+  public void ReportsOwnErrorForTheFirstRequest() => driver.ReportsOwnErrorForTheFirstRequest();
+
+  /// <summary>
+  /// The first request: the answer starts and the connection breaks while it comes in; later requests get what the scenario
+  /// set up (the default balance otherwise). It is a break .NET's own resend does not absorb (the answer has started), so
+  /// only the app's retry can recover.
+  /// </summary>
+  public void BreaksConnectionWhileAnsweringTheFirstRequest() => driver.BreaksConnectionWhileAnsweringTheFirstRequest();
 
   /// <summary>
   /// Every request: a gateway in front of the bank answers that the service is unavailable, with its own maintenance page
@@ -101,6 +115,9 @@ public sealed class BankDsl(BankDriver driver) {
 
   /// <summary>Every request the bank received during the test, in order.</summary>
   public IReadOnlyList<RequestAtBank> RequestsReceived() => driver.RequestsReceived();
+
+  /// <summary>The page each transactions request asked for, in the order received (1 for the first page).</summary>
+  public IReadOnlyList<int> PagesRequested() => driver.PagesRequested();
 
   private void AnswerTheBalanceByDefault() {
     if (_balanceAnswerGiven)

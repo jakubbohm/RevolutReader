@@ -2,7 +2,7 @@
 
 > How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-08 (C12: Application Insights, the 0.16 GB cap, the queries for failed bank reads).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-08 (C12: Application Insights, the 0.16 GB cap, the queries for failed bank reads; C11: the queries for bank retries).
 
 ## Identifiers (non-secret)
 
@@ -188,6 +188,34 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 - **Where the fields are:** a log entry lands in `AppTraces`, its text in `Message`, its level in `SeverityLevel`, and its fields (`Who`, `Outcome`, `Status`, `ErrorCode`, `Reason`, …) in the dynamic column `Properties` ([Microsoft Learn: Application Insights telemetry data model](https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete), updated 2026-10-09; [AppTraces table reference](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apptraces), updated 2026-07-28; both read 2026-11-08). The Azure Monitor exporter adds the logger's category as `CategoryName` and a non-zero event ID as `EventId` (balance reads are 1, transaction reads 2), and sends an entry that carries an exception to `AppExceptions` instead; the bank-read lines carry none ([the exporter's `LogsHelper.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Internals/LogsHelper.cs), read 2026-11-08).
 - **Columns to be confirmed with C7's first bank lines:** written from those sources before any bank line reached Application Insights, since nothing calls the adapter before C7. If the queries come back empty although the app has read the bank, look at a raw row and adjust the names here: `AppTraces | where Message startswith 'Bank ' | project TimeGenerated, Message, Properties | take 5`.
 - **Reasons:** `Reason` is `none` except for an unexpected end, where it is a fixed text that quotes no bank data, or another exception's type name. A new value there is a case the adapter does not handle yet.
+
+### Bank retries (C11)
+
+Since C11 the bank client retries a present user's request that failed in a way that reads as "bank unavailable", up to 3 times (c008 design.md D1–D8). The read's own line above stays one per read and does not count the attempts; each retry shows as a warning of the retry library (Polly, under Microsoft's resilience library), named after the bank client's retry pipeline, `bank-retries` (c008 design.md D9). These two read-only queries list the retries in a period and count them by what the failed attempt got, to see whether the bank degrades. Set the period as above.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg  = 'rg-revolutreader'
+$workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+    --workspace-name log-revolutreader --query customerId --output tsv
+
+$from = '2026-11-01'; $to = '2026-11-09'
+$bankRetries = "union AppTraces, AppExceptions | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | extend Category = tostring(Properties.CategoryName), EventName = tostring(Properties.EventName), Pipeline = tostring(Properties.PipelineName) | where Category == 'Polly' and EventName == 'OnRetry' and Pipeline == 'IBankAccount-bank-retries'"
+
+# Every bank retry in the period, newest first: what the failed attempt got, and the request it belongs to
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$bankRetries | project TimeGenerated, Failure = iff(Type == 'AppExceptions', 'network failure', 'error answer'), Result = tostring(Properties.Result), OperationId | order by TimeGenerated desc"
+
+# The same, counted by what the failed attempt got, the most frequent first
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$bankRetries | summarize Retries = count(), Last = max(TimeGenerated) by Failure = iff(Type == 'AppExceptions', 'network failure', 'error answer'), Result = tostring(Properties.Result) | order by Retries desc"
+```
+
+- **To be confirmed once the first real retry lines arrive:** written from the library's code and the exporter's before any retry reached Application Insights. If the queries come back empty although the bank read lines show a read that took several seconds, look at raw rows and adjust the names here: `union AppTraces, AppExceptions | where tostring(Properties.CategoryName) == 'Polly' | project TimeGenerated, Type, Message, Properties | take 5`.
+- **Where the fields are:** the library logs under the category `Polly`; a retry is the warning "Resilience event occurred. EventName: 'OnRetry', Source: 'IBankAccount-bank-retries//Retry', …", whose fields `EventName`, `PipelineName`, `StrategyName` and `Result` land in `Properties` ([Polly telemetry](https://www.pollydocs.org/advanced/telemetry.html); the message template in Polly.Extensions 8.4.2, read 2026-11-08). The pipeline's name is the bank client's name followed by `bank-retries`. `Result` is the failed answer's HTTP status, or for a network failure the failure's message. A network failure's warning carries the exception, so the exporter sends it to `AppExceptions` rather than `AppTraces` (both tables have `Properties`: [AppTraces](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apptraces), [AppExceptions](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/appexceptions), both updated 2026-07-28, read 2026-11-08; the exporter's handling as in § Bank reads above, [`LogsHelper.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Internals/LogsHelper.cs), read 2026-11-08: a field of the message wins over the event's own name, so `EventName` is `OnRetry`).
+- **What else the library writes:** an "Execution attempt" warning for every attempt the retry rule would retry, the last of four included; the queries leave them out and count the retries themselves. Its lines for successful attempts are switched off (`Logging:LogLevel:Polly` is `Warning`), so a read answered at once writes nothing of the library.
+- **The read behind a retry:** a retry and the read's own line share the request's `OperationId`, so `AppTraces | where OperationId == '<OperationId from the first query>'` shows how that read ended.
+- Neither query shows an identifier or bank data: the library logs the pipeline's name, the status or the failure's message, never a request's address (checked by the telemetry guard, c008 design.md D9).
 
 ## Rolling back
 

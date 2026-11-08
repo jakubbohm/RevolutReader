@@ -1,17 +1,20 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using WireMock;
+using Microsoft.Extensions.Primitives;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
 using WireMock.Settings;
-using WireMock.Types;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
 
@@ -19,14 +22,15 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// The fake Enable Banking every test app copy talks to (testing.md § Fake bank, c004 design.md D1, D6): a WireMock.Net
 /// server per test, started before the app copy, in front of the app's real Enable Banking client. Every app copy gets
 /// its settings (<see cref="Configure"/>), so the app starts whether or not the test reads the bank: the server's address,
-/// made-up application, session and account ids, an RSA key generated once per test run, and a 5 s request timeout. No
-/// real secret and no real account data, ever.
+/// made-up application, session and account ids, an RSA key generated once per test run, a 5 s request timeout and no
+/// wait between retries. No real secret and no real account data, ever.
 /// <para>
 /// The answers are set per test, by <see cref="BankDriver"/>. They are copied from the Mock ASPSP capture
 /// (<c>spikes/enable-banking-mock/evidence/2026-11-06-account1-*.json</c>); what the mock cannot produce (several pages,
-/// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer) is written from the API reference and the M1 findings,
-/// and a gateway's maintenance page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected <c>date_from</c> and
-/// <c>continuation_key</c>.
+/// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer, an answer for the first request only, a connection that
+/// breaks while the answer comes in) is written from the API reference and the M1 findings, and a gateway's maintenance
+/// page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected
+/// <c>date_from</c> and <c>continuation_key</c>.
 /// </para>
 /// </summary>
 public sealed class FakeBank : IDisposable {
@@ -44,12 +48,24 @@ public sealed class FakeBank : IDisposable {
   private const string CONTINUATION_KEY = "continuation_key";
 
   /// <summary>
+  /// The priority of an answer for the first matching request only (<see cref="AnswerOnce"/>): above every other answer
+  /// (WireMock.Net: a lower value is a higher priority; every other answer keeps the default, 0), so it wins whether the
+  /// scenario sets it up before or after them.
+  /// </summary>
+  private const int ONE_OFF_PRIORITY = -1;
+
+  /// <summary>The state a one-off answer's WireMock.Net scenario moves to once it has answered; it never answers again.</summary>
+  private const string ANSWERED = "answered";
+
+  /// <summary>
   /// One application key per test run: generating an RSA key takes tens of milliseconds, and nothing in a test depends
   /// on it being different from another test's. PKCS#8 PEM, as the Control Panel hands it out.
   /// </summary>
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
   private readonly WireMockServer _server;
+  private readonly ArrivalLog _arrivals;
+  private readonly AnswerBreaker _breaker;
 
   /// <summary>
   /// Shorter than production's 15 s, so the slow-answer scenario stays bearable, yet long enough that no other test runs
@@ -57,6 +73,13 @@ public sealed class FakeBank : IDisposable {
   /// over a second and read as bank unavailable (the orchestrator's decision, 2026-11-07).
   /// </summary>
   public static TimeSpan RequestTimeout { get; } = TimeSpan.FromSeconds(5);
+
+  /// <summary>
+  /// No wait before a retry (c008 design.md D7): every app copy's clock, which the retries wait on, is a
+  /// <c>FakeTimeProvider</c> (<see cref="FakeMicrosoft.Clock"/>) that moves only when a test moves it, so any other wait
+  /// would never end. A zero wait does not depend on the clock. Production waits 0.8 s, declared in <c>appsettings.json</c>.
+  /// </summary>
+  public static TimeSpan RetryDelay { get; } = TimeSpan.Zero;
 
   /// <summary>The RSA private key the app signs its requests with, as PEM text; one per test run.</summary>
   public static string PrivateKey => _privateKey.Value;
@@ -73,16 +96,31 @@ public sealed class FakeBank : IDisposable {
   /// <summary>Where the server listens; the app copy's Enable Banking API address.</summary>
   public Uri Address { get; }
 
-  private FakeBank(WireMockServer server) {
+  /// <summary>The path of this account's transactions, as the server receives it.</summary>
+  private string TransactionsPath => $"/accounts/{AccountId}/transactions";
+
+  private FakeBank(WireMockServer server, ArrivalLog arrivals, AnswerBreaker breaker) {
     _server = server;
+    _arrivals = arrivals;
+    _breaker = breaker;
     Address = new Uri(server.Url ?? throw new InvalidOperationException("The fake bank started without an address."));
   }
 
   /// <summary>
-  /// Starts a fake bank on a free local port, its own server kept out of every trace (<see cref="SilenceHostingTelemetry"/>).
+  /// Starts a fake bank on a free local port, its own server kept out of every trace (<see cref="SilenceHostingTelemetry"/>),
+  /// with two middlewares in front of WireMock.Net's own handling: <see cref="ArrivalLog"/>, then <see cref="AnswerBreaker"/>.
   /// Call it before the app copy starts, so its address is known.
   /// </summary>
-  public static FakeBank Start() => new(WireMockServer.Start(new WireMockServerSettings { AdditionalServiceRegistration = SilenceHostingTelemetry }));
+  public static FakeBank Start() {
+    ArrivalLog arrivals = new();
+    AnswerBreaker breaker = new();
+    WireMockServer server = WireMockServer.Start(new WireMockServerSettings {
+      AdditionalServiceRegistration = SilenceHostingTelemetry,
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record).Use(breaker.Answer),
+    });
+
+    return new(server, arrivals, breaker);
+  }
 
   /// <summary>
   /// Writes the fake bank's settings into the app copy's <c>EnableBanking</c> section. Added as the last configuration
@@ -99,6 +137,7 @@ public sealed class FakeBank : IDisposable {
       [$"{SECTION}:SessionId"] = SessionId,
       [$"{SECTION}:AccountId"] = AccountId,
       [$"{SECTION}:RequestTimeout"] = RequestTimeout.ToString("c", CultureInfo.InvariantCulture),
+      [$"{SECTION}:RetryDelay"] = RetryDelay.ToString("c", CultureInfo.InvariantCulture),
     };
 
     builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
@@ -125,8 +164,29 @@ public sealed class FakeBank : IDisposable {
   public void AnswerTransactionsPageError(DateOnly dateFrom, string? continuationKey, HttpStatusCode status, string body) =>
     _server.Given(TransactionsPage(dateFrom, continuationKey)).RespondWith(JsonAnswer(status, body));
 
+  /// <summary>
+  /// The first request for this page, as <see cref="AnswerTransactionsPage"/> matches it, is answered with this Enable
+  /// Banking error instead of whatever else the test set up for it (<see cref="AnswerOnce"/>); later requests for the page
+  /// get that.
+  /// </summary>
+  public void AnswerTransactionsPageErrorOnce(DateOnly dateFrom, string? continuationKey, HttpStatusCode status, string body) =>
+    AnswerOnce(TransactionsPage(dateFrom, continuationKey), JsonAnswer(status, body));
+
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
+
+  /// <summary>
+  /// The first request, whatever it asks for, is answered with this Enable Banking error instead of whatever else the test
+  /// set up (<see cref="AnswerOnce"/>); later requests get that.
+  /// </summary>
+  public void AnswerErrorOnce(HttpStatusCode status, string body) => AnswerOnce(Request.Create().UsingAnyMethod(), JsonAnswer(status, body));
+
+  /// <summary>
+  /// The answer to the next request the server receives starts and breaks off (<see cref="AnswerBreaker"/>): its status
+  /// and headers, which promise the whole body, and half of the body, then the connection ends. The answer is whatever the
+  /// test set up for that request, and the request counts as received; later requests are answered whole.
+  /// </summary>
+  public void BreakTheNextAnswer() => _breaker.BreakTheNextAnswer();
 
   /// <summary>
   /// Every request is answered with this status and this HTML page (<c>text/html</c>), as a gateway in front of Enable
@@ -139,20 +199,30 @@ public sealed class FakeBank : IDisposable {
   public void AnswerAfter(TimeSpan delay) => _server.AddGlobalProcessingDelay(delay);
 
   /// <summary>
-  /// The headers of every request the bank received, answered or not, in the order received, from the server's request
-  /// log. Names are looked up ignoring case, as HTTP compares them; a header sent more than once has its values joined
-  /// with <c>", "</c>.
+  /// The headers of every request the bank received, answered or not, in the order received (<see cref="ArrivalLog"/>).
+  /// Names are looked up ignoring case, as HTTP compares them; a header sent more than once has its values joined with
+  /// <c>", "</c>.
   /// </summary>
-  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => [
-    .. _server.LogEntries
-      .Select(static entry => entry.RequestMessage)
-      .OfType<IRequestMessage>()
-      .OrderBy(static request => request.DateTime)
-      .Select(static request => (request.Headers ?? new Dictionary<string, WireMockList<string>>())
-        .ToDictionary(static header => header.Key, static header => string.Join(", ", header.Value), StringComparer.OrdinalIgnoreCase)),
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => [.. _arrivals.Requests().Select(static request => request.Headers)];
+
+  /// <summary>
+  /// The <c>continuation_key</c> of every request for this account's transactions the bank received, answered or not, in
+  /// the order received (<see cref="ArrivalLog"/>); <see langword="null"/> for a request without one (a first page).
+  /// </summary>
+  public IReadOnlyList<string?> ContinuationKeysReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.ContinuationKey),
   ];
 
   private static string MadeUpId() => Guid.NewGuid().ToString();
+
+  /// <summary>
+  /// Answers the first request that matches <paramref name="request"/> with <paramref name="response"/>, and no later one:
+  /// a WireMock.Net scenario of its own, which moves on to <see cref="ANSWERED"/> once it has answered, at
+  /// <see cref="ONE_OFF_PRIORITY"/>, so it wins over the test's other answers for that one request. The mapping moves the
+  /// scenario on before the answer goes out, so a request sent after it gets the other answers.
+  /// </summary>
+  private void AnswerOnce(IRequestBuilder request, IResponseBuilder response) =>
+    _server.Given(request).AtPriority(ONE_OFF_PRIORITY).InScenario($"one-off {Guid.NewGuid()}").WillSetStateTo(ANSWERED).RespondWith(response);
 
   /// <summary>A <c>GET</c> of exactly <paramref name="path"/> that carries a bearer token (the application's JWT).</summary>
   private static IRequestBuilder SignedGet(string path) =>
@@ -160,7 +230,7 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>A signed <c>GET</c> of this account's transactions for exactly this <c>date_from</c> and <c>continuation_key</c> (none: no such parameter).</summary>
   private IRequestBuilder TransactionsPage(DateOnly dateFrom, string? continuationKey) {
-    IRequestBuilder request = SignedGet($"/accounts/{AccountId}/transactions")
+    IRequestBuilder request = SignedGet(TransactionsPath)
       .WithParam(DATE_FROM, new ExactMatcher(dateFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
 
     return continuationKey is null
@@ -194,6 +264,97 @@ public sealed class FakeBank : IDisposable {
     using RSA key = RSA.Create(2048);
 
     return key.ExportPkcs8PrivateKeyPem();
+  }
+
+  /// <summary>
+  /// Every request the fake bank's server received, as it arrived: a middleware in front of WireMock.Net's own handling,
+  /// so a request still waiting for its answer counts. WireMock.Net logs a request only once it has answered it: a request
+  /// the test delays (<see cref="AnswerAfter"/>) is missing from its log until the delay ends, after the app has given up.
+  /// </summary>
+  private sealed class ArrivalLog {
+    private readonly ConcurrentQueue<RequestArrived> _requests = new();
+
+    /// <summary>Every request so far, in the order received.</summary>
+    public IReadOnlyList<RequestArrived> Requests() => [.. _requests];
+
+    /// <summary>The middleware: notes the request, then passes it on.</summary>
+    public Task Record(HttpContext context, RequestDelegate next) {
+      HttpRequest request = context.Request;
+      string? continuationKey = request.Query.TryGetValue(CONTINUATION_KEY, out StringValues keys) ? keys.FirstOrDefault() : null;
+
+      _requests.Enqueue(new RequestArrived(
+        request.Path.Value ?? string.Empty,
+        continuationKey,
+        request.Headers.ToDictionary(static header => header.Key, static header => string.Join(", ", (IEnumerable<string?>)header.Value), StringComparer.OrdinalIgnoreCase)));
+
+      return next(context);
+    }
+  }
+
+  /// <summary>A request as it arrived: its path, its decoded <c>continuation_key</c> (none: <see langword="null"/>) and its headers.</summary>
+  private sealed record RequestArrived(string Path, string? ContinuationKey, IReadOnlyDictionary<string, string> Headers);
+
+  /// <summary>
+  /// Breaks the connection while an answer comes in, once armed (<see cref="BreakTheNextAnswer"/>): a middleware in front
+  /// of WireMock.Net's own handling, in the fake bank's server. Not captured: the Mock ASPSP cannot break a connection on
+  /// demand, and WireMock.Net's faults cannot break it mid-answer (its "malformed chunk" still ends the answer properly).
+  /// <para>
+  /// The armed request counts as received (<see cref="ArrivalLog"/> runs first) and goes through WireMock.Net as any
+  /// other, so it gets the answer the test set up for it, kept in memory instead of sent. Then the status and the headers
+  /// go out with a <c>Content-Length</c> of the whole body, then half of the body, and the answer ends there. Kestrel, the
+  /// server under WireMock.Net, then closes the connection, because the client cannot know how much more is coming (its
+  /// "too few bytes written" error, logged by the fake bank's own host only). So the client has the start of the answer and
+  /// runs into the end of the connection while the body comes in: the network failure
+  /// <c>IntegrationTests/Wiring/EnableBanking/ConnectionBreakingServer</c> produces for the adapter's edge tests. Checked
+  /// 2026-11-08 (WireMock.Net 2.21.0, .NET 11 RC3) with a raw client: the status line, the headers with the whole body's
+  /// <c>Content-Length</c>, half of the body, then the connection's orderly end, no reset; an <c>HttpClient</c> failed with
+  /// "Error while copying content to a stream".
+  /// </para>
+  /// <para>
+  /// It must break after the answer has started (c008 design.md § How each scenario is verified): .NET's HTTP stack resends
+  /// a bodiless request by itself when a reused connection closes before any answer came, so a break before the answer
+  /// could be absorbed without the app's retries.
+  /// </para>
+  /// </summary>
+  private sealed class AnswerBreaker {
+    /// <summary>1 while the next request's answer is to be broken, 0 otherwise.</summary>
+    private int _breakTheNext;
+
+    public void BreakTheNextAnswer() => Interlocked.Exchange(ref _breakTheNext, 1);
+
+    /// <summary>The middleware: passes every request on to WireMock.Net, and breaks the answer to the first one after <see cref="BreakTheNextAnswer"/>.</summary>
+    public async Task Answer(HttpContext context, RequestDelegate next) {
+      if (Interlocked.Exchange(ref _breakTheNext, 0) == 0) {
+        await next(context);
+
+        return;
+      }
+
+      byte[] body = await AnswerInMemory(context, next);
+
+      context.Response.ContentLength = body.Length;
+      await context.Response.StartAsync(context.RequestAborted);
+      await context.Response.Body.WriteAsync(body.AsMemory(0, body.Length / 2), context.RequestAborted);
+      await context.Response.Body.FlushAsync(context.RequestAborted);
+    }
+
+    /// <summary>WireMock.Net answers the request with its body written to memory, not sent; the status and headers it sets stay on the response.</summary>
+    private static async Task<byte[]> AnswerInMemory(HttpContext context, RequestDelegate next) {
+      IHttpResponseBodyFeature server = context.Features.GetRequiredFeature<IHttpResponseBodyFeature>();
+      using MemoryStream memory = new();
+      StreamResponseBodyFeature inMemory = new(memory);
+      context.Features.Set<IHttpResponseBodyFeature>(inMemory);
+
+      try {
+        await next(context);
+        await inMemory.CompleteAsync();
+      }
+      finally {
+        context.Features.Set(server);
+      }
+
+      return memory.ToArray();
+    }
   }
 
   #region IDisposable

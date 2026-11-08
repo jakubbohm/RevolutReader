@@ -78,7 +78,7 @@ public sealed class RealAccountCheck {
       TransactionsDays: DAYS,
       PsuHeadersSent: ["Psu-Ip-Address", "Psu-User-Agent"],
       Reads: reads,
-      RawPages: pages.Value?.Counts), today);
+      RawPages: pages.Value?.Counts), today, "real-account-check");
 
     foreach (ReadSummary read in reads)
       Console.WriteLine($"{read.Read}, {read.Trigger}: {read.Outcome}");
@@ -87,6 +87,65 @@ public sealed class RealAccountCheck {
 
     reads.Where(static read => read.Outcome != READ).Select(static read => $"{read.Read}, {read.Trigger}: {read.Outcome}")
       .ShouldBeEmpty($"every read succeeds; the evidence file records each outcome ({evidence})");
+  }
+
+  /// <summary>
+  /// c008 design.md D11: whether Enable Banking accepts a continuation key a second time, as a retried transactions page
+  /// sends it. With the owner present (the owner's headers, as above; Revolut does not limit such reads): the first page of
+  /// the last 89 days, then the second page twice with the same key, the second time right after the first answered.
+  /// Writes <c>spikes/enable-banking/evidence/&lt;date&gt;-continuation-key-reuse.json</c>: each request's outcome and
+  /// duration, the transactions on each answer of the second page, whether both answers hold the same transactions in the
+  /// same order (compared in memory by entry reference, never saved) and whether each announces a next page. Nothing else.
+  /// </summary>
+  [Test]
+  public async Task A_continuation_key_works_a_second_time() {
+    Dictionary<string, string?> settings = RealBankWiring.SettingsFromUserSecrets(_secrets);
+    PresentUser owner = new(await OwnersPublicAddress(), $"RevolutReader-check/1.0 .NET/{Environment.Version}");
+
+    await using ServiceProvider services = RealBankWiring.Wiring(settings);
+    EnableBankingClient client = (EnableBankingClient)services.GetRequiredService<IBankAccount>();
+    DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetUtcNow().UtcDateTime);
+    DateOnly from = today.AddDays(-DAYS);
+
+    Timed<BankResult<EbTransactionPage>> first = await Time(() => client.ReadTransactionPage(from, null, owner, CancellationToken.None));
+    string? key = (first.Value.Value as EbTransactionPage)?.ContinuationKey;
+    List<PageAnswer> answers = [PageAnswer.Of("page 1", first)];
+
+    EbTransactionPage? secondOnce = null;
+    EbTransactionPage? secondAgain = null;
+
+    if (!string.IsNullOrEmpty(key)) {
+      Timed<BankResult<EbTransactionPage>> once = await Time(() => client.ReadTransactionPage(from, key, owner, CancellationToken.None));
+      Timed<BankResult<EbTransactionPage>> again = await Time(() => client.ReadTransactionPage(from, key, owner, CancellationToken.None));
+
+      answers.Add(PageAnswer.Of("page 2, first time", once));
+      answers.Add(PageAnswer.Of("page 2, same key again", again));
+      secondOnce = once.Value.Value as EbTransactionPage;
+      secondAgain = again.Value.Value as EbTransactionPage;
+    }
+
+    bool? sameTransactions = secondOnce is null || secondAgain is null
+      ? null
+      : secondOnce.Transactions.Select(static transaction => transaction.EntryReference).SequenceEqual(secondAgain.Transactions.Select(static transaction => transaction.EntryReference), StringComparer.Ordinal);
+
+    string evidence = await WriteEvidence(new KeyReuseEvidence(
+      Note: "Redacted: outcomes, counts and durations only. No amounts, names, texts, references, keys, ids or PSU header values. c008 design.md D11.",
+      RunUtc: TimeProvider.System.GetUtcNow().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+      TransactionsDays: DAYS,
+      PsuHeadersSent: ["Psu-Ip-Address", "Psu-User-Agent"],
+      FirstPageAnnouncesAnother: !string.IsNullOrEmpty(key),
+      Requests: answers,
+      SecondPageAnswersHoldTheSameTransactions: sameTransactions), today, "continuation-key-reuse");
+
+    foreach (PageAnswer answer in answers)
+      Console.WriteLine($"{answer.Request}: {answer.Outcome}");
+
+    Console.WriteLine($"Evidence: {evidence}");
+
+    key.ShouldNotBeNullOrEmpty($"the first page announces a second one, or nothing was tried ({evidence})");
+    answers.Where(static answer => answer.Outcome != READ).Select(static answer => $"{answer.Request}: {answer.Outcome}")
+      .ShouldBeEmpty($"every request succeeds; the evidence file records each outcome ({evidence})");
+    sameTransactions.ShouldBe(true, $"both answers of the second page hold the same transactions ({evidence})");
   }
 
   /// <summary>
@@ -162,9 +221,9 @@ public sealed class RealAccountCheck {
       transactions.Items.Count(static item => item.Status == TransactionStatus.Booked),
       transactions.Items.Count(static item => item.Status == TransactionStatus.Pending));
 
-  /// <summary>Writes the summary to <c>spikes/enable-banking/evidence/&lt;yyyy-MM-dd&gt;-real-account-check.json</c> in the repository; its path.</summary>
-  private static async Task<string> WriteEvidence(Evidence evidence, DateOnly today) {
-    string path = Path.Combine(RepositoryRoot(), "spikes", "enable-banking", "evidence", $"{today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}-real-account-check.json");
+  /// <summary>Writes the summary to <c>spikes/enable-banking/evidence/&lt;yyyy-MM-dd&gt;-&lt;name&gt;.json</c> in the repository; its path.</summary>
+  private static async Task<string> WriteEvidence<T>(T evidence, DateOnly today, string name) {
+    string path = Path.Combine(RepositoryRoot(), "spikes", "enable-banking", "evidence", $"{today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}-{name}.json");
 
     await File.WriteAllTextAsync(path, JsonSerializer.Serialize(evidence, _evidenceJson) + "\n");
 
@@ -192,6 +251,24 @@ public sealed class RealAccountCheck {
     IReadOnlyList<string> PsuHeadersSent,
     IReadOnlyList<ReadSummary> Reads,
     RawPageCounts? RawPages);
+
+  private sealed record KeyReuseEvidence(
+    string Note,
+    string RunUtc,
+    int TransactionsDays,
+    IReadOnlyList<string> PsuHeadersSent,
+    bool FirstPageAnnouncesAnother,
+    IReadOnlyList<PageAnswer> Requests,
+    bool? SecondPageAnswersHoldTheSameTransactions);
+
+  /// <summary>One page request of the key-reuse probe: how it ended, how long it took, how many transactions, whether it announces a next page.</summary>
+  private sealed record PageAnswer(string Request, string Outcome, long DurationMs, int? Transactions, bool? AnnouncesAnother) {
+    public static PageAnswer Of(string request, Timed<BankResult<EbTransactionPage>> timed) {
+      EbTransactionPage? page = timed.Value.Value as EbTransactionPage;
+
+      return new(request, OutcomeOf(timed), timed.Milliseconds, page?.Transactions.Count, page is null ? null : !string.IsNullOrEmpty(page.ContinuationKey));
+    }
+  }
 
   /// <summary>One read: which, for whom, how it ended, how long it took; for the transactions, how many came back.</summary>
   private sealed record ReadSummary(string Read, string Trigger, string Outcome, long DurationMs, TransactionCounts? Transactions = null);

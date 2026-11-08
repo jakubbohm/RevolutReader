@@ -16,9 +16,11 @@ namespace RevolutReader.ServiceDefaults;
 /// <list type="bullet">
 /// <item>Health checks and <c>MapDefaultEndpoints</c>: the API serves its own <c>/health</c>
 /// endpoint in every environment; a second route on the same path would clash.</item>
-/// <item>The default resilience handler on every HttpClient: it retries 408, 429 and 5xx, and a
-/// retried 429 from Enable Banking burns the 4 requests a day allowed without the account
-/// holder (ADR-0001-bank-data-access). Each outgoing client decides its own policy.</item>
+/// <item>The default resilience handler on every HttpClient: no retries by default. Whether to
+/// retry depends on what a client calls (a quota such as Enable Banking's 4 unattended requests a
+/// day, ADR-0001-bank-data-access; a call that must not repeat; an SDK's own retries; no stacked
+/// layers), so a client that needs retries gets a handler of its own, as the bank client does (c008
+/// design.md D10). Guarded by <c>tests/RevolutReader.AcceptanceTests/Conventions/HttpClientDefaultsTests</c>.</item>
 /// </list>
 /// </summary>
 public static class ServiceDefaultsExtensions {

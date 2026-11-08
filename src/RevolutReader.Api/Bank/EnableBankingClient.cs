@@ -15,7 +15,8 @@ namespace RevolutReader.Api.Bank;
 /// case fits (D4), decided by its <c>error</c> value only when that has the shape of a code, otherwise by its status
 /// (c006 design.md D3, D7); a network failure is the bank unavailable; a success answer it cannot read is a
 /// <see cref="BankReadException"/>. No exception quotes a URL, a body or an error value of another shape, and each read
-/// logs one line without identifiers or bank data (D5).
+/// logs one line without identifiers or bank data (D5). Below it, the retry handler sends a present user's request again
+/// when it failed as the bank unavailable (<see cref="BankRetries"/>, c008 design.md); the client sees the last attempt.
 /// </summary>
 public sealed partial class EnableBankingClient(HttpClient http, IOptions<EnableBankingOptions> options, ApplicationToken token, TimeProvider time, ILogger<EnableBankingClient> logger)
   : IBankAccount {
@@ -26,9 +27,6 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
 
   /// <summary>No status or no error code, in the log line.</summary>
   private const string NONE = "none";
-
-  /// <summary>An error value that does not have the shape of a code, in the log line: never quoted (c006 design.md D7).</summary>
-  private const string UNRECOGNISED = "unrecognised";
 
   /// <summary>
   /// The API reference's names: snake_case. Lenient about missing or null members: each reader checks what it reads, so
@@ -132,9 +130,12 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
 
   /// <summary>
   /// A signed <c>GET</c> of <paramref name="pathAndQuery"/> with the user headers of <paramref name="trigger"/>
-  /// (<see cref="PsuHeaders"/>), left out of the exported traces (<see cref="HttpRequestTracing.Exclude"/>, D5). A success
+  /// (<see cref="PsuHeaders"/>), left out of the exported traces (<see cref="HttpRequestTracing.Exclude"/>, D5), and marked
+  /// for the retry handler (<see cref="BankRetries.PresentUser"/>, <see cref="BankRetries.Deadline"/>; c008 design.md D2,
+  /// D8), which may send it again; it counts once in <paramref name="record"/> however often it is sent. A success
   /// answer is its JSON body read as <typeparamref name="T"/>, which must be <paramref name="whole"/>; an error answer is
-  /// its failure case (<see cref="FailureOf{T}"/>). What it sees goes into <paramref name="record"/>.
+  /// its failure case (<see cref="FailureOf{T}"/>) by its error value (<see cref="EnableBankingErrorValue"/>). What it sees
+  /// goes into <paramref name="record"/>.
   /// </summary>
   private async Task<BankResult<T>> Get<T>(string pathAndQuery, ReadTrigger trigger, Func<T, bool> whole, ReadRecord record, CancellationToken cancellationToken)
     where T : class {
@@ -144,6 +145,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
       request.Headers.Add(name, value);
 
     request.Options.Set(HttpRequestTracing.Exclude, true);
+    // For the retry handler (BankRetries): only a present user's request is ever retried (c008 design.md D2), and no
+    // Retry-After wait may outlast the request's timeout (D8).
+    request.Options.Set(BankRetries.PresentUser, trigger.Value is PresentUser);
+    request.Options.Set(BankRetries.Deadline, time.GetUtcNow() + options.Value.RequestTimeout);
 
     record.Sent();
 
@@ -155,7 +160,7 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
     record.Answered(response.StatusCode);
 
     if (!response.IsSuccessStatusCode) {
-      ErrorValue error = await ErrorValueOf(response, cancellationToken);
+      EnableBankingErrorValue error = await EnableBankingErrorValue.Read(response, cancellationToken);
 
       record.ErrorCodeIs(error.Logged);
 
@@ -168,9 +173,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   }
 
   /// <summary>
-  /// The answer, its body read whole; <see langword="null"/> when the bank cannot be reached, the connection breaks before
-  /// the answer is read, or the answer takes longer than our request timeout (all the bank unavailable, § Error model). The
-  /// caller's own cancellation is none of these: its <see cref="OperationCanceledException"/> passes on.
+  /// The answer, its body read whole, after any retries (the last attempt's); <see langword="null"/> when the bank cannot be
+  /// reached, the connection breaks before the answer is read, or the answer takes longer than our request timeout, which
+  /// covers the retries too (all the bank unavailable, § Error model; c008 design.md D1). The caller's own cancellation is
+  /// none of these: its <see cref="OperationCanceledException"/> passes on.
   /// </summary>
   private async Task<HttpResponseMessage?> Send(HttpRequestMessage request, ReadRecord record, CancellationToken cancellationToken) {
     try {
@@ -206,34 +212,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   }
 
   /// <summary>
-  /// The <c>error</c> value of an error answer (c006 design.md D3, D7). No value: a body that is not JSON of the error
-  /// answer's shape (none at all, a JSON <c>null</c>, a gateway's HTML page, plain text, an array), or a missing,
-  /// <c>null</c> or blank <c>error</c>. A text of the code shape is a code; any other value, a text or not, is of another
-  /// shape. What the body holds never makes it throw.
-  /// </summary>
-  private static async Task<ErrorValue> ErrorValueOf(HttpResponseMessage response, CancellationToken cancellationToken) {
-    byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-    JsonElement error;
-
-    try {
-      error = JsonSerializer.Deserialize<EbError>(body, _json)?.Error ?? default;
-    }
-    catch (JsonException) {
-      return ErrorValue.None;
-    }
-
-    return error.ValueKind switch {
-      JsonValueKind.Undefined or JsonValueKind.Null => ErrorValue.None,
-      JsonValueKind.String => ErrorValue.Of(error.GetString()),
-      _ => ErrorValue.OfAnotherShape,
-    };
-  }
-
-  /// <summary>
   /// D4's case for an error answer, by its code, or by its status when it carried none (c006 design.md D3); one a read has
   /// no case for is a <see cref="BankReadException"/> naming its status and code, or that its value was unrecognised (D7).
   /// </summary>
-  private static BankResult<T> FailureOf<T>(HttpStatusCode status, ErrorValue error) => BankErrorClassification.Classify(status, error.Code) switch {
+  private static BankResult<T> FailureOf<T>(HttpStatusCode status, EnableBankingErrorValue error) => BankErrorClassification.Classify(status, error.Code) switch {
     BankErrorKind.AccessExpired => new BankAccessExpired(),
     BankErrorKind.RateLimited => new BankRateLimited(),
     BankErrorKind.Unavailable => new BankUnavailable(),
@@ -319,26 +301,6 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   /// <summary>The transactions read's line: as the balance read's, with the status of the last page, the pages requested and how many transactions were left out (D3).</summary>
   [LoggerMessage(EventId = 2, Message = "Bank transactions read for {Who}: {Outcome}; HTTP status {Status} on the last page, error code {ErrorCode}, reason {Reason}, {Pages} pages, {LeftOut} left out, {DurationMs} ms")]
   private static partial void LogTransactionsRead(ILogger logger, LogLevel level, string who, string outcome, string status, string errorCode, string reason, int pages, int leftOut, long durationMs);
-
-  /// <summary>
-  /// What an error answer carried as its <c>error</c> value (c006 design.md D3, D7): a code (<see cref="Code"/>, a value of
-  /// the code shape, quoted as received), no value, or a value of another shape (<see cref="IsUnrecognised"/>), which
-  /// counts as no code and is never quoted.
-  /// </summary>
-  private readonly record struct ErrorValue(string? Code, bool IsUnrecognised) {
-    public static ErrorValue None => default;
-
-    public static ErrorValue OfAnotherShape => new(Code: null, IsUnrecognised: true);
-
-    /// <summary>As the log line says it: the code as received, <c>none</c> or <c>unrecognised</c>.</summary>
-    public string Logged => Code ?? (IsUnrecognised ? UNRECOGNISED : NONE);
-
-    /// <summary>A blank text is no value, a text of the code shape a code, any other text a value of another shape.</summary>
-    public static ErrorValue Of(string? text) =>
-      string.IsNullOrWhiteSpace(text) ? None
-        : EnableBankingErrorCode.HasCodeShape(text) ? new(Code: text, IsUnrecognised: false)
-        : OfAnotherShape;
-  }
 
   /// <summary>How a read ended, as the log line says it.</summary>
   private static class Outcome {
