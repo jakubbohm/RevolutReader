@@ -67,7 +67,7 @@ public static class TransactionMapping {
   /// The other fields of D3's table: the reference; the transaction date, else the booking date, else the value date; the
   /// amount, negative for money spent and positive for money received, zero without a sign; its currency; the
   /// counterparty, the creditor for money spent and the debtor for money received (none when that side has no name); the
-  /// payment details unchanged.
+  /// payment details unchanged; the type code unchanged, none when the bank gives no code (c010 design.md D4).
   /// </summary>
   private static BankTransaction Mapped(EbTransaction transaction, TransactionStatus status) {
     DateOnly date = transaction.TransactionDate ?? transaction.BookingDate ?? transaction.ValueDate
@@ -107,7 +107,8 @@ public static class TransactionMapping {
       signedAmount,
       transactionAmount.Currency,
       counterparty?.Name,
-      paymentDetails);
+      paymentDetails,
+      transaction.BankTransactionCode?.Code);
   }
 }
 

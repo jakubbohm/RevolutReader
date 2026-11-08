@@ -66,9 +66,9 @@ Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks
 
 ## 2. [unit] Slice 1 — Transaction mapping
 
-- [ ] 2.1 A transaction's type code comes back unchanged
-- [ ] 2.2 A transaction without a type code comes back without one
-- [ ] 2.3 A transaction whose type code has no code comes back without one
+- [x] 2.1 A transaction's type code comes back unchanged
+- [x] 2.2 A transaction without a type code comes back without one
+- [x] 2.3 A transaction whose type code has no code comes back without one
 
 ## 3. [wiring] Slice 1 — The type code from the bank
 
