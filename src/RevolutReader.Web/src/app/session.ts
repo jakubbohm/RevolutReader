@@ -35,3 +35,8 @@ export async function readSession(): Promise<Session> {
     return { kind: "unknown" };
   }
 }
+
+/** location → /api/auth/login[?anotherAccount=true] */
+export function startSignIn(_options?: { anotherAccount?: boolean }): void {
+  throw new Error("Not implemented");
+}

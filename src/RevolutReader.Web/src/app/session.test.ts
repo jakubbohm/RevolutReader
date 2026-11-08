@@ -1,12 +1,14 @@
 import { expect, test } from "vitest";
 import {
   answerWith,
+  navigations,
   nobodySignedIn,
   refused,
+  requests,
   signedIn,
   type WhoIsSignedIn,
 } from "../test/server";
-import { readSession } from "./session";
+import { readSession, startSignIn } from "./session";
 
 // What the server answers to who is signed in, read as the session the page picks its screen from (c007 design.md D3,
 // D5). The fake server (src/test/server.ts) answers the app's API client; every address here is made up.
@@ -60,3 +62,31 @@ test.each(noUsableAnswer)(
     expect(await readSession()).toEqual({ kind: "unknown" });
   },
 );
+
+// Starting a sign-in is a page navigation to the backend's sign-in address, never a fetch (design.md D2, D9): the
+// recording address bar (src/test/server.ts) notes where the page goes, and the fake server, which requests it sent.
+
+const plainSignIn: {
+  label: string;
+  options: Parameters<typeof startSignIn>[0];
+}[] = [
+  { label: "without options", options: undefined },
+  { label: "not for another account", options: { anotherAccount: false } },
+];
+
+test.each(plainSignIn)(
+  "A sign-in goes to the backend's sign-in address: $label",
+  ({ options }) => {
+    startSignIn(options);
+
+    expect(navigations()).toEqual(["/api/auth/login"]);
+    expect(requests()).toEqual([]);
+  },
+);
+
+test("A sign-in to try another account asks for Microsoft's account picker", () => {
+  startSignIn({ anotherAccount: true });
+
+  expect(navigations()).toEqual(["/api/auth/login?anotherAccount=true"]);
+  expect(requests()).toEqual([]);
+});
