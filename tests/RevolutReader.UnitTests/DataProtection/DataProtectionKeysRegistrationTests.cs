@@ -23,9 +23,7 @@ namespace RevolutReader.UnitTests.DataProtection;
 /// <c>AZURE_CLIENT_ID</c> and the section.</item>
 /// </list>
 /// A message names settings, never their values. An empty setting, as <c>appsettings.json</c> declares each of them,
-/// counts as not set. The tests on the configuration use the settings' real names, so they pin the names too. The older
-/// tests build the settings in code (<see cref="DataProtectionKeysOptions"/>, with a third setting,
-/// <c>IdentityClientId</c>) and go away with that overload.
+/// counts as not set. The tests use the settings' real names, so they pin the names too.
 /// <para>
 /// The choice shows in Data Protection's key management options: the key repository and the key encryptor. Either way
 /// the application name is pinned (<c>RevolutReader</c>), so every revision of the app reads the same keys and a deploy
@@ -52,60 +50,6 @@ public sealed class DataProtectionKeysRegistrationTests {
   private static readonly Uri _keyVaultKey = new("https://example.vault.azure.net/keys/dataprotection");
 
   [Test]
-  [Arguments("not set")]
-  [Arguments("empty, as appsettings.json declares them")]
-  public void All_three_key_settings_empty_choose_the_default_key_store(string settingsAre) {
-    DataProtectionKeysOptions settings = settingsAre switch {
-      "not set" => new(),
-      // An empty address binds to none; an empty client id stays an empty text.
-      "empty, as appsettings.json declares them" => new() { IdentityClientId = string.Empty },
-      _ => throw new ArgumentOutOfRangeException(nameof(settingsAre), settingsAre, "Not a known case."),
-    };
-
-    (KeyManagementOptions keys, DataProtectionOptions protection) = OptionsAfterRegistering(settings);
-
-    keys.ShouldSatisfyAllConditions(
-      () => IsBlobRepository(keys.XmlRepository).ShouldBeFalse("the keys are not stored in Blob Storage"),
-      () => IsKeyVaultEncryptor(keys.XmlEncryptor).ShouldBeFalse("the keys are not encrypted by a Key Vault key"),
-      () => protection.ApplicationDiscriminator.ShouldBe(APPLICATION_NAME, "the application name, pinned"));
-  }
-
-  [Test]
-  public void All_three_key_settings_set_choose_Blob_Storage_with_the_Key_Vault_key() {
-    (KeyManagementOptions keys, DataProtectionOptions protection) = OptionsAfterRegistering(new() { KeysBlobUri = _keysBlob, KeyVaultKeyUri = _keyVaultKey, IdentityClientId = MADE_UP_CLIENT_ID });
-
-    keys.ShouldSatisfyAllConditions(
-      () => IsBlobRepository(keys.XmlRepository).ShouldBeTrue("the keys are stored in Blob Storage"),
-      () => IsKeyVaultEncryptor(keys.XmlEncryptor).ShouldBeTrue("the keys are encrypted by the Key Vault key"),
-      () => protection.ApplicationDiscriminator.ShouldBe(APPLICATION_NAME, "the application name, pinned"));
-  }
-
-  [Test]
-  [Arguments(true, false, false)]
-  [Arguments(false, true, false)]
-  [Arguments(false, false, true)]
-  [Arguments(true, true, false)]
-  [Arguments(true, false, true)]
-  [Arguments(false, true, true)]
-  public void Partly_set_key_settings_are_refused_and_the_message_names_the_settings_not_their_values(bool keysBlobSet, bool keyVaultKeySet, bool identityClientIdSet) {
-    DataProtectionKeysOptions settings = new() {
-      KeysBlobUri = keysBlobSet ? _keysBlob : null,
-      KeyVaultKeyUri = keyVaultKeySet ? _keyVaultKey : null,
-      IdentityClientId = identityClientIdSet ? MADE_UP_CLIENT_ID : string.Empty,
-    };
-
-    string message = Should.Throw<Exception>(() => new ServiceCollection().AddDataProtectionKeys(settings), "refused at registration").Message;
-
-    message.ShouldSatisfyAllConditions(
-      () => message.ShouldContain(nameof(DataProtectionKeysOptions.KeysBlobUri), Case.Sensitive),
-      () => message.ShouldContain(nameof(DataProtectionKeysOptions.KeyVaultKeyUri), Case.Sensitive),
-      () => message.ShouldContain(nameof(DataProtectionKeysOptions.IdentityClientId), Case.Sensitive),
-      () => message.ShouldNotContain(_keysBlob.Host, Case.Insensitive),
-      () => message.ShouldNotContain(_keyVaultKey.Host, Case.Insensitive),
-      () => message.ShouldNotContain(MADE_UP_CLIENT_ID, Case.Insensitive));
-  }
-
-  [Test]
   [Arguments("nothing set")]
   [Arguments("all empty, as appsettings.json declares them")]
   [Arguments("only AZURE_CLIENT_ID set, as telemetry sets it")]
@@ -117,7 +61,7 @@ public sealed class DataProtectionKeysRegistrationTests {
       _ => throw new ArgumentOutOfRangeException(nameof(settingsAre), settingsAre, "Not a known case."),
     };
 
-    (KeyManagementOptions keys, DataProtectionOptions protection) = OptionsAfterRegisteringFrom(configuration);
+    (KeyManagementOptions keys, DataProtectionOptions protection) = OptionsAfterRegistering(configuration);
 
     keys.ShouldSatisfyAllConditions(
       () => IsBlobRepository(keys.XmlRepository).ShouldBeFalse("the keys are not stored in Blob Storage"),
@@ -128,7 +72,7 @@ public sealed class DataProtectionKeysRegistrationTests {
   [Test]
   public void Both_key_addresses_and_AZURE_CLIENT_ID_set_choose_Blob_Storage_with_the_Key_Vault_key() {
     (KeyManagementOptions keys, DataProtectionOptions protection) =
-      OptionsAfterRegisteringFrom(Configuration(keysBlobUri: _keysBlob.AbsoluteUri, keyVaultKeyUri: _keyVaultKey.AbsoluteUri, azureClientId: MADE_UP_CLIENT_ID));
+      OptionsAfterRegistering(Configuration(keysBlobUri: _keysBlob.AbsoluteUri, keyVaultKeyUri: _keyVaultKey.AbsoluteUri, azureClientId: MADE_UP_CLIENT_ID));
 
     keys.ShouldSatisfyAllConditions(
       () => IsBlobRepository(keys.XmlRepository).ShouldBeTrue("the keys are stored in Blob Storage"),
@@ -199,21 +143,10 @@ public sealed class DataProtectionKeysRegistrationTests {
   }
 
   /// <summary>Data Protection's key management options and its own options, as the app would get them after registering with this configuration.</summary>
-  private static (KeyManagementOptions Keys, DataProtectionOptions Protection) OptionsAfterRegisteringFrom(IConfiguration configuration) {
+  private static (KeyManagementOptions Keys, DataProtectionOptions Protection) OptionsAfterRegistering(IConfiguration configuration) {
     ServiceCollection services = new();
     services.AddLogging();
     services.AddDataProtectionKeys(configuration);
-
-    using ServiceProvider provider = services.BuildServiceProvider();
-
-    return (provider.GetRequiredService<IOptions<KeyManagementOptions>>().Value, provider.GetRequiredService<IOptions<DataProtectionOptions>>().Value);
-  }
-
-  /// <summary>Data Protection's key management options and its own options, as the app would get them after registering with these settings.</summary>
-  private static (KeyManagementOptions Keys, DataProtectionOptions Protection) OptionsAfterRegistering(DataProtectionKeysOptions settings) {
-    ServiceCollection services = new();
-    services.AddLogging();
-    services.AddDataProtectionKeys(settings);
 
     using ServiceProvider provider = services.BuildServiceProvider();
 
