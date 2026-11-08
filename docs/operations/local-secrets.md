@@ -1,8 +1,8 @@
 # Local secrets
 
-> The secrets on the owner's machine that local runs and the explicit bank checks read (roadmap step C5): what they are, how they are set from the owner's files, how they are backed up to the owner's personal Key Vault and how they come back on a new machine. The rules behind it: [configuration.md § Local development and tests](../conventions/configuration.md#local-development-and-tests) and c004 design.md D6. Production values are in Key Vault `kv-revolutreader` instead ([deployment.md § Guided task](deployment.md#guided-task-the-enable-banking-values-into-key-vault)).
+> The secrets on the owner's machine that local runs and the explicit bank checks read (roadmap steps C5 and C6): what they are, how they are set from the owner's files, how they are backed up to the owner's personal Key Vault and how they come back on a new machine. The rules behind it: [configuration.md § Local development and tests](../conventions/configuration.md#local-development-and-tests) and c004 design.md D6. Production values are in Key Vault `kv-revolutreader` instead ([deployment.md § Guided task](deployment.md#guided-task-the-enable-banking-values-into-key-vault)).
 >
-> Commands are PowerShell 7, run from the root of the **main checkout** (`D:\source\jakubbohm\RevolutReader`), where the gitignored `secrets/` folders of the spikes are. User-secrets are per machine, so every checkout and worktree on the machine shares them. **Nothing here prints a value:** keys go in from their files, and the checks list names only. Last updated: 2026-11-07 (C5).
+> Commands are PowerShell 7, run from the root of the **main checkout** (`D:\source\jakubbohm\RevolutReader`), where the gitignored `secrets/` folders of the spikes are. User-secrets are per machine, so every checkout and worktree on the machine shares them. **Nothing here prints a value:** keys go in from their files, and the checks list names only. Last updated: 2026-11-08 (C6: the sign-in's two values).
 
 ## What is stored
 
@@ -14,6 +14,8 @@ All of them sit in the **AppHost's** user-secrets (its `UserSecretsId` is `683c4
 | `Parameters:enablebanking-private-key` | `aspire start`, Check 1 | the text of `spikes/enable-banking/secrets/b4780885-a339-48bd-b6b3-067e5056d2ad.pem` | `RevolutReader--AppHost--Parameters--enablebanking-private-key` |
 | `Parameters:enablebanking-session-id` | `aspire start`, Check 1 | `session_id` in `spikes/enable-banking-mock/secrets/session.json` (the Mock ASPSP session, valid until 2027-05-05) | `RevolutReader--AppHost--Parameters--enablebanking-session-id` |
 | `Parameters:enablebanking-account-id` | `aspire start`, Check 1 | the one entry of `account_uids` in the same file (the account "RevolutReader C5 Test") | `RevolutReader--AppHost--Parameters--enablebanking-account-id` |
+| `Parameters:signin-client-secret` | `aspire start` (C6) | the Entra registration's client secret `RevolutReader C6`, created by [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6), which writes it here, to Key Vault and to the backup vault at once; no file holds it (expires 2027-11-08) | `RevolutReader--AppHost--Parameters--signin-client-secret` |
+| `Parameters:signin-allowed-emails` | `aspire start` (C6) | the allowlist, typed by the owner at that block's hidden prompt: the comma-separated personal Microsoft accounts allowed in (the same list as production, [configuration.md](../conventions/configuration.md)) | `RevolutReader--AppHost--Parameters--signin-allowed-emails` |
 | `RealAccountCheck:ApplicationId` | Check 2 only | the production application ID `469fb438-ada6-4831-9498-70a1890097d6` ([spike § Identifiers](../../spikes/enable-banking/README.md#identifiers-non-secret)) | `RevolutReader--AppHost--RealAccountCheck--ApplicationId` |
 | `RealAccountCheck:PrivateKey` | Check 2 only | the text of `spikes/enable-banking/secrets/469fb438-ada6-4831-9498-70a1890097d6.pem` | `RevolutReader--AppHost--RealAccountCheck--PrivateKey` |
 | `RealAccountCheck:SessionId` | Check 2 only | `session_id` in `spikes/enable-banking/secrets/session.json` (the real account's session) | `RevolutReader--AppHost--RealAccountCheck--SessionId` |
@@ -93,7 +95,7 @@ if (-not $session.session_id) { throw 'No session_id in session.json.' }
 
 ## 3. Back up to the vault
 
-The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway), between [opening and closing the vault](#opening-and-closing-the-backup-vault). It copies every `Parameters:enablebanking-*` and `RealAccountCheck:*` key that the user-secrets hold. Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
+The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway), between [opening and closing the vault](#opening-and-closing-the-backup-vault). It copies every `Parameters:*` and `RealAccountCheck:*` key that the user-secrets hold (since C6 the sign-in's two as well; that block already backs them up when it creates them). Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
 
 ```powershell
 $sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -101,7 +103,7 @@ $vault = 'jb-localdev-secrets-copy'
 $id    = '683c44fb-149f-4c9d-8503-0d836e0a1639'
 
 $store = Get-Content -Raw (Join-Path $env:APPDATA "Microsoft/UserSecrets/$id/secrets.json") | ConvertFrom-Json -AsHashtable
-$keys  = $store.Keys | Where-Object { $_ -like 'Parameters:enablebanking-*' -or $_ -like 'RealAccountCheck:*' }
+$keys  = $store.Keys | Where-Object { $_ -like 'Parameters:*' -or $_ -like 'RealAccountCheck:*' }
 
 foreach ($key in $keys) {
   $name = 'RevolutReader--AppHost--' + ($key -replace ':', '--')
@@ -153,3 +155,4 @@ Then list the names (§ 4) and run `aspire start`.
 ## Done
 
 - **2026-11-07:** § 1 run by Claude in C5's unattended run (the user's go of the evening before); § 4's local listing shows the four `Parameters:enablebanking-*` names. Then the owner ran § 3 (the backup copies), § 2 and § 3 again, and Check 2.
+- **2026-11-08 (C6):** the owner ran [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6); Claude checked by name: the user-secrets hold both `Parameters:signin-*` keys (the Enable Banking keys untouched), the backup vault both `RevolutReader--AppHost--Parameters--signin-*` names, and the vault is closed again (public access off, no IP rule). The local sign-in was checked in a browser the same day.

@@ -20,6 +20,12 @@ param appIdentityId string
 @description('The address of the vault that holds the hand-provisioned secrets (platform.bicep), ending in a slash.')
 param keyVaultUri string
 
+@description('The blob that holds the login cookie\'s key ring (platform.bicep).')
+param keysBlobUri string
+
+@description('The Key Vault key that encrypts the key ring, without a version (platform.bicep).')
+param keyVaultKeyUri string
+
 // The app: one container serving the API and the pages (ADR-0002-frontend-hosting). Its name is
 // the first part of its public address, on the daughter's Home Screen and, from C6, in Entra ID:
 // renaming it makes a new app with a new address.
@@ -46,7 +52,10 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
       }
       // No registry credentials: the image on ghcr.io is public and pulled anonymously (D3).
       // Each feature's secrets, from its section below.
-      secrets: bankSecrets
+      secrets: [
+        ...bankSecrets
+        ...signInSecrets
+      ]
     }
     template: {
       containers: [
@@ -58,7 +67,11 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
             memory: '0.5Gi'
           }
           // Each feature's settings, from its section below.
-          env: concat(bankSettings, telemetrySettings)
+          env: [
+            ...bankSettings
+            ...telemetrySettings
+            ...signInSettings
+          ]
           // GET /health touches neither the bank nor storage (spec service-health), and probe
           // requests are not billed. Short periods, because a wake from zero waits for both
           // probes; the startup probe still gives the app about 20 s. Liveness keeps the
@@ -152,6 +165,41 @@ var telemetrySettings = [
 ]
 
 // ---- Sign-in (C6) ----
+// The two sign-in secrets, as Key Vault references in the same way as the bank's (c007 design.md
+// D11): the Key Vault secret SignIn--<setting> becomes the Container Apps secret
+// signin-<setting in lower case> and reaches the app as SignIn__<setting>, overriding
+// appsettings.json's "<secret>": the Entra registration's client secret and the allowlist. Both must
+// exist in the vault before the deploy: a reference to a missing secret stops the new revision.
+var signInSecretSettings = [
+  'ClientSecret'
+  'AllowedEmails'
+]
+
+var signInSecrets = [
+  for setting in signInSecretSettings: {
+    name: 'signin-${toLower(setting)}'
+    keyVaultUrl: '${keyVaultUri}secrets/SignIn--${setting}'
+    identity: appIdentityId
+  }
+]
+
+// The secrets above, and where the login cookie's keys live (c007 design.md D7): the keys blob and
+// the Key Vault key, from platform.bicep. Not secret: two addresses. The app reaches both with its
+// identity, whose client ID AZURE_CLIENT_ID holds (the telemetry settings above).
+var signInSettings = [
+  ...map(signInSecretSettings, setting => {
+    name: 'SignIn__${setting}'
+    secretRef: 'signin-${toLower(setting)}'
+  })
+  {
+    name: 'DataProtection__KeysBlobUri'
+    value: keysBlobUri
+  }
+  {
+    name: 'DataProtection__KeyVaultKeyUri'
+    value: keyVaultKeyUri
+  }
+]
 
 // ---- The account detail (C7) ----
 

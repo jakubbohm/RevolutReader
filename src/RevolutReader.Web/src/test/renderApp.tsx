@@ -1,10 +1,27 @@
 import { render, type RenderResult } from "@testing-library/react";
 import { App } from "../App";
 import type { Device } from "../app/device";
+import {
+  answerWith,
+  navigations,
+  requests,
+  timeline,
+  type ServerAnswers,
+} from "./server";
 
 /** Where the app is opened, in the scenarios' words (c003 design.md D8). */
 export type Opened =
   "iPhone Safari" | "iPhone Home Screen" | "computer browser";
+
+/** The rendered app, and what it did with the server and the address bar (./server.ts). */
+export interface RenderedApp extends RenderResult {
+  /** The requests the app sent, in order, as `METHOD /path?query`. */
+  requests(): string[];
+  /** Where the app navigated, in order, as `/path?query` on its own origin. */
+  navigations(): string[];
+  /** Requests, answers, failures and navigations, in the order they happened (./server.ts). */
+  timeline(): string[];
+}
 
 /** Safari on an iPhone, as it reports itself. */
 const IPHONE_SAFARI =
@@ -21,7 +38,21 @@ const devices: Record<Opened, Device> = {
   "computer browser": { userAgent: COMPUTER_CHROME, standalone: false },
 };
 
-/** Renders the whole app as it starts where it is opened, so a scenario runs through the real install-hint rule. */
-export function renderApp(opened: Opened): RenderResult {
-  return render(<App device={devices[opened]} />);
+/**
+ * Renders the whole app as it starts where it is opened, so a scenario runs through the real install-hint rule, with
+ * the server answering as `server` says (c007 design.md D3). Without an answer to who is signed in, the question stays
+ * open, as while the server wakes up.
+ */
+export function renderApp(
+  opened: Opened,
+  server: ServerAnswers = {},
+): RenderedApp {
+  answerWith(server);
+
+  return {
+    ...render(<App device={devices[opened]} />),
+    requests,
+    navigations,
+    timeline,
+  };
 }

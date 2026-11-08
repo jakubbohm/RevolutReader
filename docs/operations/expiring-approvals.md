@@ -2,7 +2,7 @@
 
 > What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
-> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-07 (C5: the Mock ASPSP session, the application ID as a secret).
+> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-08 (C6: the Entra client secret).
 
 ## Overview
 
@@ -12,11 +12,12 @@
 | 2 | [Enable Banking API session](#2-enable-banking-api-session) (Revolut consent the backend reads with) | **2027-05-03T18:03Z** (Revolut's maximum: 180 days); can end early | when it ends or the app reports an expired session | the account holder, Revolut app, ~5 min |
 | 3 | [Enable Banking application key](#3-enable-banking-application-and-key) | no expiry found (checked 2026-11-04) | only if lost or leaked | the Control Panel account |
 | 4 | [Mock ASPSP session](#4-mock-aspsp-session-local-development) (local development and Check 1 only) | **2027-05-05T19:44Z** (180 days, the mock's maximum) | when it ends; nothing in production depends on it | the Control Panel login, ~5 min |
+| 5 | [Entra client secret](#5-entra-client-secret-sign-in) (`RevolutReader C6`: the app's proof to Microsoft at sign-in) | **2027-11-08T11:00Z** (12 months) | by 2027-10-25: a new secret first, then remove the old one | the owner's Azure login, ~10 min |
 | — | API token (JWT) | 1 hour | nothing to do: signed for every request | — |
 
-Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them.
+Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them. The account allowlist in Key Vault and the user-secrets (C6) has no expiry; changing it: [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6). The login cookie's encryption keys (C6) renew themselves: ASP.NET Data Protection adds a new key every 90 days to the blob and keeps the old ones for reading.
 
-**To be added by their steps** (do not guess them here): the app registration's 12-month client secret (C6), the account allowlist in Key Vault (C6), the VAPID keys for push (C8).
+**To be added by their steps** (do not guess them here): the VAPID keys for push (C8).
 
 ## 1. Enable Banking account link
 
@@ -74,3 +75,23 @@ Not expiring, but required: the Enable Banking Control Panel account (registered
   1. In your own PowerShell 7 window (the approval page needs your Control Panel login), run `pwsh -NoProfile -File spikes/enable-banking-mock/create-mock-session.ps1 -New`, and approve the account on the mock bank's page.
   2. Put the new session ID and account UID into the user-secrets: [local-secrets.md § 1](local-secrets.md#1-the-sandbox-values-into-the-user-secrets), then the backup copies (§ 3).
   3. Record the new end date here and in the mock spike's README.
+
+## 5. Entra client secret (sign-in)
+
+- **What it is:** the secret the app shows Microsoft when it turns a sign-in code into the user's identity (the Entra registration in [entra-id.md](entra-id.md)). Its value is only in Key Vault `kv-revolutreader` (`SignIn--ClientSecret`), the AppHost's user-secrets (`Parameters:signin-client-secret`) and the backup vault ([local-secrets.md](local-secrets.md)).
+- **Current state:** `RevolutReader C6`, created 2026-11-08 11:00:59 UTC by the owner, expires **2027-11-08 11:00:59 UTC** (12 months, chosen in c007 design.md D11).
+- **How you notice:** nobody can sign in any more: the return from Microsoft fails, and the app logs `SignInFailed`. People already signed in keep their 30-day login cookie, so a missed renewal shows up gradually.
+- **Renew, two weeks ahead** (a personal-account registration holds at most two secrets, so the new one is created while the old one still works):
+  1. In your own PowerShell 7 window, run [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6) with the secret lines only: the token and directory lines, `Set-VaultSecret`, the client secret lines with a new display name (e.g. `RevolutReader 2027-10`), and the three writes of `$cred.secretText` (Key Vault, the user-secrets, the backup vault between opening and closing it).
+  2. Wait for the deployed app to get the new Key Vault value: Azure fetches it within 30 minutes and restarts the app with it, with nothing to restart by hand ([deployment.md § Guided task](deployment.md#guided-task-the-enable-banking-values-into-key-vault)). Then sign in once to check it.
+  3. Remove the old secret, by its key ID (not secret):
+
+     ```powershell
+     $app = '3aa0d49c-bb77-403a-99a0-c9d7ca968639'
+     (Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/applications/${app}?`$select=passwordCredentials" -Headers $h).passwordCredentials |
+         Select-Object displayName, keyId, endDateTime
+     Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications/$app/removePassword" -Headers $h `
+         -ContentType 'application/json' -Body (@{ keyId = '<the old secret''s keyId>' } | ConvertTo-Json)
+     ```
+
+  4. Record the new expiry here, in entra-id.md's identifiers table and in [configuration.md § Hand-provisioned secrets](../conventions/configuration.md#hand-provisioned-secrets).

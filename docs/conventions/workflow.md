@@ -118,7 +118,9 @@ Region: **Germany West Central**. Why each one: ADR-0002 to ADR-0006 in [docs/ad
 | Key Vault (Azure roles), and the app's user-assigned identity with Key Vault Secrets User on it (`platform.bicep`) | Bicep | C4 |
 | Container Apps environment, workload profiles with Consumption only (`platform.bicep`) | Bicep | C4 |
 | Container app `tarjeta-papa` (min 0, max 1 replica, 0.25 vCPU / 0.5 GiB, external HTTPS ingress, probes on `/health`), with the app's identity and, from C5, Key Vault-backed secrets (`features.bicep`) | Bicep | C4 |
-| Storage account (shared-key access off): a blob container for the Data Protection keys (C6), then tables (C7 or its first slice) | Bicep | C6 |
+| Storage account `strevolutreader` (shared-key access off, no public blob access): the private container `dataprotection` for the login cookie's keys, with the app identity's Storage Blob Data Contributor on the container (C6, `platform.bicep`); then tables (C7 or its first slice) | Bicep | C6 |
+| The RSA key `dataprotection` in Key Vault (wrap and unwrap), encrypting the login cookie's keys, with the app identity's Key Vault Crypto User on the key alone. Created once; a redeploy reads it and writes nothing (`platform.bicep`, c007 design.md D7) | Bicep | C6 |
+| The deploy identity's sixth grantable role, Key Vault Crypto User, added to its condition by hand before C6's merge ([azure-prerequisites.md § Widening the condition](../operations/azure-prerequisites.md#widening-the-condition-c6-the-sixth-role)) | by hand, once | C6 |
 
 No Logic App: the Revolut notification on the owner's iPhone triggers the account check through an iOS Shortcuts automation, set up by hand in C9 ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md), 2026-11-06). No container registry, no Cosmos DB, nothing shared with other projects. **Application Insights in v1** since C12, reversing C4's "not yet" (c005 design.md D6): the deployed app sends its logs and traces there, and its console output still goes to the workspace ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)).
 

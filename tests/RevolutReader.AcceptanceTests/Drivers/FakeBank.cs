@@ -26,7 +26,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// (<c>spikes/enable-banking-mock/evidence/2026-11-06-account1-*.json</c>); what the mock cannot produce (several pages,
 /// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer) is written from the API reference and the M1 findings,
 /// and a gateway's maintenance page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected <c>date_from</c> and
-/// <c>continuation_key</c>. Filled in by the wiring groups; until then the answer methods throw.
+/// <c>continuation_key</c>.
 /// </para>
 /// </summary>
 public sealed class FakeBank : IDisposable {
@@ -182,9 +182,9 @@ public sealed class FakeBank : IDisposable {
   /// as the app's. Given a listener and a source under a name no tracer listens to, the fake bank's host records nothing.
   /// Checked 2026-11-06 (WireMock.Net 2.21.0, .NET 11 RC3): before, one server activity per request reached the app
   /// copy's exporter, with <c>url.path</c>; after, none. If one ever comes back, the guard fails on it rather than missing
-  /// anything.
+  /// anything. <see cref="FakeMicrosoft"/>'s server uses it too.
   /// </summary>
-  private static void SilenceHostingTelemetry(IServiceCollection services) {
+  internal static void SilenceHostingTelemetry(IServiceCollection services) {
     services.AddSingleton(static _ => new DiagnosticListener(UNHEARD_TELEMETRY));
     services.AddSingleton<DiagnosticSource>(static provider => provider.GetRequiredService<DiagnosticListener>());
     services.AddSingleton(static _ => new ActivitySource(UNHEARD_TELEMETRY));

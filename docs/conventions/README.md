@@ -44,18 +44,36 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
   | Case | Status | `title` | Scenario |
   |---|---|---|---|
   | The API does not serve the address | 404 Not Found | `Not Found` | api-errors / Unknown API address answers with a problem description |
+  | A request the API cannot read, e.g. a malformed parameter (FastEndpoints' binding, with `Errors.UseProblemDetails()`; `detail` and `errors` repeat the bad value, so a value that must never be echoed is not bound unchecked) | 400 Bad Request | `Bad Request` | the guard `Conventions/UnreadableRequestsTests` (api-errors' requirement; no scenario of its own) |
+  | Nobody is signed in | 401 Unauthorized | `Unauthorized` | sign-in / An anonymous visitor is asked to sign in |
+  | A signed-in account that is not on the allowlist (the problem's extension `email` names the account's own address, when it has one) | 403 Forbidden | `Forbidden` | sign-in / A stranger who signs in is refused, with their own email |
+  | A write to the API that a browser sends on behalf of another site (the rule for writes below; for a signed-in caller the problem carries `email` too) | 403 Forbidden | `Forbidden` | sign-in / A write request from another site is refused |
 
 - **Outgoing HTTP calls get no retries by default.** The Aspire template's `AddStandardResilienceHandler` on every `HttpClient` is removed from ServiceDefaults: it retries 408, 429 and 5xx, and a retried 429 from Enable Banking would silently burn the 4 requests a day allowed without the account holder ([ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)). A client gets retries only when its own change decides a policy; the bank client never retries.
 - **Endpoints: FastEndpoints.** One thin endpoint per use case (route, OpenAPI metadata, auth, Result → ProblemDetails mapping) that injects a plain, framework-free handler class owning the use case. No mediator, and no pipeline behaviors wrapped around handlers.
 - **Reads return only what the client shows.** A read endpoint maps straight into a response DTO carrying only the fields the UI uses, never a mirror of the Enable Banking model. A test pins the exact response shape, so an extra field is a red test. Each exposed field is a deliberate choice recorded in the spec.
 - **Never log bank data:** no balances, amounts, counterparties or transaction texts in logs, traces or error messages — ids and counts only.
-- **Secure by default:** every endpoint requires a signed-in, allowed user. Anonymous endpoints are an explicit allowlist checked by a test that reads the app's real endpoint list, so it also catches routes a framework maps by itself (it caught FastEndpoints 8.3.0's anonymous `_test_url_cache_` in C1). The first entry is the health probe `GET /health`. Health probes touch neither the database nor the bank (bank requests are rate-limited — [ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)).
+- **Secure by default:** every endpoint requires a signed-in, allowed user. The authorization policy `AllowedUser` is both the default policy (what FastEndpoints applies to an endpoint without its own settings) and the fallback policy (any other endpoint without authorization metadata), so only an explicit `AllowAnonymous` opens an address. An unknown API address answers 404 to everyone, signed in or not, whatever the method: the anonymous catch-all `ApiNotFound` (`/api/{**path}`, every method, lowest precedence) answers 404, so a real address wins for its own methods and a wrong method on it answers 404 too. A refusal counts only for a request that matched a real route (the authorization result handler `UnmatchedRequestsPass`), so the router's own 405 for a write to an unknown page address answers 405 to everyone, not 401 to anonymous callers (c007 design.md D3). Anonymous endpoints are an explicit allowlist checked by a test that reads the app's real endpoint list, so it also catches routes a framework maps by itself (it caught FastEndpoints 8.3.0's anonymous `_test_url_cache_` in C1). The first entry is the health probe `GET /health`. Health probes touch neither the database nor the bank (bank requests are rate-limited — [ADR-0001-bank-data-access](../adr/0001-bank-data-access.md)).
+- **Writes from other sites are refused** (c007 design.md D4, [ADR-0003 § Decision](../adr/0003-sign-in.md#decision), item 7). `UseCrossSiteWriteProtection` checks every POST, PUT, PATCH and DELETE under `/api` with `CrossSiteWrites.IsAllowed`:
+  - a browser's `Sec-Fetch-Site` must be `same-origin` or `none`;
+  - without it, the `Origin` must equal the request's own origin (lowercase scheme and host, default port left out, after forwarded headers);
+  - a request with neither header passes (not a browser, so no cookie);
+  - the sign-in return is exempt, and a repeated `Sec-Fetch-Site` or `Origin` header is refused;
+  - methods and paths are compared ignoring letter case, as routing matches them, so `/API/…` can't slip past;
+  - a refusal is a 403 problem description, and the endpoint never runs.
+
+  A new write endpoint needs nothing of its own. It sits after authentication and authorization, before the endpoints.
 - **Bank calls** follow ADR-0001-bank-data-access § Decision (PSU headers only on user-triggered reads).
 
 ## API contract
 
 - OpenAPI is the contract: FastEndpoints exports `openapi.json` (committed); openapi-typescript generates the TypeScript types file (committed, never hand-edited); the web app calls the API through openapi-fetch, whose `{ data, error }` continues the Result pattern into TypeScript.
 - One script does export + regenerate. A change touching the API runs it as an explicit task; **CI regenerates only to compare and fails on drift — it never generates or commits fixes.**
+- **How it is built (C6, c007 design.md D9):**
+  - **The export** is the explicit check `OpenApiExport` (`tests/RevolutReader.IntegrationTests/Wiring/OpenApi/`, never in the default run). It starts an app copy with made-up values for every setting checked at start and writes `src/RevolutReader.Api/openapi.json` (OpenAPI 3.2.0, LF). A build-time export can't work: it starts the app, whose start-up checks refuse the `"<secret>"` placeholders. So a change that adds a setting checked at start adds a made-up value to the check.
+  - **The generator** lives in `tools/api-client/`, with its own `package.json` and lock file, because openapi-typescript 7 needs TypeScript 5 and the web app is on TypeScript 7. `npm --prefix tools/api-client run generate` writes `src/RevolutReader.Web/src/api/schema.d.ts`; `run regenerate` runs the export check first, then `generate`. The types file is left out of Prettier and oxlint.
+  - **The document's texts are set in code** (`Summary(…)` in each endpoint, `[Description]` on response records), never taken from XML doc comments: FastEndpoints.OpenApi reads the XML documentation file at run time, so the API project doesn't copy it to its output. So editing a doc comment never changes the contract or trips the drift step.
+  - **The drift steps** sit in the existing CI jobs, so there is no new required check: `build-and-test` runs the export check after the build, then `git diff --exit-code` on `openapi.json`; `frontend` runs `generate`, then `git diff --exit-code` on `schema.d.ts`.
 - A change that **modifies** an existing contract (not a pure addition) also updates every TypeScript consumer in the same change.
 
 ## Frontend
