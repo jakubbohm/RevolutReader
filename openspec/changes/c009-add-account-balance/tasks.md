@@ -124,12 +124,12 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 12. [wiring] Slice 7 — The 500
 
-- [ ] 12.1 `app.UseExceptionHandler()` with no arguments, directly after `app.UseStatusCodePages()` and before `app.UseAppPages()` (design.md D1); `BalanceDriver.BankAnswersAnErrorNoCaseFits` and the 500's shape check replace their stubs. Verify: the scenario runs against the app; `BankTelemetryTests` and `SignInTelemetryTests` stay green; the 404, 401, 403 and 400 scenarios and guards stay green
-- [ ] 12.2 Docs: README.md § Backend code: the 500 row in the case → status table and the exception handler's place (after `UseStatusCodePages`, not FastEndpoints' handler). Verify: they match design.md D1
+- [x] 12.1 `app.UseExceptionHandler()` with no arguments, directly after `app.UseStatusCodePages()` and before `app.UseAppPages()` (design.md D1); `BalanceDriver.BankAnswersAnErrorNoCaseFits` and the 500's shape check replace their stubs. Verify: the scenario runs against the app; `BankTelemetryTests` and `SignInTelemetryTests` stay green; the 404, 401, 403 and 400 scenarios and guards stay green
+- [x] 12.2 Docs: README.md § Backend code: the 500 row in the case → status table and the exception handler's place (after `UseStatusCodePages`, not FastEndpoints' handler). Verify: they match design.md D1
 
 ## 13. [close] Slice 7 — An unexpected failure answers with a problem description that reveals nothing
 
-- [ ] 13.1 The scenario's test passes. Verify: green, including api-errors / An unexpected failure answers with a problem description that reveals nothing
+- [x] 13.1 The scenario's test passes. Verify: green, including api-errors / An unexpected failure answers with a problem description that reveals nothing
 
 ## 14. [unit] Slice 8 — Czech formats
 

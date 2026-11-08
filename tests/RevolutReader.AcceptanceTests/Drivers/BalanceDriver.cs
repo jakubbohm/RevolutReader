@@ -28,7 +28,6 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <see cref="ProblemDescription.InternalServerError"/> 500. The answer gives a reading only when its status matches its
 /// case; status codes never reach the DSL.</item>
 /// </list>
-/// Filled in by the wiring groups: <see cref="BankAnswersAnErrorNoCaseFits"/> still throws until its own.
 /// </summary>
 public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimeProvider clock) {
   /// <summary>The balance (D1).</summary>
@@ -54,6 +53,23 @@ public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimePro
 
   /// <summary>How each of RFC 9110's types starts, which ASP.NET gives a problem of a plain status.</summary>
   private const string RFC_9110_TYPE = "https://tools.ietf.org/html/rfc9110#section-";
+
+  /// <summary>
+  /// An error answer whose code no case maps (<c>ACCOUNT_DOES_NOT_EXIST</c>, a misconfiguration: D4's "everything else"),
+  /// copied as captured from the Mock ASPSP's answer for an unknown account
+  /// (<c>spikes/enable-banking-mock/evidence/2026-11-04-error-responses.json</c>), which holds no account data; its status is
+  /// <see cref="UNKNOWN_ERROR_STATUS"/>.
+  /// </summary>
+  private const string UNKNOWN_ERROR = """
+    {
+      "code": 404,
+      "message": "No account found matching provided id",
+      "error": "ACCOUNT_DOES_NOT_EXIST",
+      "detail": null
+    }
+    """;
+
+  private const HttpStatusCode UNKNOWN_ERROR_STATUS = HttpStatusCode.NotFound;
 
   /// <summary>The problem descriptions the DSL knows for the balance, with the status each case belongs to.</summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
@@ -97,10 +113,11 @@ public sealed class BalanceDriver(HttpClient browser, FakeBank bank, FakeTimePro
   }
 
   /// <summary>
-  /// Every request: an Enable Banking error answer (<c>ErrorResponse</c>, written from the API reference, with a comment
-  /// saying so) whose error code no case maps (c004 design.md D4), so the adapter throws <c>BankReadException</c>.
+  /// Every request: an Enable Banking error answer (<c>ErrorResponse</c>) whose error code no case maps (c004 design.md
+  /// D4), so the adapter throws <c>BankReadException</c> (<see cref="UNKNOWN_ERROR"/>). It wins over the default balance,
+  /// which is only a fallback.
   /// </summary>
-  public void BankAnswersAnErrorNoCaseFits() => throw new NotImplementedException();
+  public void BankAnswersAnErrorNoCaseFits() => Bank.AnswerError(UNKNOWN_ERROR_STATUS, UNKNOWN_ERROR);
 
   /// <summary>
   /// <c>GET /api/balance</c> in the signed-in browser with <c>X-Forwarded-For</c> <paramref name="ipAddress"/>, and
