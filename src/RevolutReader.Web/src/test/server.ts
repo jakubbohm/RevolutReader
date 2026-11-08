@@ -33,6 +33,10 @@ export type Trouble =
   | { kind: "hosting error page" }
   /** 200 with a JSON body that is not the answer's shape. */
   | { kind: "unreadable" }
+  /** 200 with exactly this JSON body (`jsonBody`), for a body a little off the answer's shape. */
+  | { kind: "json"; body: unknown }
+  /** A problem description (`application/problem+json`) with this status, title and `type` (`problemOf`). */
+  | { kind: "problem"; status: number; title: string; type: string }
   /** The request fails, as when the phone is offline. */
   | { kind: "no connection" }
   /** The request stays open, as while the server wakes up; only the app's abort ends it. */
@@ -168,6 +172,20 @@ export const serverError = { kind: "server error" } as const;
 export const hostingErrorPage = { kind: "hosting error page" } as const;
 /** The server answers 200 with a body that is not the answer's shape. */
 export const unreadable = { kind: "unreadable" } as const;
+
+/** The server answers 200 with exactly this JSON body. */
+export function jsonBody(body: unknown): { kind: "json"; body: unknown } {
+  return { kind: "json", body };
+}
+
+/** The server answers this problem description: this status, title and `type`, as written. */
+export function problemOf(
+  status: number,
+  title: string,
+  type: string,
+): { kind: "problem"; status: number; title: string; type: string } {
+  return { kind: "problem", status, title, type };
+}
 /** The request fails without an answer. */
 export const noConnection = { kind: "no connection" } as const;
 /** The request gets no answer until the app aborts it. */
@@ -608,6 +626,19 @@ function troubleOutcome(answer: Delayed<Trouble>): Outcome {
         kind: "answer",
         after: answer.after,
         response: () => Response.json({ message: "Something else" }),
+      };
+    case "json":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => Response.json(answer.body),
+      };
+    case "problem":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () =>
+          problem(answer.status, answer.title, { type: answer.type }),
       };
     case "no connection":
       return { kind: "failure", after: answer.after };
