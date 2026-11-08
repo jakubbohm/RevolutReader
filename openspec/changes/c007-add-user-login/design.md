@@ -327,6 +327,7 @@ public sealed class SignInOptionsValidator : IValidateOptions<SignInOptions>;
 /// <summary>The parsed allowlist (D8).</summary>
 public sealed class Allowlist {
   public static Allowlist Parse(string commaSeparated);   // trims; throws FormatException without the value
+  public IReadOnlyList<string> Addresses { get; }         // the entries, trimmed, in the order written (slice 2's tests)
   public bool Allows(string? email);                      // ignoring case; null or empty → false
 }
 
