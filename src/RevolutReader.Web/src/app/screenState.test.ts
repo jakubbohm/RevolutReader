@@ -150,3 +150,73 @@ test.each(offlineWithAStoredBalance)(
     });
   },
 );
+
+// D2's phases of the first load, while who is signed in has no answer yet: under 1.5 s, from 1.5 s; and after a wake
+// (the first answer took 1.5 s or more), until the balance arrives. The list slot (D7 a) is `body: "list"`: in C7a it
+// holds nothing, and C7b's list goes there.
+
+test("Under 1.5 s with a stored balance, the header shows it in its default state and the list slot is empty", () => {
+  expect(
+    shown(facts({ stored: STORED, balance: STORED, wait: "short" })),
+  ).toMatchObject({
+    screen: "account",
+    header: { balance: STORED, refreshing: false },
+    banner: null,
+    body: "list",
+  });
+});
+
+test("From 1.5 s with a stored balance, the waking-up screen stands in the list's place", () => {
+  expect(
+    shown(facts({ stored: STORED, balance: STORED, wait: "long" })),
+  ).toMatchObject({
+    screen: "account",
+    header: { balance: STORED, refreshing: false },
+    body: "waking",
+  });
+});
+
+test("From 1.5 s with nothing stored, the waking-up screen is the whole screen", () => {
+  expect(shown(facts({ wait: "long" }))).toMatchObject({
+    screen: "account",
+    header: null,
+    banner: null,
+    body: "waking",
+  });
+});
+
+const afterAWake: { label: string; changes: Partial<Facts>; shows: object }[] =
+  [
+    {
+      label: "the balance read runs, nothing stored",
+      changes: { session: LUCIE, reading: "first", wait: "long", wokeUp: true },
+      shows: { header: null, body: "waking" },
+    },
+    {
+      label: "the balance read runs, a balance stored",
+      changes: {
+        session: LUCIE,
+        stored: STORED,
+        balance: STORED,
+        reading: "first",
+        wait: "long",
+        wokeUp: true,
+      },
+      shows: { header: { balance: STORED, refreshing: false }, body: "waking" },
+    },
+    {
+      label: "the balance has arrived",
+      changes: { session: LUCIE, balance: READ, wait: "long", wokeUp: true },
+      shows: { header: { balance: READ, refreshing: false }, body: "list" },
+    },
+  ];
+
+test.each(afterAWake)(
+  "After a wake, the waking-up screen stays until the balance arrives, never a placeholder: $label",
+  ({ changes, shows }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      ...shows,
+    });
+  },
+);
