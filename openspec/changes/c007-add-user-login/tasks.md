@@ -79,12 +79,12 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 4. [unit] Slice 2 — Sign-in settings
 
-- [ ] 4.1 A sign-in secret still holding the placeholder fails validation, and the message names the setting only
-- [ ] 4.2 An allowlist without any address fails validation
-- [ ] 4.3 An allowlist with an empty entry between commas fails validation
-- [ ] 4.4 An allowlist entry that is not an email address fails validation, and the message does not contain the entry
-- [ ] 4.5 Complete sign-in settings pass validation
-- [ ] 4.6 The allowlist's entries are trimmed
+- [x] 4.1 A sign-in secret still holding the placeholder fails validation, and the message names the setting only
+- [x] 4.2 An allowlist without any address fails validation
+- [x] 4.3 An allowlist with an empty entry between commas fails validation
+- [x] 4.4 An allowlist entry that is not an email address fails validation, and the message does not contain the entry
+- [x] 4.5 Complete sign-in settings pass validation
+- [x] 4.6 The allowlist's entries are trimmed
 
 ## 5. [wiring] Slice 2 — Signing in through Microsoft
 
