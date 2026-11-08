@@ -59,3 +59,44 @@ test("A first read on an awake server, with nothing stored, shows the balance pl
     shown(facts({ session: LUCIE, reading: "first", wait: "short" })),
   ).toMatchObject({ screen: "account", header: "placeholder" });
 });
+
+const STORED: Balance = {
+  amount: 250,
+  readAt: "2026-11-10T07:00:00+00:00",
+  czkPerEur: 24.3,
+};
+
+const refreshing: {
+  label: string;
+  changes: Partial<Facts>;
+  header: Balance;
+}[] = [
+  {
+    label: "a refresh over a read balance",
+    changes: { session: LUCIE, balance: READ, reading: "refresh" },
+    header: READ,
+  },
+  {
+    // D2: once the server answered within 1.5 s, the stored header reads "Obnovuji…" while the balance is read.
+    label: "the first read on an awake server, over a stored balance",
+    changes: {
+      session: LUCIE,
+      stored: STORED,
+      balance: STORED,
+      reading: "first",
+      wait: "short",
+      wokeUp: false,
+    },
+    header: STORED,
+  },
+];
+
+test.each(refreshing)(
+  "While a refresh reads, the header shows the balance in its refreshing state: $label",
+  ({ changes, header }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      header: { balance: header, refreshing: true },
+    });
+  },
+);

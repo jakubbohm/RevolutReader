@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { JSX } from "react";
 import { expect, test } from "vitest";
 import { BalanceHeader } from "./BalanceHeader";
@@ -57,4 +58,38 @@ test("The freshness line is announced politely when it changes", () => {
   rerender(header(THREE_MINUTES_LATER));
 
   expect(liveRegion).toHaveTextContent("Aktualizováno před 3 min");
+});
+
+// The refreshing state, as the design system's BalanceHeader draws it (its README and the Screens board "Account /
+// Detail / Refreshing"): the line under the koruna value reads "Obnovuji…" in the freshness line's polite live region;
+// "Obnovit" keeps its label and is the busy button (Button's loading state: a spinner beside the label, `aria-busy`, taps
+// ignored); the amount stays shown.
+test('"Obnovit" in the refreshing state reads "Obnovuji…", spins and ignores taps', async () => {
+  let refreshes = 0;
+  render(
+    <BalanceHeader
+      amount={286.4}
+      rate={24.3}
+      readAt={READ_AT}
+      now={TWO_MINUTES_LATER}
+      refreshing={true}
+      onRefresh={() => {
+        refreshes += 1;
+      }}
+    />,
+  );
+  const user = userEvent.setup();
+
+  expect(
+    screen.getByText("Obnovuji…").closest('[aria-live="polite"]'),
+    '"Obnovuji…" is announced politely, where the freshness line was',
+  ).not.toBeNull();
+  expect(screen.getByText("286,40 €")).toBeInTheDocument();
+  const refresh = screen.getByRole("button", { name: "Obnovit" });
+  expect(refresh, "the button spins: it is busy").toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
+  await user.click(refresh);
+  expect(refreshes, "the tap is ignored").toBe(0);
 });
