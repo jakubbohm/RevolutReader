@@ -276,7 +276,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   - `SignIn:Authority` `https://login.microsoftonline.com/consumers/v2.0`;
   - `SignIn:ClientId` `7833ec21-abbc-493b-b764-8b74eb3bcaa0` (not confidential, already in docs/operations/entra-id.md);
   - `SignIn:ClientSecret` and `SignIn:AllowedEmails` as `"<secret>"`;
-  - the three empty `DataProtection` settings.
+  - the two empty `DataProtection` addresses (the identity's client ID is the app-wide `AZURE_CLIENT_ID`, D7).
 - **Validation:** `SignInOptions` uses data annotations, `[NotSecretPlaceholder]` on the two secrets, `SignInOptionsValidator` for the allowlist, and `ValidateOnStart`.
 - **AppHost:** the secret parameters `signin-client-secret` and `signin-allowed-emails` → `SignIn__ClientSecret`, `SignIn__AllowedEmails`.
 - **Guided steps,** each a PowerShell 7 block shown first and run with the owner's go. A secret value never passes through Claude's output.
@@ -536,9 +536,9 @@ None new. Microsoft's service is an external system reached by ASP.NET's own Ope
     - the storage account (`StorageV2`, `Standard_LRS`, shared keys off, no public blob access, TLS 1.2, public network on and guarded by roles) with the private container `dataprotection`;
     - the RSA key `dataprotection` in `kv-revolutreader` (wrap/unwrap);
     - the app identity's Storage Blob Data Contributor on the container and Key Vault Crypto User on the key;
-    - outputs: the blob address, the key's versionless address, the identity's client id.
+    - outputs: the blob address and the key's versionless address (the identity's client ID already reaches the app as `AZURE_CLIENT_ID`, D7).
   - `main.bicep` passes them on.
-  - `features.bicep` § Sign-in: two Key Vault-backed secrets (`SignIn--ClientSecret`, `SignIn--AllowedEmails`) and five environment variables.
+  - `features.bicep` § Sign-in: two Key Vault-backed secrets (`SignIn--ClientSecret`, `SignIn--AllowedEmails`) and four environment variables.
 - **AppHost:** two secret parameters; Vite over HTTPS (D2). No Bicep counterpart for Vite.
 - **Settings:** `SignIn` and `DataProtection` sections (D11).
 - **ADRs, each a dated amendment:**
