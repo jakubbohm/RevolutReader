@@ -36,6 +36,10 @@ app.UseAppPages();
 app.MapApiNotFound();
 app.UseSignIn();
 // A request FastEndpoints cannot bind answers 400 as a problem description too (spec api-errors), not in its own format.
-app.UseFastEndpoints(static config => config.Errors.UseProblemDetails());
+// A calendar date is read as yyyy-MM-dd only, whatever the server's culture (c010 design.md D10).
+app.UseFastEndpoints(static config => {
+  config.Errors.UseProblemDetails();
+  config.Binding.ValueParserFor<DateOnly>(CalendarDateBinding.Parse);
+});
 
 app.Run();
