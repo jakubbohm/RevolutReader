@@ -1,0 +1,61 @@
+import { expect, test } from "vitest";
+import type { Balance } from "./balance";
+import { shown, type Facts } from "./screenState";
+
+// What the account screen shows, from what it knows (c009 design.md D2, the phases of the first load; D7, the list slot
+// under the header): plain values in, the screen out. The balance and the user are made up.
+
+const LUCIE = {
+  kind: "signed-in",
+  name: "Lucie Nováková",
+  email: "lucie@example.com",
+} as const;
+
+const READ: Balance = {
+  amount: 286.4,
+  readAt: "2026-11-10T08:58:00+00:00",
+  czkPerEur: 24.3,
+};
+
+/** The facts at the very start, before any answer and with nothing stored, changed by `changes`. */
+function facts(changes: Partial<Facts>): Facts {
+  return {
+    session: "waiting",
+    stored: null,
+    balance: null,
+    reading: "no",
+    wait: "short",
+    wokeUp: false,
+    problem: null,
+    signingOut: false,
+    ...changes,
+  };
+}
+
+test("Before any answer, with nothing stored, the account screen is empty and has no menu", () => {
+  expect(shown(facts({}))).toEqual({
+    screen: "account",
+    account: null,
+    header: null,
+    banner: null,
+    body: "empty",
+    signingOut: false,
+  });
+});
+
+test("A signed-in user with a read balance gets the header, the menu and the list slot", () => {
+  expect(shown(facts({ session: LUCIE, balance: READ }))).toEqual({
+    screen: "account",
+    account: { name: "Lucie Nováková", email: "lucie@example.com" },
+    header: { balance: READ, refreshing: false },
+    banner: null,
+    body: "list",
+    signingOut: false,
+  });
+});
+
+test("A first read on an awake server, with nothing stored, shows the balance placeholder", () => {
+  expect(
+    shown(facts({ session: LUCIE, reading: "first", wait: "short" })),
+  ).toMatchObject({ screen: "account", header: "placeholder" });
+});
