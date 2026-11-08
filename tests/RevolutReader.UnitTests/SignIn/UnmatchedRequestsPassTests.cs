@@ -27,6 +27,9 @@ public sealed class UnmatchedRequestsPassTests {
   private static readonly AuthorizationPolicy _signedInUser = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 
   [Test]
+  public async Task A_request_that_matched_no_endpoint_is_passed_on() => (await WhatHappensTo(endpoint: null)).ShouldBe([PASSED_ON]);
+
+  [Test]
   public async Task A_request_matched_only_by_the_routers_method_rejection_is_passed_on_as_an_unmatched_one_is() {
     // As ASP.NET's HTTP method matcher builds its rejection: no route pattern, no metadata.
     Endpoint methodRejection = new(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, "405 HTTP Method Not Supported");
@@ -42,8 +45,11 @@ public sealed class UnmatchedRequestsPassTests {
     (await WhatHappensTo(address)).ShouldBe([CHALLENGED]);
   }
 
-  /// <summary>An anonymous caller's request matched to <paramref name="endpoint"/>, refused by the policy, through the handler.</summary>
-  private static async Task<IReadOnlyList<string>> WhatHappensTo(Endpoint endpoint) {
+  /// <summary>
+  /// An anonymous caller's request matched to <paramref name="endpoint"/> (<see langword="null"/>: to none), refused by the
+  /// policy, through the handler.
+  /// </summary>
+  private static async Task<IReadOnlyList<string>> WhatHappensTo(Endpoint? endpoint) {
     List<string> outcomes = [];
     DefaultHttpContext context = new() { RequestServices = new Services(new RecordingAuthentication(outcomes)) };
     context.SetEndpoint(endpoint);

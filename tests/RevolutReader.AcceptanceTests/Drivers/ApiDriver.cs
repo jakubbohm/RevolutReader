@@ -13,10 +13,14 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 public sealed class ApiDriver {
   private const string PROBLEM_JSON = "application/problem+json";
 
-  /// <summary>The cases of the case → status table (docs/conventions/README.md) that the DSL knows, with their status.</summary>
+  /// <summary>
+  /// The problem descriptions the DSL knows, with their status: cases of the case → status table
+  /// (docs/conventions/README.md), and the router's method rejection on a page address.
+  /// </summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
     [ProblemDescription.NotFound] = HttpStatusCode.NotFound,
     [ProblemDescription.Unauthorized] = HttpStatusCode.Unauthorized,
+    [ProblemDescription.MethodNotAllowed] = HttpStatusCode.MethodNotAllowed,
   };
 
   private readonly HttpClient _http;

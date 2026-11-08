@@ -19,6 +19,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private FakeBank? _fakeBank;
   private FakeMicrosoft? _fakeMicrosoft;
   private HealthDsl? _health;
+  private ApiDriver? _apiDriver;
   private ApiDsl? _api;
   private PagesDsl? _pages;
   private BankDsl? _bank;
@@ -27,7 +28,13 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
 
   protected HealthDsl Health => _health ??= new(new HealthDriver(Http));
 
-  protected ApiDsl Api => _api ??= new(new ApiDriver(Http));
+  protected ApiDsl Api => _api ??= new(ApiDriver);
+
+  /// <summary>
+  /// The driver under <see cref="Api"/>, an anonymous caller, for the guards in <c>Conventions/</c> that check how the app
+  /// answers addresses no scenario names. Scenarios use <see cref="Api"/> only.
+  /// </summary>
+  protected ApiDriver ApiDriver => _apiDriver ??= new(Http);
 
   protected PagesDsl Pages => _pages ??= new(new PagesDriver(Http));
 
