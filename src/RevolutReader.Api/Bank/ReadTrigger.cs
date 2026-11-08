@@ -10,7 +10,8 @@ public union ReadTrigger(PresentUser, Unattended);
 
 /// <summary>
 /// The user's real values, checked when created (spec bank-reads § Who triggers a read; c006 design.md D1 g): an address
-/// and a non-blank user agent. The address is already parsed (C7 takes it from the forwarded headers).
+/// and a non-blank user agent. The address is already parsed (<see cref="Account.PresentUserFromRequest.Read"/> takes it
+/// from the forwarded headers, C13).
 /// </summary>
 public sealed record PresentUser {
   public IPAddress IpAddress { get; }

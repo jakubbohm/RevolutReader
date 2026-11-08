@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Primitives;
 using RevolutReader.Api.Bank;
 
 namespace RevolutReader.Api.Account;
@@ -12,18 +13,19 @@ public static class PresentUserFromRequest {
   /// the bank gets the address the visitor has (c004 design.md D2); any other address, an IPv6 one too, is kept as it is.
   /// The browser name is the <c>User-Agent</c> header as ASP.NET reads it (sent on two lines: both values joined with a
   /// comma), kept as given: cleaning it to printable ASCII is <see cref="PsuHeaders"/>' job (c006 design.md D5).
-  /// <see langword="null"/> without a client address or with a missing, empty or whitespace <c>User-Agent</c>: the
-  /// endpoint then answers 400 and never reads unattended in its place, which would count against the bank's 4 reads a
-  /// day without the user (the user's choice 1, 2026-11-08; ADR-0001).
+  /// <see langword="null"/> without a client address or with a missing, empty or whitespace <c>User-Agent</c>, each line
+  /// judged on its own (two blank lines read as <c>" , "</c>, which is not blank): the endpoint then answers 400 and never
+  /// reads unattended in its place, which would count against the bank's 4 reads a day without the user (the user,
+  /// 2026-11-08, roadmap C13; ADR-0001).
   /// </summary>
   public static PresentUser? Read(HttpContext context) {
     ArgumentNullException.ThrowIfNull(context);
 
     IPAddress? address = context.Connection.RemoteIpAddress;
-    string userAgent = context.Request.Headers.UserAgent.ToString();
-    if (address is null || string.IsNullOrWhiteSpace(userAgent))
+    StringValues userAgent = context.Request.Headers.UserAgent;
+    if (address is null || userAgent.All(string.IsNullOrWhiteSpace))
       return null;
 
-    return new PresentUser(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address, userAgent);
+    return new PresentUser(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address, userAgent.ToString());
   }
 }
