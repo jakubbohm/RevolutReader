@@ -216,11 +216,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 26. [unit] Slice 12 — Nothing kept
 
-- [ ] 26.1 With nothing kept, the read starts 89 days before today
+- [x] 26.1 With nothing kept, the read starts 89 days before today
 
 ## 27. [close] Slice 12 — With nothing kept, the live read reaches back 89 days
 
-- [ ] 27.1 The scenario's test passes. Verify: green, including account-transactions / With nothing kept, the live read reaches back 89 days
+- [x] 27.1 The scenario's test passes. Verify: green, including account-transactions / With nothing kept, the live read reaches back 89 days
 
 ## 28. [unit] Slice 13 — Older pages
 

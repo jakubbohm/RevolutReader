@@ -16,16 +16,18 @@ public static class TransactionPaging {
   /// more of its transactions may have settled; never earlier than <see cref="MOST_DAYS_BACK"/> days before
   /// <paramref name="today"/>. A newest kept day earlier than that is a gap: the read starts <see cref="MOST_DAYS_BACK"/>
   /// days back, and <see cref="Account.LiveReadStart.GapDays"/> holds the gap's length, the days from the newest kept day to
-  /// today.
+  /// today. With nothing kept, the read starts <see cref="MOST_DAYS_BACK"/> days back, keeping as much as the bank serves,
+  /// and there is no gap: nothing kept is missing.
   /// </summary>
   public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) {
     DateOnly windowStart = WindowStart(today);
-
-    // Nothing kept reads from the window's start for now: slice 12 makes it MOST_DAYS_BACK.
-    if (newestKeptDay is not DateOnly newest || newest >= windowStart)
-      return new(windowStart, GapDays: null);
-
     DateOnly mostDaysBack = today.AddDays(-MOST_DAYS_BACK);
+
+    if (newestKeptDay is not DateOnly newest)
+      return new(mostDaysBack, GapDays: null);
+
+    if (newest >= windowStart)
+      return new(windowStart, GapDays: null);
 
     return newest >= mostDaysBack
       ? new(newest, GapDays: null)
