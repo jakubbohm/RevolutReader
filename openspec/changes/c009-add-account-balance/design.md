@@ -325,7 +325,6 @@ public sealed record ProblemDescription(string Title, string? Type = null);
 // requests it received come from BankDsl as they are (HasAvailableBalance, ReportsExpiredSession,
 // ReportsRequestLimitReached, ReportsOwnError, RequestsReceived).
 public sealed class BalanceDsl(BalanceDriver driver) {
-  public const decimal KORUNA_RATE = 24.3m;                        // C13's constant
   public Task<BalanceReading> AsksForTheBalance();                 // as BankDsl.DefaultUser
   public Task<BalanceReading> AsksForTheBalanceFrom(UserAtDevice user);
   public Task<BalanceReading> AsksForTheBalanceNamingNoBrowser();
@@ -377,11 +376,11 @@ export type Problem =
   | { kind: "unexpected" } | { kind: "offline" } | { kind: "sign-out failed"; offline: boolean };
 export interface Facts {
   session: Session | "waiting";                 // the answer to who is signed in, once it came
-  stored: Balance | null;                       // the phone's record, as loaded at start
-  balance: Balance | null;                      // the latest read, else the stored one
+  balance: Balance | null;                      // the latest read, else the phone's record, as loaded at start
   reading: "no" | "first" | "refresh";          // a balance read under way
   wait: "short" | "long" | "slow";              // the first load's wait: < 1.5 s, ≥ 1.5 s, ≥ 30 s
-  wokeUp: boolean;                              // the first answer took ≥ 1.5 s: the waiting screen stays until data
+  wokeUp: boolean;                              // a signed-in first answer took ≥ 1.5 s: the waiting screen stays until
+                                                // the first balance read lands
   problem: Problem | null;                      // the screen's one banner
   signingOut: boolean;
 }
@@ -399,7 +398,7 @@ export type Shown =
 export function shown(facts: Facts): Shown;
 
 // useAccountScreen.ts — the sequence (D2–D6): /api/me then the balance; the 1.5 s and 30 s marks; one read at a time;
-// the 60 s cap on a refresh; the stored record loaded at start, written after a read, forgotten on 401/403 and a
+// the 60 s cap on every read but the first load's own; the stored record loaded at start, written after a read, forgotten on 401/403 and a
 // confirmed sign-out; "Zkusit znovu" repeats what failed.
 export function useAccountScreen(): {
   shown: Shown; refresh(): void; retry(): void; signOut(): Promise<void>;   // signOut never rejects; the menu closes when it settles
@@ -453,8 +452,8 @@ export function pingServer(): void;   // fetch("/health"), never awaited, failur
 | An unexpected failure → 500 problem description that reveals nothing | `UseExceptionHandler()` with `AddProblemDetails`; guarded by the `api-errors` scenario |
 | Allowed users only | the `AllowedUser` default policy (C6) |
 | Never log bank data | no new log line; the exception message names no value; `BankTelemetryTests` unchanged |
-| An answer becomes one kind (bank `type` exact, 401, 403, unexpected, offline) | `readBalance`, `readSession` |
-| Offline: nothing sent while `navigator.onLine` is false; no answer counts as offline; an error status never does | `readBalance`, `readSession`, `signOut` |
+| An answer becomes one kind (bank `type` exact, 401, 403, unexpected, offline) | `askTheApi` (`api/client.ts`: offline, 401, 403, a success that is not JSON), then `readBalance`, `readSession` |
+| Offline: nothing sent while `navigator.onLine` is false; no answer counts as offline; an error status never does | `askTheApi` (for `readBalance`, `readSession`), `signOut` |
 | What the screen shows: the phases, stored or not, placeholder or waking, the banner alone, the offline screens, the menu after `/api/me` | `shown` |
 | `/api/me` before the balance; one read at a time; the 60 s cap; "Zkusit znovu" repeats what failed; written after a read; forgotten on 401/403 and a confirmed sign-out | `useAccountScreen` |
 | Refresh on return and back online | `watchRefreshTriggers` |
