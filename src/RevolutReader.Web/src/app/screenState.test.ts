@@ -100,3 +100,32 @@ test.each(refreshing)(
     });
   },
 );
+
+// D2's offline rules and app-shell's offline requirement: with nothing stored, the offline state is the whole screen
+// under the top bar, whichever request found the phone offline, and whether the offline problem is also on record.
+const offlineWithNothingStored: { label: string; changes: Partial<Facts> }[] = [
+  {
+    label: "who is signed in found the phone offline",
+    changes: { session: { kind: "offline" } },
+  },
+  {
+    label: "who is signed in found the phone offline, the problem on record",
+    changes: { session: { kind: "offline" }, problem: { kind: "offline" } },
+  },
+  {
+    label: "the first balance read found the phone offline",
+    changes: { session: LUCIE, problem: { kind: "offline" } },
+  },
+];
+
+test.each(offlineWithNothingStored)(
+  "Offline with nothing stored, the whole screen says so, with no header and no banner: $label",
+  ({ changes }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      header: null,
+      banner: null,
+      body: "offline",
+    });
+  },
+);
