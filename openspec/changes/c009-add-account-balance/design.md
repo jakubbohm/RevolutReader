@@ -429,7 +429,9 @@ export function pingServer(): void;   // fetch("/health"), never awaited, failur
 // ---- src/RevolutReader.Web/src/test (the test-writer's, group 1) ----
 // server.ts gains:
 //   - the balance answers: a balance, the three bank problems by type, 401, 403, a 500 problem, a 502 hosting page in
-//     plain text, no connection, no answer yet; one per read in order, the last repeating;
+//     plain text, no connection, no answer yet; one per read in order, the last repeating; a test that sets none gets a
+//     default balance no scenario names, as the backend's BankDsl.DEFAULT_BALANCE (the user, 2026-11-08, at the
+//     acceptance gate);
 //   - `after: <ms>` on any answer, on the test's clock;
 //   - requests honour their AbortSignal;
 //   - GET /health answers 200;
