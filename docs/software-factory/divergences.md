@@ -27,7 +27,7 @@ Given up: <what it costs>.
 
 ## Entries
 
-**R-1 · Speed of delivery comes before architecture**
+**R-1 · Speed of delivery comes before architecture in the app**
 Full version: architectural quality is the highest priority ([lessons.md R-1](lessons.md), DoseUp F-42).
 Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option. It covers the app only: software-factory work keeps the full bar ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08), 2026-11-08).
 Given up: shortcuts a longer-lived system would pay for later; R-12, R-14 and R-19 follow from this one.

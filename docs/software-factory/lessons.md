@@ -18,7 +18,7 @@ Add an entry in the same change or session that makes the decision. The project'
 
 Every answer below was reached under these constraints. An entry's *Generalizes* line names the constraint that decided it, so the factory can tell which constraint flips which answer:
 
-solo developer · ~2-month operating period, then decommissioned · **speed of delivery is the top priority for the app** (not for the factory work, R-1) · 3 use cases, essentially one screen · a handful of pre-approved users · read-only access to one real bank account through a regulated third-party API with request limits · Azure, with free-tier resources shared across the owner's projects · one deployed environment.
+solo developer · ~2-month operating period, then decommissioned · **speed of delivery is the top priority for the app**, never for what it hands to the software factory (R-1) · 3 use cases, essentially one screen · a handful of pre-approved users · read-only access to one real bank account through a regulated third-party API with request limits · Azure, with free-tier resources shared across the owner's projects · one deployed environment.
 
 ## Entry format
 
