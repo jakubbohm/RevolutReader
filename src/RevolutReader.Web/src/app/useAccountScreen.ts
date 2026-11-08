@@ -3,7 +3,7 @@ import { readBalance, type Balance, type BalanceRead } from "./balance";
 import { watchRefreshTriggers } from "./refreshTriggers";
 import { shown, type Facts, type Problem, type Shown } from "./screenState";
 import { readSession, signOut, type Session } from "./session";
-import { loadStoredBalance } from "./storedBalance";
+import { loadStoredBalance, storeBalance } from "./storedBalance";
 
 /** The phone is offline: what the phone said, or a request that got no answer (D2). */
 const OFFLINE: Problem = { kind: "offline" };
@@ -55,10 +55,17 @@ export function useAccountScreen(): AccountScreenModel {
     [],
   );
 
-  /** What a read brought: the read is over; a balance it read replaces the one shown, and no answer means offline. */
+  /**
+   * What a read brought: the read is over; a balance it read replaces the one shown and the one the phone keeps, and no
+   * answer means offline.
+   */
   const takeIn = useCallback((read: BalanceRead): void => {
     setReading("no");
-    if (read.kind === "read") setBalance(read.balance);
+    if (read.kind === "read") {
+      setBalance(read.balance);
+      // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
+      void storeBalance(read.balance);
+    }
     if (read.kind === "offline") setProblem(OFFLINE);
   }, []);
 

@@ -248,11 +248,11 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 32. [wiring] Slice 13 — Keeping what was read
 
-- [ ] 32.1 `useAccountScreen` stores the balance after every successful read. Verify: the scenario runs against the app
+- [x] 32.1 `useAccountScreen` stores the balance after every successful read. Verify: the scenario runs against the app
 
 ## 33. [close] Slice 13 — A balance read replaces the one the phone keeps
 
-- [ ] 33.1 The scenario's test passes. Verify: green, including account-balance / A balance read replaces the one the phone keeps
+- [x] 33.1 The scenario's test passes. Verify: green, including account-balance / A balance read replaces the one the phone keeps
 
 ## 34. [unit] Slice 14 — Back online
 
