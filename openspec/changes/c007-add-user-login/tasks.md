@@ -167,16 +167,16 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 13. [unit] Slice 5 — Writes from other sites
 
-- [ ] 13.1 A read (GET, HEAD, OPTIONS) passes whatever its headers
-- [ ] 13.2 A write from the app's own page is allowed
-- [ ] 13.3 A write the user started directly is allowed
-- [ ] 13.4 A write from a neighbouring site on the same domain is refused
-- [ ] 13.5 A write from another site is refused
-- [ ] 13.6 A write without fetch metadata but with the app's own origin is allowed
-- [ ] 13.7 A write without fetch metadata from another origin is refused
-- [ ] 13.8 A write with neither header is allowed
-- [ ] 13.9 The sign-in return is passed on whatever its headers
-- [ ] 13.10 A write outside `/api` is passed on
+- [x] 13.1 A read (GET, HEAD, OPTIONS) passes whatever its headers
+- [x] 13.2 A write from the app's own page is allowed
+- [x] 13.3 A write the user started directly is allowed
+- [x] 13.4 A write from a neighbouring site on the same domain is refused
+- [x] 13.5 A write from another site is refused
+- [x] 13.6 A write without fetch metadata but with the app's own origin is allowed
+- [x] 13.7 A write without fetch metadata from another origin is refused
+- [x] 13.8 A write with neither header is allowed
+- [x] 13.9 The sign-in return is passed on whatever its headers
+- [x] 13.10 A write outside `/api` is passed on
 
 ## 14. [wiring] Slice 5 — The rule in the app
 
