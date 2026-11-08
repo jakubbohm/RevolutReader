@@ -75,7 +75,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 3. [close] Slice 1 — An anonymous visitor is asked to sign in
 
-- [ ] 3.1 The scenario's test passes. Verify: green, including sign-in / An anonymous visitor is asked to sign in
+- [x] 3.1 The scenario's test passes. Verify: green, including sign-in / An anonymous visitor is asked to sign in
 
 ## 4. [unit] Slice 2 — Sign-in settings
 
