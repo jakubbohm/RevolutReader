@@ -37,10 +37,10 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 
 ## 6. [unit] Error code shape
 
-- [ ] 6.1 Enable Banking's codes have the code shape (e.g. `EXPIRED_SESSION`, `ASPSP_RATE_LIMIT_EXCEEDED`, `PAYMENT_SUBMISSION_NOT_SUPPORTED`)
-- [ ] 6.2 A value of 64 capital letters and underscores has the code shape, one of 65 does not
-- [ ] 6.3 A value with a lower-case letter, a digit, a space, a slash or a colon does not have the code shape
-- [ ] 6.4 A value starting with an underscore, an empty value and no value do not have the code shape
+- [x] 6.1 Enable Banking's codes have the code shape (e.g. `EXPIRED_SESSION`, `ASPSP_RATE_LIMIT_EXCEEDED`, `PAYMENT_SUBMISSION_NOT_SUPPORTED`)
+- [x] 6.2 A value of 64 capital letters and underscores has the code shape, one of 65 does not
+- [x] 6.3 A value with a lower-case letter, a digit, a space, a slash or a colon does not have the code shape
+- [x] 6.4 A value starting with an underscore, an empty value and no value do not have the code shape
 
 ## 7. [wiring] Error answers decided by their status
 
