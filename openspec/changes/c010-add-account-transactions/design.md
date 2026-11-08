@@ -58,6 +58,16 @@
    - the explicit OpenAPI export check (`OpenApiExport`) starts with a made-up tables connection.
 4. **Baseline:** the full suite green, except the traceability check naming this change's 40 new scenarios.
 
+**Done 2026-11-08** (the user's go):
+
+1. The design loop, as item 1 says.
+2. Packages: `Aspire.Azure.Data.Tables` 13.6.4 (API), `Aspire.Hosting.Azure.Storage` 13.6.4 (AppHost), `Testcontainers.Azurite` 4.16.0 (acceptance and integration tests), `@radix-ui/react-dialog` 1.3.1 (frontend), each still unused. `npm audit` reports the same six findings as before, all in the build tooling (`vite-plugin-pwa` through `workbox-build`), none in the new package.
+3. The probes, throwaway tests deleted afterwards:
+   - Azurite 3.37.0 starts through Testcontainers (Docker 29.6.2, with Testcontainers' own reaper container), and a `TableServiceClient` from its connection string creates a table, writes a row whose key holds an escaped `/` and reads it back;
+   - the API with `AddAzureTableServiceClient` and no `ConnectionStrings:tables` still starts, and `/health` answers as before: the client checks its connection only when first resolved, then throwing `InvalidOperationException` naming the setting. So `AddTransactionStore` checks the setting at registration (D11; tasks 5.10–5.12);
+   - the OpenAPI export check runs with the client registered and leaves `openapi.json` unchanged.
+4. The baseline: build with no warning; `dotnet test` 720 of 721, the one red the traceability check naming exactly the 40 new scenarios; frontend 53 of 53; lint, type check, Prettier, the frontend build and `dotnet format` clean.
+
 ## Decisions
 
 > Made in `/opsx:explore` (2026-11-08), as one linked round with the user (D1–D9). D10–D15 collect what those decisions imply and were written in `/opsx:propose`; the propose-time details are marked *(propose)*.
@@ -185,7 +195,7 @@ After C7a merges, the branch takes `main` (memory: merge the earlier PR's tip be
 ### D11 — Settings, AppHost and Bicep *(propose)*
 
 - **Settings:**
-  - `ConnectionStrings:tables`, read by `Aspire.Azure.Data.Tables` (`AddAzureTableServiceClient("tables")`): Azurite's connection string locally and in tests; in Azure, the table endpoint, reached with `DefaultAzureCredential`, which picks the app's managed identity through `AZURE_CLIENT_ID` (as Data Protection does). Not a secret. Health checks off (the bootstrap's probe).
+  - `ConnectionStrings:tables`, read by `Aspire.Azure.Data.Tables` (`AddAzureTableServiceClient("tables")`): Azurite's connection string locally and in tests; in Azure, the table endpoint, reached with `DefaultAzureCredential`, which picks the app's managed identity through `AZURE_CLIENT_ID` (as Data Protection does). Not a secret. Health checks off, although `/health` is the app's own endpoint and runs no health check. The client checks its connection only when it is first resolved (the bootstrap's probe: the app starts without it, and the first use throws `InvalidOperationException` naming `ConnectionStrings:tables`), so `AddTransactionStore` checks at registration that it is set and throws, naming the setting and never its value, as `AddDataProtectionKeys` does. A missing setting then stops the app at start instead of answering 500 on the first transactions request.
   - `Transactions:TableName`, default `transactions`, validated on start (3–63 letters and digits, starting with a letter), so each acceptance test can use a table of its own (D12).
 - **AppHost:** `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Azurite runs in Docker, which local development and the tests need already.
 - **Bicep** (`infra/platform.bicep`, `main.bicep`, `features.bicep`):
@@ -354,7 +364,8 @@ public sealed class TransactionStoreOptions { public const string SECTION = "Tra
 public sealed class TableTransactionStore(TableServiceClient tables, IOptions<TransactionStoreOptions> options) : ITransactionStore;
 
 public static class StorageRegistration {
-  /// <summary>AddAzureTableServiceClient("tables") with health checks off; options; TableTransactionStore as the store.</summary>
+  /// <summary>Throws at registration when ConnectionStrings:tables is not set (the message names the setting, never a
+  /// value); AddAzureTableServiceClient("tables") with health checks off; options; TableTransactionStore as the store.</summary>
   public static IHostApplicationBuilder AddTransactionStore(this IHostApplicationBuilder builder);
 }
 
@@ -578,7 +589,7 @@ export function useTransactionList(options: { enabled: boolean }): {
 - **[`REFUND` is not how Revolut marks refunds]** → a refund shows as a plain incoming payment; the warning log names the code on its first appearance, and a one-line change in `TransactionKinds` follows.
 - **[C7a's components or texts change in its review before it merges]** → the rebase takes C7a's merged version (D13); a text that differs from this spec is shown to the user and fixed as `[plan]`.
 - **[Azurite in every acceptance run slows the suite or fails without Docker]** → one container per session; tests that need Docker stop with a message, never skip (testing.md). Locally the owner keeps Docker running, as for the integration tests.
-- **[The Aspire client integration touches `/health` or refuses to start without its setting in some host]** → the bootstrap's probes; a plain `TableServiceClient` registration is the fallback.
+- **[A missing tables connection goes unnoticed until the first request]** (the Aspire client checks it lazily, the bootstrap's probe) → `AddTransactionStore` checks it at registration (D11).
 - **[A busy day makes a page long]** → whole days are the user's rule; a day of 60 transactions is still one screenful of scrolling.
 - **[Reading the whole table on every request]** → a few hundred rows, one partition, well under a second; if it ever grows, ADR-0005's consequence applies (move it with a script).
 - **[A refresh across midnight shows a stale pending row on the oldest day]** (D1's rule keeps the earlier answer's oldest day) → harmless: a pending payment 31 days old drops off on the next launch.

@@ -78,7 +78,7 @@ Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks
 
 - [ ] 4.1 The scenario's test passes. Verify: green, including bank-reads / A transaction comes back with the bank's type code
 
-## 5. [unit] Slice 2 — Newest page
+## 5. [unit] Slice 2 — Newest page and storage settings
 
 The handler's tests use a hand-written `StubBankAccount`, the in-memory fake `InMemoryTransactionStore` (the test-writer's, design.md D12) and `FakeTimeProvider`.
 
@@ -91,6 +91,9 @@ The handler's tests use a hand-written `StubBankAccount`, the in-memory fake `In
 - [ ] 5.7 The newest page names the window's start when the store holds something older
 - [ ] 5.8 The bank is read for the present user handed in
 - [ ] 5.9 A bank failure comes back as the same failure, and nothing is kept
+- [ ] 5.10 A missing tables connection is refused at registration, and the message names the setting only
+- [ ] 5.11 A table name that is not 3 to 63 letters and digits starting with a letter fails validation
+- [ ] 5.12 The default table name passes validation
 
 ## 6. [integration] Slice 2 — Transaction store
 
@@ -106,7 +109,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 7. [wiring] Slice 2 — Storage
 
-- [ ] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, escaped row key, columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
+- [ ] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `ConnectionStrings:tables` checked at registration (design.md D11), `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, escaped row key, columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
 - [ ] 7.2 AppHost: `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Start the app through the aspire skill with `--isolated`. Verify: the storage emulator and the API come up healthy
 - [ ] 7.3 Docs:
   - configuration.md: the `Transactions` section and `ConnectionStrings:tables` (not a secret; set by Bicep in Azure);
