@@ -36,6 +36,17 @@ export async function readSession(): Promise<Session> {
   }
 }
 
+/**
+ * Ends the login on this device (`POST /api/auth/logout`, design.md D2); the Microsoft account stays signed in.
+ * Resolves once the server has answered with success; rejects when it answered otherwise or the request failed, so the
+ * caller decides what that means for its screen.
+ */
+export async function signOut(): Promise<void> {
+  const { response } = await api.POST("/api/auth/logout");
+
+  if (!response.ok) throw new Error(`Sign-out answered ${response.status}.`);
+}
+
 /** The backend's sign-in address (design.md D2), and its query for Microsoft's account picker. */
 const SIGN_IN = "/api/auth/login";
 const ANOTHER_ACCOUNT = "?anotherAccount=true";

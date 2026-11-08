@@ -281,7 +281,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 35. [wiring] Slice 15 — Trying another account
 
-- [ ] 35.1 `signOut()` on the generated client; "Zkusit jiný účet" signs out, then calls `startSignIn({ anotherAccount: true })`. Verify: the scenario runs against the app
+- [x] 35.1 `signOut()` on the generated client; "Zkusit jiný účet" signs out, then calls `startSignIn({ anotherAccount: true })`. Verify: the scenario runs against the app
 
 ## 36. [close] Slice 15 — Trying another account signs out and starts a new sign-in
 

@@ -1,5 +1,6 @@
-import { useEffect, useState, type JSX } from "react";
+import type { JSX } from "react";
 import { startSignIn } from "../app/session";
+import { useLeaving } from "../app/useLeaving";
 import { MicrosoftSignInButton } from "../components/MicrosoftSignInButton";
 
 export interface SignInScreenProps {
@@ -16,19 +17,7 @@ export interface SignInScreenProps {
  * button is ready again.
  */
 export function SignInScreen(_props: SignInScreenProps): JSX.Element {
-  const [leaving, setLeaving] = useState(false);
-
-  useEffect(() => {
-    function restored(event: PageTransitionEvent): void {
-      if (event.persisted) setLeaving(false);
-    }
-
-    window.addEventListener("pageshow", restored);
-
-    return () => {
-      window.removeEventListener("pageshow", restored);
-    };
-  }, []);
+  const [leaving, setLeaving] = useLeaving();
 
   function signIn(): void {
     if (leaving) return;
