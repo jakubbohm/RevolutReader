@@ -30,7 +30,7 @@ export function AccountMenu({
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger
         aria-label="Účet a odhlášení"
-        className="inline-flex size-touch items-center justify-center rounded-full text-accent transition-transform duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-soft motion-reduce:transition-none motion-reduce:active:scale-100"
+        className="inline-flex size-touch items-center justify-center rounded-full text-accent transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] active:bg-accent-soft motion-reduce:active:scale-100"
       >
         <CircleUserRound size={24} aria-hidden="true" />
       </DropdownMenu.Trigger>
@@ -53,7 +53,7 @@ export function AccountMenu({
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
           <DropdownMenu.Item
             onSelect={onSignOut}
-            className="flex min-h-touch cursor-pointer items-center gap-3 rounded-control px-3 text-body outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus data-[highlighted]:bg-surface-muted"
+            className="flex min-h-touch cursor-pointer items-center gap-3 rounded-control px-3 text-body outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus data-[highlighted]:bg-surface-muted"
           >
             <LogOut size={20} aria-hidden="true" />
             Odhlásit se
