@@ -269,23 +269,23 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 37. [unit] Slice 15 — Waiting for the server
 
-- [ ] 37.1 Under 1.5 s with a stored balance, the header shows it in its default state and the list slot is empty
-- [ ] 37.2 From 1.5 s with a stored balance, the waking-up screen stands in the list's place
-- [ ] 37.3 From 1.5 s with nothing stored, the waking-up screen is the whole screen
-- [ ] 37.4 After a wake, the waking-up screen stays until the balance arrives, never a placeholder
-- [ ] 37.5 The waking-up screen is announced as a status, with an indeterminate bar (its stillness under reduced motion is a CSS rule, checked by hand in the local check: design.md § Migration plan step 2)
+- [x] 37.1 Under 1.5 s with a stored balance, the header shows it in its default state and the list slot is empty
+- [x] 37.2 From 1.5 s with a stored balance, the waking-up screen stands in the list's place
+- [x] 37.3 From 1.5 s with nothing stored, the waking-up screen is the whole screen
+- [x] 37.4 After a wake, the waking-up screen stays until the balance arrives, never a placeholder
+- [x] 37.5 The waking-up screen is announced as a status, with an indeterminate bar (its stillness under reduced motion is a CSS rule, checked by hand in the local check: design.md § Migration plan step 2)
 
 ## 38. [wiring] Slice 15 — The waking-up screen
 
-- [ ] 38.1 `WakingUp` on Radix `Progress` (`value={null}`), as design.md D10 describes; the 1.5 s mark in `useAccountScreen`. Verify: the scenario runs against the app; the oxlint rule keeps Radix inside `src/components/`
+- [x] 38.1 `WakingUp` on Radix `Progress` (`value={null}`), as design.md D10 describes; the 1.5 s mark in `useAccountScreen`. Verify: the scenario runs against the app; the oxlint rule keeps Radix inside `src/components/`
 
 ## 39. [close] Slice 15 — A stored balance shows at once while the server wakes
 
-- [ ] 39.1 The scenario's test passes. Verify: green, including app-shell / A stored balance shows at once while the server wakes
+- [x] 39.1 The scenario's test passes. Verify: green, including app-shell / A stored balance shows at once while the server wakes
 
 ## 40. [close] Slice 16 — A sleeping server shows the waking-up screen after 1.5 seconds
 
-- [ ] 40.1 The scenario's test passes, the balance taking the waking-up screen's place once the server answers. Verify: green, including app-shell / A sleeping server shows the waking-up screen after 1.5 seconds
+- [x] 40.1 The scenario's test passes, the balance taking the waking-up screen's place once the server answers. Verify: green, including app-shell / A sleeping server shows the waking-up screen after 1.5 seconds
 
 ## 41. [unit] Slice 17 — A slow wake
 

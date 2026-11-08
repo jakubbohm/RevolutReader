@@ -59,7 +59,8 @@ export type ShownAccount = Extract<Shown, { screen: "account" }>;
  * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
  * with no header, the empty frame. Offline (D2; app-shell): with nothing to show, the offline state is the whole screen
  * under the top bar, in place of the header and the banner; with a balance, its header, the offline banner and the
- * offline note in the list's place (D7 a).
+ * offline note in the list's place (D7 a). While the server wakes (`waking`), the waking-up screen stands in the list's
+ * place under a stored header, or is the whole screen with nothing stored.
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -86,9 +87,27 @@ export function shown(facts: Facts): Shown {
     account: accountOf(facts.session),
     header,
     banner: offline ? OFFLINE : facts.problem,
-    body: offline ? "offline note" : header === null ? "empty" : "list",
+    body: offline
+      ? "offline note"
+      : waking(facts)
+        ? "waking"
+        : header === null
+          ? "empty"
+          : "list",
     signingOut: facts.signingOut,
   };
+}
+
+/**
+ * Whether the server is waking, as the first load sees it (D2): who is signed in has had no answer for 1.5 s or more;
+ * or it took that long, and the first balance read still runs: then the waking-up screen stays until the balance
+ * arrives, never a placeholder. A refresh never shows it (D3).
+ */
+function waking(facts: Facts): boolean {
+  return (
+    (facts.session === "waiting" && facts.wait !== "short") ||
+    (facts.wokeUp && facts.reading === "first")
+  );
 }
 
 /** The offline banner's problem, whichever request found the phone offline. */

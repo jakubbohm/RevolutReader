@@ -8,6 +8,9 @@ import { loadStoredBalance, storeBalance } from "./storedBalance";
 /** The phone is offline: what the phone said, or a request that got no answer (D2). */
 const OFFLINE: Problem = { kind: "offline" };
 
+/** How long the first question may go unanswered before the screen says the server is waking (D2). */
+const WAKING_AFTER_MS = 1_500;
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
@@ -23,7 +26,8 @@ export interface AccountScreenModel {
  * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, shown at once
  * until a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
  * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen.
- * What it learns becomes `Facts`, and the screen is what `shown` makes of them.
+ * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
+ * without an answer it is long, and an answer that took that long woke the server (D2).
  *
  * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
  * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
@@ -41,8 +45,14 @@ export function useAccountScreen(): AccountScreenModel {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
+  const [wait, setWait] = useState<Facts["wait"]>("short");
+  const [wokeUp, setWokeUp] = useState(false);
   /** Whether the screen is on the page, for answers that come after it left. */
   const onPage = useRef(false);
+  /** The first question has been answered. */
+  const firstAnswered = useRef(false);
+  /** The first question had no answer after `WAKING_AFTER_MS`: the server was asleep. */
+  const firstAnswerLate = useRef(false);
   /** Set the moment the question starts, so a second one asked for in the same turn sees it (state would not yet). */
   const askUnderWay = useRef(false);
   /** As `askUnderWay`, for a balance read. */
@@ -117,15 +127,28 @@ export function useAccountScreen(): AccountScreenModel {
       if (onPage.current) setStored(kept);
     }
 
+    // The first question unanswered after 1.5 s: the server is waking (D2).
+    const wakingMark = setTimeout(() => {
+      if (firstAnswered.current) return;
+      firstAnswerLate.current = true;
+      setWait("long");
+    }, WAKING_AFTER_MS);
+
     async function start(): Promise<void> {
       const answer = await askOnce();
-      if (answer !== null) await takeInAnswer(answer);
+      if (answer === null) return;
+
+      // An answer that took 1.5 s or more woke the server: the waking-up screen stays until the balance arrives.
+      firstAnswered.current = true;
+      if (firstAnswerLate.current) setWokeUp(true);
+      await takeInAnswer(answer);
     }
 
     void loadStored();
     void start();
 
     return () => {
+      clearTimeout(wakingMark);
       onPage.current = false;
     };
   }, [askOnce, takeInAnswer]);
@@ -164,8 +187,8 @@ export function useAccountScreen(): AccountScreenModel {
     stored,
     balance: balance ?? stored,
     reading,
-    wait: "short",
-    wokeUp: false,
+    wait,
+    wokeUp,
     problem,
     signingOut: false,
   };
