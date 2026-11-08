@@ -248,17 +248,18 @@ public sealed class EnableBankingOptions {
 }
 ```
 
-The wiring (`EnableBankingRegistration.AddEnableBanking`), order matters: a handler added later runs inside the one before it.
+The wiring (`EnableBankingRegistration.AddEnableBanking`), order matters: a handler added later runs inside the one before it. Two statements on the client builder, because `AddResilienceHandler` returns the pipeline's builder, not the client's (corrected during `/tdd-apply`, 2026-11-08; the first sketch chained them, which does not compile):
 
 ```csharp
-services
+IHttpClientBuilder bank = services
   .AddHttpClient<IBankAccount, EnableBankingClient>(/* BaseAddress, Timeout = RequestTimeout: now the limit for a request with its retries (D1) */)
-  .RemoveAllLoggers()
-  .AddResilienceHandler("bank-retries", static (pipeline, context) =>
-    pipeline.AddRetry(BankRetries.Options(
-      context.ServiceProvider.GetRequiredService<IOptions<EnableBankingOptions>>().Value.RetryDelay,
-      context.ServiceProvider.GetRequiredService<TimeProvider>())))
-  .AddHttpMessageHandler(static () => new WholeAnswerHandler());   // within each attempt (D6)
+  .RemoveAllLoggers();
+
+bank.AddResilienceHandler("bank-retries", static (pipeline, context) =>
+  pipeline.AddRetry(BankRetries.Options(
+    context.ServiceProvider.GetRequiredService<IOptions<EnableBankingOptions>>().Value.RetryDelay,
+    context.ServiceProvider.GetRequiredService<TimeProvider>())));
+bank.AddHttpMessageHandler(static () => new WholeAnswerHandler());   // added after, so it runs inside: within each attempt (D6)
 ```
 
 `EnableBankingClient` keeps its signature. Inside: each request gets `request.Options.Set(BankRetries.PresentUser, trigger.Value is PresentUser)` and `request.Options.Set(BankRetries.Deadline, time.GetUtcNow() + RequestTimeout)` next to the trace exclusion; its error answers are read with `EnableBankingErrorValue.Read`. Nothing else changes: the final attempt's outcome is classified as today, the log line is the same.
