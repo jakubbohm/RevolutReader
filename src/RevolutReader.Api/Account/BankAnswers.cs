@@ -14,15 +14,14 @@ namespace RevolutReader.Api.Account;
 /// time. Each problem is built with <c>TypedResults.Problem</c>, so for a caller that accepts JSON it is written through
 /// <see cref="IProblemDetailsService"/> with the trace id and the app's problem customization, as the problems ASP.NET
 /// Core writes are; a caller that rules JSON out gets the same problem, still as <c>application/problem+json</c>, but
-/// without either. Never with FastEndpoints' own problem details, which bypass that service.
+/// without either. Never with FastEndpoints' own problem details, which bypass that service. The types are
+/// <see cref="BankProblem"/>'s, the shape the API description lists them in.
 /// </summary>
 public static class BankAnswers {
-  private const string ACCESS_EXPIRED_TYPE = "/problems/bank-access-expired";
   private const string ACCESS_EXPIRED_TITLE = "Bank access expired";
-  private const string RATE_LIMITED_TYPE = "/problems/bank-rate-limited";
   private const string RATE_LIMITED_TITLE = "Bank rate limit reached";
-  private const string BANK_UNAVAILABLE_TYPE = "/problems/bank-unavailable";
   private const string BANK_UNAVAILABLE_TITLE = "Bank unavailable";
+  private const string PROBLEM_JSON = "application/problem+json";
 
   /// <summary>
   /// The read's value as a 200 answer carrying <paramref name="toResponse"/>'s response for it, each failure as its
@@ -53,7 +52,7 @@ public static class BankAnswers {
   public static ProblemHttpResult Problem(BankAccessExpired failure) {
     ArgumentNullException.ThrowIfNull(failure);
 
-    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: ACCESS_EXPIRED_TITLE, type: ACCESS_EXPIRED_TYPE);
+    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: ACCESS_EXPIRED_TITLE, type: BankProblem.ACCESS_EXPIRED_TYPE);
   }
 
   /// <summary>
@@ -63,7 +62,7 @@ public static class BankAnswers {
   public static ProblemHttpResult Problem(BankRateLimited failure) {
     ArgumentNullException.ThrowIfNull(failure);
 
-    return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: RATE_LIMITED_TITLE, type: RATE_LIMITED_TYPE);
+    return TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: RATE_LIMITED_TITLE, type: BankProblem.RATE_LIMITED_TYPE);
   }
 
   /// <summary>
@@ -74,7 +73,7 @@ public static class BankAnswers {
   public static ProblemHttpResult Problem(BankUnavailable failure) {
     ArgumentNullException.ThrowIfNull(failure);
 
-    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: BANK_UNAVAILABLE_TITLE, type: BANK_UNAVAILABLE_TYPE);
+    return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: BANK_UNAVAILABLE_TITLE, type: BankProblem.BANK_UNAVAILABLE_TYPE);
   }
 
   /// <summary>
@@ -86,18 +85,18 @@ public static class BankAnswers {
   public static ProblemHttpResult NoPresentUser() => TypedResults.Problem(statusCode: StatusCodes.Status400BadRequest);
 
   /// <summary>
-  /// Declares the bank problems in the endpoint's API description: a 400 (<see cref="NoPresentUser"/>), a 429 and a 503
-  /// problem description (<c>application/problem+json</c>), one 503 for both 503 cases. A problem result puts no status into
-  /// the API description by itself, while an <see cref="Ok{TValue}"/> does, so C7a's and C7b's endpoints declare the same
-  /// statuses with this, inside FastEndpoints' <c>Description(…, clearDefaults: true)</c>, as
-  /// <see cref="SignIn.MeEndpoint"/> declares its own.
+  /// Declares the bank problems in the endpoint's API description (<c>application/problem+json</c>): a 400 problem
+  /// description (<see cref="NoPresentUser"/>), and a 429 and a 503 <see cref="BankProblem"/>, whose <c>type</c> lists the
+  /// bank types, one 503 for both 503 cases. A problem result puts no status into the API description by itself, while an
+  /// <see cref="Ok{TValue}"/> does, so C7a's and C7b's endpoints declare the same statuses with this, inside FastEndpoints'
+  /// <c>Description(…, clearDefaults: true)</c>, as <see cref="SignIn.MeEndpoint"/> declares its own.
   /// </summary>
   public static RouteHandlerBuilder ProducesBankProblems(this RouteHandlerBuilder builder) {
     ArgumentNullException.ThrowIfNull(builder);
 
     return builder
       .ProducesProblem(StatusCodes.Status400BadRequest)
-      .ProducesProblem(StatusCodes.Status429TooManyRequests)
-      .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+      .Produces<BankProblem>(StatusCodes.Status429TooManyRequests, PROBLEM_JSON)
+      .Produces<BankProblem>(StatusCodes.Status503ServiceUnavailable, PROBLEM_JSON);
   }
 }
