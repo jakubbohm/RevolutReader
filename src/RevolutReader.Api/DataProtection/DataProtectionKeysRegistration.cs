@@ -24,11 +24,6 @@ public static class DataProtectionKeysRegistration {
     + $"{nameof(DataProtectionKeysOptions.KeyVaultKeyUri)} are set, but {AZURE_CLIENT_ID} is not: the app reaches the keys "
     + $"blob and the Key Vault key with its managed identity, whose client ID {AZURE_CLIENT_ID} must hold.";
 
-  private const string PARTLY_SET =
-    $"The {DataProtectionKeysOptions.SECTION} settings {nameof(DataProtectionKeysOptions.KeysBlobUri)}, "
-    + $"{nameof(DataProtectionKeysOptions.KeyVaultKeyUri)} and {nameof(DataProtectionKeysOptions.IdentityClientId)} are partly set: "
-    + "set all three (production, by Bicep) or none (locally, ASP.NET's default key folder).";
-
   /// <summary>
   /// Data Protection with its application name pinned, and its keys where the configuration says (D7): the two addresses
   /// of the <c>DataProtection</c> section (<c>KeysBlobUri</c>, <c>KeyVaultKeyUri</c>, set by Bicep in production) and the
@@ -69,38 +64,6 @@ public static class DataProtectionKeysRegistration {
     dataProtection
       .PersistKeysToAzureBlobStorage(keysBlob, appIdentity)
       .ProtectKeysWithAzureKeyVault(keyVaultKey, appIdentity);
-
-    return services;
-  }
-
-  /// <summary>
-  /// Superseded by <see cref="AddDataProtectionKeys(IServiceCollection, IConfiguration)"/>, which takes the identity from
-  /// <c>AZURE_CLIENT_ID</c>; goes away once nothing calls it. Here all three settings empty choose ASP.NET's default key
-  /// store, all three set the keys blob encrypted by the Key Vault key, and anything in between throws, naming the
-  /// settings, never their values.
-  /// </summary>
-  public static IServiceCollection AddDataProtectionKeys(this IServiceCollection services, DataProtectionKeysOptions options) {
-    ArgumentNullException.ThrowIfNull(services);
-    ArgumentNullException.ThrowIfNull(options);
-
-    bool keysBlobSet = options.KeysBlobUri is not null;
-    bool keyVaultKeySet = options.KeyVaultKeyUri is not null;
-    bool identitySet = !string.IsNullOrWhiteSpace(options.IdentityClientId);
-    bool allSet = keysBlobSet && keyVaultKeySet && identitySet;
-
-    if (!allSet && (keysBlobSet || keyVaultKeySet || identitySet))
-      throw new InvalidOperationException(PARTLY_SET);
-
-    IDataProtectionBuilder dataProtection = services.AddDataProtection().SetApplicationName(APPLICATION_NAME);
-
-    if (!allSet)
-      return services;
-
-    ManagedIdentityCredential appIdentity = new(ManagedIdentityId.FromUserAssignedClientId(options.IdentityClientId));
-
-    dataProtection
-      .PersistKeysToAzureBlobStorage(options.KeysBlobUri, appIdentity)
-      .ProtectKeysWithAzureKeyVault(options.KeyVaultKeyUri, appIdentity);
 
     return services;
   }
