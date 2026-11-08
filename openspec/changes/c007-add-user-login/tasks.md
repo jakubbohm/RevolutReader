@@ -191,7 +191,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 15. [close] Slice 5 — A write request from another site is refused
 
-- [ ] 15.1 The scenario's test passes. Verify: green, including sign-in / A write request from another site is refused
+- [x] 15.1 The scenario's test passes. Verify: green, including sign-in / A write request from another site is refused
 
 ## 16. [wiring] Slice 6 — Behind the hosting proxy
 
