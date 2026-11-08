@@ -163,7 +163,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 12. [close] Slice 4 — Signing out ends the login
 
-- [ ] 12.1 The scenario's test and the guard 1.4 pass. Verify: green, including sign-in / Signing out ends the login and `AnonymousEndpointsTests`
+- [x] 12.1 The scenario's test and the guard 1.4 pass. Verify: green, including sign-in / Signing out ends the login and `AnonymousEndpointsTests`
 
 ## 13. [unit] Slice 5 — Writes from other sites
 
