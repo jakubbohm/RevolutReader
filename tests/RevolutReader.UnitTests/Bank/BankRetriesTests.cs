@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Http.Resilience;
 using Polly;
+using Polly.Retry;
 using RevolutReader.Api.Bank;
 using Shouldly;
 
@@ -14,7 +16,8 @@ namespace RevolutReader.UnitTests.Bank;
 /// unavailable, the error answer read as the client reads it (c006 design.md D3, D7). A <c>Retry-After</c> wait is
 /// followed only when it ends before the request's deadline. The requests are marked as the client marks them: the
 /// present-user mark, and the deadline, production's 15 s request timeout from <see cref="_now"/> unless a test says
-/// otherwise.
+/// otherwise. The retry options pin production's numbers (D4, D7: 3 retries, exponential waits from the given first wait,
+/// jitter, <c>Retry-After</c> followed) and decide by the rule.
 /// <para>
 /// The error answers have the shape of Enable Banking's captured error answers
 /// (<c>spikes/enable-banking-mock/evidence/2026-11-04-error-responses.json</c>: <c>{ code, message, error, detail }</c>);
@@ -53,11 +56,20 @@ public sealed class BankRetriesTests {
 
   private const string RATE_LIMIT_CODE = "ASPSP_RATE_LIMIT_EXCEEDED";
 
+  private const string PRESENT_USERS_503 = "a present user's 503";
+  private const string UNMARKED_503 = "a 503 to a request without the present-user mark";
+  private const string NO_REQUEST_IN_THE_CONTEXT = "a 503 with no request in the resilience context";
+  private const string RETRY_AFTER_IN_TIME = "a present user's 503 asking for a wait that ends before the deadline";
+  private const string RETRY_AFTER_TOO_LATE = "a present user's 503 asking for a wait that overruns the deadline";
+
   /// <summary>When the rule is asked: a whole second, so an HTTP date (whole seconds) can name it and the deadline exactly.</summary>
   private static readonly DateTimeOffset _now = new(2026, 11, 8, 13, 0, 0, TimeSpan.Zero);
 
   /// <summary>Production's request timeout (<c>EnableBanking:RequestTimeout</c>), so a request's deadline by default.</summary>
   private static readonly TimeSpan _requestTimeout = TimeSpan.FromSeconds(15);
+
+  /// <summary>Production's first wait (<c>EnableBanking:RetryDelay</c>, D4, D7).</summary>
+  private static readonly TimeSpan _productionFirstWait = TimeSpan.FromSeconds(0.8);
 
   // 2.1 – 2.3: retried
 
@@ -245,6 +257,88 @@ public sealed class BankRetriesTests {
     (await ShouldRetry(request, Outcome.FromResult(answer))).ShouldBeFalse();
   }
 
+  // 3.1 – 3.3: the retry options (D4, D7, D8): the numbers production runs with
+
+  [Test]
+  public Task The_options_allow_at_most_3_retries() {
+    BankRetries.Options(_productionFirstWait, new StoppedClock(_now)).MaxRetryAttempts.ShouldBe(3);
+
+    return Task.CompletedTask;
+  }
+
+  /// <param name="firstWaitMilliseconds">Production's 0.8 s, the tests' zero, and the most the setting allows (5 s).</param>
+  /// <remarks>
+  /// An answer without <c>Retry-After</c> gets no wait of the options' own making (no delay generator, or one that gives
+  /// none), so the exponential waits apply. No longest wait is pinned: D1's timeout bounds them (D4).
+  /// </remarks>
+  [Test]
+  [Arguments(800)]
+  [Arguments(0)]
+  [Arguments(5000)]
+  public async Task The_waits_are_exponential_from_the_given_first_wait_with_jitter(int firstWaitMilliseconds) {
+    TimeSpan firstWait = TimeSpan.FromMilliseconds(firstWaitMilliseconds);
+    HttpRetryStrategyOptions options = BankRetries.Options(firstWait, new StoppedClock(_now));
+    using HttpRequestMessage request = PresentUsersRequest();
+    using HttpResponseMessage answer = AnswerWithoutCode(HttpStatusCode.ServiceUnavailable, GATEWAY_PAGE);
+
+    options.Delay.ShouldBe(firstWait);
+    options.BackoffType.ShouldBe(DelayBackoffType.Exponential);
+    options.UseJitter.ShouldBeTrue();
+    (await OwnWaitOf(options, request, answer)).ShouldBeNull("an answer without Retry-After gets the exponential wait");
+  }
+
+  /// <remarks>
+  /// The wait the options give for an answer that asks for one, as seconds: an HTTP date is counted by the library from
+  /// its own clock, so this test does not use one.
+  /// </remarks>
+  [Test]
+  public async Task The_options_follow_a_Retry_After_header() {
+    HttpRetryStrategyOptions options = BankRetries.Options(_productionFirstWait, new StoppedClock(_now));
+    using HttpRequestMessage request = PresentUsersRequest();
+    using HttpResponseMessage answer = AnswerWithoutCode(HttpStatusCode.ServiceUnavailable, GATEWAY_PAGE);
+    answer.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(2));
+
+    (await OwnWaitOf(options, request, answer)).ShouldBe(TimeSpan.FromSeconds(2));
+  }
+
+  /// <summary>
+  /// The options decide which attempt to retry by <see cref="BankRetries.ShouldRetry"/> (D5, D8), with the request the
+  /// resilience handler puts into the resilience context and "now" from the clock they were given.
+  /// </summary>
+  /// <param name="attempt">
+  /// A present user's 503, retried; the same without the present-user mark, or with no request in the context, not
+  /// retried; a present user's 503 whose <c>Retry-After</c> ends before the deadline by the given clock, retried, and one
+  /// whose wait overruns it, not retried. The given clock stands at <see cref="_now"/>, which lies before any run of this
+  /// test: by the system clock, the deadline would already have passed, and the wait that ends in time would not.
+  /// </param>
+  /// <param name="retried">Whether the options retry the attempt.</param>
+  [Test]
+  [Arguments(PRESENT_USERS_503, true)]
+  [Arguments(UNMARKED_503, false)]
+  [Arguments(NO_REQUEST_IN_THE_CONTEXT, false)]
+  [Arguments(RETRY_AFTER_IN_TIME, true)]
+  [Arguments(RETRY_AFTER_TOO_LATE, false)]
+  public async Task The_options_decide_by_ShouldRetry_with_the_request_from_the_resilience_context_and_now_from_the_given_clock(string attempt, bool retried) {
+    HttpRetryStrategyOptions options = BankRetries.Options(_productionFirstWait, new StoppedClock(_now));
+    using HttpRequestMessage request = Request(presentUser: attempt == UNMARKED_503 ? null : true, Deadline());
+    using HttpResponseMessage answer = AnswerWithoutCode(HttpStatusCode.ServiceUnavailable, GATEWAY_PAGE);
+
+    if (attempt is RETRY_AFTER_IN_TIME or RETRY_AFTER_TOO_LATE)
+      answer.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(attempt == RETRY_AFTER_IN_TIME ? 10 : 20));
+
+    ResilienceContext context = ResilienceContextPool.Shared.Get(CancellationToken.None);
+
+    try {
+      if (attempt != NO_REQUEST_IN_THE_CONTEXT)
+        context.SetRequestMessage(request);
+
+      (await options.ShouldHandle(new RetryPredicateArguments<HttpResponseMessage>(context, Outcome.FromResult(answer), attemptNumber: 0))).ShouldBe(retried);
+    }
+    finally {
+      ResilienceContextPool.Shared.Return(context);
+    }
+  }
+
   /// <summary>
   /// For <see cref="A_present_users_request_answered_with_any_other_error_is_not_retried"/>: client errors other than 408
   /// and 429 without a code and with codes the client reads as unexpected (two of them captured from the Mock ASPSP with
@@ -367,4 +461,30 @@ public sealed class BankRetriesTests {
 
   private static HttpResponseMessage Answer(HttpStatusCode status, string body, string mediaType) =>
     new(status) { Content = new StringContent(body, Encoding.UTF8, mediaType) };
+
+  /// <summary>
+  /// The wait of the options' own making for an attempt of <paramref name="request"/> answered with <paramref name="answer"/>
+  /// (their delay generator, which a <c>Retry-After</c> feeds); <see langword="null"/> when they leave the wait to the
+  /// exponential waits: no delay generator, or one that gives none.
+  /// </summary>
+  private static async Task<TimeSpan?> OwnWaitOf(HttpRetryStrategyOptions options, HttpRequestMessage request, HttpResponseMessage answer) {
+    if (options.DelayGenerator is not { } delayGenerator)
+      return null;
+
+    ResilienceContext context = ResilienceContextPool.Shared.Get(CancellationToken.None);
+
+    try {
+      context.SetRequestMessage(request);
+
+      return await delayGenerator(new RetryDelayGeneratorArguments<HttpResponseMessage>(context, Outcome.FromResult(answer), attemptNumber: 0));
+    }
+    finally {
+      ResilienceContextPool.Shared.Return(context);
+    }
+  }
+
+  /// <summary>A clock that stands still at <paramref name="now"/>, as the options' clock.</summary>
+  private sealed class StoppedClock(DateTimeOffset now) : TimeProvider {
+    public override DateTimeOffset GetUtcNow() => now;
+  }
 }
