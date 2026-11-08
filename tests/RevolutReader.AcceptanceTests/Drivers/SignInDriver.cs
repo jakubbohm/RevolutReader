@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +24,22 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IServiceProvider services) {
   /// <summary>The app copy's allowlist setting (c007 design.md D8): comma-separated addresses.</summary>
   private const string ALLOWLIST_SETTING = "SignIn:AllowedEmails";
+
+  /// <summary>Who is signed in (D3).</summary>
+  private const string ME = "/api/me";
+
+  private const string JSON = "application/json";
+  private const string PROBLEM_JSON = "application/problem+json";
+
+  /// <summary>The problem descriptions' titles of the cases 401 and 403 (case → status table, docs/conventions/README.md).</summary>
+  private const string UNAUTHORIZED = "Unauthorized";
+  private const string FORBIDDEN = "Forbidden";
+
+  /// <summary>The JSON properties the driver reads: the problem description's, and the answer's and the refusal's.</summary>
+  private const string STATUS = "status";
+  private const string TITLE = "title";
+  private const string NAME = "name";
+  private const string EMAIL = "email";
 
   /// <summary>The browser's client options: the app's own HTTPS address, no automatic redirects, cookies kept.</summary>
   public static WebApplicationFactoryClientOptions BrowserOptions => new() {
@@ -79,7 +98,24 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   /// the title of its case (as <see cref="ApiDriver"/> reads one); the refused email is its <c>email</c> extension. The
   /// signed-in answer counts only as a JSON object with exactly the string properties <c>name</c> and <c>email</c>.
   /// </summary>
-  public Task<WhoAnswer> AskWhoIsSignedIn() => throw new NotImplementedException();
+  public async Task<WhoAnswer> AskWhoIsSignedIn() {
+    using HttpRequestMessage request = new(HttpMethod.Get, new Uri(ME, UriKind.Relative));
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+
+    if (JsonObjectOrNull(await response.Content.ReadAsStringAsync()) is not JsonElement body)
+      return WhoAnswer.SomethingElse;
+
+    return response.StatusCode switch {
+      HttpStatusCode.Unauthorized when IsProblem(mediaType, body, response.StatusCode, UNAUTHORIZED) => WhoAnswer.AskedToSignIn,
+      HttpStatusCode.Forbidden when IsProblem(mediaType, body, response.StatusCode, FORBIDDEN) => RefusedAnswer(body),
+      HttpStatusCode.OK when IsMediaType(mediaType, JSON) => SignedInAnswer(body),
+      _ => WhoAnswer.SomethingElse,
+    };
+  }
 
   /// <summary>
   /// <c>POST /api/auth/logout</c> with the browser's cookies (D2), mapped as <see cref="SignOutAnswer"/> describes. Sent
@@ -92,4 +128,58 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
 
   /// <summary>Moves the app copy's clock (<see cref="FakeMicrosoft.Clock"/>) forward by <paramref name="time"/>.</summary>
   public void Advance(TimeSpan time) => throw new NotImplementedException();
+
+  /// <summary>The body as a JSON object, detached from its document; <see langword="null"/> when it is not one.</summary>
+  private static JsonElement? JsonObjectOrNull(string body) {
+    try {
+      using JsonDocument document = JsonDocument.Parse(body);
+
+      return document.RootElement.ValueKind == JsonValueKind.Object ? document.RootElement.Clone() : null;
+    }
+    catch (JsonException) {
+      return null;
+    }
+  }
+
+  /// <summary>Whether <paramref name="mediaType"/> is <paramref name="expected"/>, ignoring case; a parameter such as <c>charset</c> is not part of it.</summary>
+  private static bool IsMediaType(string mediaType, string expected) => string.Equals(mediaType, expected, StringComparison.OrdinalIgnoreCase);
+
+  /// <summary>
+  /// Whether the answer is the problem description of its case (spec api-errors, as <see cref="ApiDriver"/> reads one):
+  /// content type <c>application/problem+json</c>, a <c>status</c> equal to the response's, and <paramref name="title"/>.
+  /// </summary>
+  private static bool IsProblem(string mediaType, JsonElement body, HttpStatusCode status, string title) =>
+    IsMediaType(mediaType, PROBLEM_JSON)
+    && body.TryGetProperty(STATUS, out JsonElement bodyStatus)
+    && bodyStatus.ValueKind == JsonValueKind.Number
+    && bodyStatus.TryGetInt32(out int value)
+    && value == (int)status
+    && body.TryGetProperty(TITLE, out JsonElement bodyTitle)
+    && bodyTitle.ValueKind == JsonValueKind.String
+    && string.Equals(bodyTitle.GetString(), title, StringComparison.Ordinal);
+
+  /// <summary>
+  /// Refused, naming the problem's <c>email</c> extension; naming none when it has no such extension (D3). An <c>email</c>
+  /// that is not a string is not an answer the API gives: <see cref="WhoAnswer.SomethingElse"/>.
+  /// </summary>
+  private static WhoAnswer RefusedAnswer(JsonElement problem) {
+    if (!problem.TryGetProperty(EMAIL, out JsonElement email))
+      return WhoAnswer.RefusedNaming(null);
+
+    return email.ValueKind == JsonValueKind.String ? WhoAnswer.RefusedNaming(email.GetString()) : WhoAnswer.SomethingElse;
+  }
+
+  /// <summary>Signed in, when the object holds exactly the string properties <c>name</c> and <c>email</c> and nothing else (the exact shape).</summary>
+  private static WhoAnswer SignedInAnswer(JsonElement body) {
+    if (body.EnumerateObject().Count() != 2)
+      return WhoAnswer.SomethingElse;
+
+    if (!body.TryGetProperty(NAME, out JsonElement name) || name.ValueKind != JsonValueKind.String)
+      return WhoAnswer.SomethingElse;
+
+    if (!body.TryGetProperty(EMAIL, out JsonElement email) || email.ValueKind != JsonValueKind.String)
+      return WhoAnswer.SomethingElse;
+
+    return WhoAnswer.SignedInAs(name.GetString()!, email.GetString()!);
+  }
 }

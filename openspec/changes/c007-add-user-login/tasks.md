@@ -63,15 +63,15 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 2. [wiring] Slice 1 — Who is asked to sign in
 
-- [ ] 2.1 `AddSignIn()`, first part:
+- [x] 2.1 `AddSignIn()`, first part:
   - the cookie scheme as default and challenge scheme;
   - `OnRedirectToLogin` → 401 and `OnRedirectToAccessDenied` → 403, both without a redirect;
   - the `AllowedUser` policy (for now: a signed-in user) as default and fallback policy;
   - `TimeProvider.System` registered unless one is.
 
   Also `UseSignIn()` in `Program.cs` in design.md's order, and the page fallback `.AllowAnonymous()`. Verify: build passes; green
-- [ ] 2.2 `MeEndpoint` (`GET /api/me`, default policy) and `MeResponse`, from the `name` and `email` claims; `SignInDriver.AskWhoIsSignedIn` replaces its stub. Verify: the scenario runs against the app
-- [ ] 2.3 Docs: README.md § Backend code: the 401 row in the case → status table; secure by default now means the `AllowedUser` fallback policy. Verify: README.md matches design.md D3
+- [x] 2.2 `MeEndpoint` (`GET /api/me`, default policy) and `MeResponse`, from the `name` and `email` claims; `SignInDriver.AskWhoIsSignedIn` replaces its stub. Verify: the scenario runs against the app
+- [x] 2.3 Docs: README.md § Backend code: the 401 row in the case → status table; secure by default now means the `AllowedUser` fallback policy. Verify: README.md matches design.md D3
 
 ## 3. [close] Slice 1 — An anonymous visitor is asked to sign in
 

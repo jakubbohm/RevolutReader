@@ -21,10 +21,10 @@ public static class PagesExtensions {
   /// The app's pages: default and static files from the web root, so <c>/</c> gets its <c>index.html</c> and every
   /// existing file is served as it is; then the page fallback, which answers every other page address with
   /// <c>index.html</c>, so the app opens at any address of its own. The files are middleware; the fallback is a route
-  /// endpoint for <c>GET</c> and <c>HEAD</c>, listed on the anonymous-endpoint allowlist. With sign-in (C6) the fallback
-  /// must stay anonymous and the files must run before authorization, because the sign-in screen is one of these pages.
-  /// Both share one set of file options, so every file they send carries the caching rule of <see cref="PageCaching"/>.
-  /// Call it after <c>UseStatusCodePages</c> and before <c>UseFastEndpoints</c>.
+  /// endpoint for <c>GET</c> and <c>HEAD</c>, anonymous and listed on the anonymous-endpoint allowlist, and the files run
+  /// before sign-in's authorization, because the sign-in screen is one of these pages (c007 design.md D3). Both share one
+  /// set of file options, so every file they send carries the caching rule of <see cref="PageCaching"/>. Call it after
+  /// <c>UseStatusCodePages</c> and before <c>UseSignIn</c>.
   /// </summary>
   public static WebApplication UseAppPages(this WebApplication app) {
     ArgumentNullException.ThrowIfNull(app);
@@ -33,7 +33,7 @@ public static class PagesExtensions {
 
     app.UseDefaultFiles();
     app.UseStaticFiles(files);
-    app.MapFallbackToFile(PAGE_ADDRESS, START_PAGE, files);
+    app.MapFallbackToFile(PAGE_ADDRESS, START_PAGE, files).AllowAnonymous();
 
     return app;
   }
