@@ -301,7 +301,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 40. [close] Slice 17 — Signing out from the account menu shows the signed-out screen
 
-- [ ] 40.1 The scenario's test passes. Verify: green, including sign-in / Signing out from the account menu shows the signed-out screen
+- [x] 40.1 The scenario's test passes. Verify: green, including sign-in / Signing out from the account menu shows the signed-out screen
 
 ## 41. [unit] Cookie keys — settings
 
