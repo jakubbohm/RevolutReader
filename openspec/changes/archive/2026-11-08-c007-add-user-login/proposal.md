@@ -84,8 +84,8 @@ The other capabilities keep their requirements. `service-health`'s `GET /health`
 
 ## Open questions
 
-- **Applies Q1** ([ADR-0004-account-allowlist](../../../docs/adr/0004-account-allowlist.md)): the email allowlist with personal accounts only, checked on every request; the list in Key Vault and user-secrets, never in the repository.
-- **Applies Q2** ([ADR-0003-sign-in](../../../docs/adr/0003-sign-in.md)): the BFF login cookie, 30 days and renewed while used, with a 12-month client secret. This change picks the forged-request mechanism ADR-0003 left to C6.
+- **Applies Q1** ([ADR-0004-account-allowlist](../../../../docs/adr/0004-account-allowlist.md)): the email allowlist with personal accounts only, checked on every request; the list in Key Vault and user-secrets, never in the repository.
+- **Applies Q2** ([ADR-0003-sign-in](../../../../docs/adr/0003-sign-in.md)): the BFF login cookie, 30 days and renewed while used, with a 12-month client secret. This change picks the forged-request mechanism ADR-0003 left to C6.
 - **Applies Q9** (ADR-0003 § The main user's phone): sign-in is checked on the owner's iPhone from the Home Screen app.
 
 ## Impact
