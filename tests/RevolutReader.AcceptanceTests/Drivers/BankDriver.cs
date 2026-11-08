@@ -9,8 +9,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 
 /// <summary>
 /// Drives the app's bank port (spec bank-reads, c004 design.md D1): takes <see cref="IBankAccount"/> from the test's own
-/// app copy, so the reads run on the production wiring (settings, <c>HttpClient</c>, no retries) against
-/// <see cref="FakeBank"/>. Turns the DSL's facts into the fake bank's answers, and the port's results into DSL answers.
+/// app copy, so the reads run on the production wiring (settings, <c>HttpClient</c> with the bank client's retries, at a
+/// zero wait: <see cref="FakeBank.RetryDelay"/>) against <see cref="FakeBank"/>. Turns the DSL's facts into the fake bank's
+/// answers, and the port's results into DSL answers.
 /// <list type="bullet">
 /// <item>A <see cref="BankResult{T}"/> becomes the answer's outcome: the value is <see cref="BankOutcome.Read"/>, each
 /// failure its own outcome, with no value.</item>

@@ -100,14 +100,14 @@ Tests 1.6 and 1.7 pass from the start: today nothing is retried. They guard that
 
 ## 18. [wiring] Docs
 
-- [ ] 18.1 The rule kept with D10's broader reason, and the bank client's exception (design.md D10, § Cross-cutting effects): docs/conventions/README.md § Backend code; `.claude/rules/backend-code.md`; docs/conventions/testing.md (the driver's wiring retries); the comments in `ServiceDefaultsExtensions`, `BankDriver` and `BankOnWireMock` that say "no retries". Verify: `grep -rn -i "never retr\|no retries"` outside the archive finds only the rate-limited rule and statements that are still true
+- [x] 18.1 The rule kept with D10's broader reason, and the bank client's exception (design.md D10, § Cross-cutting effects): docs/conventions/README.md § Backend code; `.claude/rules/backend-code.md`; docs/conventions/testing.md (the driver's wiring retries); the comments in `ServiceDefaultsExtensions`, `BankDriver` and `BankOnWireMock` that say "no retries". Verify: `grep -rn -i "never retr\|no retries"` outside the archive finds only the rate-limited rule and statements that are still true
 - [x] 18.2 ADR-0001: a dated note in § Consequences (bank adapter): a present user's transient failures are retried (c008 design.md D1–D8), unattended reads never, and 429, expired and revoked sessions still never; in § Transaction history, D11's finding (a continuation key works a second time, with its evidence). `spikes/enable-banking/README.md`: the probe as a new step with its evidence. Verify: the notes link this design and the evidence and contradict nothing in the ADR's Decision
 - [x] 18.3 docs/software-factory/lessons.md: R-30 updated as design.md § Cross-cutting effects lists, in the file's current entry format, and the "no retries" in the entry at line 488 corrected; R-30's inventory row in `creating-handover-package.md` checked (the convention test of task 17.1 is a reusable artifact). Verify: the options, the choice and the "Generalizes" line match design.md D1–D11
 
 ## 19. [close] Acceptance green
 
-- [ ] 19.1 All seven acceptance claims of this change pass (`dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/BankReadsScenarios/*"`), and the full suite, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check are green
-- [ ] 19.2 `pm/roadmap.md` C11: "within about 2 s" replaced by the decided policy (design.md D1–D4), with a change-log row in `pm/progress.md`; `pm/progress.md`: C11's status, date and notes. `CLAUDE.md`: the Check 2 row says its filter also runs the key-reuse probe (3 more present-user requests, none unattended). Verify: the row links the change folder
+- [x] 19.1 All seven acceptance claims of this change pass (`dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/BankReadsScenarios/*"`), and the full suite, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check are green
+- [x] 19.2 `pm/roadmap.md` C11: "within about 2 s" replaced by the decided policy (design.md D1–D4), with a change-log row in `pm/progress.md`; `pm/progress.md`: C11's status, date and notes. `CLAUDE.md`: the Check 2 row says its filter also runs the key-reuse probe (3 more present-user requests, none unattended). Verify: the row links the change folder
 
 ## Workflow follow-up
 

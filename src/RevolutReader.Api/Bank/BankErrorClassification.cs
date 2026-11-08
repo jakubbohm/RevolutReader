@@ -28,7 +28,8 @@ public static class BankErrorClassification {
       or "ASPSP_PSU_ACTION_REQUIRED" or "NO_ACCOUNTS_ADDED" or "ASPSP_ACCOUNT_NOT_ACCESSIBLE" => BankErrorKind.AccessExpired,
     // The bank's request limit: never retried (ADR-0001).
     "ASPSP_RATE_LIMIT_EXCEEDED" => BankErrorKind.RateLimited,
-    // The bank's own error or timeout: a result the screen offers a retry for.
+    // The bank's own error or timeout: a result the screen offers a retry for, once the bank client has already retried
+    // a present user's request (c008 design.md D5).
     "ASPSP_ERROR" or "ASPSP_TIMEOUT" => BankErrorKind.Unavailable,
     _ => BankErrorKind.Unexpected,
   };
