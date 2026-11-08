@@ -126,7 +126,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | Who | `GET /api/me` and every other protected endpoint |
   |---|---|
   | not signed in | 401, problem `Unauthorized` (the cookie handler's login redirect becomes 401) |
-  | signed in, not on the list | 403, problem `Forbidden`, with the extension `email` = the account's own email (the access-denied redirect becomes 403; `CustomizeProblemDetails` adds `email` to a 403 only when the allowlist refuses the signed-in account, so another 403, such as D4's refusal of a write from another site, names nobody; issue #33, finding 4) |
+  | signed in, not on the list | 403, problem `Forbidden`, with the extension `email` = the account's own email (the access-denied redirect becomes 403; `CustomizeProblemDetails` adds `email` to a 403 only when the allowlist refuses the signed-in account: a refused account is named on every 403, while an allowed account's other 403s, such as D4's refusal of her write from another site, name nobody; issue #33, finding 4) |
   | signed in, on the list | the endpoint's answer; `GET /api/me` → `{ "name": …, "email": … }` exactly |
 
 - **No email claim means not allowed:** the 403 then has no `email` extension. The name comes from the `name` claim; without one, the email stands in *(propose)*.
@@ -158,9 +158,9 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | Request | Result |
   |---|---|
   | path is the sign-in return `/api/auth/signin-oidc` | passed on. Microsoft's page posts it cross-site by design, and the handler's state, correlation cookie, nonce and PKCE protect it |
+  | `Sec-Fetch-Site` or `Origin` sent more than once | refused, as ambiguous, even when the values agree; the rows below see each header sent at most once (part of the pure rule since issue #33, finding 12) |
   | `Sec-Fetch-Site: same-origin` or `none` | allowed |
   | `Sec-Fetch-Site` present with any other value (`same-site`, `cross-site`) | refused |
-  | `Sec-Fetch-Site` or `Origin` sent more than once | refused, as ambiguous, even when the values agree (part of the pure rule since issue #33, finding 12) |
   | no `Sec-Fetch-Site`, `Origin` present | allowed only if `Origin` equals the request's own scheme and host (after forwarded headers, D10) |
   | neither header | allowed (not a browser, e.g. C9's Shortcut; such callers don't get our cookie automatically) |
 

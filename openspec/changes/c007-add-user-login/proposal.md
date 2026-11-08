@@ -19,7 +19,7 @@ Roadmap step **C6** (`pm/roadmap.md`), use case **UC1** (kickoff ch. 5): a signe
   - ASP.NET Core's OpenID Connect and cookie handlers, with the authorization code flow against Microsoft's personal-account service and the 12-month client secret;
   - every address under `/api/auth/`: `GET /api/auth/login` starts the sign-in, `POST /api/auth/signin-oidc` is where Microsoft returns, `POST /api/auth/logout` ends the session;
   - after sign-in, the visitor always lands on the start page;
-  - a sign-in that does not complete leaves the visitor signed out;
+  - a sign-in that does not complete signs nobody in (a login from before stays as it is);
   - "try another account" asks Microsoft for its account picker.
 - **Who gets in** (D3):
   - every `/api` request is checked against the allowlist, comparing email addresses ignoring case;

@@ -43,7 +43,7 @@ The system SHALL sign users in through Microsoft's service for personal Microsof
 - **WHEN** the visitor starts a sign-in
 - **THEN** Microsoft is asked to return to `https://tarjeta.example.net/api/auth/signin-oidc`
 
-### Requirement: A sign-in that does not complete leaves the visitor signed out
+### Requirement: A sign-in that does not complete signs nobody in
 When Microsoft reports a cancelled or failed sign-in, or its answer does not come from the service for personal Microsoft accounts, the system SHALL NOT sign the visitor in and SHALL return them to the app's start page.
 
 #### Scenario: A sign-in cancelled at Microsoft leaves the visitor signed out
