@@ -2,7 +2,7 @@
 
 Before this list: design.md § Bootstrap, committed as `[setup]`: the rebase on `main` (done 2026-11-08, onto PR #26), the two packages and a green full suite. Also before it: the user's answers to design.md § Open questions, which may change tasks 9.1, 9.2 and 9.4. Its baseline holds one known exception, accepted once: the traceability check reports this change's two new scenarios as not claimed. Group 1 claims them.
 
-Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios, so the work is not sliced (`openspec/config.yaml` § tasks). Docs tasks are the orchestrator's; the "Guided" task needs the owner. "Green" below means the full suite (`dotnet test` and the frontend tests), except this change's two acceptance tests, which wait for group 11.
+Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C12). Two new scenarios, so the work is not sliced (`openspec/config.yaml` § tasks). Docs tasks are the orchestrator's; the "Guided" task needs the owner. "Green" below means the full suite (`dotnet test` and the frontend tests), except this change's two acceptance tests, which wait for group 11.
 
 ## 1. [acceptance] Acceptance tests
 
@@ -69,9 +69,9 @@ Run with `/tdd-apply c006-harden-bank-adapter` (roadmap C11). Two new scenarios,
 ## 11. [close] Acceptance green
 
 - [x] 11.1 Both acceptance tests of this change pass (`dotnet test --project tests/RevolutReader.AcceptanceTests --treenode-filter "/*/*/BankReadsScenarios/*"`), and the full suite, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check are green
-- [x] 11.2 `pm/progress.md`: C11's status, date and notes, and its follow-ups: after the merge, a read-only query showing the app's start lines in `AppTraces` and a request in `AppRequests`; the ready queries' columns with C7's first bank lines; #17 with the metrics volume (design.md § Risks). `CLAUDE.md` needs no change unless a command changed. Verify: the row links the change folder
+- [x] 11.2 `pm/progress.md`: C12's status, date and notes, and its follow-ups: after the merge, a read-only query showing the app's start lines in `AppTraces` and a request in `AppRequests`; the ready queries' columns with C7's first bank lines; #17 with the metrics volume (design.md § Risks). `CLAUDE.md` needs no change unless a command changed. Verify: the row links the change folder
 
 ## Workflow follow-up
 
-- The PR (`feat: harden the bank adapter (C11)`) merges only after task 9.3; its deploy creates Application Insights, the role and the two variables.
+- The PR (`feat: harden the bank adapter (C12)`) merges only after task 9.3; its deploy creates Application Insights, the role and the two variables.
 - `/opsx:archive` updates the main `bank-reads` spec with the four modified requirements.

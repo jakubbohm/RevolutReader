@@ -127,7 +127,7 @@ var bankSettings = [
   }
 ]
 
-// ---- Telemetry (C11) ----
+// ---- Telemetry (C12) ----
 // The app's traces and logs go to Application Insights, signed in with the app's identity (c006
 // design.md D8 b, D12). Both resources are in platform.bicep and referenced here as existing, so the
 // connection string never travels as a module output. Two plain settings, neither a secret, under

@@ -47,7 +47,7 @@ None.
 
 ## References
 
-- **Roadmap:** a new step, C11 "Harden the bank adapter", before C7 and in parallel with C6 (the user, 2026-11-07; change log in `pm/progress.md`).
+- **Roadmap:** a new step, C12 "Harden the bank adapter", before C7 and in parallel with C6 (the user, 2026-11-07; change log in `pm/progress.md`).
 - **Use cases:** UC2 and UC3 (kickoff ch. 5), through the adapter they build on.
 - **Open questions:** decides none; applies Q6 through ADR-0001-bank-data-access (the user headers on present-user reads; paging within one read does not count against the bank's limit).
 - **Earlier decisions it changes:** c004 design.md D4's table for error answers (D3), and c005 design.md D6's "Application Insights … can come later" (D8) and its 0.1 GB daily cap (D9).
@@ -58,5 +58,5 @@ None.
 - **Tests:** two acceptance scenarios with a new fake-bank answer and DSL facts; unit tests for the mapping, the pages, the user headers, the present user and the code shape; adapter edge-case tests in `IntegrationTests/Wiring/EnableBanking/`, one of which (`ErrorAnswerTests`) changes its expectation for a 503 with an HTML page.
 - **Packages:** `Azure.Monitor.OpenTelemetry.Exporter` 1.10.0 and `Azure.Identity` 1.21.0 (nuget.org, 2026-11-08).
 - **Azure (Bicep, deployed by the pipeline):** a workspace-based Application Insights resource with local authentication off; the app's identity gets `Monitoring Metrics Publisher` on it; two environment variables on the container app; the workspace's daily cap 0.16 GB. **By hand, once, by the owner:** the deploy identity's role condition gets that role ([azure-prerequisites.md](../../../../docs/operations/azure-prerequisites.md) step 5).
-- **Docs:** a new ADR, `docs/adr/0009-application-telemetry.md` (D11); `docs/operations/deployment.md` (queries), `docs/operations/azure-prerequisites.md` (five roles), `docs/conventions/workflow.md` § 5 (Application Insights), `docs/conventions/configuration.md` (the two settings), a lesson in `docs/software-factory/lessons.md`; `pm/roadmap.md` and `pm/progress.md` (C11).
+- **Docs:** a new ADR, `docs/adr/0009-application-telemetry.md` (D11); `docs/operations/deployment.md` (queries), `docs/operations/azure-prerequisites.md` (five roles), `docs/conventions/workflow.md` § 5 (Application Insights), `docs/conventions/configuration.md` (the two settings), a lesson in `docs/software-factory/lessons.md`; `pm/roadmap.md` and `pm/progress.md` (C12).
 - **Cost:** none expected. Application Insights stores into the same workspace, under the same free 5 GB a month, and the workspace's daily cap becomes 0.16 GB to match that allowance (D9; #17 watches the volume).
