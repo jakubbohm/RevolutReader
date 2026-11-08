@@ -344,7 +344,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
   - `features.bicep` § Sign-in: the two Key Vault-backed secrets and five environment variables.
 
   `main.bicepparam` is unchanged. Verify: `az bicep lint --file infra/main.bicep` reports nothing; the read-only preview (docs/operations/deployment.md) shows the new resources and no deletion
-- [ ] 44.2 Guided (owner): the deploy identity's sixth grantable role, Key Vault Crypto User, with azure-prerequisites.md § Widening the condition (C6: the sixth role), keeping C11's fifth; read back with its check. Verify: the condition lists six role IDs, C11's and C6's among them
+- [ ] 44.2 Guided (owner): the deploy identity's sixth grantable role, Key Vault Crypto User, with azure-prerequisites.md § Widening the condition (C6: the sixth role), keeping C12's fifth; read back with its check. Verify: the condition lists six role IDs, C12's and C6's among them
 - [x] 44.3 Docs:
   - workflow.md § 5: the storage account row, the key and the sixth role;
   - azure-prerequisites.md: the table and step 5's command;

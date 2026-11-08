@@ -38,7 +38,7 @@ Kickoff ch. 6 fixes the frame: configuration normally lives in the repository (a
 
 ## Telemetry settings
 
-The deployed app sends its logs and traces to Application Insights ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)), driven by two settings (C11, c006 design.md D12):
+The deployed app sends its logs and traces to Application Insights ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)), driven by two settings (C12, c006 design.md D12):
 
 | Setting | What it holds | Production | Local and tests |
 |---|---|---|---|

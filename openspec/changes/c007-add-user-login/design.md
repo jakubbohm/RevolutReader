@@ -216,7 +216,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   - All three empty: ASP.NET's default key folder (locally, your user profile). The harness replaces it with ephemeral keys.
   - All three set: Blob plus Key Vault.
   - Anything in between stops the app at start. The settings are read in the composition root, because the choice is made while registering services.
-- **Roles for the app identity,** each on the one resource only: Storage Blob Data Contributor on the container, Key Vault Crypto User on the key. **Key Vault Crypto User is a sixth role** the deploy identity may not grant yet (the fifth was C11's Monitoring Metrics Publisher, merged before C6; 2026-11-08), so the owner widens its condition by hand before the merge (D11).
+- **Roles for the app identity,** each on the one resource only: Storage Blob Data Contributor on the container, Key Vault Crypto User on the key. **Key Vault Crypto User is a sixth role** the deploy identity may not grant yet (the fifth was C12's Monitoring Metrics Publisher, merged before C6; 2026-11-08), so the owner widens its condition by hand before the merge (D11).
 - **What it buys:** someone who reads the blob still can't forge login cookies without the key, which never leaves Key Vault.
 - **What it costs:**
   - a handful of key operations a day (decrypt at start and about every 24 h; the keys are cached in memory);

@@ -224,7 +224,7 @@ Decided with the user (2026-11-08, open question 1). The project rule records de
 
 - **What it holds:** the context (a scale-to-zero app whose output would vanish with a stopped copy; the platform's own metrics; the free 5 GB a month); the decision: the Log Analytics workspace as the environment's log destination (from c005 D6), Application Insights on it fed by the app's in-app exporter with logs and traces only, written with the app's managed identity and local authentication off, and the daily cap matched to the free allowance; what the private telemetry may hold (D13: personal data such as browser names yes, bank data and account identifiers no) and that nothing personal goes anywhere public; the alternatives rejected in D8, D10 and D13; the consequences (the deploy identity's fifth role, the settings, #17).
 - **Number:** 0009, the next free one on 2026-11-08 (C6's worktree has none newer); if another ADR lands first, the next free number when written.
-- **Where it is linked:** `docs/adr/README.md` (the index), workflow.md § 5, `pm/progress.md` (C11's notes), the lesson. D8–D10 stay in this design as the trail of how it was decided.
+- **Where it is linked:** `docs/adr/README.md` (the index), workflow.md § 5, `pm/progress.md` (C12's notes), the lesson. D8–D10 stay in this design as the trail of how it was decided.
 - **Rejected: no ADR,** as C4 did. Simpler, but the telemetry setup spans decisions in two changes and outlives both; an archived design is a folder few will open, also for the D1 reinstatement guide.
 
 ### D14 — The exporter's defaults: what is switched off, what stays
