@@ -14,6 +14,9 @@ const WAKING_AFTER_MS = 1_500;
 /** How long it may go unanswered before the waking-up screen offers to try again (D2). */
 const SLOW_AFTER_MS = 30_000;
 
+/** How long a refresh may go unanswered before it counts as offline (D3). */
+const REFRESH_LIMIT_MS = 60_000;
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
@@ -66,7 +69,11 @@ export function useAccountScreen(): AccountScreenModel {
   /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
 
-  /** Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. */
+  /**
+   * Reads the balance as `as` and takes in what it brought, unless a read is under way: then nothing is sent. A refresh
+   * with no answer after `REFRESH_LIMIT_MS` is aborted, and so ends as offline (D3); the first read has no limit: the
+   * first load shows the waking-up screens instead (D2).
+   */
   const readTheBalance = useCallback(
     async (as: "first" | "refresh"): Promise<void> => {
       if (readUnderWay.current) return;
@@ -74,10 +81,20 @@ export function useAccountScreen(): AccountScreenModel {
       setReading(as);
       setProblem(null);
 
+      // A timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
+      const limit = as === "refresh" ? new AbortController() : undefined;
+      const limitTimer =
+        limit === undefined
+          ? undefined
+          : setTimeout(() => {
+              limit.abort();
+            }, REFRESH_LIMIT_MS);
+
       let read: BalanceRead;
       try {
-        read = await readBalance();
+        read = await readBalance({ signal: limit?.signal });
       } finally {
+        clearTimeout(limitTimer);
         readUnderWay.current = false;
       }
       if (!onPage.current) return;

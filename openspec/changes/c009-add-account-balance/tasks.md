@@ -347,16 +347,16 @@ Run with `/tdd-apply c009-add-account-balance` (roadmap C7a; the user picks the 
 
 ## 55. [unit] Slice 23 — The 60 s limit
 
-- [ ] 55.1 A refresh with no answer after 60 s ends as offline, the balance kept
-- [ ] 55.2 The first load has no 60 s limit
+- [x] 55.1 A refresh with no answer after 60 s ends as offline, the balance kept
+- [x] 55.2 The first load has no 60 s limit
 
 ## 56. [wiring] Slice 23 — The 60 s limit
 
-- [ ] 56.1 The limit in `useAccountScreen`: `setTimeout` with an `AbortController` (design.md D3). Verify: the scenario runs against the app
+- [x] 56.1 The limit in `useAccountScreen`: `setTimeout` with an `AbortController` (design.md D3). Verify: the scenario runs against the app
 
 ## 57. [close] Slice 23 — A refresh with no answer for 60 seconds counts as offline
 
-- [ ] 57.1 The scenario's test passes. Verify: green, including app-shell / A refresh with no answer for 60 seconds counts as offline
+- [x] 57.1 The scenario's test passes. Verify: green, including app-shell / A refresh with no answer for 60 seconds counts as offline
 
 ## 58. [wiring] Slice 24 — Forgetting on sign-out
 
