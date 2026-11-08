@@ -13,7 +13,7 @@
 - **Integration points:** Enable Banking (unchanged calls, a cleaned header); Azure: Application Insights, a `Monitoring Metrics Publisher` role for the app's identity, two environment variables, the workspace's cap; the deploy identity's role condition widened by hand, once (guided task).
 - **Hard to reverse:** nothing in code. The widened role condition stays until someone narrows it again by hand.
 - **A new ADR, ADR-0009-application-telemetry,** holds the telemetry decisions (D8 b, D9, D10) and C4's workspace (D11).
-- **Still open, to settle before `/tdd-apply`:** two choices (§ Open questions).
+- **Still open, to settle before `/tdd-apply`:** one choice (§ Open questions).
 
 ## Context
 
@@ -196,6 +196,15 @@ Decided with the user (2026-11-08, open question 2), after comparing what each s
 - **The rule:** the Azure Monitor exporter is registered for traces and logs only (§ Public API sketch); the app's metrics stay local (the Aspire dashboard) and are not exported in production.
 - **Rejected: all three signals,** the more complete default for a long-lived app (D8 as first decided). Switching it on later is a one-line change in ServiceDefaults.
 
+### D12 — The two telemetry settings keep their standard names
+
+Decided with the user (2026-11-08, open question 3: "ok" to Claude's lean).
+
+- **The names:** `APPLICATIONINSIGHTS_CONNECTION_STRING` (Microsoft's documented name for the Application Insights connection string) and `AZURE_CLIENT_ID` (Azure.Identity's name for a user-assigned identity's client ID). ServiceDefaults reads them as it reads `OTEL_EXPORTER_OTLP_ENDPOINT`; `appsettings.json` declares both at its top level, empty, with provenance comments (configuration.md: every setting is declared).
+- **Where the values come from:** Bicep, from the resources themselves (§ Cross-cutting effects): `features.bicep` refers to Application Insights and the identity as `existing` and writes the two environment variables; nothing is copied by hand or looked up by the app.
+- **Side effect, kept in mind for C6:** Azure.Identity's `DefaultAzureCredential` picks up `AZURE_CLIENT_ID` on its own, so C6's storage access could use the same identity without more wiring; this change itself uses an explicit `ManagedIdentityCredential`.
+- **Rejected: a project-style section** (`ApplicationInsights:ConnectionString`, `ManagedIdentity:ClientId`, environment variables with `__`), the shape of the `EnableBanking` section: consistent with the project's options, at the cost of a small settings class, and names nobody outside the project knows.
+
 ### D11 — The telemetry decisions get an ADR: ADR-0009-application-telemetry
 
 Decided with the user (2026-11-08, open question 1). The project rule records decisions with a lasting, cross-cutting effect as ADRs (workflow.md § 2); C4 had kept the log destination in its design and workflow.md § 5 only (c005 D6).
@@ -354,7 +363,7 @@ The modified requirements' existing scenarios stay as they are and stay green. T
 - **API contract / TS client:** none; no endpoint.
 - **Bicep** (`infra/`, deployed by the pipeline as the stack `revolutreader`; `az bicep lint` stays free of warnings, which fail `image-and-infra`):
   - `platform.bicep`: a workspace-based Application Insights resource `appi-revolutreader` on the workspace (`WorkspaceResourceId`), local authentication off (`DisableLocalAuth: true`); a role assignment `Monitoring Metrics Publisher` for `id-revolutreader-app` on it; the workspace's `dailyQuotaGb` 0.16 (D9);
-  - `features.bicep`: two environment variables on the container app, `APPLICATIONINSIGHTS_CONNECTION_STRING` (read from the resource) and `AZURE_CLIENT_ID` (the identity's client ID), passed through `main.bicep` as the vault's URI is; neither a secret;
+  - `features.bicep`: the Application Insights resource and the app's identity referenced as `existing` (the user, 2026-11-08), so no connection string travels as a module output; from them, two environment variables on the container app: the connection string (`appInsights.properties.ConnectionString`) and the identity's client ID (`appIdentity.properties.clientId`); neither a secret. Their names: § Open questions, item 3. `main.bicep` keeps features waiting for the whole platform module, as today;
   - a read-only preview before the PR ([deployment.md § Previewing a change to the Bicep](../../../docs/operations/deployment.md#previewing-a-change-to-the-bicep-read-only)).
 - **By hand, once, before the merge** (guided task, D8 b): the deploy identity's role condition gets `Monitoring Metrics Publisher`; without it the deploy fails at the new role assignment.
 - **Settings:** the two top-level keys in `appsettings.json` with provenance comments (§ Public API sketch). The configuration rule ("no cloud credential in the configuration path") is untouched: the credential authorises sending telemetry, never reading a setting.
@@ -388,5 +397,5 @@ Each would change a task, so none is decided on the user's behalf (memory `simpl
 
 1. ~~An ADR for Application Insights?~~ **Decided 2026-11-08: yes, ADR-0009-application-telemetry (D11).**
 2. ~~Export metrics too, or logs and traces only?~~ **Decided 2026-11-08: logs and traces only (D10).**
-3. **The two settings' names:** the standard names `APPLICATIONINSIGHTS_CONNECTION_STRING` and `AZURE_CLIENT_ID` (what Microsoft's libraries and docs use, read as `OTEL_EXPORTER_OTLP_ENDPOINT` is), or a project-style section such as `ApplicationInsights:ConnectionString` and `ManagedIdentity:ClientId` (configuration.md's usual shape, bound and validated like other options). Lean: the standard names.
+3. ~~The two settings' names?~~ **Decided 2026-11-08: the standard names (D12).**
 4. **The user's browser in exported request telemetry** (raised by PR #26): OpenTelemetry's ASP.NET Core instrumentation records each incoming request's browser (`user_agent.original`) on its server span. Today nothing exports spans in production; with D8 they reach Application Insights (`AppRequests`), so from C7 on the daughter's browser string is stored there for each request. PR #26 now treats the browser as personal data the guard keeps out of logs and traces for bank reads (c004 D5: "personal data with no use in the log"). Options: accept it (standard request telemetry, useful to tell the phone app from a browser), or strip `user_agent.original` from exported spans in ServiceDefaults (a few lines and a test, consistent with c004 D5). Lean: strip it, for consistency with D5; the user decides.
