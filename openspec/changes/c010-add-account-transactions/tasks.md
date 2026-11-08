@@ -111,7 +111,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 ## 7. [wiring] Slice 2 — Storage
 
 - [x] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `ConnectionStrings:tables` checked at registration (design.md D11), `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, escaped row key, columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
-- [ ] 7.2 AppHost: `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Start the app through the aspire skill with `--isolated`. Verify: the storage emulator and the API come up healthy
+- [x] 7.2 AppHost: `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Start the app through the aspire skill with `--isolated`. Verify: the storage emulator and the API come up healthy
 - [ ] 7.3 Docs:
   - configuration.md: the `Transactions` section and `ConnectionStrings:tables` (not a secret; set by Bicep in Azure);
   - README.md § Backend code: the store port in `Account/`, its adapter in `Storage/`;
