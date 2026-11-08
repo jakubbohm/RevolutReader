@@ -247,8 +247,8 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 28. [wiring] Slice 12 — The sign-in screen
 
-- [ ] 28.1 `readSession()` on the generated client, and `App` choosing the screen from it: unknown → the empty frame, signed out → `SignInScreen` (design.md D3, D5). Verify: build and typecheck pass
-- [ ] 28.2 `MicrosoftSignInButton` and `SignInScreen`, built as design.md D12 says (the "Sign-in / Start" board, light and dark):
+- [x] 28.1 `readSession()` on the generated client, and `App` choosing the screen from it: unknown → the empty frame, signed out → `SignInScreen` (design.md D3, D5). Verify: build and typecheck pass
+- [x] 28.2 `MicrosoftSignInButton` and `SignInScreen`, built as design.md D12 says (the "Sign-in / Start" board, light and dark):
   - 41 px, Microsoft's colours from `color-ms-*`, the logo file, a 44 pt hit area;
   - no top bar; the icon and the name marked Spanish, centred.
 
