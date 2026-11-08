@@ -46,7 +46,7 @@ Roadmap step **C6** (`pm/roadmap.md`), use case **UC1** (kickoff ch. 5): a signe
   - the Entra redirect URIs moved under `/api/auth/` and the production one added;
   - the 12-month client secret, straight into Key Vault, the user-secrets and the backup vault;
   - the allowlist, into the same three places;
-  - the deploy identity's fifth grantable role (Key Vault Crypto User);
+  - the deploy identity's sixth grantable role (Key Vault Crypto User);
   - the iPhone check after the merge deploys.
 - **Records:**
   - ADR-0003 is amended with the addresses, the cookie names, the forged-request rule and local-only sign-out;
@@ -125,7 +125,7 @@ The other capabilities keep their requirements. `service-health`'s `GET /health`
   - a key in the existing Key Vault;
   - the app identity's two roles;
   - the sign-in secrets and settings on the container app.
-- **Azure and Entra by hand (owner's go):** the fifth grantable role, the client secret, the allowlist, the redirect URIs.
+- **Azure and Entra by hand (owner's go):** the sixth grantable role, the client secret, the allowlist, the redirect URIs.
 - **CI:** drift checks in `build-and-test` and `frontend`; no new required check, so the ruleset on `main` stays as it is.
 - **Docs:**
   - ADR-0003, ADR-0004, ADR-0006;

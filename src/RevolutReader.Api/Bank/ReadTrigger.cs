@@ -8,8 +8,26 @@ namespace RevolutReader.Api.Bank;
 /// </summary>
 public union ReadTrigger(PresentUser, Unattended);
 
-/// <summary>The user's real values. The address is already parsed (C7 takes it from the forwarded headers).</summary>
-public sealed record PresentUser(IPAddress IpAddress, string UserAgent);
+/// <summary>
+/// The user's real values, checked when created (spec bank-reads § Who triggers a read; c006 design.md D1 g): an address
+/// and a non-blank user agent. The address is already parsed (C7 takes it from the forwarded headers).
+/// </summary>
+public sealed record PresentUser {
+  public IPAddress IpAddress { get; }
+
+  /// <summary>As given; cleaned only when the header is built (c006 design.md D5).</summary>
+  public string UserAgent { get; }
+
+  /// <exception cref="ArgumentNullException">No address.</exception>
+  /// <exception cref="ArgumentException">A null, empty or whitespace user agent.</exception>
+  public PresentUser(IPAddress ipAddress, string userAgent) {
+    ArgumentNullException.ThrowIfNull(ipAddress);
+    ArgumentException.ThrowIfNullOrWhiteSpace(userAgent);
+
+    IpAddress = ipAddress;
+    UserAgent = userAgent;
+  }
+}
 
 /// <summary>A read nobody is waiting for (the background check): no user headers.</summary>
 public sealed record Unattended;

@@ -3,7 +3,9 @@ using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using RevolutReader.Api.Bank;
+using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -15,14 +17,18 @@ namespace RevolutReader.IntegrationTests.Wiring.EnableBanking;
 /// key, token, typed <c>HttpClient</c>, no retries) in front of a WireMock.Net server that answers every request the same
 /// way. The settings are made up and the key is generated once per run, as the acceptance harness's fake bank does; no
 /// real secret and no real account data. A test of a fault WireMock.Net cannot produce points the client at another
-/// address instead.
+/// address instead. The client's log lines are kept for the tests (<see cref="CapturedLogLines"/>).
 /// </summary>
 public sealed class BankOnWireMock : IDisposable {
   private const string SECTION = "EnableBanking";
 
+  /// <summary>The transactions query's parameter for a later page (API reference).</summary>
+  private const string CONTINUATION_KEY = "continuation_key";
+
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
   private readonly WireMockServer _server = WireMockServer.Start();
+  private readonly CapturedLogLines _log = new();
   private readonly ServiceProvider _services;
 
   /// <summary>Made up: the one linked account, whose id is in every request's path.</summary>
@@ -30,6 +36,12 @@ public sealed class BankOnWireMock : IDisposable {
 
   /// <summary>The port, as the app wires it.</summary>
   public IBankAccount Account => _services.GetRequiredService<IBankAccount>();
+
+  /// <summary>The lines the client has logged so far (one per read).</summary>
+  public IReadOnlyList<LogLine> LogLines => _log.Lines;
+
+  /// <summary>How many requests reached the server so far, answered or not.</summary>
+  public int RequestsReceived => _server.LogEntries.Count;
 
   /// <summary>The client's request timeout unless a test sets its own: long, so no other test runs into it.</summary>
   public static TimeSpan DefaultRequestTimeout { get; } = TimeSpan.FromSeconds(5);
@@ -51,6 +63,7 @@ public sealed class BankOnWireMock : IDisposable {
     ServiceCollection services = new();
 
     services.AddSingleton(configuration);
+    services.AddSingleton<ILoggerProvider>(_log);
     services.AddEnableBanking();
 
     _services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -64,8 +77,30 @@ public sealed class BankOnWireMock : IDisposable {
   public void AnswersAfter(TimeSpan delay, string body) =>
     _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", "application/json").WithBody(body).WithDelay(delay));
 
+  /// <summary>
+  /// The account's transactions come in <paramref name="pages"/> empty pages in a row: the first for a request without a
+  /// continuation key, each further one for its own key (<see cref="KeyOfPage"/>), every page but the last carrying the
+  /// next page's key. Any other request gets WireMock's 404.
+  /// </summary>
+  public void AnswersPagesInARow(int pages) {
+    string path = $"/accounts/{AccountId}/transactions";
+
+    for (int number = 1; number <= pages; number++) {
+      IRequestBuilder request = number == 1
+        ? Request.Create().UsingGet().WithPath(path).WithParam(static parameters => !parameters.ContainsKey(CONTINUATION_KEY))
+        : Request.Create().UsingGet().WithPath(path).WithParam(CONTINUATION_KEY, new ExactMatcher(KeyOfPage(number)));
+      string nextKey = number == pages ? "null" : $"\"{KeyOfPage(number + 1)}\"";
+
+      _server.Given(request).RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", "application/json")
+        .WithBody($$"""{ "transactions": [], "continuation_key": {{nextKey}} }"""));
+    }
+  }
+
   /// <summary>The server stops: nothing listens at the client's address any more.</summary>
   public void StopsListening() => _server.Stop();
+
+  /// <summary>The made-up continuation key of the page with this number (2 and up), different for every page.</summary>
+  public static string KeyOfPage(int number) => $"ck-page-{number}-5e1d";
 
   private static string CreatePrivateKey() {
     using RSA key = RSA.Create(2048);
@@ -78,6 +113,7 @@ public sealed class BankOnWireMock : IDisposable {
   public void Dispose() {
     _services.Dispose();
     _server.Dispose();
+    _log.Dispose();
   }
 
   #endregion

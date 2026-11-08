@@ -72,6 +72,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
           // Each feature's settings, from its section below.
           env: [
             ...bankSettings
+            ...telemetrySettings
             ...signInSettings
           ]
           // GET /health touches neither the bank nor storage (spec service-health), and probe
@@ -139,6 +140,30 @@ var bankSettings = [
   for setting in bankSecretSettings: {
     name: 'EnableBanking__${setting}'
     secretRef: 'enablebanking-${toLower(setting)}'
+  }
+]
+
+// ---- Telemetry (C11) ----
+// The app's traces and logs go to Application Insights, signed in with the app's identity (c006
+// design.md D8 b, D12). Both resources are in platform.bicep and referenced here as existing, so the
+// connection string never travels as a module output. Two plain settings, neither a secret, under
+// the names Azure Monitor and Azure.Identity read: they override appsettings.json's empty values.
+resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
+  name: 'appi-revolutreader'
+}
+
+resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
+  name: last(split(appIdentityId, '/'))
+}
+
+var telemetrySettings = [
+  {
+    name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+    value: appInsights.properties.ConnectionString
+  }
+  {
+    name: 'AZURE_CLIENT_ID'
+    value: appIdentity.properties.clientId
   }
 ]
 

@@ -25,7 +25,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// The answers are set per test, by <see cref="BankDriver"/>. They are copied from the Mock ASPSP capture
 /// (<c>spikes/enable-banking-mock/evidence/2026-11-06-account1-*.json</c>); what the mock cannot produce (several pages,
 /// 429, an expired session, <c>ASPSP_ERROR</c>, a slow answer) is written from the API reference and the M1 findings,
-/// with a comment saying so. The transactions answer matches only the expected <c>date_from</c> and
+/// and a gateway's maintenance page from a typical gateway page, each with a comment saying so. The transactions answer matches only the expected <c>date_from</c> and
 /// <c>continuation_key</c>. Filled in by the wiring groups; until then the answer methods throw.
 /// </para>
 /// </summary>
@@ -37,6 +37,7 @@ public sealed class FakeBank : IDisposable {
   private const string UNHEARD_TELEMETRY = "RevolutReader.AcceptanceTests.FakeBank";
 
   private const string JSON = "application/json";
+  private const string HTML = "text/html";
 
   /// <summary>The transactions query's parameters (API reference).</summary>
   private const string DATE_FROM = "date_from";
@@ -126,6 +127,13 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
+
+  /// <summary>
+  /// Every request is answered with this status and this HTML page (<c>text/html</c>), as a gateway in front of Enable
+  /// Banking answers: no Enable Banking error body, so no error code.
+  /// </summary>
+  public void AnswerHtmlPage(HttpStatusCode status, string html) =>
+    _server.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", HTML).WithBody(html));
 
   /// <summary>Every answer comes only after this delay.</summary>
   public void AnswerAfter(TimeSpan delay) => _server.AddGlobalProcessingDelay(delay);

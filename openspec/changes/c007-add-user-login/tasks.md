@@ -344,9 +344,9 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
   - `features.bicep` § Sign-in: the two Key Vault-backed secrets and five environment variables.
 
   `main.bicepparam` is unchanged. Verify: `az bicep lint --file infra/main.bicep` reports nothing; the read-only preview (docs/operations/deployment.md) shows the new resources and no deletion
-- [ ] 44.2 Guided (owner): the deploy identity's fifth grantable role, Key Vault Crypto User, with azure-prerequisites.md step 5 run again with its ID added to `$roles`; read back with its check. Verify: the condition lists five role IDs
+- [ ] 44.2 Guided (owner): the deploy identity's sixth grantable role, Key Vault Crypto User, with azure-prerequisites.md § Widening the condition (C6: the sixth role), keeping C11's fifth; read back with its check. Verify: the condition lists six role IDs, C11's and C6's among them
 - [x] 44.3 Docs:
-  - workflow.md § 5: the storage account row, the key and the fifth role;
+  - workflow.md § 5: the storage account row, the key and the sixth role;
   - azure-prerequisites.md: the table and step 5's command;
   - deployment.md: the new resources and settings, and the post-deploy checks of § Migration plan, step 4;
   - ADR-0006 item 2 amended;
@@ -362,7 +362,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 ## Workflow follow-up
 
 - Archive with `/opsx:archive` in the same PR, before its merge, as C5 did. The traceability check must pass first.
-- The owner reviews and squash-merges the PR `feat: add user login (C6)`. The production secrets and the fifth role must exist first (43.3, 43.4, 44.2).
+- The owner reviews and squash-merges the PR `feat: add user login (C6)`. The production secrets and the sixth role must exist first (43.3, 43.4, 44.2).
 - After the merge (design.md § Migration plan, step 4):
   - the deploy and its checks;
   - sign-in at the production address in a desktop browser;

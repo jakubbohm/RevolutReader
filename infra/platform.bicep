@@ -1,14 +1,17 @@
-// The shared infrastructure (c005 design.md D1, D13): the log workspace, Key Vault, the app's
-// identity and its roles, the storage account (C6) and the Container Apps environment. A feature PR
-// changes this file only when it adds something shared. Everything here is managed by the
-// deployment stack: a resource deleted from this file is deleted from Azure on the next deploy.
+// The shared infrastructure (c005 design.md D1, D13): the log workspace with Application Insights on
+// it, Key Vault, the app's identity and its roles, the storage account (C6) and the Container Apps
+// environment. A feature PR changes this file only when it adds something shared. Everything here
+// is managed by the deployment stack: a resource deleted from this file is deleted from Azure on the
+// next deploy.
 
 @description('The Azure region of every resource.')
 param location string
 
 // Logs (D6): the Container Apps environment sends the app's console output and the platform's
-// events about it here. 30 days are included in the price; the daily cap bounds the bill, and
-// when it is reached collection stops until the workspace's daily reset (#17 checks the volume).
+// events about it here, and Application Insights below keeps its tables here too. 30 days are
+// included in the price; the daily cap bounds the bill, and when it is reached collection stops
+// until the workspace's daily reset (#17 checks the volume). The cap matches the free 5 GB a month:
+// 5 GB / 31 days, about 0.16 GB a day (c006 design.md D9).
 resource logs 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
   name: 'log-revolutreader'
   location: location
@@ -18,8 +21,24 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
     }
     retentionInDays: 30
     workspaceCapping: {
-      dailyQuotaGb: json('0.1')
+      dailyQuotaGb: json('0.16')
     }
+  }
+}
+
+// Application Insights (c006 design.md D8 b): the app's traces and logs, sent by its in-app
+// exporter (logs and traces only, D10), stored in the workspace above, so its cap and retention
+// cover them (D9). Local authentication is off: the connection string's key cannot write, only an
+// identity holding the role below can.
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: 'appi-revolutreader'
+  location: location
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logs.id
+    IngestionMode: 'LogAnalytics'
+    DisableLocalAuth: true
   }
 }
 
@@ -65,6 +84,21 @@ resource appReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
     principalId: appIdentity.properties.principalId
     // Named, so a role assignment right after the identity's creation does not wait for it to
     // replicate.
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Monitoring Metrics Publisher: writes telemetry to Application Insights, nothing else; the
+// identity Application Insights accepts once local authentication is off (c006 design.md D8 b). The
+// fifth role the deploy identity may assign (docs/operations/azure-prerequisites.md).
+var monitoringMetricsPublisher = '3913510d-42f4-4e42-8a64-420c390055eb'
+
+resource appWritesTelemetry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appInsights.id, appIdentity.id, monitoringMetricsPublisher)
+  scope: appInsights
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', monitoringMetricsPublisher)
+    principalId: appIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -141,7 +175,7 @@ resource appWritesKeyRing 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 }
 
 // Key Vault Crypto User, on the one key only: the app wraps and unwraps the key ring with it. The
-// fifth role the deploy identity may assign; the owner adds it to the deploy identity's condition by
+// sixth role the deploy identity may assign; the owner adds it to the deploy identity's condition by
 // hand before the first deploy with this role (docs/operations/azure-prerequisites.md, step 5).
 var keyVaultCryptoUser = '12338af0-0e69-4776-bea7-57ae8d297424'
 
@@ -183,7 +217,7 @@ resource environment 'Microsoft.App/managedEnvironments@2026-07-01' = {
 @description('The Container Apps environment the app runs in.')
 output environmentId string = environment.id
 
-@description('The app\'s user-assigned identity, which reads Key Vault.')
+@description('The app\'s user-assigned identity, which reads Key Vault, writes to Application Insights and reaches the login cookie\'s keys.')
 output appIdentityId string = appIdentity.id
 
 @description('The vault that holds the hand-provisioned secrets.')

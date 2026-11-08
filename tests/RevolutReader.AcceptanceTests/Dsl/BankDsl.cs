@@ -57,6 +57,15 @@ public sealed class BankDsl(BankDriver driver) {
     driver.ReportsOwnError();
   }
 
+  /// <summary>
+  /// Every request: a gateway in front of the bank answers that the service is unavailable, with its own maintenance page
+  /// and no Enable Banking error code.
+  /// </summary>
+  public void GatewayAnswersWithMaintenancePage() {
+    _balanceAnswerGiven = true;
+    driver.GatewayAnswersWithMaintenancePage();
+  }
+
   /// <summary>Every request: the bank answers only after the configured request timeout.</summary>
   public void AnswersAfterTheRequestTimeout() {
     _balanceAnswerGiven = true;

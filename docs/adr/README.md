@@ -12,6 +12,7 @@ One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, number
 | [0006](0006-hosting-registry-and-job.md) | Hosting, registry and the scheduled job — Container Apps scaling to zero, ghcr.io, a Logic App as the clock | Accepted; item 4 superseded by 0008 | 2026-11-05 |
 | [0007](0007-offline-balance.md) | Offline scope — the phone keeps the app's files and the last balance, never transactions | Accepted | 2026-11-06 |
 | [0008](0008-phone-triggered-check.md) | The account check's trigger — a Revolut notification on the owner's iPhone, with the phone's PSU headers | Accepted | 2026-11-06 |
+| [0009](0009-application-telemetry.md) | Application telemetry — Application Insights on the log workspace, fed by the app with its own identity | Accepted | 2026-11-08 |
 
 ## Template
 

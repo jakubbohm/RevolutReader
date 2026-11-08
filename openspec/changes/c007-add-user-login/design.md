@@ -8,7 +8,7 @@
 - **`__Host-` cookies and one app-wide rule against writes from other sites,** because `azurecontainerapps.io` is not on the Public Suffix List and .NET 11's built-in check covers only forms (D4).
 - **Waiting and offline screens move to C7,** hooked onto the app's first request (D5).
 - **Tests sign in through a fake Microsoft** (WireMock.Net: discovery, keys, token endpoint), so the whole sign-in runs production code; the fake clock enters the harness (D6).
-- **Cookie keys:** a blob in the new storage account, encrypted by a Key Vault key. Production only; the owner adds the fifth grantable role (D7).
+- **Cookie keys:** a blob in the new storage account, encrypted by a Key Vault key. Production only; the owner adds the sixth grantable role (D7).
 - **Allowlist:** one comma-separated secret (D8). **API client:** exported by an explicit check that starts an app copy (the build-time export failed at bootstrap) and generated with TypeScript 5 in `tools/api-client/`; drift checked in the existing CI jobs (D9). **Forwarded headers** from the ingress (D10). **Guided steps** for the owner (D11). **UI:** three sign-in boards and the account menu (D12).
 - **New public interfaces:**
   - `GET /api/me`, `GET /api/auth/login`, `POST /api/auth/logout`;
@@ -216,7 +216,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   - All three empty: ASP.NET's default key folder (locally, your user profile). The harness replaces it with ephemeral keys.
   - All three set: Blob plus Key Vault.
   - Anything in between stops the app at start. The settings are read in the composition root, because the choice is made while registering services.
-- **Roles for the app identity,** each on the one resource only: Storage Blob Data Contributor on the container, Key Vault Crypto User on the key. **Key Vault Crypto User is a fifth role** the deploy identity may not grant yet, so the owner widens its condition by hand before the merge (D11).
+- **Roles for the app identity,** each on the one resource only: Storage Blob Data Contributor on the container, Key Vault Crypto User on the key. **Key Vault Crypto User is a sixth role** the deploy identity may not grant yet (the fifth was C11's Monitoring Metrics Publisher, merged before C6; 2026-11-08), so the owner widens its condition by hand before the merge (D11).
 - **What it buys:** someone who reads the blob still can't forge login cookies without the key, which never leaves Key Vault.
 - **What it costs:**
   - a handful of key operations a day (decrypt at start and about every 24 h; the keys are cached in memory);
@@ -284,7 +284,7 @@ As in C1, C3 and C5, Claude prepares a green starting point on the change branch
   | Redirect URIs | the local check | Graph `PATCH` on the registration: `https://localhost/api/auth/signin-oidc` replaces both old addresses; the production address is added |
   | Client secret (owner) | the local check | Graph `addPassword`, 12 months, display name `RevolutReader C6`; the returned text goes straight into Key Vault `SignIn--ClientSecret`, the AppHost's user-secrets and the backup vault (`RevolutReader--AppHost--Parameters--signin-client-secret`), never printed. The expiry date is recorded |
   | Allowlist (owner) | the local check | the owner types the addresses at a prompt; the value goes into Key Vault `SignIn--AllowedEmails`, the user-secrets and the backup vault, never printed |
-  | Fifth role (owner) | the merge | azure-prerequisites.md step 5 again, with Key Vault Crypto User added to `$roles`; read back with its check |
+  | Sixth role (owner) | the merge | azure-prerequisites.md step 5 again, with Key Vault Crypto User added to `$roles`; read back with its check |
 
   The production secrets must exist before the merge: a Key Vault reference to a missing secret stops the new revision.
 
@@ -546,18 +546,18 @@ None new. Microsoft's service is an external system reached by ASP.NET's own Ope
     - 403 with the own email;
     - the test mechanics;
   - ADR-0004: the list format, no email in logs, no email claim means refused;
-  - ADR-0006 item 2: the keys encrypted by a Key Vault key, the fifth role.
+  - ADR-0006 item 2: the keys encrypted by a Key Vault key, the sixth role.
 - **Conventions:**
   - README.md:
     - § Backend code: the 401 and 403 rows; secure by default now means the `AllowedUser` fallback policy; the forged-request rule for writes;
     - § API contract: the tools folder and its commands;
   - configuration.md: § Hand-provisioned secrets (two rows), § Local development (two parameters), the `DataProtection` settings as production-only;
   - testing.md § Test sign-in and § Acceptance-test harness (the fake Microsoft, the clock, the HTTPS client);
-  - workflow.md § 5: the storage account, the key, the fifth role;
+  - workflow.md § 5: the storage account, the key, the sixth role;
   - the `.claude/rules/` mirrors of the files changed.
 - **Operations:**
   - `entra-id.md`: redirect URIs, the client secret and its expiry, the consent screen seen on the iPhone;
-  - `azure-prerequisites.md`: the fifth role and step 5's command;
+  - `azure-prerequisites.md`: the sixth role and step 5's command;
   - `expiring-approvals.md`: the client secret, 12 months;
   - `local-secrets.md`: two parameters with their backup names;
   - `deployment.md`: the sign-in secrets and the keys blob in the deployed-resources list and checks;
@@ -579,7 +579,7 @@ None new. Microsoft's service is an external system reached by ASP.NET's own Ope
 - **[Build-time OpenAPI export doesn't work with FastEndpoints 9 beta or the start-up checks]** → happened at bootstrap (the start-up checks); the in-process export check is used instead (§ Bootstrap, item 2). Its remaining risk: a setting checked at start that the export check lacks fails `regenerate` and the CI drift step, with the validation message naming the setting.
 - **[Aspire doesn't serve Vite over HTTPS by itself]** → `WithHttpsDeveloperCertificate()` (experimental). If the certificate isn't trusted, `dotnet dev-certs https --trust` (the owner).
 - **[The cookie handler doesn't take the app's `TimeProvider`]** → the 30-day scenarios fail in their slice; the app then sets the handler's `TimeProvider` explicitly from the registered one.
-- **[The fifth role is missing at merge]** → the deploy fails at the role assignment and the old revision keeps running. The guided step comes before the merge, with a read-back (D11).
+- **[The sixth role is missing at merge]** → the deploy fails at the role assignment and the old revision keeps running. The guided step comes before the merge, with a read-back (D11).
 - **[Key Vault is unreachable at start or at the daily refresh]** → sign-ins and cookie reads fail until it answers. Accepted: the app already depends on Key Vault for its secrets.
 - **[Someone deletes the storage account or the key through a Bicep change]** → everyone is signed out once (no data is lost; the keys are recreated). Accepted, as for Key Vault (docs/conventions/workflow.md § 5).
 - **[The client secret expires in 12 months]** → listed in `expiring-approvals.md`; the operation ends long before.
@@ -594,7 +594,7 @@ None new. Microsoft's service is an external system reached by ASP.NET's own Ope
    - sign out;
    - sign in with the second personal account and see the no-access screen;
    - "Zkusit jiný účet" opens the account picker.
-3. **Before the merge:** the fifth role (owner), the Bicep lint and preview (docs/operations/deployment.md), and the archive in the same PR, as C5 did.
+3. **Before the merge:** the sixth role (owner), the Bicep lint and preview (docs/operations/deployment.md), and the archive in the same PR, as C5 did.
 4. **After the merge:**
    - the deploy runs: the new revision starts, the keys blob appears, the app's log shows no Data Protection or sign-in error;
    - sign in at the production address in a desktop browser, then the two iPhone manual scenarios;

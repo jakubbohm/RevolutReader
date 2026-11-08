@@ -4,9 +4,14 @@ namespace RevolutReader.Api.Bank;
 
 /// <summary>Every page of a transactions read, joined (c004 design.md D7).</summary>
 public static class TransactionPages {
+  /// <summary>The most pages one read requests (c006 design.md D4).</summary>
+  public const int MOST_PAGES = 20;
+
   /// <summary>
   /// Follows continuation keys until none comes back, also after an empty page; a repeated key → BankReadException;
-  /// the first failed page ends the read with its failure (D7).
+  /// the first failed page ends the read with its failure (D7). At most <see cref="MOST_PAGES"/> pages: a last one that
+  /// still carries a key → BankReadException naming the cap, and no further page is requested (spec bank-reads § Every
+  /// page is read; c006 design.md D4).
   /// </summary>
   /// <param name="readPage">Reads one page: the first for <see langword="null"/>, otherwise the page of that continuation key.</param>
   public static async Task<BankResult<JoinedPages>> ReadAll(Func<string?, Task<BankResult<EbTransactionPage>>> readPage) {
@@ -33,6 +38,10 @@ public static class TransactionPages {
       // Any key returned earlier in this read, not only the last one, would close a loop. The key is not quoted (D5).
       if (!keysReturned.Add(page.ContinuationKey))
         throw new BankReadException($"The bank returned a continuation key it had already returned in this read, after {pageCount} pages; following it would loop.");
+
+      // A bank that keeps sending new keys would keep the read going forever (c006 design.md D4). The key is not quoted.
+      if (pageCount >= MOST_PAGES)
+        throw new BankReadException($"A read requests at most {MOST_PAGES} pages, and page {MOST_PAGES} still carried a continuation key.");
 
       continuationKey = page.ContinuationKey;
     }
