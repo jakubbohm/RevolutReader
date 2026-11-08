@@ -338,7 +338,7 @@ Run with `/tdd-apply c007-add-user-login` (roadmap C6; the user picks the review
 
 ## 44. [wiring] Deployment
 
-- [ ] 44.1 Update infra Bicep, as design.md § Cross-cutting effects describes:
+- [x] 44.1 Update infra Bicep, as design.md § Cross-cutting effects describes:
   - `platform.bicep`: the storage account and its private container `dataprotection`, the key `dataprotection` in `kv-revolutreader`, the app identity's Storage Blob Data Contributor on the container and Key Vault Crypto User on the key, and the three outputs;
   - `main.bicep` passes them on;
   - `features.bicep` § Sign-in: the two Key Vault-backed secrets and five environment variables.
