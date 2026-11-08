@@ -31,39 +31,15 @@ public static class CrossSiteWrites {
   }
 
   /// <summary>
-  /// Whether a request may go on. A request the rule <see cref="Applies"/> to is allowed when:
+  /// Whether a request may go on, with its <c>Sec-Fetch-Site</c> and <c>Origin</c> as received (each possibly sent more
+  /// than once). A request the rule <see cref="Applies"/> to is allowed only when neither header is sent more than once
+  /// (a repeated one is ambiguous, so the request is refused), and then:
   /// <list type="bullet">
-  /// <item><paramref name="secFetchSite"/> is present and exactly <c>same-origin</c> or <c>none</c>;</item>
+  /// <item>when <paramref name="secFetchSite"/> is present: it is exactly <c>same-origin</c> or <c>none</c>;</item>
   /// <item>otherwise, when <paramref name="origin"/> is present: it is exactly <paramref name="requestOrigin"/>, the
   /// request's own scheme and host (after the forwarded headers);</item>
   /// <item>otherwise, with neither header: always, because it is not a browser's request, and such callers don't get the
   /// login cookie by themselves.</item>
-  /// </list>
-  /// Every other request is allowed.
-  /// </summary>
-  public static bool IsAllowed(string method, PathString path, string? secFetchSite, string? origin, string requestOrigin) {
-    ArgumentNullException.ThrowIfNull(method);
-    ArgumentNullException.ThrowIfNull(requestOrigin);
-
-    if (!Applies(method, path))
-      return true;
-
-    if (secFetchSite is not null)
-      return secFetchSite is SAME_ORIGIN or NONE;
-
-    if (origin is not null)
-      return string.Equals(origin, requestOrigin, StringComparison.Ordinal);
-
-    return true;
-  }
-
-  /// <summary>
-  /// Whether a request may go on, with its <c>Sec-Fetch-Site</c> and <c>Origin</c> as received (each possibly sent more
-  /// than once). A request the rule <see cref="Applies"/> to is allowed when:
-  /// <list type="bullet">
-  /// <item>neither header is sent more than once: a repeated one is ambiguous, so the request is refused;</item>
-  /// <item>and the one value of each header passes the single-value rule
-  /// (<see cref="IsAllowed(string, PathString, string, string, string)"/>).</item>
   /// </list>
   /// Every other request is allowed, whatever its headers.
   /// </summary>
@@ -77,7 +53,21 @@ public static class CrossSiteWrites {
     if (secFetchSite.Count > 1 || origin.Count > 1)
       return false;
 
-    return IsAllowed(method, path, OneValue(secFetchSite), OneValue(origin), requestOrigin);
+    return IsAllowedBySingleValues(OneValue(secFetchSite), OneValue(origin), requestOrigin);
+  }
+
+  /// <summary>
+  /// The single-value decision for a write the rule applies to, each header sent at most once (<see langword="null"/>:
+  /// not sent): the list in <see cref="IsAllowed"/>.
+  /// </summary>
+  private static bool IsAllowedBySingleValues(string? secFetchSite, string? origin, string requestOrigin) {
+    if (secFetchSite is not null)
+      return secFetchSite is SAME_ORIGIN or NONE;
+
+    if (origin is not null)
+      return string.Equals(origin, requestOrigin, StringComparison.Ordinal);
+
+    return true;
   }
 
   /// <summary>A header's one value; <see langword="null"/> when it was not sent.</summary>
