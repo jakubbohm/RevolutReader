@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Balance } from "./balance";
-import { shown, type Facts } from "./screenState";
+import { shown, type Facts, type Problem } from "./screenState";
 
 // What the account screen shows, from what it knows (c009 design.md D2, the phases of the first load; D7, the list slot
 // under the header): plain values in, the screen out. The balance and the user are made up.
@@ -240,6 +240,96 @@ test.each(afterAWake)(
   ({ changes, shows }) => {
     expect(shown(facts(changes))).toMatchObject({
       screen: "account",
+      ...shows,
+    });
+  },
+);
+
+// D5 (a): a bank failure with nothing to show is its banner, standing alone under the top bar: no header, and no
+// whole-screen state beside it (the empty frame's body), also once a wake is over.
+const bankFailuresWithNothingToShow: {
+  label: string;
+  problem: Problem;
+  changes: Partial<Facts>;
+}[] = [
+  {
+    label: "the bank does not answer",
+    problem: { kind: "bank unavailable" },
+    changes: {},
+  },
+  {
+    label: "the bank's limit is reached",
+    problem: { kind: "bank rate limited" },
+    changes: {},
+  },
+  {
+    label: "the bank's access has expired",
+    problem: { kind: "bank access expired" },
+    changes: {},
+  },
+  {
+    label: "the bank's access has expired, after a wake",
+    problem: { kind: "bank access expired" },
+    changes: { wait: "long", wokeUp: true },
+  },
+];
+
+test.each(bankFailuresWithNothingToShow)(
+  "A bank failure with no balance to show gives the banner alone, without the header: $label",
+  ({ problem, changes }) => {
+    expect(shown(facts({ session: LUCIE, problem, ...changes }))).toMatchObject(
+      {
+        screen: "account",
+        header: null,
+        banner: problem,
+        body: "empty",
+      },
+    );
+  },
+);
+
+// D2, D5 (b), spec app-shell: an unexpected answer to who is signed in is the error banner, below a stored balance if
+// there is one, and no menu (the server named nobody), whether or not the problem is also on record.
+const unexpectedAnswers: {
+  label: string;
+  changes: Partial<Facts>;
+  shows: object;
+}[] = [
+  {
+    label: "nothing stored",
+    changes: {},
+    shows: { header: null, body: "empty" },
+  },
+  {
+    label: "nothing stored, the problem on record",
+    changes: { problem: { kind: "unexpected" } },
+    shows: { header: null, body: "empty" },
+  },
+  {
+    label: "a balance stored",
+    changes: { stored: STORED, balance: STORED },
+    shows: { header: { balance: STORED, refreshing: false } },
+  },
+  {
+    label: "a balance stored, the problem on record",
+    changes: {
+      stored: STORED,
+      balance: STORED,
+      problem: { kind: "unexpected" },
+    },
+    shows: { header: { balance: STORED, refreshing: false } },
+  },
+];
+
+test.each(unexpectedAnswers)(
+  "An unexpected answer to who is signed in gives the error banner, below a stored balance if there is one, and no menu: $label",
+  ({ changes, shows }) => {
+    expect(
+      shown(facts({ session: { kind: "unexpected" }, ...changes })),
+    ).toMatchObject({
+      screen: "account",
+      account: null,
+      banner: { kind: "unexpected" },
       ...shows,
     });
   },
