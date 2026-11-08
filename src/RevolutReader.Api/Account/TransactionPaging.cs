@@ -11,8 +11,13 @@ public static class TransactionPaging {
   /// <summary>The first day of the newest page: <see cref="WINDOW_DAYS"/> days before <paramref name="today"/>.</summary>
   public static DateOnly WindowStart(DateOnly today) => today.AddDays(-WINDOW_DAYS);
 
-  /// <summary>Where the live read starts (D3).</summary>
-  public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) => throw new NotImplementedException();
+  /// <summary>
+  /// Where the live read starts (D3): with the newest kept day inside the last <see cref="WINDOW_DAYS"/> days, the window's
+  /// start, and no gap.
+  /// </summary>
+  // For now every newest kept day reads from the window's start: the long pause, the cap at MOST_DAYS_BACK with its gap,
+  // and nothing kept come with slices 11 and 12.
+  public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) => new(WindowStart(today), GapDays: null);
 
   /// <summary>
   /// Settled ones with a reference, each with its position within its day in the given order; pending ones and those

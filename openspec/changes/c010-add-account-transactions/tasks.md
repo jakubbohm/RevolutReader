@@ -192,16 +192,16 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 21. [unit] Slice 10 — Live read start
 
-- [ ] 21.1 With the newest kept day inside the last 31 days, the read starts 31 days before today
+- [x] 21.1 With the newest kept day inside the last 31 days, the read starts 31 days before today
 - 21.2 moved to slice 11 as 24.4 (inside the last 31 days the live read's start is the window's start, so no test of it could fail here; found by the test-writer)
 
 ## 22. [wiring] Slice 10 — The bank's from-date
 
-- [ ] 22.1 `TransactionsDriver.DaysTheBankWasAskedFrom` reads the fake bank's transaction requests and shifts their dates back (design.md D12). Verify: the scenario runs against the app
+- [x] 22.1 `TransactionsDriver.DaysTheBankWasAskedFrom` reads the fake bank's transaction requests and shifts their dates back (design.md D12). Verify: the scenario runs against the app
 
 ## 23. [close] Slice 10 — The live read covers the last 31 days
 
-- [ ] 23.1 The scenario's test passes. Verify: green, including account-transactions / The live read covers the last 31 days
+- [x] 23.1 The scenario's test passes. Verify: green, including account-transactions / The live read covers the last 31 days
 
 ## 24. [unit] Slice 11 — A long pause
 
