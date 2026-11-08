@@ -9,7 +9,7 @@ public static class TransactionPaging {
   public const int PAGE_SIZE = 30;
 
   /// <summary>The first day of the newest page: <see cref="WINDOW_DAYS"/> days before <paramref name="today"/>.</summary>
-  public static DateOnly WindowStart(DateOnly today) => throw new NotImplementedException();
+  public static DateOnly WindowStart(DateOnly today) => today.AddDays(-WINDOW_DAYS);
 
   /// <summary>Where the live read starts (D3).</summary>
   public static LiveReadStart LiveReadStart(DateOnly today, DateOnly? newestKeptDay) => throw new NotImplementedException();

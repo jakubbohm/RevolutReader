@@ -82,18 +82,18 @@ Run with `/tdd-apply c010-add-account-transactions` (roadmap C7b; the user picks
 
 The handler's tests use a hand-written `StubBankAccount`, the in-memory fake `InMemoryTransactionStore` (the test-writer's, design.md D12) and `FakeTimeProvider`.
 
-- [ ] 5.1 The window starts 31 days before today
-- [ ] 5.2 The newest page holds the live transactions dated from the window's start, in the bank's order
-- [ ] 5.3 A live transaction dated before the window's start is left off the newest page
-- [ ] 5.4 Pending transactions are on the newest page, marked pending
-- [ ] 5.5 The newest page carries the koruna rate and its date
-- [ ] 5.6 The newest page says nothing older is kept when the store holds nothing before the window
-- [ ] 5.7 The newest page names the window's start when the store holds something older
-- [ ] 5.8 The bank is read for the present user handed in
-- [ ] 5.9 A bank failure comes back as the same failure, and nothing is kept
-- [ ] 5.10 A missing tables connection is refused at registration, and the message names the setting only
-- [ ] 5.11 A table name that is not 3 to 63 letters and digits starting with a letter fails validation
-- [ ] 5.12 The default table name passes validation
+- [x] 5.1 The window starts 31 days before today
+- [x] 5.2 The newest page holds the live transactions dated from the window's start, in the bank's order
+- [x] 5.3 A live transaction dated before the window's start is left off the newest page
+- [x] 5.4 Pending transactions are on the newest page, marked pending
+- [x] 5.5 The newest page carries the koruna rate and its date
+- [x] 5.6 The newest page says nothing older is kept when the store holds nothing before the window
+- [x] 5.7 The newest page names the window's start when the store holds something older
+- [x] 5.8 The bank is read for the present user handed in
+- [x] 5.9 A bank failure comes back as the same failure, and nothing is kept
+- [x] 5.10 A missing tables connection is refused at registration, and the message names the setting only
+- [x] 5.11 A table name that is not 3 to 63 letters and digits starting with a letter fails validation
+- [x] 5.12 The default table name passes validation
 
 ## 6. [integration] Slice 2 — Transaction store
 
