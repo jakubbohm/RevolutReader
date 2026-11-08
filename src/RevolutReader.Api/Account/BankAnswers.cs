@@ -77,6 +77,9 @@ public static class BankAnswers {
     return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: BANK_UNAVAILABLE_TITLE, type: BANK_UNAVAILABLE_TYPE);
   }
 
+  /// <summary>Not yet (the review's #2, the user, 2026-11-08).</summary>
+  public static ProblemHttpResult NoPresentUser() => throw new NotImplementedException();
+
   /// <summary>
   /// Declares the bank problems in the endpoint's API description: a 429 and a 503 problem description
   /// (<c>application/problem+json</c>), one 503 for both 503 cases. A problem result puts no status into the API

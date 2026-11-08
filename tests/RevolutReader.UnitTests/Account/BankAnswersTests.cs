@@ -32,6 +32,8 @@ public sealed class BankAnswersTests {
   private const string RATE_LIMITED_TITLE = "Bank rate limit reached";
   private const string BANK_UNAVAILABLE_TYPE = "/problems/bank-unavailable";
   private const string BANK_UNAVAILABLE_TITLE = "Bank unavailable";
+  private const string BAD_REQUEST_TYPE = "https://tools.ietf.org/html/rfc9110#section-15.5.1";
+  private const string BAD_REQUEST_TITLE = "Bad Request";
 
   // The reads, as the data sources name them
 
@@ -59,6 +61,17 @@ public sealed class BankAnswersTests {
   [Test]
   public void Bank_unavailable_is_a_503_problem_of_its_own_type() =>
     ShouldBeTheProblem(BankAnswers.Problem(new BankUnavailable()), StatusCodes.Status503ServiceUnavailable, BANK_UNAVAILABLE_TYPE, BANK_UNAVAILABLE_TITLE);
+
+  // A read that cannot be made
+
+  /// <summary>
+  /// A bank read with no present user (no client address or no browser name, <see cref="PresentUserFromRequest.Read"/>):
+  /// a request the API cannot read, answered before the bank and never with an unattended read in its place. ASP.NET
+  /// Core's default <c>type</c> and <c>title</c> for 400, as the case → status table says: never one of the bank's types.
+  /// </summary>
+  [Test]
+  public void No_present_user_is_a_400_problem_of_the_default_type() =>
+    ShouldBeTheProblem(BankAnswers.NoPresentUser(), StatusCodes.Status400BadRequest, BAD_REQUEST_TYPE, BAD_REQUEST_TITLE);
 
   // A read's result as the answer, for an endpoint that answers the read as it came
 
@@ -152,19 +165,19 @@ public sealed class BankAnswersTests {
   // The API description
 
   /// <summary>
-  /// What the endpoint's API description declares (<see cref="IProducesResponseTypeMetadata"/>): a 429 and a 503 problem
-  /// description, one 503 for both 503 cases, and nothing else. A problem result puts no status into the API description by
-  /// itself, so C7a's and C7b's endpoints declare them with this, inside FastEndpoints' <c>Description(…, clearDefaults:
-  /// true)</c>.
+  /// What the endpoint's API description declares (<see cref="IProducesResponseTypeMetadata"/>): a 400 (no present user), a
+  /// 429 and a 503 problem description, one 503 for both 503 cases, and nothing else. A problem result puts no status into
+  /// the API description by itself, so C7a's and C7b's endpoints declare them with this, inside FastEndpoints'
+  /// <c>Description(…, clearDefaults: true)</c>.
   /// </summary>
   [Test]
-  public void The_bank_problems_are_declared_as_a_429_and_a_503_problem_description_and_nothing_else() {
+  public void The_bank_problems_are_declared_as_a_400_a_429_and_a_503_problem_description_and_nothing_else() {
     IList<object> metadata = MetadataDeclaredBy(static builder => builder.ProducesBankProblems());
 
     metadata.ShouldAllBe(item => item is IProducesResponseTypeMetadata, "nothing but response descriptions");
     metadata.OfType<IProducesResponseTypeMetadata>()
       .Select(static declared => (declared.StatusCode, declared.Type, ContentTypes: string.Join(' ', declared.ContentTypes)))
-      .ShouldBe([(429, typeof(ProblemDetails), PROBLEM_JSON), (503, typeof(ProblemDetails), PROBLEM_JSON)], ignoreOrder: true);
+      .ShouldBe([(400, typeof(ProblemDetails), PROBLEM_JSON), (429, typeof(ProblemDetails), PROBLEM_JSON), (503, typeof(ProblemDetails), PROBLEM_JSON)], ignoreOrder: true);
   }
 
   /// <summary>A read's result: <see cref="_balance"/>, or the failure named.</summary>
