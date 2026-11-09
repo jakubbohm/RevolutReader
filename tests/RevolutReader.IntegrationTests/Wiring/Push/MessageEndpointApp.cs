@@ -42,11 +42,15 @@ internal sealed class MessageEndpointApp : WebApplicationFactory<Program> {
   protected override void ConfigureWebHost(IWebHostBuilder builder) {
     builder.UseEnvironment(Environments.Production);
     builder.UseSetting(TABLES_CONNECTION, MADE_UP_TABLES_CONNECTION);
-    builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings()));
+    builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings(MessageKey)));
   }
 
-  /// <summary>Made up, never real: each secret the app checks at start, the keys generated per app copy.</summary>
-  private Dictionary<string, string?> MadeUpSettings() {
+  /// <summary>
+  /// Made up, never real: each secret the app checks at start, the keys generated per app copy, with
+  /// <paramref name="messageKey"/> as the message key and <see cref="ALLOWED_ACCOUNT"/> as the allowlist. Shared with
+  /// <see cref="SubscriptionEndpointApp"/>.
+  /// </summary>
+  public static Dictionary<string, string?> MadeUpSettings(string messageKey) {
     using RSA key = RSA.Create(2048);
     using ECDsa vapidKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
     ECParameters vapid = vapidKey.ExportParameters(includePrivateParameters: true);
@@ -63,7 +67,7 @@ internal sealed class MessageEndpointApp : WebApplicationFactory<Program> {
       ["SignIn:AllowedEmails"] = ALLOWED_ACCOUNT,
       ["Push:VapidPublicKey"] = Base64Url.EncodeToString([UNCOMPRESSED_POINT, .. x, .. y]),
       ["Push:VapidPrivateKey"] = Base64Url.EncodeToString(d),
-      ["Push:MessageKey"] = MessageKey,
+      ["Push:MessageKey"] = messageKey,
     };
   }
 }

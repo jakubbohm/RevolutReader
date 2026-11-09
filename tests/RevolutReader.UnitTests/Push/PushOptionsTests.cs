@@ -46,6 +46,18 @@ public sealed class PushOptionsTests {
     ["LocalFake"] = "http://127.0.0.1:5005",
   };
 
+  /// <summary>
+  /// Valid entries in the forms <see cref="_services"/> leaves out (D9): the root path "/", an explicit port, a wildcard
+  /// with a port, and plain http on each loopback host.
+  /// </summary>
+  private static readonly Dictionary<string, string> _otherServiceForms = new(StringComparer.Ordinal) {
+    ["RootPath"] = "https://updates.push.services.mozilla.com/",
+    ["ExplicitPort"] = "https://fcm.googleapis.com:443",
+    ["WildcardWithPort"] = "https://*.notify.windows.com:8443",
+    ["LocalhostFake"] = "http://localhost:5005",
+    ["IPv6LoopbackFake"] = "http://[::1]:5005",
+  };
+
   private static readonly Lazy<VapidKeys> _vapidKeys = new(VapidKeys.New);
 
   private static readonly Lazy<string> _messageKey = new(static () => RandomBase64Url(MESSAGE_KEY_BYTES));
@@ -57,9 +69,11 @@ public sealed class PushOptionsTests {
   [Arguments("a message key longer than 32 bytes")]
   [Arguments("the shortest request timeout, 1 second")]
   [Arguments("the longest request timeout, 60 seconds")]
+  [Arguments("known services in every other form an entry may take")]
   public void A_complete_set_of_push_settings_passes_validation(string variant) {
     PushOptions settings = variant switch {
       "made-up keys, the app's address and known services" => Settings(),
+      "known services in every other form an entry may take" => Settings(services: _otherServiceForms),
       "a subject with a port" => Settings(subject: new Uri("https://localhost:5173")),
       "a message key longer than 32 bytes" => Settings(messageKey: RandomBase64Url(64)),
       "the shortest request timeout, 1 second" => Settings(requestTimeout: TimeSpan.FromSeconds(1)),
@@ -186,6 +200,43 @@ public sealed class PushOptionsTests {
   public void A_request_timeout_outside_1_to_60_seconds_fails_validation(string requestTimeout) =>
     Failures(Settings(requestTimeout: TimeSpan.Parse(requestTimeout, CultureInfo.InvariantCulture)))
       .ShouldContain(failure => failure.Contains(nameof(PushOptions.RequestTimeout), StringComparison.Ordinal), "a failure naming RequestTimeout");
+
+  /// <summary>
+  /// A known push service is an origin (D9): https and a host, or https, "*." and a host suffix, with no user information,
+  /// path, query or fragment; plain http only on a loopback host. An entry that is anything else fails validation, the
+  /// message naming the setting and the entry, never its value; the other entries, all valid, are not named.
+  /// </summary>
+  /// <param name="pattern">Not a push service pattern (D9).</param>
+  [Test]
+  [Arguments("https://fcm.googleapis.com/fcm/send")] // a path
+  [Arguments("https://fcm.googleapis.com/?from=settings")] // a query
+  [Arguments("https://fcm.googleapis.com?from=settings")] // a query, no "/" before it
+  [Arguments("https://fcm.googleapis.com/#push")] // a fragment
+  [Arguments("https://push.*.apple.com")] // a wildcard in the middle
+  [Arguments("https://*push.apple.com")] // a wildcard not followed by "."
+  [Arguments("https://push.apple.com.*")] // a wildcard at the end
+  [Arguments("https://*.*.apple.com")] // a second wildcard
+  [Arguments("*.push.apple.com")] // a wildcard host with no scheme
+  [Arguments("http://fcm.googleapis.com")] // plain http on a host that is not loopback
+  [Arguments("http://*.push.apple.com")] // plain http with a wildcard
+  [Arguments("http://10.0.0.4:5005")] // plain http on an address of the private network
+  [Arguments("http://localhost.example.com:5005")] // plain http on a host that only starts like this machine's name
+  [Arguments("https://user@fcm.googleapis.com")] // user information
+  [Arguments("fcm.googleapis.com")] // no scheme
+  [Arguments("ftp://fcm.googleapis.com")] // neither https nor http
+  public void A_known_push_service_that_is_not_an_origin_pattern_fails_validation_naming_the_entry_only(string pattern) {
+    const string entry = "Elsewhere5b2e";
+    Dictionary<string, string> services = new(_services, StringComparer.Ordinal) { [entry] = pattern };
+
+    IReadOnlyList<string> failures = Failures(Settings(services: services));
+
+    failures.ShouldContain(
+      failure => failure.Contains(nameof(PushOptions.Services), StringComparison.Ordinal) && failure.Contains(entry, StringComparison.Ordinal),
+      "a failure naming the Services setting and the entry");
+    failures.ShouldAllBe(failure => !QuotesAny(failure, pattern), "no failure message may contain the entry's value");
+    string[] validEntries = [.. _services.Keys];
+    failures.ShouldAllBe(failure => !QuotesAny(failure, validEntries), "no failure names an entry that is valid");
+  }
 
   /// <summary>
   /// The services the app's own <c>appsettings.json</c> declares under <c>Push:Services</c> (D9), bound as the app binds

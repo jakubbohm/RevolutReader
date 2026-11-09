@@ -269,15 +269,15 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 42. [unit] Slice 15 — Known push services
 
-- [ ] 42.1 A push address at a host no service names is refused, naming the push address
-- [ ] 42.2 A host that only looks like a service's (`push.apple.com.example.com`, `evilpush.apple.com`) is refused
-- [ ] 42.3 A push address on another port than its service's is refused
-- [ ] 42.4 A plain-http push address at a service named with https is refused
-- [ ] 42.5 A push address with user information is refused
-- [ ] 42.6 A push address longer than 2048 characters is refused
-- [ ] 42.7 A missing or relative push address is refused
+- [x] 42.1 A push address at a host no service names is refused, naming the push address
+- [x] 42.2 A host that only looks like a service's (`push.apple.com.example.com`, `evilpush.apple.com`) is refused
+- [x] 42.3 A push address on another port than its service's is refused
+- [x] 42.4 A plain-http push address at a service named with https is refused
+- [x] 42.5 A push address with user information is refused
+- [x] 42.6 A push address longer than 2048 characters is refused
+- [x] 42.7 A missing or relative push address is refused
 - [ ] 42.8 A service pattern with a path, a query, a wildcard not at its start, or plain http on a host that is not loopback fails validation
-- [ ] 42.9 A refused subscription stores nothing
+- [x] 42.9 A refused subscription stores nothing
 
 ## 43. [wiring] Slice 15 — The subscription's refusal
 
