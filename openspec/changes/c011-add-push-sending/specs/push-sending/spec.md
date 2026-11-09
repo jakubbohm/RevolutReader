@@ -61,7 +61,7 @@ The sender SHALL check the allowlist on every send. A message to an account not 
 - **AND** the phone is no longer registered, and its push service receives nothing
 
 ### Requirement: A message a push cannot carry is refused
-The message endpoint SHALL refuse with 400 a message without a title or whose title is blank, a message whose page is not a page of the app (a path that starts with a single `/`, outside `/api`), and a message whose push content would be longer than 3993 bytes, the most a push service must carry (RFC 8291). It SHALL refuse with 400 in the same way a request without an account, and a request whose body is not the request's JSON. The problem description SHALL name the refused member (`title`, `page`, `message`, `account` or `body`), never its value, and nothing SHALL be sent.
+The message endpoint SHALL refuse with 400 a request without an account or whose body is not the request's JSON, and a message with a missing or blank title, a page that is not a page of the app (a path starting with a single `/`, outside `/api`), or push content longer than 3993 bytes, the most a push service must carry (RFC 8291). The problem description SHALL name the refused member, never its value, and nothing SHALL be sent.
 
 #### Scenario: A message without a title is refused
 - **GIVEN** Lucie registered her phone for pushes
