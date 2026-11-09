@@ -265,7 +265,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 41. [close] Slice 14 — Registering the same device again moves it to the account signed in now
 
-- [ ] 41.1 The scenario's test passes. Verify: green, including push-devices / Registering the same device again moves it to the account signed in now
+- [x] 41.1 The scenario's test passes. Verify: green, including push-devices / Registering the same device again moves it to the account signed in now
 
 ## 42. [unit] Slice 15 — Known push services
 
