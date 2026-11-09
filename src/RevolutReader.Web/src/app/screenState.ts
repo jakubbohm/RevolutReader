@@ -12,7 +12,7 @@ export type Problem =
 
 /** What the screen knows (c009 design.md D2, D3, D5, D6, D7). */
 export interface Facts {
-  /** The answer to who is signed in, once it came. */
+  /** The answer to who is signed in, once it came; `"waiting"` while it is asked, at first or again. */
   session: Session | "waiting";
   /** The latest read, else the one the phone keeps, as loaded at start. */
   balance: Balance | null;

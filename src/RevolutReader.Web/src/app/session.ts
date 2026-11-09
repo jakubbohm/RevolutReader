@@ -18,13 +18,17 @@ const UNEXPECTED: Session = { kind: "unexpected" };
  * - 200 with a name and an email: signed in; any other 200 body is unexpected.
  * - 401: signed out; 403: refused, with the email its problem description names (the contract's refused problem), or
  *   none.
- * - No answer (the request failed): offline. An answer with an error status never is: any other status, a plain-text
- *   hosting page among them, is unexpected.
+ * - No answer (the request failed, or `signal` aborted it): offline. An answer with an error status never is: any other
+ *   status, a plain-text hosting page among them, is unexpected.
  *
  * Offline, 401, 403 and a success that is not JSON are every read's (`askTheApi`); the rest are the session's own.
  */
-export async function readSession(): Promise<Session> {
-  const answer = await askTheApi(() => api.GET("/api/me"));
+export async function readSession(options?: {
+  signal?: AbortSignal;
+}): Promise<Session> {
+  const answer = await askTheApi(() =>
+    api.GET("/api/me", { signal: options?.signal }),
+  );
 
   switch (answer.kind) {
     case "signed out":

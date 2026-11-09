@@ -23,7 +23,7 @@ const SLOW_AFTER_MS = 30_000;
 
 /**
  * How long a refresh may go unanswered before it counts as offline (D3): every balance read but the first load's own,
- * whether or not a read has succeeded yet.
+ * whether or not a read has succeeded yet, and asking again who is signed in.
  */
 const REFRESH_LIMIT_MS = 60_000;
 
@@ -48,9 +48,9 @@ export interface AccountScreenModel {
  *
  * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
  * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
- * again, and the balance only after it; for a signed-in user, it reads the balance again. One question and one read at a
- * time: a repeat while one is under way is ignored, not queued. Each new question or read clears the screen's problem,
- * and its outcome sets the next (D7 c).
+ * again, and the balance only after it; for a signed-in user, it reads the balance again. Both have the 60 s limit,
+ * then end as offline. One question and one read at a time: a repeat while one is under way is ignored, not queued.
+ * Each new question or read clears the screen's problem the moment it starts, and its outcome sets the next (D3, D7 c).
  *
  * "Odhlásit se" signs out; once the server has confirmed it, the balance the phone keeps is forgotten and the sign-in
  * screen shows with its note that the sign-out happened. A sign-out that failed (a server error, offline) leaves the
@@ -173,16 +173,23 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. `anew`
-   * asks again all the same and gives the question under way up: its answer, whenever it comes, is `null` too.
+   * asks again all the same and gives the question under way up: its answer, whenever it comes, is `null` too. `signal`
+   * aborts the request, which then reads as offline.
    */
   const askOnce = useCallback(
-    async (anew: boolean = false): Promise<Session | null> => {
+    async ({
+      anew = false,
+      signal,
+    }: {
+      anew?: boolean;
+      signal?: AbortSignal;
+    } = {}): Promise<Session | null> => {
       if (askUnderWay.current && !anew) return null;
       askUnderWay.current = true;
       const question = ++latestQuestion.current;
 
       try {
-        const answer = await readSession();
+        const answer = await readSession({ signal });
         return question === latestQuestion.current ? answer : null;
       } finally {
         if (question === latestQuestion.current) askUnderWay.current = false;
@@ -216,9 +223,32 @@ export function useAccountScreen(): AccountScreenModel {
     [endLogin, readTheBalance],
   );
 
-  /** Asks who is signed in again and takes in the answer, unless the question is under way; not the first load's. */
+  /**
+   * Asks who is signed in again, after the first question found the phone offline or got an unexpected answer, and takes
+   * in the answer; nothing when a question is under way (D3, "Asking again who is signed in"). The moment it starts,
+   * the screen's problem goes, and the screen shows what it has, the stored balance in its default state or the empty
+   * frame: who is signed in is unknown again, with a short wait, so no waking-up screen (the 1.5 s and 30 s marks belong
+   * to the first load). With no answer after `REFRESH_LIMIT_MS` it is aborted, and so ends as offline. For a signed-in
+   * user the balance read follows, with the refresh's limit.
+   */
   const askWhoIsSignedIn = useCallback(async (): Promise<void> => {
-    const answer = await askOnce();
+    if (askUnderWay.current) return;
+    setSession("waiting");
+    setWait("short");
+    setProblem(null);
+
+    // A timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
+    const limit = new AbortController();
+    const limitTimer = setTimeout(() => {
+      limit.abort();
+    }, REFRESH_LIMIT_MS);
+
+    let answer: Session | null;
+    try {
+      answer = await askOnce({ signal: limit.signal });
+    } finally {
+      clearTimeout(limitTimer);
+    }
     if (answer !== null) await takeInAnswer(answer, false);
   }, [askOnce, takeInAnswer]);
 
@@ -285,7 +315,7 @@ export function useAccountScreen(): AccountScreenModel {
     clearTimeout(slowMark.current);
     slowMark.current = setTimeout(markSlowIfUnanswered, SLOW_AFTER_MS);
 
-    const answer = await askOnce(true);
+    const answer = await askOnce({ anew: true });
     if (answer !== null) await takeInFirstAnswer(answer);
   }, [askOnce, takeInFirstAnswer, markSlowIfUnanswered]);
 
