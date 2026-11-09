@@ -1,4 +1,4 @@
-import { czkApproxLabel, formatAmount, formatCzkApprox } from "./format";
+import { czkApproxLabel, EURO, formatAmount, formatCzkApprox } from "./format";
 import type { Transaction, TransactionKind } from "./transactions";
 
 // What a transaction's row says (c010 design.md D4): its two lines, its koruna value and the sentence a screen reader
@@ -92,7 +92,7 @@ export function korunaValue(
   tx: Transaction,
   rate: number,
 ): { shown: string; spoken: string } | null {
-  if (tx.currency !== "EUR") return null;
+  if (tx.currency !== EURO) return null;
 
   return {
     shown: formatCzkApprox(tx.amount, rate),

@@ -10,15 +10,21 @@ const DAY_MS = 86_400_000;
 /** Under this many minutes the freshness line counts hours (`před 2 h`); from then on it names the time. */
 const COUNTS_HOURS_UNDER_MINUTES = 180;
 
+/**
+ * The euro's ISO code (c010 design.md D4, D14): an amount in it is written in euros, has a koruna value and counts in its
+ * day's totals; an amount in any other currency does none of these.
+ */
+export const EURO = "EUR";
+
 const euros = new Intl.NumberFormat("cs-CZ", {
   style: "currency",
-  currency: "EUR",
+  currency: EURO,
   useGrouping: true,
 });
 
 const signedEuros = new Intl.NumberFormat("cs-CZ", {
   style: "currency",
-  currency: "EUR",
+  currency: EURO,
   signDisplay: "exceptZero",
   useGrouping: true,
 });
@@ -91,7 +97,7 @@ export function czkApproxLabel(eurAmount: number, rate: number): string {
  * (`−12,30 USD`; c010 design.md D4).
  */
 export function formatAmount(amount: number, currency: string): string {
-  if (currency === "EUR") return formatEur(amount, { signed: true });
+  if (currency === EURO) return formatEur(amount, { signed: true });
 
   return `${asOnScreen(signedOtherCurrency.format(amount))}${NO_BREAK_SPACE}${currency}`;
 }

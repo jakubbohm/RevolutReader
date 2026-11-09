@@ -1,3 +1,4 @@
+import { EURO } from "./format";
 import type { Transaction, TransactionPage } from "./transactions";
 
 /** One day of the list (c010 design.md D1, D14): its transactions in the answer's order, and its totals in whole cents. */
@@ -35,8 +36,9 @@ export function byDay(transactions: Transaction[]): Day[] {
 }
 
 /**
- * A day's totals in whole cents (c010 design.md D14): money received, refunds among it, and money spent as its size;
- * pending transactions counted. The sign decides, not the kind. Each amount becomes whole cents before it is added, so
+ * A day's euro totals in whole cents (c010 design.md D4, D14): money received, refunds among it, and money spent as its
+ * size; pending transactions counted. The sign decides, not the kind. Euro amounts only: the heading shows the totals in
+ * euros, so an amount in another currency is left out of both. Each amount becomes whole cents before it is added, so
  * no floating-point drift reaches the sums.
  */
 export function dayTotals(transactions: Transaction[]): {
@@ -45,7 +47,9 @@ export function dayTotals(transactions: Transaction[]): {
 } {
   let incoming = 0;
   let outgoing = 0;
-  for (const { amount } of transactions) {
+  for (const { amount, currency } of transactions) {
+    if (currency !== EURO) continue;
+
     const cents = Math.round(Math.abs(amount) * 100);
     if (amount < 0) outgoing += cents;
     else incoming += cents;
