@@ -219,7 +219,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 31. [close] Slice 10 — A message whose page is not a page of the app is refused
 
-- [ ] 31.1 The scenario's test passes. Verify: green, including push-sending / A message whose page is not a page of the app is refused
+- [x] 31.1 The scenario's test passes. Verify: green, including push-sending / A message whose page is not a page of the app is refused
 
 ## 32. [unit] Slice 11 — The size of a push
 
