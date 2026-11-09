@@ -32,6 +32,10 @@
          13.6.4, 2026-10-24): Azurite's connection string locally and in tests, the table endpoint with the app's
          managed identity in Azure. Its health check stays off: /health never touches storage. -->
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.4" />
+    <!-- Web Push (c011 design.md D1; ADR-0010; verified on nuget.org on 2026-11-08: 3.3.1, 2025-03-09, MIT): encrypts
+         with aes128gcm (RFC 8291) and signs with the vapid scheme (RFC 8292), on our own HttpClient with no retries.
+         Brings Portable.BouncyCastle; the tests decrypt with their own code, never the library's. -->
+    <PackageVersion Include="Lib.Net.Http.WebPush" Version="3.3.1" />
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
