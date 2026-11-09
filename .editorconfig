@@ -337,6 +337,10 @@ dotnet_diagnostic.CA1515.severity = none
 # its case, and ValueType.Equals already compares the case records by value (checked on .NET 11 RC3, 2026-11-06).
 dotnet_diagnostic.CA1815.severity = none
 
+[src/RevolutReader.Api/Push/{RegistrationResult,DeliveryOutcome,SendResult}.cs]
+# The push unions (c011 design.md § Error model), for the same reason as the bank's above.
+dotnet_diagnostic.CA1815.severity = none
+
 [src/RevolutReader.Api/Bank/Transactions.cs]
 # The port's success value is named Transactions (c004 design.md § Public API sketch). CA1724 objects because the BCL
 # has a System.Transactions namespace, which nothing in the app imports.
