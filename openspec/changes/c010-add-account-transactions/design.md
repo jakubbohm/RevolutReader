@@ -201,7 +201,7 @@ After C7a merges, the branch takes `main` (memory: merge the earlier PR's tip be
 - **AppHost:** `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Azurite runs in Docker, which local development and the tests need already.
 - **Bicep** (`infra/platform.bicep`, `main.bicep`, `features.bicep`):
   - the table service and the table `transactions` under the existing account;
-  - the app identity's Storage Table Data Contributor on that table (the deploy identity may grant it: `docs/operations/azure-prerequisites.md` step 5);
+  - the app identity's Storage Table Data Contributor on the storage account, so on all its tables but nothing else (the deploy identity may grant it: `docs/operations/azure-prerequisites.md` step 5). The user, 2026-11-09: the app creates its table if missing on first use, and whether a role scoped to the one table allows that call is not documented; the account scope surely does, the app is the only user of the account's tables, and C8a's table in the same account needs the same role;
   - the account's table endpoint as an output, passed on and set on the container app as `ConnectionStrings__tables`.
 - **No secret, no hand-provisioned value:** the app reaches the table with its managed identity, and shared keys stay off.
 
