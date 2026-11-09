@@ -247,9 +247,9 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 37. [unit] Slice 13 — Failing push services
 
-- [ ] 37.1 A device whose push fails is counted as failed and kept
+- [x] 37.1 A device whose push fails is counted as failed and kept
 - [ ] 37.2 A failed push is logged with its status, or none when no answer came
-- [ ] 37.3 A failed push is not handed over again
+- [x] 37.3 A failed push is not handed over again
 
 ## 38. [wiring] Slice 13 — Failures at the push service
 

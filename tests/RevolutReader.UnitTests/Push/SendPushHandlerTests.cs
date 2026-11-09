@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -329,6 +330,83 @@ public sealed class SendPushHandlerTests {
       () => kept.ShouldBe([tablet, laptop], ignoreOrder: true, "the other devices stay"));
   }
 
+  /// <summary>
+  /// A push that fails for any other reason (another status such as 429, 413 or a 5xx, or no answer at all, D3) is counted
+  /// as failed, and the device is kept: it may work next time. The account's other device is reached.
+  /// </summary>
+  /// <param name="status">The push service's answer, or <see langword="null"/> when none came (timeout, no connection).</param>
+  [Test]
+  [Arguments(429)]
+  [Arguments(413)]
+  [Arguments(500)]
+  [Arguments(503)]
+  [Arguments(null)]
+  public async Task A_device_whose_push_fails_is_counted_as_failed_and_kept(int? status) {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    InMemoryPushDeviceStore store = await StoreWith(phone, tablet);
+
+    SendResult result = await Handler(store, new StubPushDelivery().Answers(phone, new DeliveryFailed(status))).Send(LUCIE, _message, CancellationToken.None);
+    IReadOnlyList<PushDevice> kept = await store.ReadAll(CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(new PushSent(Delivered: 1, Failed: 1, Removed: 0)),
+      () => kept.ShouldBe([phone, tablet], ignoreOrder: true, "the failing phone is kept"));
+  }
+
+  /// <summary>
+  /// A failed push writes its line, <c>PushDeliveryFailed</c> at Warning (D4), whose one value, read by name
+  /// (<c>status</c>, as the sketch's <c>PushLog.PushDeliveryFailed</c> names it), is the push service's status, or none
+  /// when no answer came: then the value is empty, as .NET's logging writes a missing value (no value, an empty text or
+  /// <c>(null)</c>), never a made-up number. No line of the send holds the device's push address or keys, the account or
+  /// the message.
+  /// </summary>
+  /// <param name="status">The push service's answer, or <see langword="null"/> when none came.</param>
+  [Test]
+  [Arguments(500)]
+  [Arguments(null)]
+  public async Task A_failed_push_is_logged_with_its_status_or_none_when_no_answer_came(int? status) {
+    PushDevice phone = Device(LUCIE);
+    CapturedLog log = new();
+
+    _ = await Handler(await StoreWith(phone, Device(LUCIE)), new StubPushDelivery().Answers(phone, new DeliveryFailed(status)), log).Send(LUCIE, _message, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    string[] privateValues = [phone.Endpoint, phone.P256dh, phone.Auth, LUCIE, _message.Title, _message.Text!, _message.Page];
+    lines.ShouldSatisfyAllConditions(
+      () => {
+        LogEntry failed = lines.Where(static line => line.EventName == "PushDeliveryFailed").ShouldHaveSingleItem("one line for the one failed push");
+        failed.Level.ShouldBe(LogLevel.Warning);
+        KeyValuePair<string, object?> value = failed.OwnValues().ShouldHaveSingleItem("the line's one value: the status");
+        value.Key.ShouldBe("status", StringCompareShould.IgnoreCase);
+
+        if (status is int answered)
+          value.Value?.ToString().ShouldBe(answered.ToString(CultureInfo.InvariantCulture), "the push service's status");
+        else
+          (value.Value?.ToString() ?? string.Empty).ShouldBeOneOf([string.Empty, "(null)"], "no status when no answer came");
+      },
+      () => lines.Where(line => privateValues.Any(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase))).ShouldBeEmpty("nothing of the device, the account or the message in any line"));
+  }
+
+  /// <summary>
+  /// Nothing is retried (D3): a failed push is handed over once, whatever the failure, and the send ends; the caller can
+  /// send again.
+  /// </summary>
+  /// <param name="status">The push service's answer, or <see langword="null"/> when none came.</param>
+  [Test]
+  [Arguments(429)]
+  [Arguments(503)]
+  [Arguments(null)]
+  public async Task A_failed_push_is_not_handed_over_again(int? status) {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new StubPushDelivery().Answers(phone, new DeliveryFailed(status));
+
+    _ = await Handler(await StoreWith(phone, tablet), delivery).Send(LUCIE, _message, CancellationToken.None);
+
+    delivery.HandedOver.Select(static handedOver => handedOver.Device).ShouldBe([phone, tablet], ignoreOrder: true, "one push to each device, the failing phone's not handed over again");
+  }
+
   private static SendPushHandler Handler(IPushDeviceStore store, IPushDelivery delivery, ILogger<SendPushHandler>? logger = null) =>
     new(store, delivery, Allowlist.Parse($"{LUCIE}, {PETR}"), Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,
@@ -399,7 +477,10 @@ public sealed class SendPushHandlerTests {
     /// The line's own fields as <c>name=value</c>, without its message template, in the order the logging source generator
     /// enumerates them, which need not be the method's parameter order (this project's generator writes them reversed).
     /// </summary>
-    public IReadOnlyList<string> OwnNamedValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => $"{pair.Key}={pair.Value}")];
+    public IReadOnlyList<string> OwnNamedValues() => [.. OwnValues().Select(static pair => $"{pair.Key}={pair.Value}")];
+
+    /// <summary>The line's own fields, without its message template, as the logging source generator enumerates them.</summary>
+    public IReadOnlyList<KeyValuePair<string, object?>> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT)];
 
     /// <summary>The event's name, the message and every value, as one text.</summary>
     public string AllText() => string.Join(" | ", [EventName, Message, .. Values.Select(static pair => $"{pair.Key}={pair.Value}")]);
