@@ -6,18 +6,25 @@ namespace RevolutReader.Api.Account;
 /// <summary>
 /// The bank's lines without blank lines and without any line repeating the counterparty, compared ignoring letter case,
 /// accents and spacing; runs of spaces in a kept line collapsed (c010 design.md D4b, the design system's descriptionLines).
+/// A blank counterparty counts as none.
 /// </summary>
 public static class TransactionText {
   /// <summary>
+  /// The counterparty as the app shows it: the bank's name as it is, or <see langword="null"/> when the bank gives none, an
+  /// empty one or one of white space only.
+  /// </summary>
+  public static string? Counterparty(string? counterparty) => string.IsNullOrWhiteSpace(counterparty) ? null : counterparty;
+
+  /// <summary>
   /// The bank's lines in their order, each with its runs of white space collapsed to one space and none at its ends;
   /// blank lines left out, and every line that is nothing but the counterparty's name: the same letters once accents are
-  /// taken off, in any letter case (culture-independent), with any spacing. Without a counterparty, or with one of spaces
-  /// only, there is no name to compare with, and only blank lines go.
+  /// taken off, in any letter case (culture-independent), with any spacing. Without a counterparty, or with a blank one
+  /// (<see cref="Counterparty"/>), there is no name to compare with, and only blank lines go.
   /// </summary>
   public static IReadOnlyList<string> Details(string? counterparty, IReadOnlyList<string> paymentDetails) {
     ArgumentNullException.ThrowIfNull(paymentDetails);
 
-    string? name = string.IsNullOrWhiteSpace(counterparty) ? null : Comparable(counterparty);
+    string? name = Counterparty(counterparty) is { } shown ? Comparable(shown) : null;
 
     return [
       .. paymentDetails
