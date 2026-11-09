@@ -257,7 +257,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 39. [close] Slice 13 — A device whose push service fails is counted as failed and kept
 
-- [ ] 39.1 The scenario's test passes. Verify: green, including push-sending / A device whose push service fails is counted as failed and kept
+- [x] 39.1 The scenario's test passes. Verify: green, including push-sending / A device whose push service fails is counted as failed and kept
 
 ## 40. [unit] Slice 14 — Registering again
 
