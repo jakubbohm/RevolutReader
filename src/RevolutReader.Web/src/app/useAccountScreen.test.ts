@@ -425,3 +425,52 @@ test("A first question that fails with no answer after 1.5 s does not count as a
     body: "waking",
   });
 });
+
+// D3, "Asking again who is signed in" (code review of PR #59, finding 8; the owner's choice, 2026-11-09): the moment
+// the repeated question starts, the screen's problem goes, and the screen shows what it has (the stored balance in its
+// default state) with no waking-up screen; the question has the 60 s cap, then ends as offline again.
+test("Asking again who is signed in clears the offline banner while it runs, and ends as offline after 60 s", async () => {
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: [noConnection, noAnswerYet, LUCIE],
+    balance: balance(301.9),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(result.current.shown, "the first question: offline").toMatchObject({
+    banner: { kind: "offline" },
+  });
+
+  // Back online: who is signed in is asked again, and the server does not answer.
+  goOffline();
+  goOnline();
+  await timePasses(0);
+  expect(result.current.shown, "the moment it is asked again").toMatchObject({
+    banner: null,
+  });
+  await timePasses(59 * SECOND);
+  expect(result.current.shown, "at 59 s, still asking").toMatchObject({
+    screen: "account",
+    header: { balance: { amount: 286.4 }, refreshing: false },
+    banner: null,
+  });
+  expect(result.current.shown, "no waking-up screen").not.toMatchObject({
+    body: "waking",
+  });
+  expect(result.current.shown, "no slow waking-up screen").not.toMatchObject({
+    body: "waking slow",
+  });
+
+  await timePasses(SECOND);
+  expect(result.current.shown, "at 60 s, offline again").toMatchObject({
+    banner: { kind: "offline" },
+  });
+
+  // "Zkusit znovu" on the offline banner: the stalled question no longer blocks a new one.
+  act(() => {
+    result.current.retry();
+  });
+  await timePasses(0);
+  expect(timesSent("GET /api/me"), "asked a third time").toBe(3);
+});
