@@ -229,7 +229,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 33. [close] Slice 11 — A message too long for a push is refused
 
-- [ ] 33.1 The scenario's test passes. Verify: green, including push-sending / A message too long for a push is refused
+- [x] 33.1 The scenario's test passes. Verify: green, including push-sending / A message too long for a push is refused
 
 ## 34. [unit] Slice 12 — Gone devices
 
