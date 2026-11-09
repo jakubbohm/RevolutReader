@@ -194,6 +194,48 @@ test("A failed older page never takes the banner", async () => {
   expect(result.current.banner).toBeNull();
 });
 
+// D7: C7a's request rules, the 60 s cap among them, apply to an older page too; with no answer by then it is aborted
+// and ends as failed, so "Zkusit znovu" can ask it again, instead of loading for good.
+test("An older page with no answer within 60 s ends as failed", async () => {
+  startTestClock();
+  answerWith({
+    transactions: NEWEST_PAGE,
+    olderTransactions: {
+      "2026-10-20": [noAnswerYet, transactionsPage([BOOKSHOP])],
+    },
+  });
+  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  await timePasses(0);
+  act(() => {
+    result.current.loadOlder();
+  });
+
+  await timePasses(59 * SECOND);
+  expect(result.current.shown, "at 59 s, still loading").toMatchObject({
+    body: "list",
+    list: { older: "loading" },
+  });
+  await timePasses(SECOND);
+
+  expect(result.current.shown, "at 60 s, failed").toMatchObject({
+    body: "list",
+    list: { older: "error" },
+  });
+  expect(timeline(), "the read is aborted").toContain(
+    `aborted ${OLDER_BEFORE_OCTOBER_20}`,
+  );
+
+  act(() => {
+    result.current.retryOlder();
+  });
+  await timePasses(0);
+
+  expect(olderRequests(), '"Zkusit znovu" asks again').toEqual([
+    OLDER_BEFORE_OCTOBER_20,
+    OLDER_BEFORE_OCTOBER_20,
+  ]);
+});
+
 /** The older pages the app asked for, in order. */
 function olderRequests(): string[] {
   return requests().filter((sent) =>
