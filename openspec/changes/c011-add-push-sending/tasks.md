@@ -327,18 +327,18 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 The test-writer also writes `src/test/push.ts` (the stand-ins for `Notification`, `PushManager` and the service worker registration, removed after each test) and the fake server's answers to the three push addresses in `src/test/server.ts`.
 
-- [ ] 52.1 Reading the push key answers the key
-- [ ] 52.2 Reading the push key answers signed out, refused, unexpected or offline as every read does
-- [ ] 52.3 Sending a subscription sends the browser's own subscription JSON and answers done on 204
-- [ ] 52.4 Sending a subscription the server refuses answers refused subscription
-- [ ] 52.5 Forgetting a subscription sends its push address in the body and answers done on 204
-- [ ] 52.6 Sending or forgetting answers offline without sending while the phone says it is offline
-- [ ] 52.7 Push is supported only with a service worker, PushManager and Notification
-- [ ] 52.8 Subscribing asks for visible pushes only, with the server's key as bytes
-- [ ] 52.9 The current subscription is the registration's, or none
-- [ ] 52.10 A subscription's key reads back in base64url, and it was made with a key exactly when the two are equal
-- [ ] 52.11 Unsubscribing answers whether the browser unsubscribed
-- [ ] 52.12 base64url turns into bytes and back unchanged, without padding
+- [x] 52.1 Reading the push key answers the key
+- [x] 52.2 Reading the push key answers signed out, refused, unexpected or offline as every read does
+- [x] 52.3 Sending a subscription sends the browser's own subscription JSON and answers done on 204
+- [x] 52.4 Sending a subscription the server refuses answers refused subscription
+- [x] 52.5 Forgetting a subscription sends its push address in the body and answers done on 204
+- [x] 52.6 Sending or forgetting answers offline without sending while the phone says it is offline
+- [x] 52.7 Push is supported only with a service worker, PushManager and Notification
+- [x] 52.8 Subscribing asks for visible pushes only, with the server's key as bytes
+- [x] 52.9 The current subscription is the registration's, or none
+- [x] 52.10 A subscription's key reads back in base64url, and it was made with a key exactly when the two are equal
+- [x] 52.11 Unsubscribing answers whether the browser unsubscribed
+- [x] 52.12 base64url turns into bytes and back unchanged, without padding
 
 ## 53. [unit] Guards
 
