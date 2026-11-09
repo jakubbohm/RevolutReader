@@ -276,7 +276,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 - [x] 42.5 A push address with user information is refused
 - [x] 42.6 A push address longer than 2048 characters is refused
 - [x] 42.7 A missing or relative push address is refused
-- [ ] 42.8 A service pattern with a path, a query, a wildcard not at its start, or plain http on a host that is not loopback fails validation
+- [x] 42.8 A service pattern with a path, a query, a wildcard not at its start, or plain http on a host that is not loopback fails validation
 - [x] 42.9 A refused subscription stores nothing
 
 ## 43. [wiring] Slice 15 — The subscription's refusal

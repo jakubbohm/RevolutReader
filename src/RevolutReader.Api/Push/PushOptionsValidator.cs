@@ -9,8 +9,9 @@ namespace RevolutReader.Api.Push;
 /// What the data annotations cannot check (c011 design.md D5): the VAPID public key is a P-256 point and the private key a
 /// 32-byte scalar, each in base64url without padding, and a fixed text signed with the private half verifies with the
 /// public half (an import alone does not prove they belong together); the message key is at least 32 bytes in base64url;
-/// Subject is an https origin. The request timeout's range is a data annotation. Each message names the setting, never its
-/// value or any part of it.
+/// Subject is an https origin; every entry of Services is a push service pattern (D9: <see cref="PushServicePattern"/>, the
+/// rule <see cref="KnownPushServices"/> matches by). The request timeout's range is a data annotation. Each message names
+/// the setting (and the entry), never its value or any part of it.
 /// </summary>
 public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
   /// <summary>The uncompressed point's length: 0x04, then X and Y, 32 bytes each (SEC 1, § 2.3.3).</summary>
@@ -73,6 +74,11 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
 
     if (!IsAppAddress(options.Subject))
       failures.Add(NOT_AN_APP_ADDRESS);
+
+    if (options.Services is not null)
+      failures.AddRange(options.Services
+        .Where(static entry => !PushServicePattern.TryParse(entry.Value, out _))
+        .Select(static entry => NotAPushService(entry.Key)));
 
     return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
   }
@@ -153,4 +159,10 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
     && address.AbsolutePath == "/"
     && address.Query.Length == 0
     && address.Fragment.Length == 0;
+
+  /// <summary>The failure for the entry <paramref name="entry"/> of Services: its name, never its value.</summary>
+  private static string NotAPushService(string entry) =>
+    $"{nameof(PushOptions)}.{nameof(PushOptions.Services)}:{entry} is not a push service pattern: expected https and a host, "
+    + "or https, \"*.\" and a host suffix, with an optional port and no user information, path, query or fragment; plain http "
+    + "only on a loopback host.";
 }
