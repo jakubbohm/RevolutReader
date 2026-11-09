@@ -28,7 +28,7 @@ The system SHALL read the transactions of the linked account from a given day, i
 - **THEN** the result holds only the booked transaction
 
 ### Requirement: What a transaction carries
-Each returned transaction SHALL carry exactly: its reference (possibly missing while pending), status (booked or pending), date (the transaction date, else the booking date, else the value date), amount (negative for money spent, positive for money received; a negative amount from the bank is an error), currency, counterparty (the payee for money spent, the payer for money received; possibly missing) and payment details (the bank's lines, unchanged, possibly none).
+Each returned transaction SHALL carry exactly: its reference (possibly missing while pending), status (booked or pending), date (the transaction date, else the booking date, else the value date), amount (negative for money spent, positive for money received; a negative amount from the bank is an error), currency, counterparty (the payee for money spent, the payer for money received; possibly missing), payment details (the bank's lines, unchanged, possibly none) and type code (the bank's code for the kind of transaction, unchanged, possibly missing).
 
 #### Scenario: A spent payment comes back negative, with the payee and its details
 - **GIVEN** the bank lists a booked payment of 12.30 EUR with reference "e-101", booked on 2026-11-03, to "Pekárna U Lípy", with the details "Pekárna U Lípy" and "Praha 2"
@@ -39,6 +39,11 @@ Each returned transaction SHALL carry exactly: its reference (possibly missing w
 - **GIVEN** the bank lists a booked transfer of 50.00 EUR received on 2026-11-04 from "Jan Novák"
 - **WHEN** the transactions from 2026-11-01 are read
 - **THEN** the result is one booked transaction of 50.00 EUR on 2026-11-04, payer "Jan Novák"
+
+#### Scenario: A transaction comes back with the bank's type code
+- **GIVEN** the bank lists a booked card payment of 12.30 EUR on 2026-11-03 with the type code "CARD_PAYMENT"
+- **WHEN** the transactions from 2026-11-01 are read
+- **THEN** the result is one booked transaction of -12.30 EUR on 2026-11-03 with the type code "CARD_PAYMENT"
 
 ### Requirement: Every page is read
 A transactions read SHALL follow the bank's pages until the bank signals that no page follows, and return the transactions of all pages as one list, for at most 20 pages; a read whose 20th page still announces another SHALL fail as an error. If any page fails, the read SHALL fail as a whole with that page's failure and return no partial list.
