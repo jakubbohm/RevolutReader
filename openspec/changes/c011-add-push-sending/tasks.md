@@ -312,7 +312,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 49. [close] Slice 17 — A forgotten device gets no more messages
 
-- [ ] 49.1 The scenario's test passes. Verify: green, including push-devices / A forgotten device gets no more messages
+- [x] 49.1 The scenario's test passes. Verify: green, including push-devices / A forgotten device gets no more messages
 
 ## 50. [unit] Slice 18 — Forgetting nothing
 
