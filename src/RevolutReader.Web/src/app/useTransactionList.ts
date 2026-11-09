@@ -36,20 +36,19 @@ export interface TransactionListOptions {
   enabled: boolean;
   /**
    * A newest page's read found the login ended (401, 403): the account screen's sign-in or no-access screen takes it
-   * (c009 design.md D4, D5 c). Without it, the list shows it as an unexpected answer.
+   * (c009 design.md D4, D5 c).
    */
-  onLoginEnded?: (ended: LoginEnded) => void;
+  onLoginEnded: (ended: LoginEnded) => void;
   /** A newest page's read has landed, whatever it brought: a wake waits for it (c010 design.md D8). */
   onNewestLanded?: () => void;
 }
 
 /**
- * What the account screen needs from the list's sequence: what the list's place shows, the banner the list's own
- * problem makes, what the list reports to the screen's state, and the list's actions.
+ * What the account screen needs from the list's sequence: what the list's place shows, what the list reports to the
+ * screen's state, whose banner and offline note tell its problem (c010 design.md D8), and the list's actions.
  */
 export interface TransactionListModel {
   shown: ListShown;
-  banner: ListProblem | null;
   /** What the list reports to the account screen's state (c010 design.md D8). */
   report: ListReport;
   /** The screen's refresh signal (c010 design.md D8): reads the newest page again, unless a read is under way. */
@@ -137,8 +136,7 @@ export function useTransactionList(
     const { onLoginEnded, onNewestLanded } = callbacks.current;
     onNewestLanded?.();
     if (read.kind === "read") show(withNewest(shownPage.current, read.page));
-    else if (isLoginEnded(read) && onLoginEnded !== undefined)
-      onLoginEnded(read);
+    else if (isLoginEnded(read)) onLoginEnded(read);
     else setProblem(problemOf(read));
   }, [show]);
 
@@ -204,11 +202,11 @@ export function useTransactionList(
   }, [readOlder]);
 
   return {
-    ...listShown(
+    shown: listShown(
       page === null
         ? { list: null, reading, problem }
         : { ...page, reading, problem },
-    ),
+    ).shown,
     report: { reading, problem, onScreen: page !== null },
     refresh,
     loadOlder,
@@ -250,12 +248,11 @@ function isLoginEnded(read: TransactionsRead): read is LoginEnded {
 }
 
 /**
- * The list's problem for a read that brought no page (D7): offline (nothing sent, no answer, or the cap's abort) and
- * the three bank problems as they are; any other answer is unexpected, 401 and 403 among them when no account screen
- * takes them (D8).
+ * The list's problem for a read that brought no page and did not find the login ended (D7, D8): offline (nothing sent,
+ * no answer, or the cap's abort), the three bank problems and an unexpected answer, as they are.
  */
 function problemOf(
-  read: Exclude<TransactionsRead, { kind: "read" }>,
+  read: Exclude<TransactionsRead, { kind: "read" } | LoginEnded>,
 ): ListProblem {
   switch (read.kind) {
     case "offline":
@@ -263,10 +260,7 @@ function problemOf(
     case "bank access expired":
     case "bank rate limited":
     case "bank unavailable":
-      return { kind: read.kind };
     case "unexpected":
-    case "signed out":
-    case "refused":
-      return { kind: "unexpected" };
+      return { kind: read.kind };
   }
 }

@@ -1,8 +1,8 @@
 import type { ListState } from "./transactionList";
 
 /**
- * What went wrong with the newest page, as the list tells it (c010 design.md D7): 401 and 403 count as unexpected until
- * the join, where C7a's screens take them (D8).
+ * What went wrong with the newest page, as the list reports it to the account screen (c010 design.md D7, D8). 401 and
+ * 403 are never among them: the account screen's sign-in and no-access screens take them (D8).
  */
 export type ListProblem =
   | { kind: "bank access expired" }
@@ -11,11 +11,13 @@ export type ListProblem =
   | { kind: "unexpected" }
   | { kind: "offline" };
 
-/** What the list's place on the account screen shows (c010 design.md D7). */
+/**
+ * What the list's place on the account screen shows (c010 design.md D7, D8); `none`, nothing: a failed newest page with
+ * no list.
+ */
 export type ListShown =
   | { body: "placeholder" }
   | { body: "empty" }
-  | { body: "offline note" }
   | { body: "list"; list: ListState; rate: number; rateDate: string }
   | { body: "none" };
 
@@ -32,19 +34,14 @@ export type ListFacts = {
 export const LIST_OFFLINE: ListProblem = { kind: "offline" };
 
 /**
- * What the list shows and which banner goes with it, from what is known (c010 design.md D2, D7); pure, extended at the
- * join (D8). A list once read stays on screen, through a failed read too, unless it has no transactions and nothing
- * older is kept: then it says that there are none yet. While the newest page is read and no list is on screen yet, its
- * placeholders. A failed newest page brings no transactions (D2): offline is the list's note, never a banner; any other
- * problem is the banner, kept above a list already shown, alone otherwise.
+ * What the list's place shows, from what is known (c010 design.md D2, D7, D8); pure. A list once read stays on screen,
+ * through a failed read too, unless it has no transactions and nothing older is kept: then it says that there are none
+ * yet. While the newest page is read and no list is on screen yet, its placeholders. A failed newest page brings no
+ * transactions (D2): with no list, nothing is in the list's place, offline too. The banner and the offline note are the
+ * account screen's (`screenState`), from what the list reports to it (D8).
  */
-export function listShown(facts: ListFacts): {
-  shown: ListShown;
-  banner: ListProblem | null;
-} {
-  const banner = bannerOf(facts.problem);
-
-  if (isEmpty(facts.list)) return { shown: { body: "empty" }, banner };
+export function listShown(facts: ListFacts): { shown: ListShown } {
+  if (isEmpty(facts.list)) return { shown: { body: "empty" } };
   if (facts.list !== null)
     return {
       shown: {
@@ -53,18 +50,10 @@ export function listShown(facts: ListFacts): {
         rate: facts.rate,
         rateDate: facts.rateDate,
       },
-      banner,
     };
-  if (facts.reading) return { shown: { body: "placeholder" }, banner: null };
-  if (facts.problem?.kind === "offline")
-    return { shown: { body: "offline note" }, banner: null };
+  if (facts.reading) return { shown: { body: "placeholder" } };
 
-  return { shown: { body: "none" }, banner };
-}
-
-/** The banner a problem makes: every problem but offline, which the list says in its note instead (D7). */
-function bannerOf(problem: ListProblem | null): ListProblem | null {
-  return problem?.kind === "offline" ? null : problem;
+  return { shown: { body: "none" } };
 }
 
 /** Whether the list is read and has nothing to show: no transactions on the newest page, and nothing older kept. */

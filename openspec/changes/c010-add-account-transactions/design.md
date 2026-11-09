@@ -480,16 +480,17 @@ export function withOlderPage(state: ListState, page: TransactionPage): ListStat
 export type ListProblem = { kind: "bank access expired" } | { kind: "bank rate limited" } | { kind: "bank unavailable" }
   | { kind: "unexpected" } | { kind: "offline" };
 export type ListShown =
-  | { body: "placeholder" } | { body: "empty" } | { body: "offline note" }
+  | { body: "placeholder" } | { body: "empty" }
   | { body: "list"; list: ListState; rate: number; rateDate: string }
   | { body: "none" };
-export function listShown(facts: { list: ListState | null; reading: boolean; problem: ListProblem | null; rate?: number; rateDate?: string }): { shown: ListShown; banner: ListProblem | null };
+// The review triage (finding 9) removed the list's own banner and offline note: since the join both are C7a's screen state's.
+export function listShown(facts: { list: ListState | null; reading: boolean; problem: ListProblem | null; rate?: number; rateDate?: string }): { shown: ListShown };
 
 // useTransactionList.ts — the sequence: the newest page after the session is signed in; one read at a time; the 60 s
 // cap; "Zkusit znovu"; reload on `online`; the next page when the marker shows; the failed page's retry.
 // At the join it takes C7a's refresh signal and reports its problem and its "reading" to C7a's screen state.
-export function useTransactionList(options: { enabled: boolean }): {
-  shown: ListShown; banner: ListProblem | null; retry(): void; loadOlder(): void; retryOlder(): void;
+export function useTransactionList(options: { enabled: boolean; onLoginEnded(ended: LoginEnded): void; onNewestLanded?(): void }): {
+  shown: ListShown; report: ListReport; refresh(): void; loadOlder(): void; retryOlder(): void;
 };
 
 // format.ts — formatEur(amount, { signed }), formatCzkApprox, czkApproxLabel (C7a's too, D13), formatRate,
