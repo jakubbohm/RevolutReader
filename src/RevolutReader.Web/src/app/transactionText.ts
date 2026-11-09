@@ -51,6 +51,16 @@ export function sheetSubtitle(tx: Transaction): string | null {
 }
 
 /**
+ * Whether a row shows the "Vrácení" chip before its second line (D4c): a refund whose first line is the counterparty
+ * and whose second line is the bank's text, so that no line says "Vrácení" twice. Stub until c010 tasks.md tasks 60.2
+ * and 60.3 are implemented; `void` keeps the unused-parameter check quiet until then.
+ */
+export function showsRefundChip(tx: Transaction): boolean {
+  void tx;
+  throw new Error("not implemented");
+}
+
+/**
  * The sheet's "Stav" (D4c, D4d): "Čeká na zpracování" while pending, a refund included, since it is not on the account
  * yet; once settled "Vráceno na účet" for a refund, else "Zaúčtováno".
  */

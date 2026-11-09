@@ -5,6 +5,7 @@ import {
   rowLabel,
   rowLines,
   sheetSubtitle,
+  showsRefundChip,
   statusWord,
 } from "./transactionText";
 import type { TransactionKind } from "./transactions";
@@ -219,4 +220,86 @@ test(`A settled transaction is "Zaúčtováno", a settled refund "Vráceno na ú
     // Not on the account yet, so not returned to it yet either.
     pendingRefund: "Čeká na zpracování",
   });
+});
+
+// ---- c010, Slice 25: pending (D4b) ----
+
+test(`A pending row's second line is "Čeká na zpracování"`, () => {
+  const cafe = transaction("card", -8.9, "2026-11-19", {
+    counterparty: "Kavárna Na Rohu",
+    details: ["Praha 1"],
+    pending: true,
+  });
+  const topUp = transaction("topup", 50, "2026-11-19", { pending: true });
+
+  // In place of the bank's text, and in place of the kind's word, also where the first line alone would show.
+  expect(rowLines(cafe)).toEqual({
+    first: "Kavárna Na Rohu",
+    second: "Čeká na zpracování",
+  });
+  expect(rowLines(topUp)).toEqual({
+    first: "Dobití účtu",
+    second: "Čeká na zpracování",
+  });
+  // The row says it as it shows it, the amount with its sign. 8.90 × 24.3 = 216.27
+  expect(spaced(rowLabel(cafe, RATE))).toBe(
+    "Kavárna Na Rohu, Čeká na zpracování, −8,90 €, přibližně 216 Kč",
+  );
+});
+
+// ---- c010, Slice 26: refunds (D4c) ----
+
+test("A refund's amount is shown as received, with a plus sign", () => {
+  const refund = transaction("refund", 5.95, "2026-11-18", {
+    details: ["Reklamace"],
+  });
+
+  expect(spaced(formatAmount(refund.amount, refund.currency))).toBe("+5,95 €");
+  // Without a counterparty the first line is the kind's word, so no chip. 5.95 × 24.3 = 144.585
+  expect(spaced(rowLabel(refund, RATE))).toBe(
+    "Vrácení peněz, Reklamace, +5,95 €, přibližně 145 Kč",
+  );
+});
+
+test(`A refund whose first line is the counterparty and whose second line is the bank's text shows the "Vrácení" chip`, () => {
+  const pharmacy = transaction("refund", 5.95, "2026-11-18", {
+    counterparty: "Lékárna Benu",
+    details: ["Reklamace"],
+  });
+  // The same two lines on money received that is no refund.
+  const pocketMoney = transaction("transfer", 20, "2026-11-18", {
+    counterparty: "Táta",
+    details: ["Kapesné na listopad"],
+  });
+
+  expect(showsRefundChip(pharmacy)).toBe(true);
+  expect(showsRefundChip(pocketMoney)).toBe(false);
+  // The row reads the chip between its two lines (D14). 5.95 × 24.3 = 144.585
+  expect(spaced(rowLabel(pharmacy, RATE))).toBe(
+    "Lékárna Benu, Vrácení, Reklamace, +5,95 €, přibližně 145 Kč",
+  );
+});
+
+test(`A refund whose second line is the kind's word, or whose first line is, shows no chip`, () => {
+  const withoutText = transaction("refund", 5.95, "2026-11-18", {
+    counterparty: "Lékárna Benu",
+  });
+  const withoutCounterparty = transaction("refund", 3.2, "2026-11-18", {
+    details: ["Reklamace"],
+  });
+  const withNeither = transaction("refund", 12, "2026-11-18");
+
+  expect({
+    withoutText: showsRefundChip(withoutText),
+    withoutCounterparty: showsRefundChip(withoutCounterparty),
+    withNeither: showsRefundChip(withNeither),
+  }).toEqual({
+    withoutText: false,
+    withoutCounterparty: false,
+    withNeither: false,
+  });
+  // "Vrácení" is said once, by the kind's word. 5.95 × 24.3 = 144.585
+  expect(spaced(rowLabel(withoutText, RATE))).toBe(
+    "Lékárna Benu, Vrácení peněz, +5,95 €, přibližně 145 Kč",
+  );
 });
