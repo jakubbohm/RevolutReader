@@ -286,7 +286,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 44. [close] Slice 15 — A push address outside the known push services is refused
 
-- [ ] 44.1 The scenario's test passes. Verify: green, including push-devices / A push address outside the known push services is refused
+- [x] 44.1 The scenario's test passes. Verify: green, including push-devices / A push address outside the known push services is refused
 
 ## 45. [unit] Slice 16 — The device's keys
 
