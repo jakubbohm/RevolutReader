@@ -8,8 +8,9 @@ namespace RevolutReader.IntegrationTests.Wiring.Push;
 
 /// <summary>
 /// Forgetting a device at the subscription endpoint (spec push-devices, "A device can be forgotten"; c011 design.md D9;
-/// tasks 47.1, 48.1): <c>DELETE /api/push/subscription</c> with <c>{ "endpoint" }</c> as its JSON body forgets the device
-/// with that push address and answers 204 with no content; the other devices stay. A request without a JSON body never
+/// tasks 47.1, 48.1, 50.1, 50.2): <c>DELETE /api/push/subscription</c> with <c>{ "endpoint" }</c> as its JSON body
+/// forgets the device with that push address and answers 204 with no content; the other devices stay. An address not
+/// stored, or none, answers 204 the same and forgets nothing. A request without a JSON body never
 /// reaches the endpoint (its body is declared with <c>Accepts</c>, D9) and gets exactly the answer an unknown <c>/api</c>
 /// address gets; a request from nobody signed in, or from an account not on the allowlist, is refused as at any other
 /// address behind sign-in, and nothing is forgotten. The scenario pins forgetting through the DSL; here the answer's
@@ -45,6 +46,58 @@ public sealed class ForgetSubscriptionTests {
       () => response.StatusCode.ShouldBe(HttpStatusCode.NoContent, content),
       () => content.ShouldBeEmpty());
     (await app.Devices.ReadAll(CancellationToken.None)).ShouldBe([luciesTablet, petrsLaptop], ignoreOrder: true, "only Lucie's phone is gone");
+  }
+
+  /// <summary>
+  /// Forgetting an address no device is stored under answers 204 too (D9, spec push-devices: so a browser can always
+  /// forget its device, e.g. at sign-out), never a 404, and forgets nothing, also when the address only resembles the
+  /// stored one (tasks 50.1, 48.1).
+  /// </summary>
+  /// <param name="notStored">The forgotten address: one never stored, or one that resembles Lucie's phone's.</param>
+  [Test]
+  [Arguments("an address never stored")]
+  [Arguments("the phone's address with its token in upper case")]
+  [Arguments("the phone's address cut short by one character")]
+  public async Task Forgetting_a_push_address_that_is_not_stored_answers_204_and_forgets_nothing(string notStored) {
+    await using SubscriptionEndpointApp app = new();
+    string token = MadeUpToken();
+    PushDevice luciesPhone = Device($"https://fcm.googleapis.com/fcm/send/{token}", LUCIE);
+    await Store(app, luciesPhone);
+    using HttpClient lucie = app.SignedInAs(LUCIE);
+    string pushAddress = notStored switch {
+      "an address never stored" => $"https://fcm.googleapis.com/fcm/send/{MadeUpToken()}",
+      "the phone's address with its token in upper case" => $"https://fcm.googleapis.com/fcm/send/{token.ToUpperInvariant()}",
+      "the phone's address cut short by one character" => luciesPhone.Endpoint[..^1],
+      _ => throw new ArgumentOutOfRangeException(nameof(notStored), notStored, "Not a known case."),
+    };
+
+    using HttpResponseMessage response = await Forget(lucie, SubscriptionEndpointApp.SUBSCRIPTION, ForgetBody(pushAddress), JSON);
+
+    await ShouldAnswer204WithNoContent(response);
+    (await app.Devices.ReadAll(CancellationToken.None)).ShouldBe([luciesPhone], "nothing is forgotten");
+  }
+
+  /// <summary>
+  /// Forgetting without a push address answers 204 too (D9: no address is fine), never a 400 for a missing member, and
+  /// forgets nothing, never every device (task 50.2).
+  /// </summary>
+  /// <param name="body">A JSON body without a push address.</param>
+  [Test]
+  [Arguments("{}")] // left out
+  [Arguments("""{ "endpoint": null }""")]
+  [Arguments("""{ "endpoint": "" }""")]
+  [Arguments("""{ "endpoint": "   " }""")]
+  public async Task Forgetting_without_a_push_address_answers_204_and_forgets_nothing(string body) {
+    await using SubscriptionEndpointApp app = new();
+    PushDevice luciesPhone = Device($"https://fcm.googleapis.com/fcm/send/{MadeUpToken()}", LUCIE);
+    PushDevice petrsLaptop = Device($"https://updates.push.services.mozilla.com/wpush/v2/{MadeUpToken()}", PETR);
+    await Store(app, luciesPhone, petrsLaptop);
+    using HttpClient lucie = app.SignedInAs(LUCIE);
+
+    using HttpResponseMessage response = await Forget(lucie, SubscriptionEndpointApp.SUBSCRIPTION, body, JSON);
+
+    await ShouldAnswer204WithNoContent(response);
+    (await app.Devices.ReadAll(CancellationToken.None)).ShouldBe([luciesPhone, petrsLaptop], ignoreOrder: true, "nothing is forgotten");
   }
 
   /// <summary>
@@ -94,6 +147,14 @@ public sealed class ForgetSubscriptionTests {
 
     response.StatusCode.ShouldBe(refusal, await response.Content.ReadAsStringAsync());
     (await app.Devices.ReadAll(CancellationToken.None)).ShouldBe([luciesPhone], "nothing is forgotten");
+  }
+
+  private static async Task ShouldAnswer204WithNoContent(HttpResponseMessage response) {
+    string content = await response.Content.ReadAsStringAsync();
+
+    response.ShouldSatisfyAllConditions(
+      () => response.StatusCode.ShouldBe(HttpStatusCode.NoContent, content),
+      () => content.ShouldBeEmpty());
   }
 
   private static async Task Store(SubscriptionEndpointApp app, params PushDevice[] devices) {

@@ -316,8 +316,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 50. [unit] Slice 18 — Forgetting nothing
 
-- [ ] 50.1 Forgetting a push address that is not stored is fine
-- [ ] 50.2 Forgetting without a push address is fine
+- [x] 50.1 Forgetting a push address that is not stored is fine
+- [x] 50.2 Forgetting without a push address is fine
 
 ## 51. [close] Slice 18 — Forgetting a device that was never registered is fine
 

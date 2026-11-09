@@ -16,7 +16,7 @@ namespace RevolutReader.IntegrationTests.Push;
 /// <item><c>Save</c>: inserts or replaces the device by its push address, whole: saving the same address again leaves one
 /// device with the latest keys and account.</item>
 /// <item><c>Forget</c>: deletes the device with that push address and no other; an address not stored does nothing and
-/// raises nothing, also in a store that has never held a device.</item>
+/// raises nothing, also in a store that has never held a device, and also for an empty or blank address.</item>
 /// </list>
 /// Each test starts from a new, empty store of its own (<see cref="NewStore"/>: for the adapter, a table no other test
 /// uses) and saves its own made-up devices, each at a push address of its own (a new token each time). The accounts are
@@ -99,6 +99,25 @@ public abstract class PushDeviceStoreContract {
       await store.Save(device, CancellationToken.None);
 
     await store.Forget(PushAddress(), CancellationToken.None);
+
+    (await store.ReadAll(CancellationToken.None)).ShouldBe(stored, ignoreOrder: true);
+  }
+
+  /// <summary>
+  /// The forget handler passes an empty or blank push address to the store as it is (D9: no address is fine), so the
+  /// store must take one: it deletes nothing, never every device, and raises nothing.
+  /// </summary>
+  /// <param name="pushAddress">An empty push address, or one of only spaces.</param>
+  [Test]
+  [Arguments("")]
+  [Arguments("   ")]
+  public async Task Forgetting_an_empty_or_blank_push_address_does_nothing(string pushAddress) {
+    IPushDeviceStore store = NewStore();
+    PushDevice[] stored = [Device(LUCIE), Device(PETR)];
+    foreach (PushDevice device in stored)
+      await store.Save(device, CancellationToken.None);
+
+    await store.Forget(pushAddress, CancellationToken.None);
 
     (await store.ReadAll(CancellationToken.None)).ShouldBe(stored, ignoreOrder: true);
   }
