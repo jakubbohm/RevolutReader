@@ -126,3 +126,13 @@ Decided by the user, 2026-11-05:
 - **Maximum 1 replica:** one app copy at a time.
 - **The app stays one process,** so the in-process test harness (R-12) stays valid.
 - **Software factory:** [lessons.md R-27](../software-factory/lessons.md) (including the reversal), and the project's shortcut in [divergences.md R-27](../software-factory/divergences.md).
+
+## Notes
+
+- **2026-11-08, C7a: the app keeps the server awake while it is on the screen** (c009 design.md D9; the user's choice in explore, over a first idea of the sign-in button waking the server first):
+  - it asks the health probe `GET /health` (anonymous, no bank, no storage) when it comes on the screen, at an open or a return, and every 4 minutes while it stays visible, under the 300 s cool-down; fire and forget, never shown;
+  - nothing while hidden or while the phone says it is offline. Why visible only: iOS suspends a Home Screen app in the background anyway, and a computer's background tab would otherwise keep the replica up around the clock, the always-on cost of item 5;
+  - after 30 minutes without a tap or a key press it stops, and the next one asks again at once, so an app left open on a screen does not keep the server running;
+  - every screen counts except the install hint, so the sign-in screen keeps the server awake too;
+  - the "Accepted" consequence above still holds for the first open after a quiet spell: the data takes about 20 s, which only an always-on replica would remove ([#18](https://github.com/jakubbohm/RevolutReader/issues/18));
+  - to check on Azure after C7a's merge (c009 design.md § Migration plan, step 4): with the app open for more than 5 minutes the replica stays up, and about 5 minutes after it closes it scales to zero.

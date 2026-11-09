@@ -180,3 +180,46 @@
 @utility animate-fade-in {
   animation: fade-in var(--duration-fast) var(--ease-standard);
 }
+
+/*
+ * The placeholders' slow pulse while data loads (design system Skeleton): 1.4 s, opacity only. None under reduced
+ * motion: a pulse that never ends is motion, unlike a single fade.
+ */
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+@utility animate-skeleton-pulse {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+ * The waking-up screen's indeterminate bar (design system WakingUp): a segment that sweeps across its track. Under
+ * reduced motion the component stops it and shows a static half-tone bar instead (motion-reduce: utilities at the use).
+ */
+@keyframes progress-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@utility animate-progress-indeterminate {
+  animation: progress-indeterminate 1.5s var(--ease-standard) infinite;
+}
+
+/*
+ * The busy spinner (the design system's loading state, its `tp-spin`): `loader-circle` turning once per duration-spin,
+ * for a button or menu item at work. It stands still under reduced motion.
+ */
+@utility animate-busy-spin {
+  animation: spin var(--duration-spin) linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

@@ -112,29 +112,32 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// <summary>The port, as the app copy wires it.</summary>
   private IBankAccount Account => services.GetRequiredService<IBankAccount>();
 
+  /// <summary>The bank answers the balance with <see cref="BalancesJson"/> of <paramref name="amount"/> and <paramref name="currency"/>.</summary>
+  public void HasAvailableBalance(decimal amount, string currency) => Bank.AnswerBalances(BalancesJson(amount, currency));
+
   /// <summary>
   /// The balances answer of the Mock ASPSP capture <c>spikes/enable-banking-mock/evidence/2026-11-06-account1-balances.json</c>
   /// (made-up data), copied with its shape and its other fields as captured; only the ITAV amount and currency are the
-  /// DSL's. The amount goes on the wire as a string, as the bank writes it.
+  /// DSL's. The amount goes on the wire as a string, as the bank writes it. Also <see cref="BalanceDriver"/>'s default
+  /// balance.
   /// </summary>
-  public void HasAvailableBalance(decimal amount, string currency) =>
-    Bank.AnswerBalances($$"""
-      {
-        "balances": [
-          {
-            "name": "Available balance calculated in the course of the business day",
-            "balance_amount": {
-              "currency": {{JsonString(currency)}},
-              "amount": {{JsonString(amount.ToString(CultureInfo.InvariantCulture))}}
-            },
-            "balance_type": "ITAV",
-            "last_change_date_time": null,
-            "reference_date": "2026-11-06",
-            "last_committed_transaction": null
-          }
-        ]
-      }
-      """);
+  internal static string BalancesJson(decimal amount, string currency) => $$"""
+    {
+      "balances": [
+        {
+          "name": "Available balance calculated in the course of the business day",
+          "balance_amount": {
+            "currency": {{JsonString(currency)}},
+            "amount": {{JsonString(amount.ToString(CultureInfo.InvariantCulture))}}
+          },
+          "balance_type": "ITAV",
+          "last_change_date_time": null,
+          "reference_date": "2026-11-06",
+          "last_committed_transaction": null
+        }
+      ]
+    }
+    """;
 
   /// <summary>One page, the transactions in the given order, and no next page (<c>continuation_key: null</c>, as the capture ends).</summary>
   public void Lists(IReadOnlyList<TransactionAtBank> transactions) {

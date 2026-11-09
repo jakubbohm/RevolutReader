@@ -4,8 +4,10 @@ import { AccountMenu, type Account } from "./AccountMenu";
 export interface AppShellProps {
   /** Who is signed in: the top bar then holds the account menu. Without one, the empty frame has no menu. */
   account?: Account;
-  /** "Odhlásit se" in the account menu. */
-  onSignOut?: () => void;
+  /** "Odhlásit se" in the account menu; while a promise it returns is pending, the menu stays open (c009 design.md D6). */
+  onSignOut?: () => void | Promise<void>;
+  /** A sign-out is under way: the account menu's "Odhlásit se" is busy (c009 design.md D6). */
+  signingOut?: boolean;
   /** The screen's content, stacked with the design's section gaps. */
   children?: ReactNode;
 }
@@ -18,6 +20,7 @@ export interface AppShellProps {
 export function AppShell({
   account,
   onSignOut,
+  signingOut = false,
   children,
 }: AppShellProps): JSX.Element {
   return (
@@ -29,7 +32,11 @@ export function AppShell({
             Tarjeta Papá
           </span>
           {account ? (
-            <AccountMenu account={account} onSignOut={onSignOut} />
+            <AccountMenu
+              account={account}
+              onSignOut={onSignOut}
+              signingOut={signingOut}
+            />
           ) : null}
         </div>
       </header>

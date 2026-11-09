@@ -9,6 +9,11 @@ import { defineConfig } from "vitest/config";
  */
 const apiAddress = process.env.API_HTTPS ?? process.env.API_HTTP;
 
+/** How the dev server forwards a path to the API (below). */
+const toTheApi = apiAddress
+  ? { target: apiAddress, changeOrigin: false, secure: false, xfwd: true }
+  : undefined;
+
 // https://vite.dev/config/ — c003 design.md D1
 export default defineConfig({
   // The browser talks to the dev server only, which forwards /api to the API. `secure: false` accepts the local
@@ -17,18 +22,9 @@ export default defineConfig({
   // https whichever address the dev server targets, and `changeOrigin: false` keeps the Host header, so the host is the
   // dev server's localhost:<port>. The sign-in's return address is then https://localhost:<port>/api/auth/signin-oidc,
   // and a write's Origin matches the API's own origin. Aspire adds the dev server's HTTPS certificate itself
-  // (WithHttpsDeveloperCertificate in the AppHost).
-  server: apiAddress
-    ? {
-        proxy: {
-          "/api": {
-            target: apiAddress,
-            changeOrigin: false,
-            secure: false,
-            xfwd: true,
-          },
-        },
-      }
+  // (WithHttpsDeveloperCertificate in the AppHost). /health goes the same way, for the keep-alive (c009 design.md D9).
+  server: toTheApi
+    ? { proxy: { "/api": toTheApi, "/health": toTheApi } }
     : undefined,
   plugins: [
     react(),
