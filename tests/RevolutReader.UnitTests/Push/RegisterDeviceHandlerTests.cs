@@ -14,8 +14,9 @@ namespace RevolutReader.UnitTests.Push;
 /// entry's and its host is the entry's host, or, for an entry <c>*.</c> and a suffix, ends in "." and the suffix; plain
 /// http only at a loopback service the settings name; it has no user information and is at most 2048 characters long.
 /// Any other push address is refused, naming the push address (<c>endpoint</c>) with a fixed reason, never its value, and
-/// nothing is stored: so a signed-in user can never make the server send requests to an address of their choosing.
-/// The handler runs with the real <see cref="KnownPushServices"/> on the settings given and the in-memory store. Every
+/// nothing is stored: so a signed-in user can never make the server send requests to an address of their choosing. A key
+/// that is missing, not base64url without padding, or of the wrong size or form is refused the same way, naming
+/// <c>keys.p256dh</c> or <c>keys.auth</c>; a refusal names every refused member at once. The handler runs with the real <see cref="KnownPushServices"/> on the settings given and the in-memory store. Every
 /// push address is made up (a new token each time) at a real push service's host, as browsers' addresses look; every key
 /// is generated in the test, as a browser makes them.
 /// </summary>
@@ -31,6 +32,17 @@ public sealed class RegisterDeviceHandlerTests {
 
   /// <summary>The member a refusal of the push address names, as the browser's subscription names it (D9).</summary>
   private const string PUSH_ADDRESS_MEMBER = "endpoint";
+
+  /// <summary>The members a refusal of a key names (D9).</summary>
+  private const string PUBLIC_KEY_MEMBER = "keys.p256dh";
+  private const string SECRET_MEMBER = "keys.auth";
+
+  /// <summary>The device's public key (<c>p256dh</c>): the uncompressed P-256 point, 0x04 then X and Y (D9; SEC 1, § 2.3.3).</summary>
+  private const int POINT_BYTES = 65;
+  private const byte UNCOMPRESSED_POINT = 0x04;
+
+  /// <summary>A sent value shorter than this could turn up in a fixed reason by chance, so only longer ones are looked for.</summary>
+  private const int SHORTEST_VALUE_LOOKED_FOR = 8;
 
   /// <summary>The longest push address accepted (D9).</summary>
   private const int LONGEST_PUSH_ADDRESS = 2048;
@@ -250,6 +262,152 @@ public sealed class RegisterDeviceHandlerTests {
     (await store.ReadAll(CancellationToken.None)).ShouldBe([luciesTablet, petrsPhone], ignoreOrder: true, "the store as it was");
   }
 
+  [Test]
+  public async Task A_missing_public_key_is_refused_naming_it() {
+    DeviceKeys keys = DeviceKeys.New();
+
+    await ShouldBeRefusedNaming(new DeviceSubscription(PushAddressAtGoogle(), null, keys.Auth), PUBLIC_KEY_MEMBER);
+  }
+
+  /// <param name="form">A public key in base64url that is not the 65-byte uncompressed point (D9).</param>
+  [Test]
+  [Arguments("64 bytes, the point without its last byte")]
+  [Arguments("66 bytes, the point and one more byte")]
+  [Arguments("65 bytes starting with 0x02, a compressed point's first byte")]
+  [Arguments("65 bytes starting with 0x00")]
+  [Arguments("the compressed point, 33 bytes")]
+  [Arguments("the secret's 16 bytes")]
+  [Arguments("nothing, an empty key")]
+  public async Task A_public_key_that_is_not_65_bytes_starting_with_0x04_is_refused_naming_it(string form) {
+    DeviceKeys keys = DeviceKeys.New();
+    byte[] publicKey = form switch {
+      "64 bytes, the point without its last byte" => keys.Point[..(POINT_BYTES - 1)],
+      "66 bytes, the point and one more byte" => [.. keys.Point, 0x01],
+      "65 bytes starting with 0x02, a compressed point's first byte" => [0x02, .. keys.Point[1..]],
+      "65 bytes starting with 0x00" => [0x00, .. keys.Point[1..]],
+      "the compressed point, 33 bytes" => [(byte)(0x02 | (keys.Point[^1] & 1)), .. keys.Point[1..33]],
+      "the secret's 16 bytes" => keys.Secret,
+      "nothing, an empty key" => [],
+      _ => throw new ArgumentOutOfRangeException(nameof(form), form, "Not a known case."),
+    };
+
+    await ShouldBeRefusedNaming(new DeviceSubscription(PushAddressAtGoogle(), Base64Url.EncodeToString(publicKey), keys.Auth), PUBLIC_KEY_MEMBER);
+  }
+
+  /// <summary>
+  /// Each key is base64url without padding (D9), as the browser's <c>toJSON()</c> writes it: any other form is refused,
+  /// even where a lenient decoder would read the right number of bytes from it.
+  /// </summary>
+  /// <param name="key">Which key is written in another form; the other one is well formed.</param>
+  /// <param name="form">The key's right bytes, written in a form that is not base64url without padding.</param>
+  [Test]
+  [MatrixDataSource]
+  public async Task A_key_that_is_not_base64url_is_refused_naming_it(
+    [Matrix(PUBLIC_KEY_MEMBER, SECRET_MEMBER)] string key,
+    [Matrix("with padding", "in standard base64", "with a space inside", "with a line break inside", "with a dot inside", "with a letter outside ASCII inside")] string form) {
+    Func<DeviceKeys, byte[]> bytesOf = key == PUBLIC_KEY_MEMBER ? static keys => keys.Point : static keys => keys.Secret;
+    DeviceKeys keys = form == "in standard base64" ? DeviceKeys.WithStandardBase64Character(bytesOf) : DeviceKeys.New();
+    string encoded = Base64Url.EncodeToString(bytesOf(keys));
+    int middle = encoded.Length / 2;
+    string written = form switch {
+      "with padding" => encoded.PadRight(encoded.Length + ((4 - (encoded.Length % 4)) % 4), '='),
+      "in standard base64" => Convert.ToBase64String(bytesOf(keys)).TrimEnd('='),
+      "with a space inside" => encoded.Insert(middle, " "),
+      "with a line break inside" => encoded.Insert(middle, "\n"),
+      "with a dot inside" => encoded.Insert(middle, "."),
+      "with a letter outside ASCII inside" => encoded.Insert(middle, "é"),
+      _ => throw new ArgumentOutOfRangeException(nameof(form), form, "Not a known case."),
+    };
+    DeviceSubscription subscription = key == PUBLIC_KEY_MEMBER
+      ? new DeviceSubscription(PushAddressAtGoogle(), written, keys.Auth)
+      : new DeviceSubscription(PushAddressAtGoogle(), keys.P256dh, written);
+
+    written.ShouldNotBe(encoded, "the test's own check: the key is written in another form");
+    await ShouldBeRefusedNaming(subscription, key);
+  }
+
+  [Test]
+  public async Task A_missing_secret_is_refused_naming_it() {
+    DeviceKeys keys = DeviceKeys.New();
+
+    await ShouldBeRefusedNaming(new DeviceSubscription(PushAddressAtGoogle(), keys.P256dh, null), SECRET_MEMBER);
+  }
+
+  /// <param name="bytes">A secret's size in bytes other than 16 (D9): none, the scenario's 8, one fewer, one more, twice, and a public key's.</param>
+  [Test]
+  [Arguments(0)]
+  [Arguments(8)]
+  [Arguments(15)]
+  [Arguments(17)]
+  [Arguments(32)]
+  [Arguments(65)]
+  public async Task A_secret_that_is_not_16_bytes_is_refused_naming_it(int bytes) {
+    DeviceKeys keys = DeviceKeys.New();
+    string secret = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(bytes));
+
+    await ShouldBeRefusedNaming(new DeviceSubscription(PushAddressAtGoogle(), keys.P256dh, secret), SECRET_MEMBER);
+  }
+
+  /// <summary>
+  /// A refusal names every refused member at once (D9: the problem's <c>errors</c> name each), so the browser's whole
+  /// subscription is judged in one answer.
+  /// </summary>
+  /// <param name="refusal">What is wrong with the subscription.</param>
+  [Test]
+  [Arguments("both keys missing")]
+  [Arguments("both keys of the wrong size")]
+  [Arguments("both keys not base64url")]
+  [Arguments("the push address at no known service and both keys missing")]
+  [Arguments("the push address at no known service and the secret of the wrong size")]
+  public async Task A_subscription_with_several_members_wrong_is_refused_naming_each(string refusal) {
+    DeviceKeys keys = DeviceKeys.New();
+    string atNoService = $"https://push.example.com/device-{MadeUpToken()}";
+    (DeviceSubscription subscription, string[] members) = refusal switch {
+      "both keys missing" => (new DeviceSubscription(PushAddressAtGoogle(), null, null), new[] { PUBLIC_KEY_MEMBER, SECRET_MEMBER }),
+      "both keys of the wrong size" => (
+        new DeviceSubscription(PushAddressAtGoogle(), Base64Url.EncodeToString(keys.Point.AsSpan(0, POINT_BYTES - 1)), Base64Url.EncodeToString(keys.Secret.AsSpan(0, 8))),
+        new[] { PUBLIC_KEY_MEMBER, SECRET_MEMBER }),
+      "both keys not base64url" => (
+        new DeviceSubscription(PushAddressAtGoogle(), $"{keys.P256dh}=", $"{keys.Auth}=="),
+        new[] { PUBLIC_KEY_MEMBER, SECRET_MEMBER }),
+      "the push address at no known service and both keys missing" => (
+        new DeviceSubscription(atNoService, null, null),
+        new[] { PUSH_ADDRESS_MEMBER, PUBLIC_KEY_MEMBER, SECRET_MEMBER }),
+      "the push address at no known service and the secret of the wrong size" => (
+        new DeviceSubscription(atNoService, keys.P256dh, Base64Url.EncodeToString(keys.Secret.AsSpan(0, 8))),
+        new[] { PUSH_ADDRESS_MEMBER, SECRET_MEMBER }),
+      _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, "Not a known case."),
+    };
+
+    await ShouldBeRefusedNaming(subscription, members);
+  }
+
+  /// <summary>
+  /// Registers <paramref name="subscription"/> for Lucie; it must be refused naming exactly <paramref name="members"/>, in
+  /// any order, each with a reason that is not blank and quotes no value the subscription holds, and nothing stored.
+  /// </summary>
+  private static async Task ShouldBeRefusedNaming(DeviceSubscription subscription, params string[] members) {
+    InMemoryPushDeviceStore store = new();
+    string[] sent = [.. new[] { subscription.Endpoint, subscription.P256dh, subscription.Auth }
+      .OfType<string>()
+      .Where(static value => value.Trim().Length >= SHORTEST_VALUE_LOOKED_FOR)];
+
+    RegistrationResult result = await Handler(store, _knownServices).Handle(subscription, LUCIE, CancellationToken.None);
+
+    SubscriptionRefused refused = result.Value.ShouldBeOfType<SubscriptionRefused>("the subscription is refused");
+    refused.Members.Select(static member => member.Member).ShouldBe(members, ignoreOrder: true, "exactly the refused members, each once");
+
+    foreach (RefusedMember member in refused.Members) {
+      member.Reason.ShouldNotBeNullOrWhiteSpace($"the reason for {member.Member}");
+      sent.Where(value => member.Reason.Contains(value, StringComparison.Ordinal)).ShouldBeEmpty($"the reason for {member.Member} is fixed, never a value sent");
+    }
+
+    (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("a refused device is not stored");
+  }
+
+  /// <summary>A push address at Google's push service, which the known services name exactly.</summary>
+  private static string PushAddressAtGoogle() => $"https://fcm.googleapis.com/fcm/send/{MadeUpToken()}";
+
   /// <summary>
   /// Registers a device with well-formed keys at <paramref name="pushAddress"/>; it must be refused naming the push
   /// address alone, with a reason that quotes no part of it, and nothing stored.
@@ -301,7 +459,13 @@ public sealed class RegisterDeviceHandlerTests {
   private static string MadeUpToken() => $"made-up-{Guid.NewGuid():N}";
 
   /// <summary>A device's keys as a browser makes them (D9): a new P-256 public key, uncompressed, and a 16-byte secret, each base64url without padding.</summary>
-  private sealed record DeviceKeys(string P256dh, string Auth) {
+  private sealed record DeviceKeys(byte[] Point, byte[] Secret) {
+    /// <summary>The public key as the subscription carries it.</summary>
+    public string P256dh => Base64Url.EncodeToString(Point);
+
+    /// <summary>The secret as the subscription carries it.</summary>
+    public string Auth => Base64Url.EncodeToString(Secret);
+
     public static DeviceKeys New() {
       using ECDiffieHellman key = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
       ECPoint point = key.ExportParameters(includePrivateParameters: false).Q;
@@ -309,7 +473,22 @@ public sealed class RegisterDeviceHandlerTests {
       byte[] x = point.X ?? throw new UnreachableException("An exported P-256 key has its point.");
       byte[] y = point.Y ?? throw new UnreachableException("An exported P-256 key has its point.");
 
-      return new DeviceKeys(Base64Url.EncodeToString([0x04, .. x, .. y]), Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(SECRET_BYTES)));
+      return new DeviceKeys([UNCOMPRESSED_POINT, .. x, .. y], RandomNumberGenerator.GetBytes(SECRET_BYTES));
+    }
+
+    /// <summary>
+    /// New keys whose <paramref name="key"/>, in standard base64 without padding, holds a character base64url does not
+    /// have (<c>+</c> or <c>/</c>), as a server's <c>Convert.ToBase64String</c> would write it.
+    /// </summary>
+    public static DeviceKeys WithStandardBase64Character(Func<DeviceKeys, byte[]> key) {
+      for (int attempt = 0; attempt < 1000; attempt++) {
+        DeviceKeys keys = New();
+
+        if (Convert.ToBase64String(key(keys)).AsSpan().IndexOfAny('+', '/') >= 0)
+          return keys;
+      }
+
+      throw new UnreachableException("A thousand new keys, and none written with + or / in standard base64.");
     }
   }
 }
