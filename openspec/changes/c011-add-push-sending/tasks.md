@@ -281,8 +281,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 43. [wiring] Slice 15 — The subscription's refusal
 
-- [ ] 43.1 `SubscriptionEndpoint` answers `SubscriptionRefused` with FastEndpoints' validation 400 naming each member, never a value (design.md D9). Verify: the scenario's test reads the member
-- [ ] 43.2 Docs: deployment.md, the guided task for the production keys (design.md D5: the PowerShell 7 block, written as C6's in entra-id.md, with the subscription named; values never printed; the read-back lists names only), with its laptop variant for the user-secrets and the backup vault, and local-secrets.md's three rows and their backups. Verify: the block runs in the owner's shell (tasks 54.1 and 54.2)
+- [x] 43.1 `SubscriptionEndpoint` answers `SubscriptionRefused` with FastEndpoints' validation 400 naming each member, never a value (design.md D9). Verify: the scenario's test reads the member
+- [x] 43.2 Docs: deployment.md, the guided task for the production keys (design.md D5: the PowerShell 7 block, written as C6's in entra-id.md, with the subscription named; values never printed; the read-back lists names only), with its laptop variant for the user-secrets and the backup vault, and local-secrets.md's three rows and their backups. Verify: the block runs in the owner's shell (tasks 54.1 and 54.2)
 
 ## 44. [close] Slice 15 — A push address outside the known push services is refused
 

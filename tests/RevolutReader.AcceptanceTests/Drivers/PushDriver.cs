@@ -96,6 +96,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <summary>A made-up wrong key's length in random bytes, as long as the message key (D10).</summary>
   private const int MESSAGE_KEY_BYTES = 32;
 
+  /// <summary>A made-up device secret's length in random bytes, as a browser's (RFC 8291 § 3.2).</summary>
+  private const int SECRET_BYTES = 16;
+
   /// <summary>The fetch metadata the app's own page sends with a write (c007 design.md D4).</summary>
   private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
   private const string SAME_ORIGIN = "same-origin";
@@ -203,7 +206,15 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="pushAddress"/> as the push address and
   /// well-formed keys made up for it (a new P-256 public point and a 16-byte secret), so only the address can be refused.
   /// </summary>
-  public Task<RegistrationAnswer> RegisterAt(string pushAddress) => throw new NotImplementedException();
+  public Task<RegistrationAnswer> RegisterAt(string pushAddress) {
+    ArgumentNullException.ThrowIfNull(pushAddress);
+
+    using ECDiffieHellman deviceKey = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
+    string p256dh = Base64Url.EncodeToString(TestDevice.UncompressedPoint(deviceKey.ExportParameters(includePrivateParameters: false).Q));
+    string auth = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(SECRET_BYTES));
+
+    return RegisterSubscription(pushAddress, p256dh, auth);
+  }
 
   /// <summary>
   /// <c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="device"/>'s push address and public
@@ -302,7 +313,7 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
     using HttpResponseMessage response = await Browser.SendAsync(request);
 
-    return await RegistrationAnswerOf(response);
+    return await RegistrationAnswerOf(response, [pushAddress, p256dh, auth]);
   }
 
   /// <summary>
@@ -358,14 +369,34 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private string AppOrigin() =>
     (Browser.BaseAddress ?? throw new InvalidOperationException("The signed-in browser has no address.")).GetLeftPart(UriPartial.Authority);
 
-  /// <summary>The answer as a <see cref="RegistrationAnswer"/>, when its exact shape fits one; otherwise the step fails, naming the answer.</summary>
-  private static async Task<RegistrationAnswer> RegistrationAnswerOf(HttpResponseMessage response) {
+  /// <summary>
+  /// The answer as a <see cref="RegistrationAnswer"/>, when its exact shape fits one: 204 with no content, or a refusal
+  /// naming a member (<see cref="RefusalOf"/>); otherwise the step fails, naming the answer. A refusal holding any of
+  /// <paramref name="sentValues"/> fails the step.
+  /// </summary>
+  private static async Task<RegistrationAnswer> RegistrationAnswerOf(HttpResponseMessage response, IReadOnlyCollection<string> sentValues) {
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
     string body = await response.Content.ReadAsStringAsync();
 
-    return response.StatusCode == HttpStatusCode.NoContent && body.Length == 0
-      ? RegistrationAnswer.Registered
+    if (response.StatusCode == HttpStatusCode.NoContent && body.Length == 0)
+      return RegistrationAnswer.Registered;
+
+    (ProblemDescription Problem, RequestPart? Part)? refusal = JsonObjectOrNull(body) is JsonElement problem ? RefusalOf(response.StatusCode, mediaType, problem) : null;
+
+    if (refusal is not null && HoldsAny(body, sentValues))
+      throw new InvalidOperationException($"PUT {SUBSCRIPTION} answered a refusal that holds a value the request sent: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+
+    return refusal is (ProblemDescription description, RequestPart part)
+      ? RegistrationAnswer.Refused(description, part)
       : throw new InvalidOperationException($"PUT {SUBSCRIPTION} answered what no registration answer fits: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
   }
+
+  /// <summary>
+  /// Whether <paramref name="body"/> holds any of <paramref name="sentValues"/>, ignoring case; an empty or blank value is
+  /// skipped, as every body would hold it.
+  /// </summary>
+  private static bool HoldsAny(string body, IEnumerable<string> sentValues) =>
+    sentValues.Any(value => !string.IsNullOrWhiteSpace(value) && body.Contains(value, StringComparison.OrdinalIgnoreCase));
 
   /// <summary>
   /// The answer as a <see cref="MessageAnswer"/>, when its exact shape fits one: 200 <c>application/json</c> with exactly
@@ -382,9 +413,11 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
         && Int(counts, DELIVERED) is int delivered && Int(counts, FAILED) is int failed && Int(counts, REMOVED) is int removed
         ? MessageAnswer.Counts(delivered, failed, removed)
         : null
-      : json is JsonElement problem ? RefusalOf(response.StatusCode, mediaType, problem) : null;
+      : json is JsonElement problem && RefusalOf(response.StatusCode, mediaType, problem) is (ProblemDescription description, var part)
+        ? MessageAnswer.Refused(description, part)
+        : null;
 
-    if (answer?.Problem is not null && sentValues.FirstOrDefault(value => body.Contains(value, StringComparison.OrdinalIgnoreCase)) is not null)
+    if (answer?.Problem is not null && HoldsAny(body, sentValues))
       throw new InvalidOperationException($"POST {MESSAGES} answered a refusal that holds a value the request sent: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
 
     return answer
@@ -395,9 +428,10 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// The refusal, when the answer is a problem description of a case in <see cref="_statusByCase"/> with that case's status:
   /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (a plain
   /// status's RFC type, <see cref="_plainStatusTypes"/>, read as <see langword="null"/>); a 400's <c>errors</c> naming
-  /// exactly one member the driver knows (<see cref="RefusedPart"/>). Otherwise <see langword="null"/>.
+  /// exactly one member the driver knows (<see cref="RefusedPart"/>), the part it names; other cases name none. Otherwise
+  /// <see langword="null"/>.
   /// </summary>
-  private static MessageAnswer? RefusalOf(HttpStatusCode status, string mediaType, JsonElement problem) {
+  private static (ProblemDescription Problem, RequestPart? Part)? RefusalOf(HttpStatusCode status, string mediaType, JsonElement problem) {
     if (!IsMediaType(mediaType, PROBLEM_JSON) || Int(problem, STATUS) != (int)status)
       return null;
 
@@ -410,9 +444,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
       return null;
 
     if (status != HttpStatusCode.BadRequest)
-      return MessageAnswer.Refused(description);
+      return (description, null);
 
-    return RefusedPart(problem) is RequestPart part ? MessageAnswer.Refused(description, part) : null;
+    return RefusedPart(problem) is RequestPart part ? (description, part) : null;
   }
 
   /// <summary>
