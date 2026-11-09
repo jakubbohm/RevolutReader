@@ -67,10 +67,10 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 5. [unit] Slice 2 — The message
 
-- [ ] 5.1 A message becomes Declarative Web Push JSON with web_push 8030, its title, its text as body, and navigate at the app's address of its page
-- [ ] 5.2 A message without text leaves body out
-- [ ] 5.3 A message without a page navigates to the app's start page
-- [ ] 5.4 The JSON carries no badge and nothing else
+- [x] 5.1 A message becomes Declarative Web Push JSON with web_push 8030, its title, its text as body, and navigate at the app's address of its page
+- [x] 5.2 A message without text leaves body out
+- [x] 5.3 A message without a page navigates to the app's start page
+- [x] 5.4 The JSON carries no badge and nothing else
 
 ## 6. [unit] Slice 2 — Registering a device
 
