@@ -12,15 +12,6 @@ namespace RevolutReader.Api.Push;
 /// the setting (and the entry), never its value or any part of it.
 /// </summary>
 public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
-  /// <summary>The uncompressed point's length: 0x04, then X and Y, 32 bytes each (SEC 1, § 2.3.3).</summary>
-  private const int POINT_BYTES = 65;
-
-  private const byte UNCOMPRESSED_POINT = 0x04;
-
-  private const int COORDINATE_BYTES = 32;
-
-  private const int SCALAR_BYTES = 32;
-
   private const int MESSAGE_KEY_MIN_BYTES = 32;
 
   private const string NOT_A_PUBLIC_KEY =
@@ -51,8 +42,8 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
 
     List<string> failures = [];
 
-    using ECDsa? publicKey = ImportPublicKey(options.VapidPublicKey);
-    using ECDsa? privateKey = ImportPrivateKey(options.VapidPrivateKey);
+    using ECDsa? publicKey = P256Keys.ImportPublicKey(options.VapidPublicKey);
+    using ECDsa? privateKey = P256Keys.ImportPrivateKey(options.VapidPrivateKey);
 
     if (publicKey is null)
       failures.Add(NOT_A_PUBLIC_KEY);
@@ -75,45 +66,6 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
         .Select(static entry => NotAPushService(entry.Key)));
 
     return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
-  }
-
-  /// <summary>The key <paramref name="text"/> holds when it is the 65-byte uncompressed point of P-256, else null.</summary>
-  private static ECDsa? ImportPublicKey(string? text) {
-    if (StrictBase64Url.Decode(text) is not { Length: POINT_BYTES } point || point[0] != UNCOMPRESSED_POINT)
-      return null;
-
-    return Import(new ECParameters {
-      Curve = ECCurve.NamedCurves.nistP256,
-      Q = new ECPoint { X = point[1..(1 + COORDINATE_BYTES)], Y = point[(1 + COORDINATE_BYTES)..] },
-    });
-  }
-
-  /// <summary>
-  /// The key <paramref name="text"/> holds when it is a 32-byte scalar the platform takes as a P-256 private key, else
-  /// null. Imported without a public point, which the platform derives from the scalar, so the pair check compares the
-  /// configured public half with the private half's own.
-  /// </summary>
-  private static ECDsa? ImportPrivateKey(string? text) =>
-    StrictBase64Url.Decode(text) is { Length: SCALAR_BYTES } scalar
-      ? Import(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, D = scalar })
-      : null;
-
-  /// <summary>
-  /// The platform's key for <paramref name="parameters"/>, or null when it refuses them. The platforms refuse differently
-  /// (probed 2026-11-09): Windows (CNG) refuses a point off the curve with <see cref="PlatformNotSupportedException"/> and a
-  /// scalar out of range with <see cref="CryptographicException"/>; Linux (OpenSSL) refuses a point off the curve with
-  /// <see cref="CryptographicException"/> and takes any 32-byte scalar, which only the pair check then refuses.
-  /// </summary>
-  private static ECDsa? Import(ECParameters parameters) {
-    try {
-      return ECDsa.Create(parameters);
-    }
-    catch (CryptographicException) {
-      return null;
-    }
-    catch (PlatformNotSupportedException) {
-      return null;
-    }
   }
 
   private static bool AreOnePair(ECDsa publicKey, ECDsa privateKey) {
