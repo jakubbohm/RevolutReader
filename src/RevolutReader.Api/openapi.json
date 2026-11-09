@@ -219,6 +219,60 @@
         }
       }
     },
+    "/api/push/subscription": {
+      "put": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "Registers this device for push notifications under the signed-in account",
+        "operationId": "RevolutReaderApiPushSubscriptionEndpoint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevolutReaderApiPushSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/transactions": {
       "get": {
         "tags": [
@@ -613,6 +667,58 @@
           }
         },
         "description": "The server's public push key, which the app subscribes to push notifications with"
+      },
+      "RevolutReaderApiPushSubscriptionKeys": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The device's P-256 public key, the uncompressed point (65 bytes)"
+          },
+          "auth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The device's secret (16 bytes)"
+          }
+        },
+        "description": "The device's keys for encrypting its pushes, each base64url without padding"
+      },
+      "RevolutReaderApiPushSubscriptionRequest": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The device's push address, at its push service"
+          },
+          "expirationTime": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "When the subscription expires, as the browser gives it; not used",
+            "format": "double"
+          },
+          "keys": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The device's keys for encrypting its pushes",
+                "$ref": "#/components/schemas/RevolutReaderApiPushSubscriptionKeys"
+              }
+            ]
+          }
+        },
+        "description": "A device's push subscription, as the browser's PushSubscription.toJSON() gives it"
       },
       "RevolutReaderApiSignInMeResponse": {
         "required": [

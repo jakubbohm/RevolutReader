@@ -112,11 +112,11 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 10. [wiring] Slice 2 — Delivery and the endpoints
 
-- [ ] 10.1 `WebPushDelivery` on Lib.Net.Http.WebPush with its typed `HttpClient` (timeout `Push:RequestTimeout`, no resilience handler), the VAPID pair, `Subject` and the `vapid` scheme, its retries off (`AutoRetryAfter = false`); `TTL` and `Urgency` from each push (design.md D1, D13, the sketch's library names). Verify: `HttpClientDefaultsTests` stays green
-- [ ] 10.2 `SubscriptionEndpoint` `PUT /api/push/subscription` (the signed-in email → `RegisterDeviceHandler` → 204; its body declared with `Accepts<SubscriptionRequest>("application/json")`, D9); `MessageEndpoint` `POST /api/push/messages` (anonymous, excluded from the description, binds nothing; `MessageKeyCheck` first; the body read by hand; `SendPushHandler` → 200 with the three counts), as design.md D9, D10. Verify: build passes
-- [ ] 10.3 `Conventions/AnonymousEndpointsTests` gains `POST /api/push/messages` (an anonymous endpoint goes on the allowlist). Verify: the convention test is green
-- [ ] 10.4 Drivers: `PushDriver` for registering and sending, reading what reached each phone through the fake push service's record and the test device's decryption (group 9a, the test-writer's; never edited here) (design.md D7). Verify: the scenario's test runs to its assertions
-- [ ] 10.5 Regenerate the TS client; commit both files. Verify: `/api/push/messages` is in neither; the type check passes
+- [x] 10.1 `WebPushDelivery` on Lib.Net.Http.WebPush with its typed `HttpClient` (timeout `Push:RequestTimeout`, no resilience handler), the VAPID pair, `Subject` and the `vapid` scheme, its retries off (`AutoRetryAfter = false`); `TTL` and `Urgency` from each push (design.md D1, D13, the sketch's library names). Verify: `HttpClientDefaultsTests` stays green
+- [x] 10.2 `SubscriptionEndpoint` `PUT /api/push/subscription` (the signed-in email → `RegisterDeviceHandler` → 204; its body declared with `Accepts<SubscriptionRequest>("application/json")`, D9); `MessageEndpoint` `POST /api/push/messages` (anonymous, excluded from the description, binds nothing; `MessageKeyCheck` first; the body read by hand; `SendPushHandler` → 200 with the three counts), as design.md D9, D10. Verify: build passes
+- [x] 10.3 `Conventions/AnonymousEndpointsTests` gains `POST /api/push/messages` (an anonymous endpoint goes on the allowlist). Verify: the convention test is green
+- [x] 10.4 Drivers: `PushDriver` for registering and sending, reading what reached each phone through the fake push service's record and the test device's decryption (group 9a, the test-writer's; never edited here) (design.md D7). Verify: the scenario's test runs to its assertions
+- [x] 10.5 Regenerate the TS client; commit both files. Verify: `/api/push/messages` is in neither; the type check passes
 
 ## 11. [close] Slice 2 — A registered device receives a message sent to its account
 

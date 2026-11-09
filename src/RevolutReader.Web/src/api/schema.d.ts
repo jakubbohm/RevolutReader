@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Registers this device for push notifications under the signed-in account */
+        put: operations["RevolutReaderApiPushSubscriptionEndpoint"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions": {
         parameters: {
             query?: never;
@@ -221,6 +238,24 @@ export interface components {
         RevolutReaderApiPushPushKeyResponse: {
             /** @description The VAPID public key (RFC 8292): the uncompressed P-256 point, base64url without padding */
             publicKey: string;
+        };
+        /** @description The device's keys for encrypting its pushes, each base64url without padding */
+        RevolutReaderApiPushSubscriptionKeys: {
+            /** @description The device's P-256 public key, the uncompressed point (65 bytes) */
+            p256dh?: null | string;
+            /** @description The device's secret (16 bytes) */
+            auth?: null | string;
+        };
+        /** @description A device's push subscription, as the browser's PushSubscription.toJSON() gives it */
+        RevolutReaderApiPushSubscriptionRequest: {
+            /** @description The device's push address, at its push service */
+            endpoint?: null | string;
+            /**
+             * Format: double
+             * @description When the subscription expires, as the browser gives it; not used
+             */
+            expirationTime?: null | number;
+            keys?: null | components["schemas"]["RevolutReaderApiPushSubscriptionKeys"];
         };
         /** @description The signed-in user's name and email address */
         RevolutReaderApiSignInMeResponse: {
@@ -431,6 +466,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevolutReaderApiPushPushKeyResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiPushSubscriptionEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevolutReaderApiPushSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
                 };
             };
             /** @description Unauthorized */

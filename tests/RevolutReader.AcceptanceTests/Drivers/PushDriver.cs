@@ -1,5 +1,9 @@
+using System.Globalization;
 using System.Net;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using RevolutReader.AcceptanceTests.Dsl;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
@@ -53,10 +57,51 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <summary>The server's public push key (D9).</summary>
   private const string PUSH_KEY = "/api/push/key";
 
+  /// <summary>Where a device is registered and forgotten (D9).</summary>
+  private const string SUBSCRIPTION = "/api/push/subscription";
+
+  /// <summary>The owner's message endpoint and its key's header (D10).</summary>
+  private const string MESSAGES = "/api/push/messages";
+  private const string MESSAGE_KEY = "X-Message-Key";
+
   private const string JSON = "application/json";
+
+  /// <summary>The fetch metadata the app's own page sends with a write (c007 design.md D4).</summary>
+  private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
+  private const string SAME_ORIGIN = "same-origin";
+  private const string ORIGIN = "Origin";
 
   /// <summary>The push key answer's one member (D9).</summary>
   private const string PUBLIC_KEY = "publicKey";
+
+  /// <summary>A subscription's members, as <c>PushSubscription.toJSON()</c> names them (D9).</summary>
+  private const string ENDPOINT = "endpoint";
+  private const string EXPIRATION_TIME = "expirationTime";
+  private const string KEYS = "keys";
+  private const string P256DH = "p256dh";
+  private const string AUTH = "auth";
+
+  /// <summary>The message request's members (D10).</summary>
+  private const string ACCOUNT = "account";
+  private const string TEXT = "text";
+  private const string PAGE = "page";
+
+  /// <summary>The message answer's members (D10).</summary>
+  private const string DELIVERED = "delivered";
+  private const string FAILED = "failed";
+  private const string REMOVED = "removed";
+
+  /// <summary>A Declarative Web Push message's members (D2); <see cref="TITLE"/> is the request's too.</summary>
+  private const string WEB_PUSH = "web_push";
+  private const int DECLARATIVE_WEB_PUSH = 8030;
+  private const string NOTIFICATION = "notification";
+  private const string TITLE = "title";
+  private const string BODY = "body";
+  private const string NAVIGATE = "navigate";
+
+  /// <summary>A push's headers the device reads (RFC 8030 § 5.2, § 5.3).</summary>
+  private const string TTL = "TTL";
+  private const string URGENCY = "Urgency";
 
   /// <summary>The signed-in browser.</summary>
   private HttpClient Browser => browser;
@@ -85,7 +130,11 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   }
 
   /// <summary><c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="device"/>'s own subscription.</summary>
-  public Task<RegistrationAnswer> Register(TestDevice device) => throw new NotImplementedException();
+  public Task<RegistrationAnswer> Register(TestDevice device) {
+    ArgumentNullException.ThrowIfNull(device);
+
+    return RegisterSubscription(device.PushAddress.AbsoluteUri, device.P256dh, device.Auth);
+  }
 
   /// <summary>
   /// <c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="pushAddress"/> as the push address and
@@ -103,7 +152,27 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   public Task<ForgetAnswer> Forget(TestDevice device) => throw new NotImplementedException();
 
   /// <summary><c>POST /api/push/messages</c> from the owner, with the message key, to <paramref name="account"/>; a part not given is left out.</summary>
-  public Task<MessageAnswer> SendMessage(string account, string? title, string? text, string? page) => throw new NotImplementedException();
+  public async Task<MessageAnswer> SendMessage(string account, string? title, string? text, string? page) {
+    ArgumentNullException.ThrowIfNull(account);
+
+    Dictionary<string, string> message = new(StringComparer.Ordinal) { [ACCOUNT] = account };
+
+    if (title is not null)
+      message[TITLE] = title;
+
+    if (text is not null)
+      message[TEXT] = text;
+
+    if (page is not null)
+      message[PAGE] = page;
+
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(MESSAGES, UriKind.Relative)) { Content = JsonContent.Create(message) };
+    request.Headers.Add(MESSAGE_KEY, PushService.MessageKey);
+
+    using HttpResponseMessage response = await Owner.SendAsync(request);
+
+    return await MessageAnswerOf(response);
+  }
 
   /// <summary><c>POST /api/push/messages</c> from the owner's client, with a wrong message key, to <paramref name="account"/>, titled <paramref name="title"/>.</summary>
   public Task<WholeAnswer> SendMessageWithAWrongKey(string account, string title) => throw new NotImplementedException();
@@ -118,10 +187,136 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   public Task<bool> IsRegistered(TestDevice device) => throw new NotImplementedException();
 
   /// <summary>Every push <paramref name="device"/>'s push service received, in the order received, as the device reads it.</summary>
-  public IReadOnlyList<PushReceived> PushesReceivedFor(TestDevice device) => throw new NotImplementedException();
+  public IReadOnlyList<PushReceived> PushesReceivedFor(TestDevice device) {
+    ArgumentNullException.ThrowIfNull(device);
+
+    return [.. PushService.PushesFor(device).Select(push => AsTheDeviceReadsIt(device, push))];
+  }
 
   /// <summary>How many requests the fake push service received at all, at any address.</summary>
-  public int PushesReceivedAtAll() => throw new NotImplementedException();
+  public int PushesReceivedAtAll() => PushService.Pushes().Count;
+
+  /// <summary>
+  /// <c>PUT /api/push/subscription</c> in the signed-in browser with a subscription as <c>PushSubscription.toJSON()</c>
+  /// gives it, <c>{ "endpoint", "expirationTime": null, "keys": { "p256dh", "auth" } }</c>, and the fetch metadata the
+  /// app's own page sends (<c>Sec-Fetch-Site: same-origin</c>, <c>Origin</c> the app's address); read as the class
+  /// describes.
+  /// </summary>
+  private async Task<RegistrationAnswer> RegisterSubscription(string pushAddress, string p256dh, string auth) {
+    JsonObject subscription = new() {
+      [ENDPOINT] = pushAddress,
+      [EXPIRATION_TIME] = null,
+      [KEYS] = new JsonObject { [P256DH] = p256dh, [AUTH] = auth },
+    };
+
+    using HttpRequestMessage request = new(HttpMethod.Put, new Uri(SUBSCRIPTION, UriKind.Relative)) { Content = JsonContent.Create(subscription) };
+    request.Headers.Add(SEC_FETCH_SITE, SAME_ORIGIN);
+    request.Headers.Add(ORIGIN, AppOrigin());
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await RegistrationAnswerOf(response);
+  }
+
+  /// <summary>The app's own origin, the signed-in browser's address, as its page's requests name it.</summary>
+  private string AppOrigin() =>
+    (Browser.BaseAddress ?? throw new InvalidOperationException("The signed-in browser has no address.")).GetLeftPart(UriPartial.Authority);
+
+  /// <summary>The answer as a <see cref="RegistrationAnswer"/>, when its exact shape fits one; otherwise the step fails, naming the answer.</summary>
+  private static async Task<RegistrationAnswer> RegistrationAnswerOf(HttpResponseMessage response) {
+    string body = await response.Content.ReadAsStringAsync();
+
+    return response.StatusCode == HttpStatusCode.NoContent && body.Length == 0
+      ? RegistrationAnswer.Registered
+      : throw new InvalidOperationException($"PUT {SUBSCRIPTION} answered what no registration answer fits: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+  }
+
+  /// <summary>
+  /// The answer as a <see cref="MessageAnswer"/>, when its exact shape fits one: 200 <c>application/json</c> with exactly
+  /// <c>delivered</c>, <c>failed</c> and <c>removed</c>, each a whole number; otherwise the step fails, naming the answer.
+  /// </summary>
+  private static async Task<MessageAnswer> MessageAnswerOf(HttpResponseMessage response) {
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+    string body = await response.Content.ReadAsStringAsync();
+
+    MessageAnswer? answer = response.StatusCode == HttpStatusCode.OK && IsMediaType(mediaType, JSON) && JsonObjectOrNull(body) is JsonElement counts && counts.EnumerateObject().Count() == 3
+      && Int(counts, DELIVERED) is int delivered && Int(counts, FAILED) is int failed && Int(counts, REMOVED) is int removed
+      ? MessageAnswer.Counts(delivered, failed, removed)
+      : null;
+
+    return answer
+      ?? throw new InvalidOperationException($"POST {MESSAGES} answered what no message answer fits: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+  }
+
+  /// <summary>
+  /// <paramref name="push"/> as <paramref name="device"/> reads it: its body decrypted with the device's own keys and read
+  /// strictly as a Declarative Web Push message, its <c>TTL</c> and <c>Urgency</c> headers, whether its token passed the
+  /// fake's checks, and whether the fake accepted it (201). Content that does not decrypt, or is not such a message, fails
+  /// the step, naming why.
+  /// </summary>
+  private static PushReceived AsTheDeviceReadsIt(TestDevice device, ReceivedPush push) {
+    string content;
+
+    try {
+      content = device.Decrypt(push.Body);
+    }
+    catch (CryptographicException exception) {
+      throw new InvalidOperationException($"A push to {device.Name} does not decrypt with its own keys: {exception.Message}", exception);
+    }
+
+    (string title, string? text, string navigate) = DeclarativeMessage(device, content);
+
+    return new PushReceived(
+      title,
+      text,
+      navigate,
+      LifetimeSeconds(device, push),
+      push.Headers.TryGetValue(URGENCY, out string? urgency) ? urgency : null,
+      push.SignedWithServerKey,
+      ReachedThePhone: push.Answer == HttpStatusCode.Created);
+  }
+
+  /// <summary>
+  /// The notification of a Declarative Web Push message: a JSON object of exactly <c>web_push</c>, the number 8030, and
+  /// <c>notification</c>, an object of exactly <c>title</c> and <c>navigate</c>, strings, and <c>body</c>, a string, when
+  /// there is text. Anything else fails the step, naming why.
+  /// </summary>
+  private static (string Title, string? Text, string Navigate) DeclarativeMessage(TestDevice device, string content) {
+    JsonElement message = JsonObjectOrNull(content)
+      ?? throw new InvalidOperationException($"A push to {device.Name} is not a JSON object: {content}");
+
+    if (!HasExactly(message, WEB_PUSH, NOTIFICATION) || !message.GetProperty(WEB_PUSH).TryGetInt32(out int webPush) || webPush != DECLARATIVE_WEB_PUSH)
+      throw new InvalidOperationException($"A push to {device.Name} is not a Declarative Web Push message (exactly {WEB_PUSH} {DECLARATIVE_WEB_PUSH} and {NOTIFICATION}): {content}");
+
+    JsonElement notification = message.GetProperty(NOTIFICATION);
+
+    bool wellFormed = notification.ValueKind == JsonValueKind.Object
+      && (HasExactly(notification, TITLE, NAVIGATE) || HasExactly(notification, TITLE, BODY, NAVIGATE))
+      && notification.EnumerateObject().All(static member => member.Value.ValueKind == JsonValueKind.String);
+
+    return wellFormed && Text(notification, TITLE) is string title && Text(notification, NAVIGATE) is string navigate
+      ? (title, Text(notification, BODY), navigate)
+      : throw new InvalidOperationException($"A push to {device.Name} has a {NOTIFICATION} other than exactly {TITLE}, {NAVIGATE} and, with text, {BODY}, each a string: {content}");
+  }
+
+  /// <summary>The push's <c>TTL</c> in seconds; <see langword="null"/> when it has none. A <c>TTL</c> that is not a whole number fails the step.</summary>
+  private static int? LifetimeSeconds(TestDevice device, ReceivedPush push) {
+    if (!push.Headers.TryGetValue(TTL, out string? timeToLive))
+      return null;
+
+    return int.TryParse(timeToLive, NumberStyles.None, CultureInfo.InvariantCulture, out int seconds)
+      ? seconds
+      : throw new InvalidOperationException($"A push to {device.Name} has a {TTL} that is not a whole number of seconds: {timeToLive}");
+  }
+
+  /// <summary>Whether <paramref name="value"/> is an object with exactly the members <paramref name="names"/>, in any order.</summary>
+  private static bool HasExactly(JsonElement value, params string[] names) =>
+    value.ValueKind == JsonValueKind.Object
+    && value.EnumerateObject().Select(static member => member.Name).Order(StringComparer.Ordinal).SequenceEqual(names.Order(StringComparer.Ordinal), StringComparer.Ordinal);
+
+  /// <summary>The member <paramref name="name"/> when it is a JSON number an <see cref="int"/> holds; otherwise <see langword="null"/>.</summary>
+  private static int? Int(JsonElement value, string name) =>
+    value.TryGetProperty(name, out JsonElement member) && member.ValueKind == JsonValueKind.Number && member.TryGetInt32(out int number) ? number : null;
 
   /// <summary>The body as a JSON object, detached from its document; <see langword="null"/> when it is not one.</summary>
   private static JsonElement? JsonObjectOrNull(string body) {
