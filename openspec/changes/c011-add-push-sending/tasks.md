@@ -150,12 +150,12 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 18. [unit] Slice 6 — The message key and the hidden endpoint
 
-- [ ] 18.1 A wrong message key does not match
-- [ ] 18.2 A missing message key does not match
-- [ ] 18.3 A message key sent twice does not match
-- [ ] 18.4 A message key of another length does not match
-- [ ] 18.5 The message endpoint is not in the API description (`Conventions/HiddenEndpointsTests`, reading the committed `openapi.json`)
-- [ ] 18.6 At the message endpoint, a request without the key header (with a valid body, and with a malformed body) and one with the header twice get the answer of an unknown `/api` address, compared whole apart from `traceId` (design.md D10; review finding R6). Written by the test-writer, in `IntegrationTests/Wiring/Push/`; may be already green, since the endpoint checks the key before reading the body
+- [x] 18.1 A wrong message key does not match
+- [x] 18.2 A missing message key does not match
+- [x] 18.3 A message key sent twice does not match
+- [x] 18.4 A message key of another length does not match
+- [x] 18.5 The message endpoint is not in the API description (`Conventions/HiddenEndpointsTests`, reading the committed `openapi.json`)
+- [x] 18.6 At the message endpoint, a request without the key header (with a valid body, and with a malformed body) and one with the header twice get the answer of an unknown `/api` address, compared whole apart from `traceId` (design.md D10; review finding R6). Written by the test-writer, in `IntegrationTests/Wiring/Push/`; may be already green, since the endpoint checks the key before reading the body
 
 ## 19. [wiring] Slice 6 — The keyless answer
 
