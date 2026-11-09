@@ -159,7 +159,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 19. [wiring] Slice 6 — The keyless answer
 
-- [ ] 19.1 `MessageEndpoint` answers a missing or wrong key with `TypedResults.NotFound()` before reading the body, so a keyless request with a malformed body gets the same 404 (design.md D10). Verify: the scenario's test compares the answer whole, apart from `traceId`, with an unknown `/api` address's
+- [x] 19.1 `MessageEndpoint` answers a missing or wrong key with `TypedResults.NotFound()` before reading the body, so a keyless request with a malformed body gets the same 404 (design.md D10). Verify: the scenario's test compares the answer whole, apart from `traceId`, with an unknown `/api` address's
 
 ## 20. [close] Slice 6 — A message without the right key gets the answer of an unknown address
 

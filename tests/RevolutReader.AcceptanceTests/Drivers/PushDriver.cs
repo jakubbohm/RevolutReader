@@ -1,7 +1,9 @@
+using System.Buffers.Text;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using RevolutReader.AcceptanceTests.Dsl;
@@ -66,6 +68,15 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   private const string JSON = "application/json";
 
+  /// <summary>An address under <c>/api</c> no endpoint serves (D10's comparison).</summary>
+  private const string UNKNOWN_API_ADDRESS = "/api/no-such-address";
+
+  /// <summary>A whole answer's body member left out of the comparison, different for every request.</summary>
+  private const string TRACE_ID = "traceId";
+
+  /// <summary>A made-up wrong key's length in random bytes, as long as the message key (D10).</summary>
+  private const int MESSAGE_KEY_BYTES = 32;
+
   /// <summary>The fetch metadata the app's own page sends with a write (c007 design.md D4).</summary>
   private const string SEC_FETCH_SITE = "Sec-Fetch-Site";
   private const string SAME_ORIGIN = "same-origin";
@@ -114,6 +125,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   /// <summary>The app copy's services, for its device store.</summary>
   private IServiceProvider App => app;
+
+  /// <summary>The wrong key and the JSON body <see cref="SendMessageWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
+  private (string Key, string Body)? _lastWrongKeyMessage;
 
   /// <summary><c>GET /api/push/key</c> in the signed-in browser: the public key, when the answer is exactly <c>{ publicKey }</c>.</summary>
   public async Task<string> AskForThePushKey() {
@@ -175,10 +189,23 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   }
 
   /// <summary><c>POST /api/push/messages</c> from the owner's client, with a wrong message key, to <paramref name="account"/>, titled <paramref name="title"/>.</summary>
-  public Task<WholeAnswer> SendMessageWithAWrongKey(string account, string title) => throw new NotImplementedException();
+  public Task<WholeAnswer> SendMessageWithAWrongKey(string account, string title) {
+    ArgumentNullException.ThrowIfNull(account);
+    ArgumentNullException.ThrowIfNull(title);
+
+    (string Key, string Body) message = (WrongMessageKey(), new JsonObject { [ACCOUNT] = account, [TITLE] = title }.ToJsonString());
+    _lastWrongKeyMessage = message;
+
+    return SendWithKey(MESSAGES, message.Key, message.Body);
+  }
 
   /// <summary>The request <see cref="SendMessageWithAWrongKey"/> sent last, sent to an address under <c>/api</c> no endpoint serves; throws when none was sent.</summary>
-  public Task<WholeAnswer> SendTheSameToAnUnknownApiAddress() => throw new NotImplementedException();
+  public Task<WholeAnswer> SendTheSameToAnUnknownApiAddress() {
+    (string key, string body) = _lastWrongKeyMessage
+      ?? throw new InvalidOperationException($"No message with a wrong key was sent to {MESSAGES} to send again.");
+
+    return SendWithKey(UNKNOWN_API_ADDRESS, key, body);
+  }
 
   /// <summary>Saves <paramref name="device"/> under <paramref name="account"/> through the app copy's own device store, as a registration would have.</summary>
   public Task SaveDeviceFor(TestDevice device, string account) => throw new NotImplementedException();
@@ -216,6 +243,55 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
     using HttpResponseMessage response = await Browser.SendAsync(request);
 
     return await RegistrationAnswerOf(response);
+  }
+
+  /// <summary>
+  /// <c>POST</c> to <paramref name="address"/> from the owner's client, with <paramref name="key"/> as the message key and
+  /// <paramref name="body"/> as JSON; read as a <see cref="WholeAnswer"/>.
+  /// </summary>
+  private async Task<WholeAnswer> SendWithKey(string address, string key, string body) {
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(address, UriKind.Relative)) {
+      Content = new StringContent(body, Encoding.UTF8, JSON),
+    };
+    request.Headers.Add(MESSAGE_KEY, key);
+
+    using HttpResponseMessage response = await Owner.SendAsync(request);
+    await response.Content.LoadIntoBufferAsync();
+
+    ProblemDescription? problem = await ApiDriver.ProblemOf(response);
+    string answer = await response.Content.ReadAsStringAsync();
+
+    return new WholeAnswer(problem, $"{(int)response.StatusCode} {response.Content.Headers.ContentType} {WithoutTraceId(answer)}");
+  }
+
+  /// <summary>A wrong message key: <see cref="MESSAGE_KEY_BYTES"/> made-up random bytes in base64url, as long as the key and never it.</summary>
+  private string WrongMessageKey() {
+    string key;
+
+    do
+      key = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(MESSAGE_KEY_BYTES));
+    while (string.Equals(key, PushService.MessageKey, StringComparison.Ordinal));
+
+    return key;
+  }
+
+  /// <summary><paramref name="body"/> without its <c>traceId</c> when it is a JSON object; otherwise as it is.</summary>
+  private static string WithoutTraceId(string body) {
+    JsonNode? parsed;
+
+    try {
+      parsed = JsonNode.Parse(body);
+    }
+    catch (JsonException) {
+      return body;
+    }
+
+    if (parsed is not JsonObject answer)
+      return body;
+
+    _ = answer.Remove(TRACE_ID);
+
+    return answer.ToJsonString();
   }
 
   /// <summary>The app's own origin, the signed-in browser's address, as its page's requests name it.</summary>
