@@ -146,7 +146,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 17. [close] Slice 5 — An allowed account with no devices gets zero counts
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including push-sending / An allowed account with no devices gets zero counts
+- [x] 17.1 The scenario's test passes. Verify: green, including push-sending / An allowed account with no devices gets zero counts
 
 ## 18. [unit] Slice 6 — The message key and the hidden endpoint
 
