@@ -129,7 +129,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 13. [close] Slice 3 — A message reaches every device of the account and none of another account's
 
-- [ ] 13.1 The scenario's test passes. Verify: green, including push-sending / A message reaches every device of the account and none of another account's
+- [x] 13.1 The scenario's test passes. Verify: green, including push-sending / A message reaches every device of the account and none of another account's
 
 ## 14. [unit] Slice 4 — Lifetime and urgency
 
