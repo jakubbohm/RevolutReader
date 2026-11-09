@@ -409,8 +409,8 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 65. [unit] Slice 28 — The list's problems
 
-- [ ] 65.1 A failed newest page with no list shows no list and its problem as the banner
-- [ ] 65.2 A failed newest page keeps a list already shown
+- [x] 65.1 A failed newest page with no list shows no list and its problem as the banner
+- [x] 65.2 A failed newest page keeps a list already shown
 
 ## 66. [wiring] Slice 28 — Expired access
 
@@ -446,8 +446,8 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 74. [unit] Slice 32 — Offline
 
-- [ ] 74.1 An offline read shows the note and no banner
-- [ ] 74.2 A newest page with no answer within 60 s ends as offline
+- [x] 74.1 An offline read shows the note and no banner
+- [x] 74.2 A newest page with no answer within 60 s ends as offline
 
 ## 75. [wiring] Slice 32 — The list offline
 
