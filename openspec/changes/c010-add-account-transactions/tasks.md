@@ -292,13 +292,13 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 40. [unit] Slice 18 — Days
 
-- [ ] 40.1 Transactions group by their date, in the answer's order
-- [ ] 40.2 A date reads as a local calendar day, whatever the time zone
-- [ ] 40.3 Today's heading is "Dnes" and yesterday's "Včera"
-- [ ] 40.4 An older day's heading is its weekday and date, with the year only outside the current year
-- [ ] 40.5 A day's totals sum money received and refunds as received, payments as spent, pending ones included, in whole cents
-- [ ] 40.6 A total of zero is left out
-- [ ] 40.7 Euro amounts are formatted the Czech way, with the minus sign U+2212 and a non-breaking space
+- [x] 40.1 Transactions group by their date, in the answer's order
+- [x] 40.2 A date reads as a local calendar day, whatever the time zone
+- [x] 40.3 Today's heading is "Dnes" and yesterday's "Včera"
+- [x] 40.4 An older day's heading is its weekday and date, with the year only outside the current year
+- [x] 40.5 A day's totals sum money received and refunds as received, payments as spent, pending ones included, in whole cents
+- [x] 40.6 A total of zero is left out
+- [x] 40.7 Euro amounts are formatted the Czech way, with the minus sign U+2212 and a non-breaking space
 
 ## 41. [wiring] Slice 18 — Day groups
 
@@ -310,11 +310,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 43. [unit] Slice 19 — A row's lines and amounts
 
-- [ ] 43.1 A row's first line is the counterparty
-- [ ] 43.2 A row's second line is the details joined by " · "
-- [ ] 43.3 The koruna value is the amount's size times the rate, rounded half up to whole crowns, marked "≈"
-- [ ] 43.4 An amount in another currency shows with its code and no koruna value
-- [ ] 43.5 A row's spoken label is its whole sentence, without a time
+- [x] 43.1 A row's first line is the counterparty
+- [x] 43.2 A row's second line is the details joined by " · "
+- [x] 43.3 The koruna value is the amount's size times the rate, rounded half up to whole crowns, marked "≈"
+- [x] 43.4 An amount in another currency shows with its code and no koruna value
+- [x] 43.5 A row's spoken label is its whole sentence, without a time
 
 ## 44. [wiring] Slice 19 — TransactionRow
 
