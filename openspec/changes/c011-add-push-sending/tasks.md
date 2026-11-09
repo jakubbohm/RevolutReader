@@ -42,15 +42,15 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 2. [unit] Slice 1 — Push settings
 
-- [ ] 2.1 A complete set of push settings passes validation
-- [ ] 2.2 A push secret still holding the placeholder fails validation, and the message names the setting only
-- [ ] 2.3 A public key that is not a 65-byte P-256 point in base64url fails validation, naming the setting only
-- [ ] 2.4 A private key that is not 32 bytes in base64url fails validation, naming the setting only
-- [ ] 2.5 Two key halves that are not one pair fail validation
-- [ ] 2.6 A message key shorter than 32 bytes fails validation
-- [ ] 2.7 A subject that is not an https origin (a path, a query, plain http, a relative address) fails validation
-- [ ] 2.8 A request timeout outside 1 to 60 seconds fails validation
-- [ ] 2.9 The known push services declared in appsettings.json pass validation
+- [x] 2.1 A complete set of push settings passes validation
+- [x] 2.2 A push secret still holding the placeholder fails validation, and the message names the setting only
+- [x] 2.3 A public key that is not a 65-byte P-256 point in base64url fails validation, naming the setting only
+- [x] 2.4 A private key that is not 32 bytes in base64url fails validation, naming the setting only
+- [x] 2.5 Two key halves that are not one pair fail validation
+- [x] 2.6 A message key shorter than 32 bytes fails validation
+- [x] 2.7 A subject that is not an https origin (a path, a query, plain http, a relative address) fails validation
+- [x] 2.8 A request timeout outside 1 to 60 seconds fails validation
+- [x] 2.9 The known push services declared in appsettings.json pass validation
 
 ## 3. [wiring] Slice 1 — Settings, AppHost and the key endpoint
 
