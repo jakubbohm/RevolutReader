@@ -27,6 +27,9 @@ import { realTurn } from "./clock";
  * The answers to the transactions (c010 design.md D10, § Public API sketch: the test kit) sit in their own blocks,
  * marked "c010", and use the vocabulary above (`Trouble`, `Delayed`, `Answers`, `after`, the bank problems,
  * `KORUNA_RATE`), merged by hand at the join (c010 design.md D13).
+ *
+ * The answers to the push key and the device's subscription (c011 design.md D8, D9) sit in blocks marked "c011", in the
+ * same vocabulary. They are the first requests with a body: `bodiesSent()` gives what the app sent in each.
  */
 
 /** What any request can meet besides its own answers. */
@@ -128,6 +131,48 @@ export type TransactionsAnswer =
   | { kind: "refused"; email: string | null }
   | Trouble;
 
+// ---- c011: push (design.md D8, D9) ----
+
+/** What the server answers when the app reads the push key, `GET /api/push/key` (c011 design.md D9). */
+export type PushKeyAnswer =
+  /** 200 with exactly `{ publicKey }`, the VAPID public key in base64url. */
+  | { kind: "push key"; publicKey: string }
+  /** 401 with the problem description `Unauthorized`: the login has ended. */
+  | { kind: "nobody" }
+  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
+  | { kind: "refused"; email: string | null }
+  | Trouble;
+
+/** What the server answers when the app sends this device's subscription, `PUT /api/push/subscription` (c011 design.md D9). */
+export type SubscriptionAnswer =
+  /** 204: the device is stored under the signed-in account. */
+  | { kind: "stored" }
+  /** 400, FastEndpoints' validation problem, whose `errors` name the refused member (`endpoint`, `keys.p256dh`, `keys.auth`). */
+  | { kind: "subscription refused"; member: string }
+  /** 401 with the problem description `Unauthorized`: the login has ended. */
+  | { kind: "nobody" }
+  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
+  | { kind: "refused"; email: string | null }
+  | Trouble;
+
+/** What the server answers when the app forgets this device, `DELETE /api/push/subscription` (c011 design.md D9). */
+export type ForgetAnswer =
+  /** 204: the device is forgotten, whether or not it was stored. */
+  | { kind: "forgotten" }
+  /** 401 with the problem description `Unauthorized`: the login has ended. */
+  | { kind: "nobody" }
+  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
+  | { kind: "refused"; email: string | null }
+  | Trouble;
+
+/** A request the app sent with a body: the request as the timeline writes it, its content type, and the body it sent. */
+export interface SentBody {
+  request: string;
+  contentType: string | null;
+  /** The body parsed as JSON; the text as sent when it is not JSON. */
+  body: unknown;
+}
+
 /** An answer that reaches the app only `after` milliseconds, on the test's clock when it runs. */
 export type Delayed<Answer> = Answer & { after?: number };
 
@@ -160,6 +205,13 @@ export interface ServerAnswers {
    * sign-out the server answers that nobody is signed in (401).
    */
   olderTransactions?: Readonly<Record<string, Answers<TransactionsAnswer>>>;
+  // ---- c011: push ----
+  /** `GET /api/push/key`. Without one, `DEFAULT_PUSH_KEY`. After a sign-out the server answers that nobody is signed in (401). */
+  pushKey?: Answers<PushKeyAnswer>;
+  /** `PUT /api/push/subscription`. Without one, the device is stored (204). After a sign-out, 401. */
+  subscription?: Answers<SubscriptionAnswer>;
+  /** `DELETE /api/push/subscription`. Without one, the device is forgotten (204). After a sign-out, 401. */
+  forgetSubscription?: Answers<ForgetAnswer>;
 }
 
 /** The balance the phone keeps (c009 design.md D4): the record as the app stores it, `readAt` in ISO 8601. */
@@ -328,6 +380,31 @@ export const DEFAULT_TRANSACTIONS = transactionsPage([
   }),
 ]);
 
+// ---- c011: push (design.md D8, D9) ----
+
+/** The server's push key, 65 bytes starting `0x04` in base64url (made up: never a real key, D5's format). */
+export function pushKey(publicKey: string): PushKeyAnswer {
+  return { kind: "push key", publicKey };
+}
+
+/**
+ * The push key the server answers when a test sets none: made up, 65 bytes starting `0x04` (all the other bytes `0x2a`),
+ * so a test whose key never came from the server cannot pass on the default.
+ */
+export const DEFAULT_PUSH_KEY =
+  "BCoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio";
+
+/** The device is stored (204). */
+export const stored = { kind: "stored" } as const;
+
+/** The device is forgotten (204). */
+export const forgotten = { kind: "forgotten" } as const;
+
+/** The server refuses the subscription (400), naming this member: `endpoint`, `keys.p256dh` or `keys.auth`. */
+export function subscriptionRefused(member: string): SubscriptionAnswer {
+  return { kind: "subscription refused", member };
+}
+
 const SIGN_OUT = "POST /api/auth/logout";
 const WHO_IS_SIGNED_IN = "GET /api/me";
 const BALANCE = "GET /api/balance";
@@ -335,6 +412,10 @@ const HEALTH = "GET /health";
 // ---- c010 ----
 const TRANSACTIONS = "GET /api/transactions";
 const OLDER_TRANSACTIONS = "GET /api/transactions/older";
+// ---- c011 ----
+const PUSH_KEY = "GET /api/push/key";
+const SEND_SUBSCRIPTION = "PUT /api/push/subscription";
+const FORGET_SUBSCRIPTION = "DELETE /api/push/subscription";
 
 /** The phone's own database for the balance it keeps (c009 design.md D4). */
 const PHONE_DATABASE = "tarjeta-papa";
@@ -356,6 +437,11 @@ let transactionsAnswers: readonly Delayed<TransactionsAnswer>[] = [];
 let olderTransactionsAnswers: Readonly<
   Record<string, Answers<TransactionsAnswer>>
 > = {};
+// ---- c011 ----
+let pushKeyAnswers: readonly Delayed<PushKeyAnswer>[] = [];
+let subscriptionAnswers: readonly Delayed<SubscriptionAnswer>[] = [];
+let forgetAnswers: readonly Delayed<ForgetAnswer>[] = [];
+let bodies: SentBody[] = [];
 /** How many requests of each kind the server has answered or is answering, to pick the next answer in order. */
 let asked = new Map<string, number>();
 /** Set by a sign-out the server confirmed: from then on, nobody is signed in. */
@@ -376,8 +462,20 @@ export function answerWith(answers: ServerAnswers): void {
   balanceAnswers = inOrder(answers.balance);
   transactionsAnswers = inOrder(answers.transactions);
   olderTransactionsAnswers = answers.olderTransactions ?? {};
+  pushKeyAnswers = inOrder(answers.pushKey);
+  subscriptionAnswers = inOrder(answers.subscription);
+  forgetAnswers = inOrder(answers.forgetSubscription);
   asked = new Map();
   loginEnded = false;
+}
+
+/**
+ * The bodies the app sent, in order: each request that carried one (`PUT` and `DELETE /api/push/subscription`, say), as
+ * the timeline writes it, with its content type and its body parsed as JSON. A request the phone never sent (offline in
+ * `navigator.onLine`) is not here, as it is not in `requests()`.
+ */
+export function bodiesSent(): SentBody[] {
+  return [...bodies];
 }
 
 /** The timeline so far (see the module's description). */
@@ -504,6 +602,10 @@ export function resetFakeServer(): void {
   balanceAnswers = [];
   transactionsAnswers = [];
   olderTransactionsAnswers = {};
+  pushKeyAnswers = [];
+  subscriptionAnswers = [];
+  forgetAnswers = [];
+  bodies = [];
   asked = new Map();
   loginEnded = false;
   online = true;
@@ -592,6 +694,12 @@ async function fakeFetch(
   const sentIn = generation;
 
   entries.push(`request ${request}`);
+  // ---- c011: what the app sent in the body (`bodiesSent`); only a request with one waits to read it ----
+  if (init?.body != null || (isRequest && input.body !== null)) {
+    const sent: SentBody = { request, contentType: null, body: undefined };
+    bodies.push(sent);
+    Object.assign(sent, await bodyOf(input, init));
+  }
   if (signal?.aborted === true) {
     entries.push(`aborted ${request}`);
     throw abortReason(signal);
@@ -612,6 +720,31 @@ async function fakeFetch(
 
   entries.push(`answer ${request}`);
   return outcome.response();
+}
+
+/** A request's content type and body (c011): the body parsed as JSON, or its text as sent when it is not JSON. */
+async function bodyOf(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+): Promise<{ contentType: string | null; body: unknown }> {
+  const isRequest = input instanceof Request;
+  const headers = new Headers(
+    init?.headers ?? (isRequest ? input.headers : undefined),
+  );
+  const text =
+    init?.body != null
+      ? await new Response(init.body).text()
+      : isRequest
+        ? await input.clone().text()
+        : "";
+
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text) as unknown;
+  } catch {
+    // Not JSON: the text as sent.
+  }
+  return { contentType: headers.get("Content-Type"), body };
 }
 
 /** Waits until the outcome reaches the app (a real turn, or `after` ms) or the app aborts the request. */
@@ -661,6 +794,20 @@ function outcomeOf(request: string): Outcome {
       const answer =
         nextOf(request, transactionsAnswers) ?? DEFAULT_TRANSACTIONS;
       return transactionsOutcome(loginEnded ? nobodySignedIn : answer);
+    }
+    // ---- c011 ----
+    case PUSH_KEY: {
+      const answer =
+        nextOf(request, pushKeyAnswers) ?? pushKey(DEFAULT_PUSH_KEY);
+      return pushKeyOutcome(loginEnded ? nobodySignedIn : answer);
+    }
+    case SEND_SUBSCRIPTION: {
+      const answer = nextOf(request, subscriptionAnswers) ?? stored;
+      return subscriptionOutcome(loginEnded ? nobodySignedIn : answer);
+    }
+    case FORGET_SUBSCRIPTION: {
+      const answer = nextOf(request, forgetAnswers) ?? forgotten;
+      return forgetOutcome(loginEnded ? nobodySignedIn : answer);
     }
     case HEALTH:
       return {
@@ -865,6 +1012,85 @@ function transactionsOutcome(answer: Delayed<TransactionsAnswer>): Outcome {
   }
 }
 
+// ---- c011: push's answers ----
+
+function pushKeyOutcome(answer: Delayed<PushKeyAnswer>): Outcome {
+  switch (answer.kind) {
+    case "push key":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => Response.json({ publicKey: answer.publicKey }),
+      };
+    case "nobody":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => problem(401, "Unauthorized"),
+      };
+    case "refused":
+      return refusedOutcome(answer);
+    default:
+      return troubleOutcome(answer);
+  }
+}
+
+function subscriptionOutcome(answer: Delayed<SubscriptionAnswer>): Outcome {
+  switch (answer.kind) {
+    case "stored":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => new Response(null, { status: 204 }),
+      };
+    case "subscription refused":
+      return {
+        kind: "answer",
+        after: answer.after,
+        // Written from design.md D9 (FastEndpoints' validation problem, titled `Bad Request`, its `errors` naming the
+        // member with a fixed reason, never the value) and the acceptance tests' PushDriver, which reads it; not captured.
+        response: () =>
+          problem(400, "Bad Request", {
+            instance: "/api/push/subscription",
+            errors: [
+              { name: answer.member, reason: "The value is not accepted." },
+            ],
+          }),
+      };
+    case "nobody":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => problem(401, "Unauthorized"),
+      };
+    case "refused":
+      return refusedOutcome(answer);
+    default:
+      return troubleOutcome(answer);
+  }
+}
+
+function forgetOutcome(answer: Delayed<ForgetAnswer>): Outcome {
+  switch (answer.kind) {
+    case "forgotten":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => new Response(null, { status: 204 }),
+      };
+    case "nobody":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => problem(401, "Unauthorized"),
+      };
+    case "refused":
+      return refusedOutcome(answer);
+    default:
+      return troubleOutcome(answer);
+  }
+}
+
 function troubleOutcome(answer: Delayed<Trouble>): Outcome {
   switch (answer.kind) {
     case "server error":
@@ -928,6 +1154,7 @@ function asTheApiWritesIt(time: Date): string {
 
 /** The RFC 9110 section ASP.NET Core names as each status's problem `type`. */
 const PROBLEM_TYPE_SECTIONS: Record<number, string> = {
+  400: "15.5.1",
   401: "15.5.2",
   403: "15.5.4",
   404: "15.5.5",
@@ -941,7 +1168,7 @@ const PROBLEM_TYPE_SECTIONS: Record<number, string> = {
 function problem(
   status: number,
   title: string,
-  extensions: Record<string, string> = {},
+  extensions: Record<string, unknown> = {},
 ): Response {
   return new Response(
     JSON.stringify({
