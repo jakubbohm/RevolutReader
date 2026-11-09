@@ -233,9 +233,9 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 34. [unit] Slice 12 — Gone devices
 
-- [ ] 34.1 A device the push service reports gone is forgotten and counted as removed
-- [ ] 34.2 A gone device is logged with the status only
-- [ ] 34.3 The other devices of the account still get the message
+- [x] 34.1 A device the push service reports gone is forgotten and counted as removed
+- [x] 34.2 A gone device is logged with the status only
+- [x] 34.3 The other devices of the account still get the message
 
 ## 35. [wiring] Slice 12 — Gone at the push service
 

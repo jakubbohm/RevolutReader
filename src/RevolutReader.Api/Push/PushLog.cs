@@ -9,6 +9,10 @@ public static partial class PushLog {
   [LoggerMessage(EventName = "PushSent", Level = LogLevel.Information, Message = "A push message reached {Delivered} devices; {Failed} failed and were kept, {Removed} were removed as gone")]
   public static partial void PushSent(ILogger logger, int delivered, int failed, int removed);
 
+  /// <summary>A device its push service reports gone (404, 410), forgotten: the push service's status only, never the device.</summary>
+  [LoggerMessage(EventName = "PushDeviceGone", Level = LogLevel.Information, Message = "A push service reported a device gone with status {Status}; the device was forgotten")]
+  public static partial void PushDeviceGone(ILogger logger, int status);
+
   /// <summary>A message refused because its account is not on the allowlist: how many of the account's devices were deleted. Never the account.</summary>
   [LoggerMessage(EventName = "PushAccountNotAllowed", Level = LogLevel.Warning, Message = "A push message was refused: its account is not on the allowlist; {Removed} of its devices were deleted")]
   public static partial void PushAccountNotAllowed(ILogger logger, int removed);
