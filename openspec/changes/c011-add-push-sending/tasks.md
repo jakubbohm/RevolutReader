@@ -74,10 +74,10 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 6. [unit] Slice 2 — Registering a device
 
-- [ ] 6.1 A device at a known push service with well-formed keys is saved under the signed-in account
-- [ ] 6.2 A push address at a service named exactly is accepted
-- [ ] 6.3 A push address under a service named with a wildcard is accepted
-- [ ] 6.4 A plain-http push address is accepted only at a loopback service the settings name
+- [x] 6.1 A device at a known push service with well-formed keys is saved under the signed-in account
+- [x] 6.2 A push address at a service named exactly is accepted
+- [x] 6.3 A push address under a service named with a wildcard is accepted
+- [x] 6.4 A plain-http push address is accepted only at a loopback service the settings name
 
 ## 7. [unit] Slice 2 — Sending
 
