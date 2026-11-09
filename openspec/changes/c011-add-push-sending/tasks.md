@@ -303,7 +303,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 47. [unit] Slice 17 — Forgetting a device
 
-- [ ] 47.1 Forgetting a stored device removes it
+- [x] 47.1 Forgetting a stored device removes it
 
 ## 48. [wiring] Slice 17 — The forget endpoint
 
