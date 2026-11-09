@@ -389,7 +389,8 @@ public static class StorageRegistration {
 // HistoryImport/HistoryImporterTests.cs — against Azurite with a made-up file, in the default run.
 // HistoryImport/HistoryImportCheck.cs — [Explicit] (named like MockAspspCheck; HistoryImport is the namespace):
 //   the owner's file and the deployed table (settings HistoryImport:File and HistoryImport:TableEndpoint,
-//   AzureCliCredential), or for the local check HistoryImport:TableConnectionString instead of the endpoint
+//   AzureCliCredential with HistoryImport:Subscription, so the login names the subscription as every az command
+//   does), or for the local check HistoryImport:TableConnectionString instead of the endpoint
 //   (Azurite takes no Azure login); prints counts only. Written by the test-writer (the user, 2026-11-09).
 
 // ---- tests/RevolutReader.AcceptanceTests ----
