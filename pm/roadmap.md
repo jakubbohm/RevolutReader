@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start; 2026-11-09: C8 split into C8a sending, C8b turning notifications on and C8c keeping devices right — see the change log in `pm/progress.md`)
 
 ---
 
@@ -21,7 +21,7 @@
   - **Software factory:** work the factory needs and the app does not, built to the factory's quality bar ([workflow.md § 10 — The quality bar](../docs/conventions/workflow.md#the-quality-bar-2026-11-08)): the best design, no shortcuts, and every artifact proven to work before it is handed over. Planned item by item with the user, and split into smaller steps when it does not fit one session.
 - **Open questions:** a step decides only the questions assigned to it. The agent presents options; the user decides. The decision itself (with findings, rationale and alternatives) goes into an ADR in `docs/adr/`; `pm/progress.md` records only the status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](../docs/conventions/workflow.md#2-decisions)).
 - **At the end of a step:** update `pm/progress.md` (status, date, link to the OpenSpec change, notes); the step's PR closes its GitHub issue. Update `CLAUDE.md` if build, test or run commands or the project structure changed. If the step created, renewed or changed an approval, a secret or a hand-made setting, update [`docs/operations/expiring-approvals.md`](../docs/operations/expiring-approvals.md): what it is, when it expires, how to restore it. D1 builds on that file. If the step created or substantially changed a reusable artifact (a convention, skill, agent, hook or script worth handing to the software factory), update the inventory in [`docs/software-factory/creating-handover-package.md`](../docs/software-factory/creating-handover-package.md#inventory).
-- **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split. A new step gets its GitHub issue, unless the user says otherwise for it ([workflow.md § 9](../docs/conventions/workflow.md#9-project-management)).
+- **Changing the roadmap** (adding, removing, splitting or reordering steps) only with the user's approval; record every change in the roadmap change log in `pm/progress.md`. If a step turns out too big for one session, propose a split; for an OpenSpec change, explore uses a size guide of about 12 new or changed scenarios ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)). A new step gets its GitHub issue, unless the user says otherwise for it ([workflow.md § 9](../docs/conventions/workflow.md#9-project-management)).
 
 ## 2. Overview
 
@@ -47,20 +47,22 @@
 | 18 | C7b | OpenSpec | `cNNN-add-account-transactions` (UC2, part 2; alongside C7a) | C13; its last task group C7a; findings on Q6 | decides Q7 |
 | ◆ | | Milestone | **v1: my daughter sees the balance and transactions** | C7a and C7b deployed via C4 | |
 | 19 | M5 | Manual | Handover v1 | v1 | — |
-| 20 | C8 | OpenSpec | `cNNN-add-push-subscriptions` (UC3, part 1) | C4, C6 | — |
-| 21 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8; findings on Q5, Q6 | decides Q8 |
+| 20 | C8a | OpenSpec | `cNNN-add-push-sending` (UC3, part 1a) | C4, C6, C7b (its Table Storage setup) | — |
+| 21 | C8b | OpenSpec | `cNNN-add-notification-opt-in` (UC3, part 1b; alongside C8c) | C8a | — |
+| 22 | C8c | OpenSpec | `cNNN-add-subscription-upkeep` (UC3, part 1c; alongside C8b) | C8a; its last task group C8b | — |
+| 23 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8b, C8c; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 22 | M7 | Manual | Handover v2 | v2 | — |
+| 24 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 23 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 24 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
-| 25 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
+| 25 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 26 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
+| 27 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
-M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 generates the VAPID keys in its guided task (change log in `pm/progress.md`).
+M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 (C8a since C8's split, 2026-11-09) generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8 → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8a → C8b and C8c side by side → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -315,15 +317,56 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 - **Outputs:** v1 confirmed working for my daughter; any problems found are proposed as new steps.
 - **Open questions:** —
 
-### C8 — `cNNN-add-push-subscriptions` (UC3, part 1)
+UC3's first part (kickoff ch. 5: the user enables notifications, and the backend can send them) is built as three changes, split for size before its proposal (the user, 2026-11-09, change log in `pm/progress.md`). C8's explore estimated about 40 scenarios, three times the size guide ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)). C8a the sending comes first, then C8b turning notifications on and C8c keeping devices right, side by side. Every behaviour was decided in C8's explore (2026-11-08), and the decisions are handed to the three changes in their issues' comments, the shared ones on [#51](https://github.com/jakubbohm/RevolutReader/issues/51#issuecomment-6728682809). Each change is proposed directly from them, without another explore, right before its apply, once the part before it has merged; its `design.md` then becomes the decisions' home.
+
+**C8b and C8c side by side.** Agreed with the user (2026-11-09), so that both run at once after C8a, each in its own worktree:
+
+1. **C8a builds the shared frontend pieces** both use: getting the key, subscribing with it, sending the subscription, unsubscribing, reading the current subscription; and the frontend test kit's stand-ins for the browser's notification and push features.
+2. **C8b owns the screens:** the card, the account menu's item, the failure banner, the service worker showing a push. **C8c owns the lifecycle:** what happens at every opening, at sign-out and on a 401 or 403.
+3. **Neither adds an endpoint** (forgetting a device is C8a's), so no generated API file is merged by hand. The second to merge rebases and joins by hand the wiring in `App.tsx` and the rows in `pm/progress.md`.
+4. **C8c's last task group,** the iPhone check that needs a phone subscribed through C8b's card, waits for C8b's merge.
+
+### C8a — `cNNN-add-push-sending` (UC3, part 1a)
 
 - **Type:** OpenSpec change
-- **Goal:** A signed-in user can enable notifications: the PWA (from the iPhone's Home Screen, Q9) asks for permission and subscribes, and the backend stores the subscription in a table in the app's storage account ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)). The backend can send a Web Push and the service worker displays it. A guided task generates the VAPID keys on my machine and stores them in Key Vault (and in the AppHost's user-secrets for local development). Database tests run against Azurite ([testing.md § Decided later](../docs/conventions/testing.md#decided-later)).
-- **Depends on:** C4, C6
-- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q9); the answer to Q9 from F0-2; the knowledge base; the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)).
-- **Outputs:** archived change; a subscribed device receives a test notification.
+- **Goal:** The backend can send a Web Push to a user's devices:
+  - the VAPID keys and a message key, made by a guided task on my machine and stored in Key Vault and the AppHost's user-secrets; the public key served to the app;
+  - a device's push subscription stored and forgotten, in a table in the app's storage account ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md)), and only at known push services;
+  - the sender: Declarative Web Push messages, accounts on the allowlist only, devices the push service reports gone deleted, no retries;
+  - my message endpoint, protected by the message key: a message to every device of a named account, for tests and my own messages; kept out of the API description;
+  - the shared frontend pieces for C8b and C8c (above, item 1);
+  - database tests against Azurite ([testing.md § Decided later](../docs/conventions/testing.md#decided-later)), and a fake push service.
+- **Depends on:** C4, C6, C7b (its Table Storage setup). Runs after C7a and C7b have merged.
+- **Inputs:** kickoff ch. 5 (UC3), 6; the decisions in [#51](https://github.com/jakubbohm/RevolutReader/issues/51)'s comments (shared S1–S12, C8a's A1–A8); c009 and c010 design.md (C7a and C7b, archived with their changes); ADR-0005-data-storage, ADR-0007-offline-balance; [configuration.md](../docs/conventions/configuration.md); [testing.md](../docs/conventions/testing.md).
+- **Outputs:** archived change; a message sent through the message endpoint reaches a device registered through the API (tests against the fake push service); the keys in Key Vault, the user-secrets and the backup vault.
+- **Open questions:** —
+- **Notes:** about 15 scenarios estimated (a guide, never a limit). Issue [#51](https://github.com/jakubbohm/RevolutReader/issues/51).
+
+### C8b — `cNNN-add-notification-opt-in` (UC3, part 1b)
+
+- **Type:** OpenSpec change
+- **Goal:** A signed-in user can turn notifications on, and a push shows on the device:
+  - the card under the balance, "Chceš vědět o každé platbě?", wherever the browser can subscribe (on the iPhone the Home Screen app, Q9), with its states (asking, enabled, blocked) and "Teď ne";
+  - the account menu's "Zapnout upozornění" whenever notifications are off and the card is not shown;
+  - a failure while turning them on, in C7a's banner;
+  - the service worker showing a push, and a tap opening the app.
+
+  The screens come from the Screens design ([workflow.md § 8](../docs/conventions/workflow.md#8-design)), including the account menu's item and its board, added in the design loop of 2026-11-08.
+- **Depends on:** C8a. Runs alongside C8c in its own worktree.
+- **Inputs:** kickoff ch. 5 (UC3), 10 (Q9); the decisions in the comments of [#51](https://github.com/jakubbohm/RevolutReader/issues/51) and [#60](https://github.com/jakubbohm/RevolutReader/issues/60) (B1–B11); c009 design.md (C7a's screen, banner and account menu); the Screens design: `Notifications / Opt-in / *` and `Notifications / Account menu / Zapnout upozornění`.
+- **Outputs:** archived change; my iPhone receives a message sent through C8a's endpoint (manual rows, checked again at M7 on my daughter's phone).
 - **Open questions:** — (applies Q9: on iOS, Web Push works only for a PWA added to the home screen)
-- **Notes:** issue [#51](https://github.com/jakubbohm/RevolutReader/issues/51).
+- **Notes:** about 15 scenarios estimated. Issue [#60](https://github.com/jakubbohm/RevolutReader/issues/60).
+
+### C8c — `cNNN-add-subscription-upkeep` (UC3, part 1c)
+
+- **Type:** OpenSpec change
+- **Goal:** A device's push subscription stays right: re-sent to the server at every opening, and replaced quietly when the phone has lost it or it was made with an old key; removed at sign-out and when the server answers 401 or 403; back by itself after signing in again.
+- **Depends on:** C8a. Runs alongside C8b in its own worktree; its last task group waits for C8b's merge.
+- **Inputs:** the decisions in the comments of [#51](https://github.com/jakubbohm/RevolutReader/issues/51) and [#61](https://github.com/jakubbohm/RevolutReader/issues/61) (C1–C7); c009 design.md (C7a's sign-out and its 401/403 handling); ADR-0007-offline-balance.
+- **Outputs:** archived change; after sign-out and sign-in on my iPhone, a message arrives without a tap (manual row).
+- **Open questions:** —
+- **Notes:** about 8 scenarios estimated. Issue [#61](https://github.com/jakubbohm/RevolutReader/issues/61).
 
 ### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
 
@@ -340,7 +383,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
   6. **Optional backstop:** a conditional update (ETag) on the stored state, so two app copies during a deploy cannot send the same changes.
   - **Not chosen:** waiting for a quiet period (debounce) before checking. It delays every notification, needs a timer that outlives the phone's request, and buys nothing: the payment is already readable when its notification arrives ([M1 spike, step 7](../spikes/enable-banking/README.md)). Accepted cost: two real payments a few seconds apart can still bring two notifications.
   - **C9 decides:** whether the Shortcut waits for the answer (a queued call answers after the wake-up plus under 1 s per read; iOS Shortcuts' request timeout is not known yet) or the endpoint answers at once (202) and checks in the background; the content of a merged notification (Q8, e.g. "2 new payments" plus the balance, which the push carries, [ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)). *(2026-11-08: "how *last notified* relates to the daughter's last view" is gone from this list; there is no view time, item 3.)*
-- **Depends on:** C5, C8; findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06: the automation runs on its own, also while the phone is locked).
+- **Depends on:** C5, C8b and C8c (through them C8a, whose sender C9's notifications use); findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06: the automation runs on its own, also while the phone is locked).
 - **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job, ADR-0008-phone-triggered-check and the outcomes in `pm/progress.md`.
 - **Outputs:** archived change; v2 complete and deployed; the Shortcut and its secret recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
 - **Open questions:** decides Q8.
@@ -353,7 +396,7 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 - **Type:** Manual
 - **Goal:** Help my daughter enable notifications on her phone (on iOS, including adding the PWA to the home screen) and confirm that a real change on the account produces a notification.
 - **Depends on:** v2
-- **Inputs:** F0-2 (Q9); outputs of C8 and C9.
+- **Inputs:** F0-2 (Q9); outputs of C8a, C8b, C8c and C9.
 - **Outputs:** notifications confirmed working on her phone.
 - **Open questions:** —
 
@@ -434,5 +477,5 @@ UC2 (kickoff ch. 5) is built as two changes, split by the data each shows, after
 | 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7a, C7b, C9 |
 | 7 | Transactions (history, paging, details) | C7b | — |
 | 8 | Notification content | C9 | — |
-| 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8, M5, M7 |
+| 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8b, M5, M7 |
 | 10 | PWA scope (offline mode?) | C3 | — |

@@ -18,6 +18,7 @@ builder.Services.AddFastEndpoints();
 // never serves it. No JWT bearer scheme: the app signs in with a cookie (ADR-0003).
 builder.Services.OpenApiDocument(static options => options.EnableJWTBearerAuth = false);
 builder.Services.AddEnableBanking();
+builder.Services.AddBalance();
 // The store checks its connection while registering, so a missing one stops the app at start (c010 design.md D11).
 builder.AddTransactionStore();
 builder.Services.AddTransactions();
@@ -32,6 +33,11 @@ WebApplication app = builder.Build();
 app.UseForwardedHeadersFromIngress();
 // Every body-less error response (400–599) gets a problem description (RFC 9457), c001 design.md D4.
 app.UseStatusCodePages();
+// An unhandled exception answers 500 as a problem description through AddProblemDetails, with no exception text, and is
+// logged once (spec api-errors, c009 design.md D1). After UseStatusCodePages, so a caller that rules JSON out gets its
+// plain-text status line rather than an empty 500. Not FastEndpoints' UseDefaultExceptionHandler, which logs twice and
+// echoes the exception's message in the body.
+app.UseExceptionHandler();
 app.UseAppPages();
 app.MapApiNotFound();
 app.UseSignIn();

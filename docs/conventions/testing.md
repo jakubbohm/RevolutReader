@@ -128,9 +128,15 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 - **Frontend tests live next to the frontend code** (Vitest with Testing Library and jsdom; decided in C3, c003 design.md D1):
   - a unit test sits next to its target as `<file>.test.ts(x)`, e.g. `src/app/device.ts` ↔ `src/app/device.test.ts`;
   - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx`, each test a `scenario("<capability>", "<exact scenario name>", …)`;
-  - the helpers live in `src/test/`: `setup.ts`, `scenario.ts`, `renderApp.tsx`.
+  - the helpers live in `src/test/`: `setup.ts`, `scenario.ts`, `renderApp.tsx`, `server.ts` (the fake server), `clock.ts` (the test clock) and `banners.ts` (a banner found by its tone and title).
 
   The implementer may not edit `*.test.ts(x)`, as with every test file; `src/test/` belongs to the test-writer.
+- **Frontend scenarios that wait or store** (C7a, c009 design.md D8):
+  - **The test clock** (`clock.ts`): `startTestClock()` fakes `setTimeout`, `setInterval` and `Date` only, from a fixed start, and `setup.ts` stops it after every test. The real event loop keeps running, because React's scheduling, the fake IndexedDB and the fake server's immediate answers need it.
+  - **Moving it:** `timePasses(ms)` moves it one timer at a time and gives the app real turns after each, so a timer the app starts in response starts at the right time; `timePasses(0)` lets what is due now happen. A single `advanceTimersByTimeAsync` started effect timers too late. The screen is read with `getBy…` and `queryBy…` after it: `findBy…` and `waitFor` move the clock themselves, in 50 ms steps. Taps go through `userOnTheTestClock()`; Testing Library's own event wrapper finds the clock through the `jest` global `startTestClock` sets, without which a tap waits forever.
+  - **Times shown** are relative to the test clock (`ago(2 * MINUTE)` → "před 2 min"), so no time zone is needed.
+  - **The phone's storage** is `fake-indexeddb` (`setup.ts`), the same browser API, so the app's storage code runs unchanged. It is emptied in place before every test, not replaced, since the app's idb-keyval store keeps its connection open. `phoneKeeps(…)` and `keptBalance()` set and read the stored balance.
+  - **The fake server** (`server.ts`) answers each address with the test's answers in order, the last repeating; `after(ms, answer)` delays one on the test clock; requests honour their `AbortSignal` (`aborted …` in the timeline). It also answers `GET /health`, models `goOffline()`/`goOnline()` and `leaveApp()`/`returnToApp()`, and answers a balance no scenario names when a test sets none, as the backend's `BankDsl.DEFAULT_BALANCE` (lesson R-15). `renderApp`'s `reopen()` closes the app and opens it again; `timesSent(request)` counts what it sent.
 
 ## Every scenario has exactly one test: the traceability check
 
@@ -236,5 +242,5 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 ## Decided later
 
 - **Database tests:** decided in C7b and described in § Storage (Azurite in a test container, [ADR-0005-data-storage](../adr/0005-data-storage.md)).
-- **Fake push-notification service:** C8.
+- **Fake push-notification service:** C8a (decided in C8's explore, [#51](https://github.com/jakubbohm/RevolutReader/issues/51), S9: a WireMock server per test, checked and decrypted by the tests' own code).
 - **Test commands:** decided in C1 and listed in [`CLAUDE.md` § Commands](../../CLAUDE.md#commands) (one group's tests, one change's acceptance tests, the traceability check, the full suite).

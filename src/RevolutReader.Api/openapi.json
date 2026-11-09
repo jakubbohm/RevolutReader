@@ -56,6 +56,87 @@
         }
       }
     },
+    "/api/balance": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "The account's balance, read at the bank",
+        "operationId": "RevolutReaderApiAccountBalanceEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountBalanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountBankProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountBankProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
@@ -311,6 +392,32 @@
             ]
           }
         }
+      },
+      "RevolutReaderApiAccountBalanceResponse": {
+        "required": [
+          "amount",
+          "readAt",
+          "czkPerEur"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "The account's available balance in euros, as the bank gives it",
+            "format": "double"
+          },
+          "readAt": {
+            "type": "string",
+            "description": "When the server read the balance at the bank",
+            "format": "date-time"
+          },
+          "czkPerEur": {
+            "type": "number",
+            "description": "Czech koruna per euro, the rate the app converts the balance with",
+            "format": "double"
+          }
+        },
+        "description": "The account's balance in euros, when the server read it, and the koruna rate"
       },
       "RevolutReaderApiAccountBankProblem": {
         "required": [

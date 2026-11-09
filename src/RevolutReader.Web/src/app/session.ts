@@ -1,50 +1,93 @@
-import { api } from "../api/client";
+import { api, askTheApi, wasAnswered } from "../api/client";
 
-/** Who the server says is signed in, as the page picks its screen from it (c007 design.md D3, D5). */
+/** Who the server says is signed in, as the page picks its screen from it (c007 design.md D3, D5; c009 D2, D5). */
 export type Session =
-  | { kind: "unknown" }
   | { kind: "signed-out"; justSignedOut: boolean }
   | { kind: "refused"; email: string | null }
-  | { kind: "signed-in"; name: string; email: string };
+  | { kind: "signed-in"; name: string; email: string }
+  /** Any other answer: an error status, a plain-text hosting page, or a success that is not a session. */
+  | { kind: "unexpected" }
+  /** The phone says it is offline (nothing sent), or no answer came. */
+  | { kind: "offline" };
+
+const UNEXPECTED: Session = { kind: "unexpected" };
 
 /**
- * Asks the server who is signed in (`GET /api/me`, design.md D3): 200 → signed in, with the name and email; 401 →
- * signed out; 403 → refused, with the email its problem description names (the contract's refused problem), or none.
- * Anything else, a server error or no answer at all (offline, the request failed), reads as unknown, so the page keeps
- * its empty frame (D5). Never throws.
+ * Asks the server who is signed in (`GET /api/me`, c007 design.md D3; c009 D2, D5); never throws.
+ * - The phone says it is offline: nothing is sent, and the session is offline.
+ * - 200 with a name and an email: signed in; any other 200 body is unexpected.
+ * - 401: signed out; 403: refused, with the email its problem description names (the contract's refused problem), or
+ *   none.
+ * - No answer (the request failed, or `signal` aborted it): offline. An answer with an error status never is: any other
+ *   status, a plain-text hosting page among them, is unexpected.
+ *
+ * Offline, 401, 403 and a success that is not JSON are every read's (`askTheApi`); the rest are the session's own.
  */
-export async function readSession(): Promise<Session> {
-  try {
-    const { data, error, response } = await api.GET("/api/me");
+export async function readSession(options?: {
+  signal?: AbortSignal;
+}): Promise<Session> {
+  const answer = await askTheApi(() =>
+    api.GET("/api/me", { signal: options?.signal }),
+  );
 
-    if (data !== undefined)
-      return { kind: "signed-in", name: data.name, email: data.email };
-    if (response.status === 401)
+  switch (answer.kind) {
+    case "signed out":
       return { kind: "signed-out", justSignedOut: false };
-    if (response.status === 403)
-      return {
-        kind: "refused",
-        email:
-          error !== undefined && "email" in error
-            ? (error.email ?? null)
-            : null,
-      };
+    case "answer":
+      return answer.status === 200
+        ? (signedInOf(answer.data) ?? UNEXPECTED)
+        : UNEXPECTED;
+    default:
+      return answer;
+  }
+}
 
-    return { kind: "unknown" };
-  } catch {
-    return { kind: "unknown" };
+/** Signed in, when the body names the user: a name and an email, as text. */
+function signedInOf(body: unknown): Session | null {
+  if (typeof body !== "object" || body === null) return null;
+  if (!("name" in body && "email" in body)) return null;
+
+  const { name, email } = body;
+  return typeof name === "string" && typeof email === "string"
+    ? { kind: "signed-in", name, email }
+    : null;
+}
+
+/**
+ * A sign-out that failed (c009 design.md D6): `offline` when the phone was offline or no answer came, otherwise the
+ * server answered with an error.
+ */
+export class SignOutFailed extends Error {
+  readonly offline: boolean;
+
+  constructor(offline: boolean) {
+    super(
+      offline
+        ? "The sign-out got no answer: the phone is offline."
+        : "The server answered the sign-out with an error.",
+    );
+    this.name = "SignOutFailed";
+    this.offline = offline;
   }
 }
 
 /**
- * Ends the login on this device (`POST /api/auth/logout`, design.md D2); the Microsoft account stays signed in.
- * Resolves once the server has answered with success; rejects when it answered otherwise or the request failed, so the
- * caller decides what that means for its screen.
+ * Ends the login on this device (`POST /api/auth/logout`, c007 design.md D2); the Microsoft account stays signed in.
+ * Resolves once the server has answered with success. Rejects with `SignOutFailed` otherwise, so the caller decides
+ * what that means for its screen (c009 D2, D6): offline when the phone says so (nothing is sent) or no answer came; not
+ * offline when the server answered with an error, a plain-text hosting page among them.
  */
 export async function signOut(): Promise<void> {
-  const { response } = await api.POST("/api/auth/logout");
+  if (!navigator.onLine) throw new SignOutFailed(true);
 
-  if (!response.ok) throw new Error(`Sign-out answered ${response.status}.`);
+  let response: Response;
+  try {
+    ({ response } = await api.POST("/api/auth/logout"));
+  } catch (failure) {
+    throw new SignOutFailed(!wasAnswered(failure));
+  }
+
+  if (!response.ok) throw new SignOutFailed(false);
 }
 
 /** The backend's sign-in address (design.md D2), and its query for Microsoft's account picker. */

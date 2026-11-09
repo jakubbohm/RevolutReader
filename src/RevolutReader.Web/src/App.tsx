@@ -1,6 +1,7 @@
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, type JSX } from "react";
 import { needsInstallHint, type Device } from "./app/device";
-import { readSession, signOut, type Session } from "./app/session";
+import { keepServerAwake, pingServer } from "./app/keepAwake";
+import { useAccountScreen } from "./app/useAccountScreen";
 import { InstallHint } from "./components/InstallHint";
 import { AccountScreen } from "./screens/AccountScreen";
 import { NoAccessScreen } from "./screens/NoAccessScreen";
@@ -16,54 +17,29 @@ export function App({ device }: AppProps): JSX.Element {
 }
 
 /**
- * The screen picked from the server's first answer to who is signed in, asked once at start (c007 design.md D3): signed
- * out → the sign-in screen; refused → the no-access screen, naming the account; signed in → the account screen, with
- * the account menu. Until the answer comes, and when it is unknown (offline, a server error), the same screen without
- * the menu: the empty frame (D5), so the top bar stays in place when a signed-in answer comes. C7 hooks its waiting and
- * offline screens onto this.
- *
- * "Odhlásit se" in the account menu signs out; once the server has answered, the sign-in screen shows with its note
- * that the sign-out happened. A sign-out that failed (a server error, offline) leaves the visitor on the account screen,
- * still signed in, so the note never claims a sign-out that did not happen.
+ * The screen the account screen's sequence picks (`useAccountScreen`, c007 design.md D3; c009 D2): the sign-in screen
+ * when nobody is signed in, the no-access screen for a refused account, otherwise the account screen. Whichever shows,
+ * the app keeps the server awake while it is on screen (c009 design.md D9): the sign-in screen too, so its button does
+ * not meet a sleeping server.
  */
 function Screens(): JSX.Element {
-  const [session, setSession] = useState<Session>({ kind: "unknown" });
+  const { shown, refresh, retry, signOut } = useAccountScreen();
 
-  useEffect(() => {
-    let showing = true;
+  useEffect(() => keepServerAwake(pingServer), []);
 
-    void readSession().then((answer) => {
-      if (showing) setSession(answer);
-    });
-
-    return () => {
-      showing = false;
-    };
-  }, []);
-
-  async function signOutFromMenu(): Promise<void> {
-    try {
-      await signOut();
-    } catch {
-      return;
-    }
-
-    setSession({ kind: "signed-out", justSignedOut: true });
-  }
-
-  switch (session.kind) {
-    case "signed-out":
-      return <SignInScreen signedOut={session.justSignedOut} />;
-    case "refused":
-      return <NoAccessScreen email={session.email} />;
-    case "signed-in":
+  switch (shown.screen) {
+    case "sign-in":
+      return <SignInScreen signedOut={shown.justSignedOut} />;
+    case "no access":
+      return <NoAccessScreen email={shown.email} />;
+    case "account":
       return (
         <AccountScreen
-          account={{ name: session.name, email: session.email }}
-          onSignOut={() => void signOutFromMenu()}
+          shown={shown}
+          onRefresh={refresh}
+          onRetry={retry}
+          onSignOut={signOut}
         />
       );
-    case "unknown":
-      return <AccountScreen />;
   }
 }

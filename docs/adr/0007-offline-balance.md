@@ -44,3 +44,12 @@ The design follows the same rule: the design system's "What the phone stores" se
 - **C9:** the push payload carries the balance and its read time. Web Push encrypts it for the device, so the push service cannot read it. What the lock screen shows stays a separate choice (Q8). The service worker writes the payload into the stored balance.
 - **Data at rest:** one balance and one time, on the user's own phone, inside the Home Screen app's storage, which is separate from Safari's (ADR-0003-sign-in § Context). Logs and the repository still never hold bank data (CLAUDE.md).
 - **Software factory:** [lessons.md R-40](../software-factory/lessons.md).
+
+## Notes
+
+- **2026-11-08, C7a, as built** (c009 design.md D4; the user's decisions in explore, 2026-11-08):
+  - **The record** is one entry, `{ amount, readAt, czkPerEur }`, under the key `last` in the app's own IndexedDB database `tarjeta-papa`, store `balance`, so C9's service worker can write the same entry from its push handler. With item 2, it also keeps the koruna rate the app converts with: the rate is the app's own number, not bank data, and C9's push must carry it too, or the service worker keeps the last stored rate.
+  - **The library** is `idb-keyval` 6.3.0 (Apache-2.0); the tests run the same code on `fake-indexeddb`.
+  - **No owner and no expiry:** every allowed user sees the same account, and the freshness line dates the record ("Aktualizováno 3. 11. v 14:05").
+  - **A failing store reads as nothing stored,** and a failed write or delete is ignored; a record of the wrong shape reads as nothing.
+  - **Item 4 extended:** the record is also deleted whenever the server answers that the device has no allowed login (401 or 403, to who is signed in or to a balance read), so a device without a login holds no bank data. A balance read that lands after a confirmed sign-out is neither shown nor kept. A failed sign-out keeps it.

@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's balance, read at the bank */
+        get: operations["RevolutReaderApiAccountBalanceEndpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -117,6 +134,24 @@ export interface components {
             status?: null | number;
             detail?: null | string;
             instance?: null | string;
+        };
+        /** @description The account's balance in euros, when the server read it, and the koruna rate */
+        RevolutReaderApiAccountBalanceResponse: {
+            /**
+             * Format: double
+             * @description The account's available balance in euros, as the bank gives it
+             */
+            amount: number;
+            /**
+             * Format: date-time
+             * @description When the server read the balance at the bank
+             */
+            readAt: string;
+            /**
+             * Format: double
+             * @description Czech koruna per euro, the rate the app converts the balance with
+             */
+            czkPerEur: number;
         };
         /** @description A problem description of one of the bank's expected failures, named by its type */
         RevolutReaderApiAccountBankProblem: {
@@ -242,6 +277,80 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiAccountBalanceEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevolutReaderApiAccountBalanceResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiAccountBankProblem"];
+                };
+            };
+            /** @description Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiAccountBankProblem"];
                 };
             };
         };

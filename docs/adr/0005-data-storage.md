@@ -74,7 +74,7 @@ Decided by the user, 2026-11-05:
 - **C7, or its first slice** (C7b since C7's split, 2026-11-08)**:**
   - the table role assignment and the table design in that account;
   - importing the M1 history file.
-- **C8:** the push subscriptions go into a table.
+- **C8** (C8a since C8's split, 2026-11-09)**:** the push subscriptions go into a table.
 - **Tables answer key lookups only.** If C7 or C9 needs more, the data is small enough to move with a script.
 - **Database tests** run against Azurite ([testing.md § Decided later](../conventions/testing.md#decided-later)). Health probes still never touch storage ([README.md § Backend code](../conventions/README.md#backend-code)).
 - **Software factory:** [lessons.md R-26](../software-factory/lessons.md), and the project's shortcut in [divergences.md R-26](../software-factory/divergences.md).

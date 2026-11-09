@@ -3,6 +3,7 @@ import { App } from "../App";
 import type { Device } from "../app/device";
 import {
   answerWith,
+  closeApp,
   navigations,
   requests,
   timeline,
@@ -17,10 +18,19 @@ export type Opened =
 export interface RenderedApp extends RenderResult {
   /** The requests the app sent, in order, as `METHOD /path?query`. */
   requests(): string[];
+  /** How many times the app sent this request (`METHOD /path?query`), over every launch in the test. */
+  timesSent(request: string): number;
   /** Where the app navigated, in order, as `/path?query` on its own origin. */
   navigations(): string[];
-  /** Requests, answers, failures and navigations, in the order they happened (./server.ts). */
+  /** Requests, answers, failures, aborts and navigations, in the order they happened (./server.ts). */
   timeline(): string[];
+  /**
+   * Closes the app and opens it again where it was first opened (c009 design.md D8): unmounted, then a new launch.
+   * The server keeps its answers and goes on with them in order, the phone keeps what it stored, and answers to the
+   * closed app's requests never arrive. The network and the screen stay as they are, so `goOffline()` first opens it
+   * offline. Returns the new launch. On the test clock, `timePasses(0)` lets it read the phone's storage.
+   */
+  reopen(): RenderedApp;
 }
 
 /** Safari on an iPhone, as it reports itself. */
@@ -42,6 +52,9 @@ const devices: Record<Opened, Device> = {
  * Renders the whole app as it starts where it is opened, so a scenario runs through the real install-hint rule, with
  * the server answering as `server` says (c007 design.md D3). Without an answer to who is signed in, the question stays
  * open, as while the server wakes up.
+ *
+ * On the test clock (`./clock.ts`), rendering moves no time: the app has sent its first requests, and their answers
+ * arrive on `timePasses(0)` (or after their `after`).
  */
 export function renderApp(
   opened: Opened,
@@ -49,10 +62,23 @@ export function renderApp(
 ): RenderedApp {
   answerWith(server);
 
+  return launch(opened);
+}
+
+function launch(opened: Opened): RenderedApp {
+  const rendered = render(<App device={devices[opened]} />);
+
   return {
-    ...render(<App device={devices[opened]} />),
+    ...rendered,
     requests,
+    timesSent: (request) =>
+      requests().filter((sent) => sent === request).length,
     navigations,
     timeline,
+    reopen: () => {
+      rendered.unmount();
+      closeApp();
+      return launch(opened);
+    },
   };
 }

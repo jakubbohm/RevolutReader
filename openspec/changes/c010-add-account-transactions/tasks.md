@@ -531,8 +531,8 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 Waits for C7a's merge (design.md D8).
 
-- [ ] 87.1 Merge `main` with C7a's squash into the branch (memory: parallel PRs and squash merges). Resolve as design.md D13 says: `Banner`, `ProblemDescription` C7a's; `Skeleton`, `EmptyState`, `format.ts`, `server.ts`, `AcceptanceTest.cs`, `Program.cs`, `package.json` and the lock file merged by hand; `openapi.json` and `schema.d.ts` regenerated; `App.tsx` and `AccountScreen.tsx` C7a's, with the list put back in its content until group 90. Verify: build passes; the full suite green except what the join changes; a second regenerate leaves no diff; this change's delta against `main` holds no C7a line
-- [ ] 87.2 A text in this change's specs that differs from C7a's merged wording is shown to the user, then fixed as `[plan]`. Verify: the user's answer recorded in `.tdd-state.md`
+- [x] 87.1 Merge `main` with C7a's squash into the branch (memory: parallel PRs and squash merges). Resolve as design.md D13 says: `Banner`, `ProblemDescription` C7a's; `Skeleton`, `EmptyState`, `format.ts`, `server.ts`, `AcceptanceTest.cs`, `Program.cs`, `package.json` and the lock file merged by hand; `openapi.json` and `schema.d.ts` regenerated; `App.tsx` and `AccountScreen.tsx` C7a's, with the list put back in its content until group 90. Verify: build passes; the full suite green except what the join changes; a second regenerate leaves no diff; this change's delta against `main` holds no C7a line
+- [x] 87.2 A text in this change's specs that differs from C7a's merged wording is shown to the user, then fixed as `[plan]`. Verify: the user's answer recorded in `.tdd-state.md`
 
 ## 88. [acceptance] Join — scenario tests
 

@@ -3,7 +3,7 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// <summary>
 /// A problem description the API answered with (spec api-errors), identified by the case its title names, and for the
 /// app's own cases also by its <c>type</c>. The driver returns one only when the answer's status, content type and body
-/// agree (<see cref="Drivers.ApiDriver"/>, <see cref="Drivers.TransactionsDriver"/>).
+/// agree (<see cref="Drivers.ApiDriver"/>, <see cref="Drivers.BalanceDriver"/>).
 /// </summary>
 /// <param name="Title">The case's title.</param>
 /// <param name="Type">

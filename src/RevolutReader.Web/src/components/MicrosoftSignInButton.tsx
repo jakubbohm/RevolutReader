@@ -39,7 +39,7 @@ export function MicrosoftSignInButton({
         <LoaderCircle
           size={18}
           aria-hidden="true"
-          className="animate-spin [animation-duration:var(--duration-spin)] motion-reduce:animate-none"
+          className="animate-busy-spin"
         />
       ) : null}
     </button>

@@ -1,11 +1,30 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect } from "vitest";
+import { errorBanner } from "../test/banners";
+import {
+  SECOND,
+  startTestClock,
+  timePasses,
+  userOnTheTestClock,
+} from "../test/clock";
 import { renderApp } from "../test/renderApp";
 import { scenario } from "../test/scenario";
-import { nobodySignedIn, refused, signedIn } from "../test/server";
+import {
+  after,
+  balance,
+  goOffline,
+  nobodySignedIn,
+  refused,
+  serverError,
+  signedIn,
+  signedOut,
+} from "../test/server";
 
 const SIGN_IN_BUTTON = "Přihlásit se účtem Microsoft";
+const ACCOUNT_MENU = "Účet a odhlášení";
+const SIGN_OUT = "Odhlásit se";
+const LUCIE = signedIn("Lucie Nováková", "lucie@example.com");
 
 scenario(
   "sign-in",
@@ -125,3 +144,113 @@ scenario(
     ).toBeInTheDocument();
   },
 );
+
+scenario(
+  "sign-in",
+  "A login that ends while the app is open shows the sign-in screen",
+  async () => {
+    startTestClock();
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: [LUCIE, nobodySignedIn],
+      balance: [balance(286.4), nobodySignedIn],
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    expect(screen.getByText("286,40 €")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Obnovit" }));
+    await timePasses(0);
+
+    expect(
+      screen.getByRole("button", { name: SIGN_IN_BUTTON }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Odhlášení proběhlo. Pro návrat se znovu přihlas."),
+    ).not.toBeInTheDocument();
+  },
+);
+
+scenario(
+  "sign-in",
+  "A sign-out that fails offline says to try again online",
+  async () => {
+    startTestClock();
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    expect(screen.getByText("286,40 €")).toBeInTheDocument();
+    goOffline();
+
+    await user.click(screen.getByRole("button", { name: ACCOUNT_MENU }));
+    await user.click(screen.getByRole("menuitem", { name: SIGN_OUT }));
+    await timePasses(0);
+
+    const error = errorBanner("Odhlášení se nepovedlo");
+    expect(
+      within(error).getByText("Zkus to znovu, až budeš online."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("286,40 €")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: ACCOUNT_MENU }),
+    ).toBeInTheDocument();
+  },
+);
+
+scenario(
+  "sign-in",
+  "A sign-out the server fails says to try again later",
+  async () => {
+    startTestClock();
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
+      signOut: serverError,
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    await user.click(screen.getByRole("button", { name: ACCOUNT_MENU }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("menuitem", { name: SIGN_OUT }));
+    await timePasses(0);
+
+    const error = errorBanner("Odhlášení se nepovedlo");
+    expect(
+      within(error).getByText("Zkus to prosím za chvíli."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: ACCOUNT_MENU }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("286,40 €")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: SIGN_IN_BUTTON }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+scenario("sign-in", "The menu shows the sign-out under way", async () => {
+  startTestClock();
+  const app = renderApp("iPhone Home Screen", {
+    whoIsSignedIn: LUCIE,
+    balance: balance(286.4),
+    signOut: after(5 * SECOND, signedOut),
+  });
+  const user = userOnTheTestClock();
+  await timePasses(0);
+  await user.click(screen.getByRole("button", { name: ACCOUNT_MENU }));
+  expect(screen.getByRole("menu")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("menuitem", { name: SIGN_OUT }));
+  await timePasses(0);
+
+  const item = within(screen.getByRole("menu")).getByRole("menuitem", {
+    name: SIGN_OUT,
+  });
+  expect(item).toHaveAttribute("aria-busy", "true");
+  await user.click(item);
+  await timePasses(0);
+  expect(app.timesSent("POST /api/auth/logout")).toBe(1);
+});

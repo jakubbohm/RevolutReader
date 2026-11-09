@@ -1,14 +1,22 @@
 import { expect, test } from "vitest";
 import {
   answerWith,
+  goOffline,
+  hostingErrorPage,
   navigations,
+  noConnection,
   nobodySignedIn,
   refused,
   requests,
+  serverError,
   signedIn,
+  signedOut,
+  unreadable,
+  wifiLoginPage,
+  type SignOutAnswer,
   type WhoIsSignedIn,
 } from "../test/server";
-import { readSession, startSignIn } from "./session";
+import { readSession, SignOutFailed, signOut, startSignIn } from "./session";
 
 // What the server answers to who is signed in, read as the session the page picks its screen from (c007 design.md D3,
 // D5). The fake server (src/test/server.ts) answers the app's API client; every address here is made up.
@@ -49,17 +57,91 @@ test("A signed-in account reads as signed in, with its name and email", async ()
   });
 });
 
-const noUsableAnswer: { label: string; answer: WhoIsSignedIn }[] = [
-  { label: "a server error", answer: { kind: "server error" } },
-  { label: "no answer, offline", answer: { kind: "no connection" } },
+// Offline is what the phone says, or no answer at all; an answer with an error status is never offline, since the
+// hosting proxy answers in plain text when the app cannot be reached (c009 design.md D2, D5).
+
+test("With the phone offline, asking who is signed in sends nothing and reads as offline", async () => {
+  answerWith({
+    whoIsSignedIn: signedIn("Lucie Nováková", "lucie@example.com"),
+  });
+  goOffline();
+
+  expect(await readSession()).toEqual({ kind: "offline" });
+  expect(requests()).toEqual([]);
+});
+
+test("Asking who is signed in with no answer reads as offline", async () => {
+  answerWith({ whoIsSignedIn: noConnection });
+
+  expect(await readSession()).toEqual({ kind: "offline" });
+});
+
+const errorAnswers: { label: string; answer: WhoIsSignedIn }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "the hosting proxy's plain-text page", answer: hostingErrorPage },
+  { label: "a success whose body is not a session", answer: unreadable },
+  {
+    label: "a success that is not JSON (a public Wi-Fi's login page)",
+    answer: wifiLoginPage,
+  },
 ];
 
-test.each(noUsableAnswer)(
-  "A server error or no answer reads as unknown: $label",
+test.each(errorAnswers)(
+  "A server error or a hosting error page to who is signed in reads as unexpected, not offline: $label",
   async ({ answer }) => {
     answerWith({ whoIsSignedIn: answer });
 
-    expect(await readSession()).toEqual({ kind: "unknown" });
+    expect(await readSession()).toEqual({ kind: "unexpected" });
+  },
+);
+
+// A failed sign-out (c009 design.md D6): `signOut` keeps rejecting, now with `SignOutFailed`, which says whether the
+// phone was offline (it said so and nothing was sent, or no answer came) or the server answered with an error.
+
+/** What the sign-out rejected with; `undefined` when it resolved. */
+async function signOutFailure(): Promise<unknown> {
+  try {
+    await signOut();
+    return undefined;
+  } catch (error: unknown) {
+    return error;
+  }
+}
+
+test("With the phone offline, the sign-out sends nothing and fails as offline", async () => {
+  answerWith({ signOut: signedOut });
+  goOffline();
+
+  const failure = await signOutFailure();
+
+  expect(failure).toBeInstanceOf(SignOutFailed);
+  expect(failure).toMatchObject({ offline: true });
+  expect(requests()).toEqual([]);
+});
+
+test("A sign-out that gets no answer fails as offline", async () => {
+  answerWith({ signOut: noConnection });
+
+  const failure = await signOutFailure();
+
+  expect(failure).toBeInstanceOf(SignOutFailed);
+  expect(failure).toMatchObject({ offline: true });
+});
+
+const signOutErrors: { label: string; answer: SignOutAnswer }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "the hosting proxy's plain-text page", answer: hostingErrorPage },
+];
+
+test.each(signOutErrors)(
+  "A sign-out the server answers with an error fails as not offline: $label",
+  async ({ answer }) => {
+    answerWith({ signOut: answer });
+
+    const failure = await signOutFailure();
+
+    expect(failure).toBeInstanceOf(SignOutFailed);
+    expect(failure).toMatchObject({ offline: false });
   },
 );
 
