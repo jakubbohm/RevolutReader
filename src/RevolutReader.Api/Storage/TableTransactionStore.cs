@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Options;
@@ -8,9 +10,10 @@ namespace RevolutReader.Api.Storage;
 
 /// <summary>
 /// <see cref="ITransactionStore"/> on Azure Table Storage (c010 design.md D5, § Ports and contracts): the table
-/// <see cref="TransactionStoreOptions.TableName"/>, one partition (<c>account</c>), one row per transaction, keyed by its
-/// reference escaped with <see cref="Uri.EscapeDataString(string)"/> (Table Storage forbids <c>/</c>, <c>\</c>, <c>#</c> and
-/// <c>?</c> in a key), the reference itself kept unescaped in a column.
+/// <see cref="TransactionStoreOptions.TableName"/>, one partition (<c>account</c>), one row per transaction, keyed by the
+/// SHA-256 of its reference's UTF-8 bytes in lowercase hex: 64 characters, only <c>0-9a-f</c>, so whatever the reference
+/// holds, the key has neither a character Table Storage forbids in a key (<c>/</c>, <c>\</c>, <c>#</c>, <c>?</c>) nor the
+/// <c>%</c> escaping would bring; the reference itself kept unchanged in a column, which every read uses.
 /// <list type="bullet">
 /// <item>The columns: <c>Reference</c>; <c>Date</c> as <c>yyyy-MM-dd</c>; <c>Position</c>; <c>Amount</c> as an invariant
 /// decimal string (tables have no decimal type, and a double would lose cents); <c>Currency</c>; <c>Counterparty</c> and
@@ -77,7 +80,7 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
 
     await TableCreated(cancellationToken);
 
-    // Distinct references have distinct keys: the escaping escapes the % it writes, so it never maps two onto one.
+    // Grouped by the reference, not the key: distinct references have distinct keys (SHA-256 has no known collision).
     IEnumerable<KeptTransaction> latest = transactions
       .GroupBy(static transaction => transaction.Reference, StringComparer.Ordinal)
       .Select(static named => named.Last());
@@ -101,7 +104,7 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
   }
 
   private static TableEntity Row(KeptTransaction transaction) {
-    TableEntity row = new(PARTITION, Uri.EscapeDataString(transaction.Reference)) {
+    TableEntity row = new(PARTITION, RowKey(transaction.Reference)) {
       [REFERENCE] = transaction.Reference,
       [DATE] = transaction.Date.ToString(DATE_FORMAT, CultureInfo.InvariantCulture),
       [POSITION] = transaction.Position,
@@ -119,6 +122,9 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
 
     return row;
   }
+
+  /// <summary>The row key of a reference: the SHA-256 of its UTF-8 bytes, in lowercase hex (D5).</summary>
+  private static string RowKey(string reference) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(reference)));
 
   /// <summary>
   /// A row as kept. Tries, never parses: a parse's exception quotes its input, which would carry the row's bank data into

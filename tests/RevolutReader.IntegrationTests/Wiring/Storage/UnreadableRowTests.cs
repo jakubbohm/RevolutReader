@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Storage;
@@ -80,10 +82,11 @@ public sealed class UnreadableRowTests {
   }
 
   /// <summary>
-  /// A card payment of 12.30 EUR as the store writes it (c010 design.md D5): partition <c>account</c>, the escaped
-  /// reference as the key, every column set; each test changes the one it is about.
+  /// A card payment of 12.30 EUR as the store writes it (c010 design.md D5): partition <c>account</c>, the SHA-256 of the
+  /// reference's UTF-8 bytes in lowercase hex as the key (<see cref="RowKeyTests"/>), every column set; each test changes
+  /// the one it is about.
   /// </summary>
-  private static TableEntity WrittenRow() => new("account", Uri.EscapeDataString($"e/{MARKER}")) {
+  private static TableEntity WrittenRow() => new("account", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"e/{MARKER}")))) {
     ["Reference"] = $"e/{MARKER}",
     ["Date"] = "2026-11-18",
     ["Position"] = 0,
