@@ -27,13 +27,15 @@ export type ListFacts = {
 
 /**
  * What the list shows and which banner goes with it, from what is known (c010 design.md D7); pure, extended at the join
- * (D8). A list once read stays on screen; while the newest page is read and no list is on screen yet, its placeholders;
- * nothing otherwise so far.
+ * (D8). A list once read stays on screen, unless it has no transactions and nothing older is kept: then it says that
+ * there are none yet; while the newest page is read and no list is on screen yet, its placeholders; nothing otherwise
+ * so far.
  */
 export function listShown(facts: ListFacts): {
   shown: ListShown;
   banner: ListProblem | null;
 } {
+  if (isEmpty(facts.list)) return { shown: { body: "empty" }, banner: null };
   if (facts.list !== null)
     return {
       shown: {
@@ -47,4 +49,9 @@ export function listShown(facts: ListFacts): {
   if (facts.reading) return { shown: { body: "placeholder" }, banner: null };
 
   return { shown: { body: "none" }, banner: null };
+}
+
+/** Whether the list is read and has nothing to show: no transactions on the newest page, and nothing older kept. */
+function isEmpty(list: ListState | null): boolean {
+  return list !== null && list.days.length === 0 && list.nextBefore === null;
 }

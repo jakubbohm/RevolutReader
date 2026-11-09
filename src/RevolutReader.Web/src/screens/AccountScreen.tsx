@@ -1,4 +1,4 @@
-import { WifiOff } from "lucide-react";
+import { Inbox, WifiOff } from "lucide-react";
 import type { JSX } from "react";
 import type { Problem, ShownAccount } from "../app/screenState";
 import { useNow } from "../app/useNow";
@@ -33,8 +33,8 @@ export interface AccountScreenProps {
  * the waking-up screen is the whole screen. The freshness line counts again every minute.
  *
  * The transaction list (c010 design.md D7) reads the newest transactions once the server has named the user, and shows
- * its placeholders, then its days, in the list slot, when the screen has one; it joins the screen's states at the join
- * (D8).
+ * its placeholders, then its days, or "Zatím žádné pohyby" when there are none, in the list slot, when the screen has
+ * one; it joins the screen's states at the join (D8).
  */
 export function AccountScreen({
   shown,
@@ -82,6 +82,14 @@ export function AccountScreen({
           rate={list.shown.rate}
           rateDate={list.shown.rateDate}
         />
+      ) : null}
+      {shown.body === "list" && list.shown.body === "empty" ? (
+        // The board "Account / Detail / Empty": under the header, in the list's place.
+        <div className="pt-12">
+          <EmptyState icon={Inbox} title="Zatím žádné pohyby">
+            Jakmile proběhne první platba, uvidíš ji tady.
+          </EmptyState>
+        </div>
       ) : null}
       {shown.body === "offline note" ? (
         <EmptyState variant="note">

@@ -9,6 +9,7 @@ import {
   sheetSubtitle,
   statusWord,
 } from "../app/transactionText";
+import { amountColour } from "./amountColour";
 import { TransactionIcon } from "./TransactionIcon";
 
 export interface TransactionSheetProps {
@@ -101,9 +102,7 @@ export function TransactionSheet({
             </Dialog.Close>
           </div>
           <div className="mt-section flex flex-col tabular-nums">
-            <p
-              className={`text-amount-lg ${tx.amount > 0 ? "text-incoming" : "text-outgoing"}`}
-            >
+            <p className={`text-amount-lg ${amountColour(tx)}`}>
               {formatAmount(tx.amount, tx.currency)}
             </p>
             {koruna !== null ? (

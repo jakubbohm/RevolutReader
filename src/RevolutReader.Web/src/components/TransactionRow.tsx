@@ -1,7 +1,14 @@
 import type { JSX } from "react";
 import { formatAmount } from "../app/format";
 import type { Transaction } from "../app/transactions";
-import { korunaValue, rowLabel, rowLines } from "../app/transactionText";
+import {
+  korunaValue,
+  REFUND_CHIP,
+  rowLabel,
+  rowLines,
+  showsRefundChip,
+} from "../app/transactionText";
+import { amountColour } from "./amountColour";
 import { TransactionIcon } from "./TransactionIcon";
 
 export interface TransactionRowProps {
@@ -15,10 +22,12 @@ export interface TransactionRowProps {
 
 /**
  * One transaction in the list (c010 design.md D4, D14, design system TransactionRow), at least 64 pt high: the icon disc
- * by direction, the two lines (each cut with an ellipsis; the first alone sits centred), and on the right the amount with
- * its sign over its koruna line, none for another currency. A button whose label reads what the row shows, in order,
- * without a time; a tap opens the transaction's details. The hairline above every row but the first is inset to the
- * text. Laid out as `Skeleton`'s list placeholder, so nothing jumps when the transactions arrive.
+ * by status, kind and direction, the two lines (each cut with an ellipsis; the first alone sits centred), and on the
+ * right the amount with its sign over its koruna line, none for another currency. A pending row's second line is
+ * "Čeká na zpracování" in `color-pending` and its amount is muted; a refund's second line may lead with the "Vrácení"
+ * chip (`text-caption` in `color-incoming` on `color-incoming-soft`). A button whose label reads what the row shows, in
+ * order, without a time; a tap opens the transaction's details. The hairline above every row but the first is inset to
+ * the text. Laid out as `Skeleton`'s list placeholder, so nothing jumps when the transactions arrive.
  */
 export function TransactionRow({
   tx,
@@ -27,7 +36,7 @@ export function TransactionRow({
 }: TransactionRowProps): JSX.Element {
   const { first, second } = rowLines(tx);
   const koruna = korunaValue(tx, rate);
-  const incoming = tx.amount > 0;
+  const chip = showsRefundChip(tx);
 
   return (
     <button
@@ -45,15 +54,20 @@ export function TransactionRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-body-strong text-ink">{first}</span>
           {second !== null ? (
-            <span className="truncate text-subhead text-ink-muted">
-              {second}
+            <span
+              className={`truncate text-subhead ${tx.pending ? "text-pending" : "text-ink-muted"}`}
+            >
+              {chip ? (
+                <span className="mr-1.5 inline-block rounded-full bg-incoming-soft px-2 py-0.5 align-top text-caption text-incoming">
+                  {REFUND_CHIP}
+                </span>
+              ) : null}
+              <span>{second}</span>
             </span>
           ) : null}
         </span>
         <span className="flex flex-none flex-col items-end tabular-nums">
-          <span
-            className={`text-body-strong ${incoming ? "text-incoming" : "text-outgoing"}`}
-          >
+          <span className={`text-body-strong ${amountColour(tx)}`}>
             {formatAmount(tx.amount, tx.currency)}
           </span>
           {koruna !== null ? (

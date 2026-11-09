@@ -379,11 +379,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 58. [wiring] Slice 25 — The pending row
 
-- [ ] 58.1 The pending look: the `clock` disc, the second line in the pending colour, the amount muted with its sign (design system). Verify: the scenario runs against the app
+- [x] 58.1 The pending look: the `clock` disc, the second line in the pending colour, the amount muted with its sign (design system). Verify: the scenario runs against the app
 
 ## 59. [close] Slice 25 — A pending transaction is marked as waiting
 
-- [ ] 59.1 The scenario's test passes. Verify: green, including account-transactions / A pending transaction is marked as waiting
+- [x] 59.1 The scenario's test passes. Verify: green, including account-transactions / A pending transaction is marked as waiting
 
 ## 60. [unit] Slice 26 — Refunds
 
@@ -393,19 +393,19 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 61. [wiring] Slice 26 — The refund row
 
-- [ ] 61.1 The `undo-2` disc and the "Vrácení" chip before the second line (design system). Verify: the scenario runs against the app
+- [x] 61.1 The `undo-2` disc and the "Vrácení" chip before the second line (design system). Verify: the scenario runs against the app
 
 ## 62. [close] Slice 26 — A refund is marked as one in the list and in its details
 
-- [ ] 62.1 The scenario's test passes. Verify: green, including account-transactions / A refund is marked as one in the list and in its details
+- [x] 62.1 The scenario's test passes. Verify: green, including account-transactions / A refund is marked as one in the list and in its details
 
 ## 63. [wiring] Slice 27 — The empty list
 
-- [ ] 63.1 `EmptyState` with the `default` variant, to C7a's props (design.md D13), when the newest page has no transactions and nothing older is kept. Verify: the scenario runs against the app
+- [x] 63.1 `EmptyState` with the `default` variant, to C7a's props (design.md D13), when the newest page has no transactions and nothing older is kept. Verify: the scenario runs against the app
 
 ## 64. [close] Slice 27 — An account with no transactions says so
 
-- [ ] 64.1 The scenario's test passes. Verify: green, including account-transactions / An account with no transactions says so
+- [x] 64.1 The scenario's test passes. Verify: green, including account-transactions / An account with no transactions says so
 
 ## 65. [unit] Slice 28 — The list's problems
 
