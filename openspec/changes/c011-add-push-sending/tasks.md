@@ -120,7 +120,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 11. [close] Slice 2 — A registered device receives a message sent to its account
 
-- [ ] 11.1 The scenario's test passes. Verify: green, including push-sending / A registered device receives a message sent to its account
+- [x] 11.1 The scenario's test passes. Verify: green, including push-sending / A registered device receives a message sent to its account
 
 ## 12. [unit] Slice 3 — Only the account's devices
 
