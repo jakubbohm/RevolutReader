@@ -12,9 +12,9 @@ namespace RevolutReader.IntegrationTests.Wiring.Push;
 /// <summary>
 /// A subscription the app cannot use is refused at the subscription endpoint (spec push-devices, "Only push addresses at
 /// known push services are accepted" and "A malformed subscription is refused"; c011 design.md D9; tasks 42.1, 42.7,
-/// 42.9, 43.1, 45.1–45.5). Lucie, signed in and allowed, registers a subscription whose push address is at no known
+/// 42.9, 43.1, 45.1–45.6). Lucie, signed in and allowed, registers a subscription whose push address is at no known
 /// service, on this machine at a service the settings do not name, left out or empty, or whose keys are missing, of the
-/// wrong size or not base64url without padding: each gets 400, FastEndpoints' validation problem
+/// wrong size, not base64url without padding, or whose public key is not a point on P-256: each gets 400, FastEndpoints' validation problem
 /// (<c>application/problem+json</c>, titled <c>Bad Request</c>, <c>errors</c> an array of <c>{ name, reason }</c>) naming
 /// exactly each refused member (<c>endpoint</c>, <c>keys.p256dh</c>, <c>keys.auth</c>) once, with a fixed reason and
 /// nothing the request sent, and nothing is stored. The scenarios pin a refusal through the DSL; here the problem's whole
@@ -92,6 +92,7 @@ public sealed class RefusedSubscriptionTests {
   [Test]
   [Arguments("a public key of 64 bytes")]
   [Arguments("a public key of 65 bytes starting with 0x02")]
+  [Arguments("a public key of 65 bytes starting with 0x04 that is not a point on P-256")]
   [Arguments("a public key with padding")]
   [Arguments("a public key left out")]
   [Arguments("a secret of 17 bytes")]
@@ -110,11 +111,13 @@ public sealed class RefusedSubscriptionTests {
     string secret = Quoted(keys.Auth);
     string shortPublicKey = Base64Url.EncodeToString(keys.Point.AsSpan(0, POINT_BYTES - 1));
     string otherPublicKey = Base64Url.EncodeToString([0x02, .. keys.Point.AsSpan(1)]);
+    string offCurvePublicKey = Base64Url.EncodeToString([.. keys.Point.AsSpan(0, POINT_BYTES - 1), (byte)(keys.Point[^1] ^ 0x01)]);
     string longSecret = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(SECRET_BYTES + 1));
     string shortSecret = Base64Url.EncodeToString(keys.Secret.AsSpan(0, 8));
     (string Body, string[] Refused) subscription = refusal switch {
       "a public key of 64 bytes" => (Subscription(endpoint, Quoted(shortPublicKey), secret), [PUBLIC_KEY_MEMBER]),
       "a public key of 65 bytes starting with 0x02" => (Subscription(endpoint, Quoted(otherPublicKey), secret), [PUBLIC_KEY_MEMBER]),
+      "a public key of 65 bytes starting with 0x04 that is not a point on P-256" => (Subscription(endpoint, Quoted(offCurvePublicKey), secret), [PUBLIC_KEY_MEMBER]),
       "a public key with padding" => (Subscription(endpoint, Quoted($"{keys.P256dh}="), secret), [PUBLIC_KEY_MEMBER]),
       "a public key left out" => (Subscription(endpoint, null, secret), [PUBLIC_KEY_MEMBER]),
       "a secret of 17 bytes" => (Subscription(endpoint, publicKey, Quoted(longSecret)), [SECRET_MEMBER]),
@@ -128,7 +131,7 @@ public sealed class RefusedSubscriptionTests {
 
     using HttpResponseMessage response = await Register(lucie, subscription.Body);
 
-    await ShouldBeRefusedNaming(response, subscription.Refused, sent: [token, keys.P256dh[..20], keys.Auth[..16], shortPublicKey[..20], otherPublicKey[..20], longSecret[..16], shortSecret]);
+    await ShouldBeRefusedNaming(response, subscription.Refused, sent: [token, keys.P256dh[..20], keys.Auth[..16], shortPublicKey[..20], otherPublicKey[..20], offCurvePublicKey[^20..], longSecret[..16], shortSecret]);
     (await app.Devices.ReadAll(CancellationToken.None)).ShouldBeEmpty("a refused device is not stored");
   }
 

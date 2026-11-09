@@ -15,7 +15,8 @@ namespace RevolutReader.UnitTests.Push;
 /// http only at a loopback service the settings name; it has no user information and is at most 2048 characters long.
 /// Any other push address is refused, naming the push address (<c>endpoint</c>) with a fixed reason, never its value, and
 /// nothing is stored: so a signed-in user can never make the server send requests to an address of their choosing. A key
-/// that is missing, not base64url without padding, or of the wrong size or form is refused the same way, naming
+/// that is missing, not base64url without padding, of the wrong size or form, or a public key that is not a point on
+/// P-256 is refused the same way, naming
 /// <c>keys.p256dh</c> or <c>keys.auth</c>; a refusal names every refused member at once. The handler runs with the real <see cref="KnownPushServices"/> on the settings given and the in-memory store. Every
 /// push address is made up (a new token each time) at a real push service's host, as browsers' addresses look; every key
 /// is generated in the test, as a browser makes them.
@@ -326,6 +327,38 @@ public sealed class RegisterDeviceHandlerTests {
     await ShouldBeRefusedNaming(subscription, key);
   }
 
+  /// <summary>
+  /// The public key must be a point on P-256 (D9, the owner's decision 2026-11-09): a value of the right size and first
+  /// byte that is not one would only fail later, when a push is encrypted for it. Each case is 65 bytes starting with 0x04,
+  /// in base64url without padding, so only a check of the point itself refuses it; how the platform's import says no
+  /// (an exception type differs between Windows and Linux) is not the test's business. The well-formed side, a fresh key's
+  /// point registering, is <see cref="A_device_at_a_known_push_service_with_well_formed_keys_is_saved_under_the_signed_in_account"/>.
+  /// </summary>
+  /// <param name="form">A 65-byte value starting with 0x04 that is not a point on P-256.</param>
+  [Test]
+  [Arguments("a real point with Y's last bit flipped")] // a damaged key: x unchanged, so only the curve equation fails
+  [Arguments("a real point with X's last bit flipped")] // the same, damaged in X
+  [Arguments("X of one real point, Y of another")] // two keys' halves put together
+  [Arguments("X and Y both zero")] // (0, 0): the curve's b is not 0, so it is not on the curve
+  [Arguments("X and Y every bit set, above the field prime")] // coordinates no field element has
+  public async Task A_public_key_of_65_bytes_starting_with_0x04_that_is_not_a_point_on_P256_is_refused_naming_it(string form) {
+    DeviceKeys keys = DeviceKeys.New();
+    DeviceKeys another = DeviceKeys.New();
+    byte[] publicKey = form switch {
+      "a real point with Y's last bit flipped" => WithBitFlipped(keys.Point, POINT_BYTES - 1),
+      "a real point with X's last bit flipped" => WithBitFlipped(keys.Point, 32),
+      "X of one real point, Y of another" => [.. keys.Point.AsSpan(0, 33), .. another.Point.AsSpan(33)],
+      "X and Y both zero" => [UNCOMPRESSED_POINT, .. new byte[POINT_BYTES - 1]],
+      "X and Y every bit set, above the field prime" => [UNCOMPRESSED_POINT, .. Enumerable.Repeat((byte)0xFF, POINT_BYTES - 1)],
+      _ => throw new ArgumentOutOfRangeException(nameof(form), form, "Not a known case."),
+    };
+
+    publicKey.ShouldSatisfyAllConditions(
+      () => publicKey.Length.ShouldBe(POINT_BYTES, "the test's own check: the right size"),
+      () => publicKey[0].ShouldBe(UNCOMPRESSED_POINT, "the test's own check: the right first byte"));
+    await ShouldBeRefusedNaming(new DeviceSubscription(PushAddressAtGoogle(), Base64Url.EncodeToString(publicKey), keys.Auth), PUBLIC_KEY_MEMBER);
+  }
+
   [Test]
   public async Task A_missing_secret_is_refused_naming_it() {
     DeviceKeys keys = DeviceKeys.New();
@@ -403,6 +436,14 @@ public sealed class RegisterDeviceHandlerTests {
     }
 
     (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("a refused device is not stored");
+  }
+
+  /// <summary>A copy of <paramref name="bytes"/> with the last bit of the byte at <paramref name="index"/> flipped.</summary>
+  private static byte[] WithBitFlipped(byte[] bytes, int index) {
+    byte[] damaged = [.. bytes];
+    damaged[index] ^= 0x01;
+
+    return damaged;
   }
 
   /// <summary>A push address at Google's push service, which the known services name exactly.</summary>
