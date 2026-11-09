@@ -63,7 +63,7 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 4. [close] Slice 1 — The app gets the public push key
 
-- [ ] 4.1 The scenario's test passes. Verify: green, including push-devices / The app gets the public push key
+- [x] 4.1 The scenario's test passes. Verify: green, including push-devices / The app gets the public push key
 
 ## 5. [unit] Slice 2 — The message
 
