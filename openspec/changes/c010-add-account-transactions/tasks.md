@@ -284,11 +284,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 38. [wiring] Slice 17 — The list on the account screen
 
-- [ ] 38.1 `src/app/transactions.ts` (`readNewestTransactions`, `readOlderTransactions`, typed from `schema.d.ts`), `listState.ts`, `useTransactionList` (the newest page once the session is signed in; one read at a time), `Skeleton` with the `list` variant ("Načítám pohyby", to C7a's props, design.md D13), and `AccountScreen` hosting the list in its content area until the join. Verify: the scenario runs against the app; lint, typecheck and format clean
+- [x] 38.1 `src/app/transactions.ts` (`readNewestTransactions`, `readOlderTransactions`, typed from `schema.d.ts`), `listState.ts`, `useTransactionList` (the newest page once the session is signed in; one read at a time), `Skeleton` with the `list` variant ("Načítám pohyby", to C7a's props, design.md D13), and `AccountScreen` hosting the list in its content area until the join. Verify: the scenario runs against the app; lint, typecheck and format clean
 
 ## 39. [close] Slice 17 — The list shows placeholders while the transactions load
 
-- [ ] 39.1 The scenario's test passes. Verify: green, including account-transactions / The list shows placeholders while the transactions load
+- [x] 39.1 The scenario's test passes. Verify: green, including account-transactions / The list shows placeholders while the transactions load
 
 ## 40. [unit] Slice 18 — Days
 
