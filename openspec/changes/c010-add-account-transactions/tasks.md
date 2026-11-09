@@ -302,11 +302,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 41. [wiring] Slice 18 — Day groups
 
-- [ ] 41.1 `TransactionList`, `DayGroup` and `DayHeader` (sticky, `h2`, totals with their spoken twins "Příchozí …" and "Odchozí …"; design.md D14), and `format.ts`'s `formatEur` and `formatDayHeader`. Verify: the scenario runs against the app
+- [x] 41.1 `TransactionList`, `DayGroup` and `DayHeader` (sticky, `h2`, totals with their spoken twins "Příchozí …" and "Odchozí …"; design.md D14), and `format.ts`'s `formatEur` and `formatDayHeader`. Verify: the scenario runs against the app
 
 ## 42. [close] Slice 18 — The account screen lists the transactions by day, newest first
 
-- [ ] 42.1 The scenario's test passes. Verify: green, including account-transactions / The account screen lists the transactions by day, newest first
+- [x] 42.1 The scenario's test passes. Verify: green, including account-transactions / The account screen lists the transactions by day, newest first
 
 ## 43. [unit] Slice 19 — A row's lines and amounts
 
@@ -318,11 +318,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 44. [wiring] Slice 19 — TransactionRow
 
-- [ ] 44.1 `TransactionRow` (icon disc, two lines with ellipsis, signed amount, koruna line; a button with the spoken label; design.md D14), `formatCzkApprox`, `czkApproxLabel`, `formatAmount`. Verify: the scenario runs against the app
+- [x] 44.1 `TransactionRow` (icon disc, two lines with ellipsis, signed amount, koruna line; a button with the spoken label; design.md D14), `formatCzkApprox`, `czkApproxLabel`, `formatAmount`. Verify: the scenario runs against the app
 
 ## 45. [close] Slice 19 — A row shows the counterparty, the bank's text and the amount with its koruna value
 
-- [ ] 45.1 The scenario's test passes. Verify: green, including account-transactions / A row shows the counterparty, the bank's text and the amount with its koruna value
+- [x] 45.1 The scenario's test passes. Verify: green, including account-transactions / A row shows the counterparty, the bank's text and the amount with its koruna value
 
 ## 46. [unit] Slice 20 — Kind words
 

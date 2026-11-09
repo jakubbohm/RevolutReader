@@ -3,6 +3,7 @@ import { useTransactionList } from "../app/useTransactionList";
 import type { Account } from "../components/AccountMenu";
 import { AppShell } from "../components/AppShell";
 import { Skeleton } from "../components/Skeleton";
+import { TransactionList } from "../components/TransactionList";
 
 export interface AccountScreenProps {
   /** The signed-in user, as the server names them; none until the server has answered, or when its answer is unknown. */
@@ -28,6 +29,9 @@ export function AccountScreen({
   return (
     <AppShell account={account} onSignOut={onSignOut}>
       {list.shown.body === "placeholder" ? <Skeleton variant="list" /> : null}
+      {list.shown.body === "list" ? (
+        <TransactionList list={list.shown.list} rate={list.shown.rate} />
+      ) : null}
     </AppShell>
   );
 }
