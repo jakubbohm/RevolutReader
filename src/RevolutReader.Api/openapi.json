@@ -220,6 +220,48 @@
       }
     },
     "/api/push/subscription": {
+      "delete": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "Forgets this device, so it gets no more push notifications",
+        "operationId": "RevolutReaderApiPushForgetSubscriptionEndpoint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevolutReaderApiPushForgetSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "Api"
@@ -654,6 +696,19 @@
           }
         },
         "description": "A transaction as the app shows it"
+      },
+      "RevolutReaderApiPushForgetSubscriptionRequest": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The device's push address, as its subscription gives it"
+          }
+        },
+        "description": "The device to forget, named by its push address"
       },
       "RevolutReaderApiPushPushKeyResponse": {
         "required": [

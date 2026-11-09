@@ -228,7 +228,28 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   }
 
   /// <summary><c>DELETE /api/push/subscription</c> in the signed-in browser, naming <paramref name="device"/>'s push address.</summary>
-  public Task<ForgetAnswer> Forget(TestDevice device) => throw new NotImplementedException();
+  public async Task<ForgetAnswer> Forget(TestDevice device) {
+    ArgumentNullException.ThrowIfNull(device);
+
+    string pushAddress = device.PushAddress.AbsoluteUri;
+
+    using HttpRequestMessage request = new(HttpMethod.Delete, new Uri(SUBSCRIPTION, UriKind.Relative)) {
+      Content = JsonContent.Create(new JsonObject { [ENDPOINT] = pushAddress }),
+    };
+    request.Headers.Add(SEC_FETCH_SITE, SAME_ORIGIN);
+    request.Headers.Add(ORIGIN, AppOrigin());
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+    string body = await response.Content.ReadAsStringAsync();
+
+    if (response.StatusCode == HttpStatusCode.NoContent && body.Length == 0)
+      return ForgetAnswer.Forgotten;
+
+    if (HoldsAny(body, [pushAddress]))
+      throw new InvalidOperationException($"DELETE {SUBSCRIPTION} answered something that holds the push address the request sent: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+
+    return ForgetAnswer.SomethingElse;
+  }
 
   /// <summary><c>POST /api/push/messages</c> from the owner, with the message key, to <paramref name="account"/>; a part not given is left out.</summary>
   public async Task<MessageAnswer> SendMessage(string account, string? title, string? text, string? page) {

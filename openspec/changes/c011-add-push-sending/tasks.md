@@ -307,8 +307,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 48. [wiring] Slice 17 — The forget endpoint
 
-- [ ] 48.1 `ForgetSubscriptionEndpoint` `DELETE /api/push/subscription` with `{ endpoint }` in its body → `ForgetDeviceHandler` → 204, its body declared with `Accepts<ForgetSubscriptionRequest>("application/json")` (design.md D9); `PushDriver` and `PushDsl` for forgetting. Verify: build passes
-- [ ] 48.2 Regenerate the TS client; commit both files. Verify: the type check passes
+- [x] 48.1 `ForgetSubscriptionEndpoint` `DELETE /api/push/subscription` with `{ endpoint }` in its body → `ForgetDeviceHandler` → 204, its body declared with `Accepts<ForgetSubscriptionRequest>("application/json")` (design.md D9); `PushDriver` and `PushDsl` for forgetting. Verify: build passes
+- [x] 48.2 Regenerate the TS client; commit both files. Verify: the type check passes
 
 ## 49. [close] Slice 17 — A forgotten device gets no more messages
 

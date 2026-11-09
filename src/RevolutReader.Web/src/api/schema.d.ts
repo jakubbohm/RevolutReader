@@ -100,7 +100,8 @@ export interface paths {
         /** Registers this device for push notifications under the signed-in account */
         put: operations["RevolutReaderApiPushSubscriptionEndpoint"];
         post?: never;
-        delete?: never;
+        /** Forgets this device, so it gets no more push notifications */
+        delete: operations["RevolutReaderApiPushForgetSubscriptionEndpoint"];
         options?: never;
         head?: never;
         patch?: never;
@@ -233,6 +234,11 @@ export interface components {
             details: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfSystemString"];
             /** @description The kind of transaction, from the bank's type code */
             kind: components["schemas"]["RevolutReaderApiAccountTransactionKind"];
+        };
+        /** @description The device to forget, named by its push address */
+        RevolutReaderApiPushForgetSubscriptionRequest: {
+            /** @description The device's push address, as its subscription gives it */
+            endpoint?: null | string;
         };
         /** @description The server's public push key, which the app subscribes to push notifications with */
         RevolutReaderApiPushPushKeyResponse: {
@@ -516,6 +522,46 @@ export interface operations {
                 content: {
                     "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
                 };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiPushForgetSubscriptionEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevolutReaderApiPushForgetSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unauthorized */
             401: {
