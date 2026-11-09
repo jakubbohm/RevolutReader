@@ -42,23 +42,24 @@ export function rowLines(tx: Transaction): {
 
 /**
  * The sheet's subtitle (D4d): the kind's word, or `null` when the sheet's title, the row's first line, already is that
- * word. Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ * word, so that the sheet never says it twice.
  */
 export function sheetSubtitle(tx: Transaction): string | null {
-  void tx;
-  throw new Error("not implemented");
+  const word = kindWord(tx.kind, tx.amount);
+
+  return rowLines(tx).first === word ? null : word;
 }
 
 /**
- * The sheet's "Stav" (D4c, D4d): "Čeká na zpracování" while pending; once settled "Vráceno na účet" for a refund, else
- * "Zaúčtováno". Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until
- * then.
+ * The sheet's "Stav" (D4c, D4d): "Čeká na zpracování" while pending, a refund included, since it is not on the account
+ * yet; once settled "Vráceno na účet" for a refund, else "Zaúčtováno".
  */
 export function statusWord(
   tx: Transaction,
 ): "Zaúčtováno" | "Vráceno na účet" | "Čeká na zpracování" {
-  void tx;
-  throw new Error("not implemented");
+  if (tx.pending) return "Čeká na zpracování";
+
+  return tx.kind === "refund" ? "Vráceno na účet" : "Zaúčtováno";
 }
 
 /**

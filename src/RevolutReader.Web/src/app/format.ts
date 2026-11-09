@@ -31,6 +31,13 @@ const signedOtherCurrency = new Intl.NumberFormat("cs-CZ", {
   useGrouping: true,
 });
 
+/** The koruna rate, always to two decimals: `24,30`. */
+const twoDecimals = new Intl.NumberFormat("cs-CZ", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  useGrouping: true,
+});
+
 const wholeKoruna = new Intl.NumberFormat("cs-CZ", {
   style: "currency",
   currency: "CZK",
@@ -109,24 +116,25 @@ export function formatDayHeader(date: string, now: Date): string {
 }
 
 /**
- * The API's calendar date (`yyyy-MM-dd`) as the sheet's "Datum" shows it, day and month without a leading zero:
- * `18. 11. 2026`, `5. 1. 2026`; the same day in any time zone (c010 design.md D4d).
- * Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ * The API's calendar date (`yyyy-MM-dd`) as the sheet's "Datum" shows it, day and month without a leading zero and a
+ * no-break space after each dot: `18. 11. 2026`, `5. 1. 2026`. Read from the text itself, never through a `Date`, so it
+ * is the same day in any time zone (c010 design.md D4d).
  */
 export function formatDate(date: string): string {
-  void date;
-  throw new Error("not implemented");
+  const [year, month, day] = date.split("-").map(Number);
+
+  return `${day}.${NO_BREAK_SPACE}${month}.${NO_BREAK_SPACE}${year}`;
 }
 
 /**
  * The sheet's "Přepočet na koruny" line: the koruna rate the koruna values use, to two decimals, with the API's date
- * of the rate (`yyyy-MM-dd`), as `1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026` (c010 design.md D4d).
- * Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ * of the rate (`yyyy-MM-dd`), as `1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026` (c010 design.md D4d). The rate itself
+ * holds together with no-break spaces; the line may break before its date.
  */
 export function formatRate(rate: number, rateDate: string): string {
-  void rate;
-  void rateDate;
-  throw new Error("not implemented");
+  const korunaPerEuro = asOnScreen(twoDecimals.format(rate));
+
+  return `1${NO_BREAK_SPACE}€${NO_BREAK_SPACE}≈${NO_BREAK_SPACE}${korunaPerEuro}${NO_BREAK_SPACE}Kč · orientační kurz z ${formatDate(rateDate)}`;
 }
 
 /**

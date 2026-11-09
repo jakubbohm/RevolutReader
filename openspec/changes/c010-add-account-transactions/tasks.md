@@ -352,10 +352,10 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 52. [unit] Slice 23 — The sheet's words
 
-- [ ] 52.1 The sheet's subtitle is the kind's word, and there is none when the title already is that word
-- [ ] 52.2 A settled transaction is "Zaúčtováno", a settled refund "Vráceno na účet", a pending one "Čeká na zpracování"
-- [ ] 52.3 The rate line reads "1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026"
-- [ ] 52.4 A date reads "18. 11. 2026"
+- [x] 52.1 The sheet's subtitle is the kind's word, and there is none when the title already is that word
+- [x] 52.2 A settled transaction is "Zaúčtováno", a settled refund "Vráceno na účet", a pending one "Čeká na zpracování"
+- [x] 52.3 The rate line reads "1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026"
+- [x] 52.4 A date reads "18. 11. 2026"
 
 ## 53. [wiring] Slice 23 — TransactionSheet
 
