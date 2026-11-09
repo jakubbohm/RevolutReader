@@ -178,6 +178,161 @@
         }
       }
     },
+    "/api/transactions": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "The newest transactions, read at the bank, with the koruna rate",
+        "operationId": "RevolutReaderApiAccountNewestTransactionsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountBankProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountBankProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transactions/older": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "Older transactions, from storage, in pages of whole days",
+        "operationId": "RevolutReaderApiAccountOlderTransactionsEndpoint",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "The day before which the page's transactions are dated, as yyyy-MM-dd: the olderBefore of the page before it",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -310,6 +465,101 @@
         ],
         "type": "string"
       },
+      "RevolutReaderApiAccountTransactionKind": {
+        "enum": [
+          "card",
+          "topup",
+          "transfer",
+          "atm",
+          "exchange",
+          "refund",
+          "other"
+        ],
+        "type": "string"
+      },
+      "RevolutReaderApiAccountTransactionPageResponse": {
+        "required": [
+          "transactions",
+          "olderBefore",
+          "czkPerEur",
+          "rateDate"
+        ],
+        "type": "object",
+        "properties": {
+          "transactions": {
+            "description": "The page's transactions, newest day first, in the bank's order within a day",
+            "$ref": "#/components/schemas/SystemCollectionsGenericIReadOnlyListOfRevolutReaderApiAccountTransactionResponse"
+          },
+          "olderBefore": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The day before which older transactions are kept, to ask for the next older page with; null when none are",
+                "$ref": "#/components/schemas/SystemNullableOfSystemDateOnly"
+              }
+            ]
+          },
+          "czkPerEur": {
+            "type": "number",
+            "description": "Czech koruna per euro, the rate the app converts euro amounts with",
+            "format": "double"
+          },
+          "rateDate": {
+            "description": "The day the koruna rate is for",
+            "$ref": "#/components/schemas/SystemDateOnly"
+          }
+        },
+        "description": "A page of the account's transactions, whether older ones are kept, and the koruna rate with its date"
+      },
+      "RevolutReaderApiAccountTransactionResponse": {
+        "required": [
+          "date",
+          "amount",
+          "currency",
+          "pending",
+          "counterparty",
+          "details",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "The day the transaction is dated by",
+            "$ref": "#/components/schemas/SystemDateOnly"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Negative for money spent, positive for money received",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string",
+            "description": "The amount's currency, an ISO 4217 code"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "Whether the bank has not settled the transaction yet"
+          },
+          "counterparty": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The payee of money spent, the payer of money received; null when the bank names none"
+          },
+          "details": {
+            "description": "The bank's text, line by line, as the app shows it",
+            "$ref": "#/components/schemas/SystemCollectionsGenericIReadOnlyListOfSystemString"
+          },
+          "kind": {
+            "description": "The kind of transaction, from the bank's type code",
+            "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionKind"
+          }
+        },
+        "description": "A transaction as the app shows it"
+      },
       "RevolutReaderApiSignInMeResponse": {
         "required": [
           "name",
@@ -371,6 +621,26 @@
           }
         },
         "description": "A problem description that refuses a signed-in account, naming its own email address"
+      },
+      "SystemCollectionsGenericIReadOnlyListOfRevolutReaderApiAccountTransactionResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionResponse"
+        }
+      },
+      "SystemCollectionsGenericIReadOnlyListOfSystemString": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "SystemDateOnly": {
+        "type": "string",
+        "format": "date"
+      },
+      "SystemNullableOfSystemDateOnly": {
+        "type": "string",
+        "format": "date"
       }
     }
   }

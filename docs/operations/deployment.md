@@ -1,8 +1,8 @@
 # Deployment
 
-> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
+> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-08 (C12: Application Insights, the 0.16 GB cap, the queries for failed bank reads; C11: the queries for bank retries).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table).
 
 ## Identifiers (non-secret)
 
@@ -14,8 +14,8 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | Log Analytics workspace | `log-revolutreader` (30 days; 0.16 GB daily cap since C12, the free 5 GB a month ÷ 31, was 0.1 GB: [ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)). The cap covers the Application Insights tables too, which live in the workspace and follow its retention |
 | Application Insights | `appi-revolutreader` (C12), workspace-based on `log-revolutreader`, local authentication off: only an identity with Monitoring Metrics Publisher on it can write. The deployed app sends its logs and traces there, not its metrics; the resource keeps its own default cap. Its connection string reaches the app as `APPLICATIONINSIGHTS_CONNECTION_STRING` ([configuration.md § Telemetry settings](../conventions/configuration.md#telemetry-settings)) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
-| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; since C12 Monitoring Metrics Publisher on Application Insights; from C6 also Storage Blob Data Contributor on the container `dataprotection` and Key Vault Crypto User on the key `dataprotection`; client ID `f24d2909-ecb2-45d2-a230-d9551f472ded` (reaches the app as `AZURE_CLIENT_ID`, for telemetry and, from C6, the cookie keys), principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
-| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start |
+| The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; since C12 Monitoring Metrics Publisher on Application Insights; from C6 also Storage Blob Data Contributor on the container `dataprotection` and Key Vault Crypto User on the key `dataprotection`; from C7b Storage Table Data Contributor on the storage account ([The transactions table](#the-transactions-table-c7b)); client ID `f24d2909-ecb2-45d2-a230-d9551f472ded` (reaches the app as `AZURE_CLIENT_ID`, for telemetry and, from C6, the cookie keys, from C7b the table), principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
+| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start. Since C7b also the table `transactions`, which keeps the settled transactions, the days older than the bank's 90 among them once the history is imported. Its endpoint, `platform.bicep`'s output `tableEndpoint` (not a stack output), reaches the app as `ConnectionStrings__tables`. Removing the table from the Bicep deletes it with its rows ([Rolling back](#rolling-back)) |
 | The cookie keys' key (C6) | the RSA key `dataprotection` in `kv-revolutreader` (wrap and unwrap only); the stack's output `keyVaultKeyUri` is its versionless address, so a rotated key version is picked up. The app reaches the blob and the key as its identity (the setting `AZURE_CLIENT_ID`, c007 design.md D7) |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
@@ -123,6 +123,103 @@ Since C6 the container app also reads two Key Vault references, `SignIn--ClientS
     - **Reading `AppRequests`:** the sign-in return shows as `POST /api/{**path}` with 302, because the request matches the `/api` fallback route before the sign-in handler answers it.
 - **Looking into a failed sign-in:** the app logs one `SignInFailed` warning with only the failure's kind. The OpenID Connect handler's own lines are switched off (`Logging:LogLevel:Microsoft.AspNetCore.Authentication.OpenIdConnect` is `Critical`), because they carry exception text and whatever anyone posts to the return address. To tell a lost correlation cookie from an unreadable state (both log as `AuthenticationFailureException`), set the environment variable `Logging__LogLevel__Microsoft.AspNetCore.Authentication.OpenIdConnect` to `Warning` on the container app for a short, bounded window (a new revision; posted text may then reach the log), then remove it again.
 
+## The transactions table (C7b)
+
+Since C7b the app keeps the settled transactions in the table `transactions` of `strevolutreader` (c010 design.md D5, D11). The deploy creates the table and the app identity's Storage Table Data Contributor, and sets `ConnectionStrings__tables` on the container app to the account's table endpoint. The role is on the storage account, not on the one table ([ADR-0005 § Consequences](../adr/0005-data-storage.md#consequences) says why), so it reaches the account's tables and nothing else. The deploy identity may assign this role since M3 ([azure-prerequisites.md](azure-prerequisites.md), item 5), so nothing is done by hand before the merge.
+
+**After the first deploy with C7b** (c010 design.md § Migration plan, step 6), in this order:
+
+1. The stack lists the table and the new role (the stack query in [Checks](#checks)), the new revision starts, and the app's telemetry shows no storage error.
+2. The first open at the app's address keeps the settled transactions of the last 89 days, since the table holds none yet (c010 design.md D3). Then the read-only check below.
+3. [The history import](#the-history-import-c7b), once.
+4. The list compared once with the Revolut app. Before that, the app is closed fully and opened again on every device that had it open (on a phone, swiped away from the app switcher; in a desktop browser, its tab closed): a list that reached its end before the import keeps saying there is nothing older until the app starts afresh (c010 PR #65 review, finding 7).
+
+The import's counts and the file's deletion go into `pm/progress.md` through a small docs PR, since they come after the archive.
+
+**Rows arrive after the first open (read-only).** Reading the rows needs a data role, which only the app holds (and the owner during the import); the storage account's metrics need none. The first command shows the table's requests per operation and outcome: after the first open, expect successful writes and reads (`Success`) and no `AuthorizationError`. A `CreateTable` with a client error is expected too: the app's create-if-missing, answered "already exists". The second shows the number of rows in the account's tables; Microsoft's reference lists it hourly but does not say how soon a change shows ([Monitoring data reference for Azure Table Storage](https://learn.microsoft.com/en-us/azure/storage/tables/monitor-table-storage-reference), updated 2025-07-02, read 2026-11-09), and the import below prints the exact count. Written from that reference before any row existed: if the operation names differ, adjust them here.
+
+```powershell
+$sub          = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$storage      = az storage account show --subscription $sub --resource-group rg-revolutreader --name strevolutreader --query id --output tsv
+$tableService = "$storage/tableServices/default"
+
+# The table service's requests of the last 6 hours, per hour, by operation and outcome
+az monitor metrics list --subscription $sub --resource $tableService --metrics Transactions `
+    --dimension ApiName ResponseType --aggregation Total --interval 1h --offset 6h --output table
+
+# The rows in the account's tables, hourly, over the last day
+az monitor metrics list --subscription $sub --resource $tableService --metrics TableEntityCount `
+    --aggregation Average --interval 1h --offset 1d --output table
+```
+
+### The history import (C7b)
+
+Once, after the first open (c010 design.md D9). The explicit check `HistoryImportCheck` reads the M1 history file, `spikes/enable-banking/secrets/transactions-2026-11-04.json` (gitignored, only in the main checkout on the owner's machine), through the app's own page reading and mapping, and keeps its settled transactions from 2026-08-09 through the app's Table adapter. It keeps only the days before the oldest day the table already holds: the live reads keep that day and every later one, since a day's order must come from one complete read. It writes by upserts, so a second run changes nothing, and it prints counts only. The owner runs it in the owner's own PowerShell 7 window, from the main checkout on `main` after C7b's merge.
+
+1. **The owner's temporary role.** Owner of the subscription gives no access to table data, so the owner's account gets Storage Table Data Contributor on the storage account, removed again at step 4. On the account, like the app's, because the import goes through the same create-if-missing. The owner runs the grant (Claude Code's permission check blocks role assignments). The account's ID is looked up when the block runs, as in [azure-prerequisites.md](azure-prerequisites.md), item 7, and written nowhere. A new role can take up to 10 minutes to take effect ([The first deployment](#the-first-deployment), step 5).
+
+   ```powershell
+   $sub     = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+   $storage = az storage account show --subscription $sub --resource-group rg-revolutreader --name strevolutreader --query id --output tsv
+
+   # The account running this, never written down
+   $token   = az account get-access-token --subscription $sub --query accessToken --output tsv
+   $payload = $token.Split('.')[1].Replace('-', '+').Replace('_', '/')
+   $payload = $payload.PadRight($payload.Length + (4 - $payload.Length % 4) % 4, '=')
+   $me      = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json).oid
+   Remove-Variable token, payload
+   $owners  = @(az role assignment list --subscription $sub --scope "/subscriptions/$sub" --role Owner `
+       --query "[?principalType=='User'].principalId" --output tsv)
+   if ($owners -notcontains $me) { throw 'The account running this is not an Owner of the subscription.' }
+
+   az role assignment create --subscription $sub --assignee-object-id $me --assignee-principal-type User `
+       --role 'Storage Table Data Contributor' --scope $storage --output none
+   ```
+
+   Claude then checks it read-only; no ID is printed. Expected: two rows, `ServicePrincipal` (the app) and `User` (the owner); after step 4 only `ServicePrincipal`.
+
+   ```powershell
+   az role assignment list --subscription $sub --scope $storage --role 'Storage Table Data Contributor' `
+       --query "[].{role: roleDefinitionName, principalType: principalType}" --output table
+   ```
+
+2. **The import,** in the same window. If it fails with status 403, the role has not taken effect yet: wait, then run the last line again. Whole days kept before a failure stay kept, and the next run imports the days before them.
+
+   ```powershell
+   $env:HistoryImport__File          = (Resolve-Path 'spikes/enable-banking/secrets/transactions-2026-11-04.json').Path
+   $env:HistoryImport__TableEndpoint = az storage account show --subscription $sub --resource-group rg-revolutreader `
+       --name strevolutreader --query primaryEndpoints.table --output tsv
+   $env:HistoryImport__Subscription  = $sub
+
+   dotnet test --project tests/RevolutReader.IntegrationTests --treenode-filter "/*/*/HistoryImportCheck/*" --output Detailed
+   ```
+
+3. **The counts to compare,** from the check's output. The export's evidence ([2026-11-04-history-export.json](../../spikes/enable-banking/evidence/2026-11-04-history-export.json)) records 116 transactions in 3 pages, all settled; the spike's findings date them from 2026-08-10, so none is older than 2026-08-09 ([spikes/enable-banking/README.md § Findings](../../spikes/enable-banking/README.md#findings), step 5).
+
+   | Line | Expected |
+   |---|---|
+   | Transactions read | 116 |
+   | Settled | 116 |
+   | Kept | fewer than 116: those on the days before the oldest day the first open kept |
+   | Days skipped | the file's days from that oldest kept day on, which the live reads keep (the export's own day among them) |
+   | Rows in the table | at least Kept: the first open's rows and the imported ones |
+
+   A different read or settled count is a finding: bring it to Claude, and keep the file. Running the check once more is safe and shows the import is complete: it keeps 0 and counts every day of the file as skipped, since the table now holds the file's oldest day.
+
+4. **The role removed,** in the same window (in a new one, run step 1's lines up to the `throw` first). Claude checks it with step 1's read-only command.
+
+   ```powershell
+   $mine = @(az role assignment list --subscription $sub --scope $storage --role 'Storage Table Data Contributor' `
+       --query "[?principalId=='$me'].id" --output tsv)
+   if ($mine.Count -ne 1) { throw "Expected one Storage Table Data Contributor of the account running this, found $($mine.Count)." }
+   az role assignment delete --subscription $sub --ids $mine[0]
+
+   Remove-Item Env:HistoryImport__File, Env:HistoryImport__TableEndpoint, Env:HistoryImport__Subscription -ErrorAction SilentlyContinue
+   Remove-Variable me, owners, mine
+   ```
+
+5. **The file and its backup deleted,** once the counts are right: `Remove-Item spikes/enable-banking/secrets/transactions-2026-11-04.json` in the main checkout, and the backup of it (suggested on 2026-11-08). From then on, the days older than the bank's 90 exist only in the table, so a rollback must keep it ([Rolling back](#rolling-back)).
+
 ## Checks
 
 Read-only:
@@ -186,7 +283,7 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 ```
 
 - **Where the fields are:** a log entry lands in `AppTraces`, its text in `Message`, its level in `SeverityLevel`, and its fields (`Who`, `Outcome`, `Status`, `ErrorCode`, `Reason`, …) in the dynamic column `Properties` ([Microsoft Learn: Application Insights telemetry data model](https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete), updated 2026-10-09; [AppTraces table reference](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apptraces), updated 2026-07-28; both read 2026-11-08). The Azure Monitor exporter adds the logger's category as `CategoryName` and a non-zero event ID as `EventId` (balance reads are 1, transaction reads 2), and sends an entry that carries an exception to `AppExceptions` instead; the bank-read lines carry none ([the exporter's `LogsHelper.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Internals/LogsHelper.cs), read 2026-11-08).
-- **Columns to be confirmed with C7's first bank lines:** written from those sources before any bank line reached Application Insights, since nothing calls the adapter before C7. If the queries come back empty although the app has read the bank, look at a raw row and adjust the names here: `AppTraces | where Message startswith 'Bank ' | project TimeGenerated, Message, Properties | take 5`.
+- **Columns confirmed with C7a's first bank lines, 2026-11-09:** written from those sources before any bank line reached Application Insights; on the first day of real reads both queries worked as written, and a raw row's `Properties` held `CategoryName`, `EventId`, `Who`, `Outcome`, `Status`, `ErrorCode` and `Reason`. If the queries ever come back empty although the app has read the bank, look at a raw row and adjust the names here: `AppTraces | where Message startswith 'Bank ' | project TimeGenerated, Message, Properties | take 5`.
 - **Reasons:** `Reason` is `none` except for an unexpected end, where it is a fixed text that quotes no bank data, or another exception's type name. A new value there is a case the adapter does not handle yet.
 
 ### Bank retries (C11)
@@ -220,6 +317,7 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 ## Rolling back
 
 - **A version that does not start or misbehaves:** revert its PR (the merged PR's page has a Revert button, which opens a new PR). Its merge deploys the previous code through the same pipeline; nothing is changed in Azure by hand.
+- **Since C7b, a rollback keeps the table** (c010 design.md § Migration plan, step 7). A plain revert of C7b's PR would remove the table `transactions` from the stack, which deletes it with its rows; once the history file is deleted, the days older than the bank's 90 are gone for good. So the revert PR reverts the app's code but keeps, in `infra/platform.bicep`, the table service, the table and the app's Storage Table Data Contributor on the account. The transactions' endpoints and the list disappear, and the kept history waits for the fix.
 - **A mistake in the Bicep:** fix it forward in a PR; the stack converges on what the Bicep declares. A resource deleted by mistake is created again empty. A deleted vault comes back with its secrets with `az keyvault recover --subscription $sub --name kv-revolutreader` within 90 days; recover it before the next deploy, which would otherwise fail on the name.
 
 ## Removing everything (M8)

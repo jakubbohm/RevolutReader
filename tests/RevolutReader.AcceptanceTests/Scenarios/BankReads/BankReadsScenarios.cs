@@ -49,6 +49,14 @@ public sealed class BankReadsScenarios : AcceptanceTest {
       TransactionSeen.Booked(50.00m, "EUR", on: new DateOnly(2026, 11, 4), counterparty: "Jan Novák")));
   }
 
+  [Test, Scenario("bank-reads", "A transaction comes back with the bank's type code")]
+  public async Task A_transaction_comes_back_with_the_banks_type_code() {
+    Bank.Lists(TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 3), typeCode: "CARD_PAYMENT"));
+
+    (await Bank.ReadTransactionsFrom(new DateOnly(2026, 11, 1))).ShouldBe(TransactionsAnswer.Of(
+      TransactionSeen.Booked(-12.30m, "EUR", on: new DateOnly(2026, 11, 3)).WithTypeCode("CARD_PAYMENT")));
+  }
+
   [Test, Scenario("bank-reads", "Transactions on every page are returned")]
   public async Task Transactions_on_every_page_are_returned() {
     Bank.ListsInPages(since: new DateOnly(2026, 10, 6), count: 25, pages: 3);

@@ -152,8 +152,9 @@ jobs:
           cache-from: type=gha
 
       # The image started once, with made-up Enable Banking values and a throwaway key, which the
-      # app needs from C5 on (c005 design.md D7), and made-up sign-in values, which it needs from
-      # C6 on (c007 design.md D11). On failure the container's log is printed.
+      # app needs from C5 on (c005 design.md D7), made-up sign-in values, which it needs from
+      # C6 on (c007 design.md D11), and a made-up tables connection, which it needs from C7b on
+      # (c010 design.md D11; nothing connects at start). On failure the container's log is printed.
       - name: Smoke run
         run: |
           set -euo pipefail
@@ -173,6 +174,7 @@ jobs:
             -e EnableBanking__AccountId=00000000-0000-0000-0000-000000000000 \
             -e SignIn__ClientSecret=made-up \
             -e SignIn__AllowedEmails=someone@example.com \
+            -e ConnectionStrings__tables=UseDevelopmentStorage=true \
             "$IMAGE" >/dev/null
           health=""
           for _ in $(seq 1 30); do

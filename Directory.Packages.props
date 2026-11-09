@@ -28,12 +28,18 @@
          gets retries only when its own change decides a policy, so never add a resilience handler
          in ServiceDefaults (a convention test fails if one appears). -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <!-- The transaction store's client (c010 design.md D5, D11; ADR-0005; verified on nuget.org on 2026-11-08:
+         13.6.4, 2026-10-24): Azurite's connection string locally and in tests, the table endpoint with the app's
+         managed identity in Azure. Its health check stays off: /health never touches storage. -->
+    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.4" />
   </ItemGroup>
 
   <ItemGroup Label="AppHost">
     <!-- Runs the frontend's Vite dev server as the "web" resource (c003 design.md D11). Matches
          the Aspire.AppHost.Sdk version in RevolutReader.AppHost.csproj. -->
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.4" />
+    <!-- Azurite for the transaction store in local development (c010 design.md D11). Same version. -->
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.4" />
   </ItemGroup>
 
   <ItemGroup Label="ServiceDefaults">
@@ -61,6 +67,10 @@
     <!-- The telemetry guard collects what the app exports (c004 design.md D5); same version as the other OpenTelemetry packages. -->
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <!-- Azurite in a test container for the acceptance harness and the store's contract tests (c010 design.md
+         D12; testing.md § Decided later; verified on nuget.org on 2026-11-08: 4.16.0, 2026-10-08). Its default
+         image constant is obsolete, so the image is pinned in the tests: mcr.microsoft.com/azure-storage/azurite:3.37.0. -->
+    <PackageVersion Include="Testcontainers.Azurite" Version="4.16.0" />
     <PackageVersion Include="TUnit" Version="1.80.0" />
     <PackageVersion Include="TUnit.AspNetCore" Version="1.80.0" />
     <!-- The fake bank: a local HTTP server in front of our real Enable Banking client (testing.md § Fake bank, verified 2026-11-06). -->

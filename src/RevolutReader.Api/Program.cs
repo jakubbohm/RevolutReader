@@ -6,6 +6,7 @@ using RevolutReader.Api.DataProtection;
 using RevolutReader.Api.Hosting;
 using RevolutReader.Api.Pages;
 using RevolutReader.Api.SignIn;
+using RevolutReader.Api.Storage;
 using RevolutReader.ServiceDefaults;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,9 @@ builder.Services.AddFastEndpoints();
 builder.Services.OpenApiDocument(static options => options.EnableJWTBearerAuth = false);
 builder.Services.AddEnableBanking();
 builder.Services.AddBalance();
+// The store checks its connection while registering, so a missing one stops the app at start (c010 design.md D11).
+builder.AddTransactionStore();
+builder.Services.AddTransactions();
 builder.Services.AddSignIn();
 // Where the login cookie's keys live is chosen while registering services, so the composition root hands over the
 // configuration: the DataProtection section and AZURE_CLIENT_ID (c007 design.md D7).
@@ -38,6 +42,10 @@ app.UseAppPages();
 app.MapApiNotFound();
 app.UseSignIn();
 // A request FastEndpoints cannot bind answers 400 as a problem description too (spec api-errors), not in its own format.
-app.UseFastEndpoints(static config => config.Errors.UseProblemDetails());
+// A calendar date is read as yyyy-MM-dd only, whatever the server's culture (c010 design.md D10).
+app.UseFastEndpoints(static config => {
+  config.Errors.UseProblemDetails();
+  config.Binding.ValueParserFor<DateOnly>(CalendarDateBinding.Parse);
+});
 
 app.Run();

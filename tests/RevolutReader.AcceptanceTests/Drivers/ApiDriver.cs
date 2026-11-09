@@ -51,7 +51,14 @@ public sealed class ApiDriver {
     return await ProblemOf(response);
   }
 
-  private static async Task<ProblemDescription?> ProblemOf(HttpResponseMessage response) {
+  /// <summary>
+  /// The problem description <paramref name="response"/> is, read as the class says (status, content type, a body
+  /// <c>status</c> equal to the response's, and a title that is that status's case); otherwise <see langword="null"/>. The
+  /// <c>type</c> is not compared. Also for <see cref="TransactionsDriver.AskForOlderAsSent"/>'s guard.
+  /// </summary>
+  internal static async Task<ProblemDescription?> ProblemOf(HttpResponseMessage response) {
+    ArgumentNullException.ThrowIfNull(response);
+
     int status = (int)response.StatusCode;
 
     if (status is < 400 or > 599)

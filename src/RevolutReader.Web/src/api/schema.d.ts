@@ -72,6 +72,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest transactions, read at the bank, with the koruna rate */
+        get: operations["RevolutReaderApiAccountNewestTransactionsEndpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transactions/older": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Older transactions, from storage, in pages of whole days */
+        get: operations["RevolutReaderApiAccountOlderTransactionsEndpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -131,6 +165,41 @@ export interface components {
         };
         /** @enum {string} */
         RevolutReaderApiAccountBankProblemType: "/problems/bank-access-expired" | "/problems/bank-rate-limited" | "/problems/bank-unavailable";
+        /** @enum {string} */
+        RevolutReaderApiAccountTransactionKind: "card" | "topup" | "transfer" | "atm" | "exchange" | "refund" | "other";
+        /** @description A page of the account's transactions, whether older ones are kept, and the koruna rate with its date */
+        RevolutReaderApiAccountTransactionPageResponse: {
+            /** @description The page's transactions, newest day first, in the bank's order within a day */
+            transactions: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfRevolutReaderApiAccountTransactionResponse"];
+            olderBefore: null | components["schemas"]["SystemNullableOfSystemDateOnly"];
+            /**
+             * Format: double
+             * @description Czech koruna per euro, the rate the app converts euro amounts with
+             */
+            czkPerEur: number;
+            /** @description The day the koruna rate is for */
+            rateDate: components["schemas"]["SystemDateOnly"];
+        };
+        /** @description A transaction as the app shows it */
+        RevolutReaderApiAccountTransactionResponse: {
+            /** @description The day the transaction is dated by */
+            date: components["schemas"]["SystemDateOnly"];
+            /**
+             * Format: double
+             * @description Negative for money spent, positive for money received
+             */
+            amount: number;
+            /** @description The amount's currency, an ISO 4217 code */
+            currency: string;
+            /** @description Whether the bank has not settled the transaction yet */
+            pending: boolean;
+            /** @description The payee of money spent, the payer of money received; null when the bank names none */
+            counterparty: null | string;
+            /** @description The bank's text, line by line, as the app shows it */
+            details: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfSystemString"];
+            /** @description The kind of transaction, from the bank's type code */
+            kind: components["schemas"]["RevolutReaderApiAccountTransactionKind"];
+        };
         /** @description The signed-in user's name and email address */
         RevolutReaderApiSignInMeResponse: {
             /** @description The user's name, as their Microsoft account gives it */
@@ -149,6 +218,12 @@ export interface components {
             /** @description The refused account's own email address; missing when the account has none */
             email?: null | string;
         };
+        SystemCollectionsGenericIReadOnlyListOfRevolutReaderApiAccountTransactionResponse: components["schemas"]["RevolutReaderApiAccountTransactionResponse"][];
+        SystemCollectionsGenericIReadOnlyListOfSystemString: string[];
+        /** Format: date */
+        SystemDateOnly: string;
+        /** Format: date */
+        SystemNullableOfSystemDateOnly: string;
     };
     responses: never;
     parameters: never;
@@ -314,6 +389,139 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiAccountNewestTransactionsEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevolutReaderApiAccountTransactionPageResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiAccountBankProblem"];
+                };
+            };
+            /** @description Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiAccountBankProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiAccountOlderTransactionsEndpoint: {
+        parameters: {
+            query: {
+                /** @description The day before which the page's transactions are dated, as yyyy-MM-dd: the olderBefore of the page before it */
+                before: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevolutReaderApiAccountTransactionPageResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+            /** @description Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
                 };
             };
         };

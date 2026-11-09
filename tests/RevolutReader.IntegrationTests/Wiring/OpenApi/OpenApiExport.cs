@@ -69,10 +69,19 @@ public sealed class OpenApiExport {
       : Path.Combine(folder.FullName, "src", "RevolutReader.Api", "openapi.json");
   }
 
-  /// <summary>An app copy in environment <c>Production</c> on the made-up settings, added last so they win.</summary>
+  /// <summary>
+  /// An app copy in environment <c>Production</c> on the made-up settings, added last so they win. The transaction store's
+  /// connection is checked while Program.cs registers the store (c010 design.md D11), before a source added with
+  /// <c>ConfigureAppConfiguration</c> arrives, so it goes in as a host setting, which the factory hands to the app's builder
+  /// before Program.cs runs: Azurite's shorthand for its local account, never reached, as the export reads no table.
+  /// </summary>
   private sealed class ExportFactory : WebApplicationFactory<Program> {
+    private const string TABLES_CONNECTION = "ConnectionStrings:tables";
+    private const string MADE_UP_TABLES_CONNECTION = "UseDevelopmentStorage=true";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
       builder.UseEnvironment(Environments.Production);
+      builder.UseSetting(TABLES_CONNECTION, MADE_UP_TABLES_CONNECTION);
       builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings()));
     }
   }

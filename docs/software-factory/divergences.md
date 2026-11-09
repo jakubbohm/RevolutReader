@@ -104,9 +104,10 @@ Full version: relational Postgres with migrations, unless something strong pulls
 Here ([ADR-0005-data-storage](../adr/0005-data-storage.md), 2026-11-05): **Azure Table Storage in the app's own storage account** — three kinds of records, a few hundred items in all, read by key; nothing manual, no secret, deleted with the stack.
 Given up:
 - no queries beyond keys, no joins, no schema;
-- no migration discipline, because nothing enforces the shape of stored data.
+- no migration discipline, because nothing enforces the shape of stored data;
+- since C7b, not even key queries for the transactions: every request reads the whole table and pages it in memory ([lessons.md R-26](lessons.md), the first table; ADR-0005 item 4 amended 2026-11-09).
 
-*Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period.
+*Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period; for the whole-table read, when the transactions table grows past a few hundred rows.
 
 **R-27 · The production app scales to zero, with a caller outside the app for the check**
 Full version: an always-on host for anything real users depend on, with the job scheduled inside the app ([lessons.md R-27](lessons.md)).
@@ -139,7 +140,7 @@ Given up:
 **R-46 · One deployment stack for the shared infrastructure and the features**
 Full version: two stacks, the shared one behind an approval, the features' one on every merge ([lessons.md R-46](lessons.md)).
 Here ([workflow.md § 5, Bicep layout](../conventions/workflow.md#bicep-layout-c4-2026-11-06), 2026-11-06): **one stack, applied on every merge, in three files** (an entry point, the shared platform, the features). The shared layer is small: a vault, a log workspace, the Container Apps environment and, from C6, one storage account. It changes twice (C4, C6). With two stacks, C6's storage account and its blob container would need a failed deploy or two PRs, because deploys run only from `main`.
-Given up: a merge whose Bicep no longer declares the vault or the storage account deletes it. Only the owner's review guards against that; the vault stays recoverable for 90 days, and the stored transactions can be imported again from the M1 history file.
+Given up: a merge whose Bicep no longer declares the vault or the storage account deletes it. Only the owner's review guards against that; the vault stays recoverable for 90 days, but the stored transactions are gone for good once the M1 history file is imported and deleted (C7b): the bank lists only its last 90 days again.
 
 *Switch back when:* more features come onto the shared layer, a second environment or another contributor arrives, or the stack holds data that cannot be imported again.
 

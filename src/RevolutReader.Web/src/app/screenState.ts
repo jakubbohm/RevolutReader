@@ -1,14 +1,28 @@
 import type { Balance } from "./balance";
+import type { ListProblem } from "./listState";
 import type { Session } from "./session";
 
-/** The screen's one banner (c009 design.md D5, D6, D7). */
+/**
+ * The screen's one banner (c009 design.md D5, D6, D7). At the join (c010 design.md D8), `of: "list"` marks a problem of
+ * the transactions' read alone, in the list's words.
+ */
 export type Problem =
-  | { kind: "bank unavailable" }
+  | { kind: "bank unavailable"; of?: "list" }
   | { kind: "bank rate limited" }
   | { kind: "bank access expired" }
-  | { kind: "unexpected" }
+  | { kind: "unexpected"; of?: "list" }
   | { kind: "offline" }
   | { kind: "sign-out failed"; offline: boolean };
+
+/** What the list reports to the screen at the join (c010 design.md D8). */
+export interface ListReport {
+  /** Its newest page is being read, at first or again. */
+  reading: boolean;
+  /** What went wrong with its last newest page, if anything. */
+  problem: ListProblem | null;
+  /** A newest page has come: the list shows its days, or that there are none yet. */
+  onScreen: boolean;
+}
 
 /** What the screen knows (c009 design.md D2, D3, D5, D6, D7). */
 export interface Facts {
@@ -20,11 +34,16 @@ export interface Facts {
   reading: "no" | "first" | "refresh";
   /** The first load's wait: under 1.5 s, from 1.5 s, from 30 s. */
   wait: "short" | "long" | "slow";
-  /** The first answer took 1.5 s or more, and the first balance read has not landed yet: the waiting screen stays. */
+  /**
+   * The first answer took 1.5 s or more, and the first reads, the balance's and the list's newest page, have not both
+   * landed yet: the waiting screen stays while either runs (c010 design.md D8).
+   */
   wokeUp: boolean;
   /** The screen's one banner. */
   problem: Problem | null;
   signingOut: boolean;
+  /** What the list reports (c010 design.md D8); absent, it has nothing to report. */
+  list?: ListReport;
 }
 
 /** What the screen shows (c009 design.md D2, D7, D10). */
@@ -52,14 +71,12 @@ export type Shown =
 export type ShownAccount = Extract<Shown, { screen: "account" }>;
 
 /**
- * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7). Nobody signed in: the sign-in
- * screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the server
- * named the user, the header (`headerOf`), the one banner, and under the header the list slot, which C7b's list fills;
- * with no header, the empty frame. Offline (D2; app-shell): with nothing to show, the offline state is the whole screen
- * under the top bar, in place of the header and the banner; with a balance, its header, the offline banner and the
- * offline note in the list's place (D7 a). While the server wakes (`waking`), the waking-up screen stands in the list's
- * place under a stored header, or is the whole screen with nothing stored. A problem on the screen is its banner,
- * under the header or alone under the top bar (`bannerOf`; D5).
+ * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7; c010 D8). Nobody signed in: the
+ * sign-in screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the
+ * server named the user, the header (`headerOf`), the one banner (`bannerOf`), and under the header the list slot
+ * (`bodyOf`); with no header and no list, the empty frame. Offline (D2; app-shell), whichever read found it so: with
+ * nothing to show, the offline state is the whole screen under the top bar, in place of the header and the banner;
+ * otherwise what there is, under the offline banner.
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -69,7 +86,7 @@ export function shown(facts: Facts): Shown {
     return { screen: "no access", email: session.email };
 
   const offline = isOffline(facts);
-  if (facts.balance === null && offline)
+  if (facts.balance === null && !listOnScreen(facts) && offline)
     return {
       screen: "account",
       account: accountOf(session),
@@ -85,24 +102,39 @@ export function shown(facts: Facts): Shown {
     screen: "account",
     account: accountOf(facts.session),
     header,
-    banner: offline ? OFFLINE : bannerOf(facts),
-    body: offline
-      ? "offline note"
-      : (wakingOf(facts) ?? (header === null ? "empty" : "list")),
+    banner: bannerOf(facts, offline),
+    body: bodyOf(facts, header, offline),
     signingOut: facts.signingOut,
   };
 }
 
 /**
+ * The list slot under the header (c009 design.md D7 a; c010 D8). A list on screen stays there through every reload,
+ * whether it fails, wakes or finds the phone offline. Until one has come: offline, the offline note in its place; while
+ * the server wakes, the waking-up screen (`wakingOf`), under a stored header or, with nothing stored, as the whole
+ * screen; otherwise the slot, for the list's placeholders, or the empty frame when there is no header either.
+ */
+function bodyOf(
+  facts: Facts,
+  header: ShownAccount["header"],
+  offline: boolean,
+): ShownAccount["body"] {
+  if (listOnScreen(facts)) return "list";
+  if (offline) return "offline note";
+  return wakingOf(facts) ?? (header === null ? "empty" : "list");
+}
+
+/**
  * The waking-up screen, as the first load sees it (D2); `null` when the server is not waking. Who is signed in has had
  * no answer for 1.5 s or more: waking, and from 30 s the slow one, which offers to try again. Or it took that long,
- * and the first balance read still runs: the waking-up screen stays until the balance arrives, never a placeholder. A
- * refresh never shows it (D3).
+ * and a first read still runs, the balance's or the list's newest page (c010 design.md D8): the waking-up screen stays
+ * until they have come, never a placeholder. A refresh never shows it (D3).
  */
 function wakingOf(facts: Facts): "waking" | "waking slow" | null {
   if (facts.session === "waiting" && facts.wait !== "short")
     return facts.wait === "slow" ? "waking slow" : "waking";
-  if (facts.wokeUp && facts.reading === "first") return "waking";
+  if (facts.wokeUp && (facts.reading === "first" || listReads(facts)))
+    return "waking";
   return null;
 }
 
@@ -113,22 +145,75 @@ export const OFFLINE: Problem = { kind: "offline" };
 const UNEXPECTED: Problem = { kind: "unexpected" };
 
 /**
- * The screen's one banner when the phone is online (D5, D7 c): an answer to who is signed in that the app cannot read
- * is the unexpected banner, whether or not it is on record; otherwise the problem on record, if any.
+ * The problems a read can leave, the most important first (c010 design.md D8): offline comes before them all, and a
+ * failed sign-out before offline.
  */
-function bannerOf(facts: Facts): Problem | null {
-  const { session } = facts;
-  if (session !== "waiting" && session.kind === "unexpected") return UNEXPECTED;
-  return facts.problem;
+const PRECEDENCE = [
+  "bank access expired",
+  "bank rate limited",
+  "bank unavailable",
+  "unexpected",
+] as const;
+
+/**
+ * The screen's one banner (c009 design.md D5, D6, D7 c; c010 D8). A failed sign-out replaces any other until the next
+ * action clears it. Then offline, whichever read found it so. Then the most important problem of the two reads
+ * (`PRECEDENCE`), the balance's before the list's of the same kind: an answer to who is signed in that the app cannot
+ * read counts as the balance's unexpected answer, whether or not it is on record. A problem of the list's read alone is
+ * in the list's words (`ofTheList`).
+ */
+function bannerOf(facts: Facts, offline: boolean): Problem | null {
+  const { session, problem } = facts;
+  if (problem?.kind === "sign-out failed") return problem;
+  if (offline) return OFFLINE;
+
+  const own =
+    session !== "waiting" && session.kind === "unexpected"
+      ? UNEXPECTED
+      : problem;
+  const list = facts.list?.problem ?? null;
+  for (const kind of PRECEDENCE) {
+    if (own?.kind === kind) return own;
+    if (list?.kind === kind) return ofTheList(list);
+  }
+  return null;
 }
 
-/** Whether the phone is offline as far as the screen knows (D2): who is signed in found it so, or the offline problem is on record. */
+/**
+ * The banner for a problem of the list's read alone (c010 design.md D7, D8): the bank not answering and an unexpected
+ * answer in the list's words; expired access and the request limit in the same words as the balance's.
+ */
+function ofTheList(problem: ListProblem): Problem {
+  switch (problem.kind) {
+    case "bank unavailable":
+    case "unexpected":
+      return { kind: problem.kind, of: "list" };
+    default:
+      return { kind: problem.kind };
+  }
+}
+
+/**
+ * Whether the phone is offline as far as the screen knows (D2; c010 D8): who is signed in found it so, or the offline
+ * problem is on record, the balance's or the list's.
+ */
 function isOffline(facts: Facts): boolean {
   const { session, problem } = facts;
   return (
     (session !== "waiting" && session.kind === "offline") ||
-    problem?.kind === "offline"
+    problem?.kind === "offline" ||
+    facts.list?.problem?.kind === "offline"
   );
+}
+
+/** A newest page of the list has come (c010 design.md D8). */
+function listOnScreen(facts: Facts): boolean {
+  return facts.list?.onScreen ?? false;
+}
+
+/** The list's newest page is being read (c010 design.md D8). */
+function listReads(facts: Facts): boolean {
+  return facts.list?.reading ?? false;
 }
 
 /** The menu's account: only once `GET /api/me` has named the user (D2), never from what the phone keeps. */
@@ -150,12 +235,13 @@ function headerOf(facts: Facts): ShownAccount["header"] {
 }
 
 /**
- * Whether the balance shown is being read again on an awake server (D2, D3): a refresh, or the first read once the
- * server answered within 1.5 s. After a wake, the first read runs under the waking-up screen instead, and the header
- * stays as it was.
+ * Whether what is shown is being read again on an awake server (D2, D3; c010 D8: "Obnovuji…" waits for both answers): a
+ * balance refresh; or, once the server answered within 1.5 s, the balance's first read or the list's newest page. After
+ * a wake, the first reads run under the waking-up screen instead, and the header stays as it was.
  */
 function readsOnAwake(facts: Facts): boolean {
   return (
-    facts.reading === "refresh" || (facts.reading === "first" && !facts.wokeUp)
+    facts.reading === "refresh" ||
+    (!facts.wokeUp && (facts.reading === "first" || listReads(facts)))
   );
 }

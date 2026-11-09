@@ -26,6 +26,9 @@ param keysBlobUri string
 @description('The Key Vault key that encrypts the key ring, without a version (platform.bicep).')
 param keyVaultKeyUri string
 
+@description('The storage account\'s table endpoint, where the settled transactions are kept (platform.bicep).')
+param tableEndpoint string
+
 // The app: one container serving the API and the pages (ADR-0002-frontend-hosting). Its name is
 // the first part of its public address, on the daughter's Home Screen and, from C6, in Entra ID:
 // renaming it makes a new app with a new address.
@@ -71,6 +74,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
             ...bankSettings
             ...telemetrySettings
             ...signInSettings
+            ...transactionsSettings
           ]
           // GET /health touches neither the bank nor storage (spec service-health), and probe
           // requests are not billed. Short periods, because a wake from zero waits for both
@@ -202,6 +206,18 @@ var signInSettings = [
 ]
 
 // ---- The account detail (C7) ----
+// Where the settled transactions are kept (c010 design.md D11): the table endpoint of the storage
+// account in platform.bicep, as the connection Aspire's tables client reads from
+// ConnectionStrings:tables, overriding appsettings.json's empty value. Not a secret: an address. The
+// client reaches it with Azure.Identity's default credential, which picks the app's identity by the
+// client ID AZURE_CLIENT_ID holds (the telemetry settings above). The table's name is the app's
+// default, Transactions:TableName.
+var transactionsSettings = [
+  {
+    name: 'ConnectionStrings__tables'
+    value: tableEndpoint
+  }
+]
 
 // ---- Push (C8) ----
 

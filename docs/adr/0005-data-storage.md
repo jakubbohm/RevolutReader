@@ -46,7 +46,7 @@ Decided by the user, 2026-11-05:
 1. **Azure Table Storage, in a storage account owned by the app.** It is declared in the app's Bicep and is part of its deployment stack.
 2. **Access through the app's managed identity** with the Storage Table Data Contributor role. Shared-key access is off, so there are no keys and no secret.
 3. **Locally, Aspire runs Azurite. Tests use Azurite in a test container** with the image pinned explicitly.
-4. **What the tables hold:** settled transactions, keyed so that a date range is a key query; the last view per user; and the push subscriptions (C8). Each change designs its own tables. *(2026-11-08: no last view is stored, [ADR-0001-bank-data-access § Decision](0001-bank-data-access.md#decision) items 4–5 amended; the notification check keeps its own record instead, C9.)*
+4. **What the tables hold:** settled transactions, keyed so that a date range is a key query; the last view per user; and the push subscriptions (C8). Each change designs its own tables. *(2026-11-08: no last view is stored, [ADR-0001-bank-data-access § Decision](0001-bank-data-access.md#decision) items 4–5 amended; the notification check keeps its own record instead, C9.)* *(2026-11-09, C7b, c010 design.md D5: the settled transactions are one table, `transactions`, with one partition, `account`, and no key is a date range. The row key is the SHA-256 of the bank's `entry_reference` (its UTF-8 bytes) in lowercase hex: Table Storage forbids `/`, `\`, `#` and `?` in keys, and escaping them would put `%` in the key; the reference itself is kept unchanged in a column. Every request reads the whole table and cuts its page in memory, because the data is small, a few hundred rows (Consequences: "Tables answer key lookups only").)*
 5. **The shared Cosmos DB free-tier account is not used.**
 
 ## Alternatives considered
@@ -72,8 +72,8 @@ Decided by the user, 2026-11-05:
   - M8's stack deletion deletes the stored bank data with everything else (kickoff ch. 9.6).
 - **C6 creates the storage account,** for the sign-in cookie's Data Protection keys in Blob Storage ([ADR-0006-hosting-registry-and-job § Decision](0006-hosting-registry-and-job.md#decision), item 2). That covers the Bicep, the `.bicepparam` and the AppHost.
 - **C7, or its first slice** (C7b since C7's split, 2026-11-08)**:**
-  - the table role assignment and the table design in that account;
-  - importing the M1 history file.
+  - the table role assignment and the table design in that account; *(2026-11-09, C7b, c010 design.md D11: done. The table `transactions`, and the app identity's Storage Table Data Contributor on the storage account rather than the one table, because the app creates its table when it is missing and no doc says a role on one table allows that (the user). It reaches the account's tables and nothing else, the app is their only user, and C8a's table in the same account needs the same role. The table design: Decision, item 4.)*
+  - importing the M1 history file. *(C7b: an explicit check the owner runs once after the deploy, with a temporary role of the owner's; then the file is deleted: [deployment.md § The history import](../operations/deployment.md#the-history-import-c7b).)*
 - **C8** (C8a since C8's split, 2026-11-09)**:** the push subscriptions go into a table.
 - **Tables answer key lookups only.** If C7 or C9 needs more, the data is small enough to move with a script.
 - **Database tests** run against Azurite ([testing.md § Decided later](../conventions/testing.md#decided-later)). Health probes still never touch storage ([README.md § Backend code](../conventions/README.md#backend-code)).

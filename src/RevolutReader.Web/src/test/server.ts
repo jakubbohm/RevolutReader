@@ -23,6 +23,10 @@ import { realTurn } from "./clock";
  * With the test clock (`startTestClock`), every wait here runs on it: `after`, and the app's own timers. Move it with
  * `timePasses`; an answer without `after` arrives on `timePasses(0)`. Without the test clock, answers arrive on their
  * own and `findBy…` waits for them, as in the scenarios from before C7a.
+ *
+ * The answers to the transactions (c010 design.md D10, § Public API sketch: the test kit) sit in their own blocks,
+ * marked "c010", and use the vocabulary above (`Trouble`, `Delayed`, `Answers`, `after`, the bank problems,
+ * `KORUNA_RATE`), merged by hand at the join (c010 design.md D13).
  */
 
 /** What any request can meet besides its own answers. */
@@ -78,6 +82,52 @@ export type BalanceAnswer =
   | { kind: "refused"; email: string | null }
   | Trouble;
 
+// ---- c010: the transactions (design.md D10) ----
+
+/** A transaction's kind, as the API names it: the design system's `TxKind` names (D10). */
+export type TransactionKind =
+  "card" | "topup" | "transfer" | "atm" | "exchange" | "refund" | "other";
+
+/** A transaction as the API answers it: exactly these seven fields (D10). `date` is a calendar date, `yyyy-MM-dd`. */
+export interface TransactionInApi {
+  date: string;
+  amount: number;
+  currency: string;
+  pending: boolean;
+  counterparty: string | null;
+  details: string[];
+  kind: TransactionKind;
+}
+
+/** A page of transactions: 200 with exactly `{ transactions, olderBefore, czkPerEur, rateDate }` (D10). */
+export interface TransactionsPage {
+  kind: "transactions";
+  transactions: readonly TransactionInApi[];
+  /** The day before which older transactions are kept (`yyyy-MM-dd`); `null` when nothing older is kept. */
+  olderBefore: string | null;
+  czkPerEur: number;
+  rateDate: string;
+}
+
+/**
+ * What the server answers when the app reads the newest transactions, `GET /api/transactions`, or an older page,
+ * `GET /api/transactions/older?before=<day>` (D10). The bank's problems come only from the newest page's live read, but
+ * the fake server answers whatever a test sets.
+ */
+export type TransactionsAnswer =
+  | TransactionsPage
+  /** 503 with the problem `/problems/bank-access-expired`, `Bank access expired`. */
+  | { kind: "bank access expired" }
+  /** 429 with the problem `/problems/bank-rate-limited`, `Bank rate limit reached`. */
+  | { kind: "bank rate limited" }
+  /** 503 with the problem `/problems/bank-unavailable`, `Bank unavailable`. */
+  | { kind: "bank unavailable" }
+  /** 401 with the problem description `Unauthorized`: the login has ended. */
+  | { kind: "nobody" }
+  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
+  | { kind: "refused"; email: string | null }
+  | Trouble;
+
 /** An answer that reaches the app only `after` milliseconds, on the test's clock when it runs. */
 export type Delayed<Answer> = Answer & { after?: number };
 
@@ -98,6 +148,18 @@ export interface ServerAnswers {
    * After a sign-out the server answers that nobody is signed in (401).
    */
   balance?: Answers<BalanceAnswer>;
+  // ---- c010: the transactions ----
+  /**
+   * `GET /api/transactions`. Without one, `DEFAULT_TRANSACTIONS`. After a sign-out the server answers that nobody is
+   * signed in (401).
+   */
+  transactions?: Answers<TransactionsAnswer>;
+  /**
+   * `GET /api/transactions/older?before=<day>`, by the day asked before (`yyyy-MM-dd`), each in order. A day the test
+   * gives no answers for gets 404, as an address the server does not know, so a request for the wrong day shows. After a
+   * sign-out the server answers that nobody is signed in (401).
+   */
+  olderTransactions?: Readonly<Record<string, Answers<TransactionsAnswer>>>;
 }
 
 /** The balance the phone keeps (c009 design.md D4): the record as the app stores it, `readAt` in ISO 8601. */
@@ -107,10 +169,10 @@ export interface KeptBalance {
   czkPerEur: number;
 }
 
-/** Nobody is signed in (401). Fits who is signed in and the balance. */
+/** Nobody is signed in (401). Fits who is signed in, the balance and the transactions. */
 export const nobodySignedIn = { kind: "nobody" } as const;
 
-/** The server refuses the signed-in account (403), naming its email (`null`: naming none). Fits who is signed in and the balance. */
+/** The server refuses the signed-in account (403), naming its email (`null`: naming none). Fits who is signed in, the balance and the transactions. */
 export function refused(email: string | null): {
   kind: "refused";
   email: string | null;
@@ -204,10 +266,75 @@ export function after<Answer extends object>(
   return { ...answer, after: ms };
 }
 
+// ---- c010: the transactions (design.md D10) ----
+
+/** The rate's date the API answers with by default: C13's `KorunaRate.Date`. */
+export const RATE_DATE = "2026-11-08";
+
+/**
+ * A transaction of `amount` (signed: negative for money spent) EUR on `date` (`yyyy-MM-dd`), of this kind; settled, with
+ * no counterparty and no details unless `options` give them.
+ */
+export function transaction(
+  kind: TransactionKind,
+  amount: number,
+  date: string,
+  options: {
+    counterparty?: string;
+    details?: readonly string[];
+    pending?: boolean;
+    currency?: string;
+  } = {},
+): TransactionInApi {
+  return {
+    date,
+    amount,
+    currency: options.currency ?? "EUR",
+    pending: options.pending ?? false,
+    counterparty: options.counterparty ?? null,
+    details: [...(options.details ?? [])],
+    kind,
+  };
+}
+
+/**
+ * A page of these transactions, in this order; by default nothing older is kept (`olderBefore: null`), at C13's rate and
+ * its date.
+ */
+export function transactionsPage(
+  transactions: readonly TransactionInApi[],
+  options: {
+    olderBefore?: string | null;
+    czkPerEur?: number;
+    rateDate?: string;
+  } = {},
+): TransactionsPage {
+  return {
+    kind: "transactions",
+    transactions,
+    olderBefore: options.olderBefore ?? null,
+    czkPerEur: options.czkPerEur ?? KORUNA_RATE,
+    rateDate: options.rateDate ?? RATE_DATE,
+  };
+}
+
+/**
+ * The newest page the server answers when a test sets none: one made-up payment and nothing older, so a test whose
+ * transactions never reached the server cannot pass on the default (it differs from every transaction a scenario names).
+ */
+export const DEFAULT_TRANSACTIONS = transactionsPage([
+  transaction("card", -1.23, "2026-11-09", {
+    counterparty: "Papírnictví Tužka",
+  }),
+]);
+
 const SIGN_OUT = "POST /api/auth/logout";
 const WHO_IS_SIGNED_IN = "GET /api/me";
 const BALANCE = "GET /api/balance";
 const HEALTH = "GET /health";
+// ---- c010 ----
+const TRANSACTIONS = "GET /api/transactions";
+const OLDER_TRANSACTIONS = "GET /api/transactions/older";
 
 /** The phone's own database for the balance it keeps (c009 design.md D4). */
 const PHONE_DATABASE = "tarjeta-papa";
@@ -224,6 +351,11 @@ let page = new URL("http://localhost:3000/");
 let whoIsSignedIn: readonly Delayed<WhoIsSignedIn>[] = [];
 let signOut: readonly Delayed<SignOutAnswer>[] = [];
 let balanceAnswers: readonly Delayed<BalanceAnswer>[] = [];
+// ---- c010 ----
+let transactionsAnswers: readonly Delayed<TransactionsAnswer>[] = [];
+let olderTransactionsAnswers: Readonly<
+  Record<string, Answers<TransactionsAnswer>>
+> = {};
 /** How many requests of each kind the server has answered or is answering, to pick the next answer in order. */
 let asked = new Map<string, number>();
 /** Set by a sign-out the server confirmed: from then on, nobody is signed in. */
@@ -242,6 +374,8 @@ export function answerWith(answers: ServerAnswers): void {
   whoIsSignedIn = inOrder(answers.whoIsSignedIn);
   signOut = inOrder(answers.signOut);
   balanceAnswers = inOrder(answers.balance);
+  transactionsAnswers = inOrder(answers.transactions);
+  olderTransactionsAnswers = answers.olderTransactions ?? {};
   asked = new Map();
   loginEnded = false;
 }
@@ -368,6 +502,8 @@ export function resetFakeServer(): void {
   whoIsSignedIn = [];
   signOut = [];
   balanceAnswers = [];
+  transactionsAnswers = [];
+  olderTransactionsAnswers = {};
   asked = new Map();
   loginEnded = false;
   online = true;
@@ -520,6 +656,12 @@ function outcomeOf(request: string): Outcome {
       const answer = nextOf(request, balanceAnswers) ?? defaultBalance;
       return balanceOutcome(loginEnded ? nobodySignedIn : answer);
     }
+    // ---- c010 ----
+    case TRANSACTIONS: {
+      const answer =
+        nextOf(request, transactionsAnswers) ?? DEFAULT_TRANSACTIONS;
+      return transactionsOutcome(loginEnded ? nobodySignedIn : answer);
+    }
     case HEALTH:
       return {
         kind: "answer",
@@ -529,6 +671,9 @@ function outcomeOf(request: string): Outcome {
           }),
       };
     default:
+      // ---- c010: an older page's address carries the day it asks before ----
+      if (request.startsWith(`${OLDER_TRANSACTIONS}?`))
+        return olderTransactionsOutcome(request);
       return { kind: "answer", response: () => problem(404, "Not Found") };
   }
 }
@@ -634,6 +779,90 @@ function refusedOutcome(
         answer.email === null ? {} : { email: answer.email },
       ),
   };
+}
+
+// ---- c010: the transactions' answers ----
+
+/**
+ * An older page: the answers the test set for the day asked before, in order; 404 for a day it set none for; after a
+ * sign-out, nobody is signed in (401).
+ */
+function olderTransactionsOutcome(request: string): Outcome {
+  const before = new URLSearchParams(
+    request.slice(OLDER_TRANSACTIONS.length),
+  ).get("before");
+  const answers =
+    before !== null && Object.hasOwn(olderTransactionsAnswers, before)
+      ? inOrder(olderTransactionsAnswers[before])
+      : [];
+  const answer = nextOf(request, answers);
+
+  if (loginEnded) return transactionsOutcome(nobodySignedIn);
+  return answer === undefined
+    ? { kind: "answer", response: () => problem(404, "Not Found") }
+    : transactionsOutcome(answer);
+}
+
+function transactionsOutcome(answer: Delayed<TransactionsAnswer>): Outcome {
+  switch (answer.kind) {
+    case "transactions":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () =>
+          Response.json({
+            transactions: answer.transactions.map((each) => ({
+              date: each.date,
+              amount: each.amount,
+              currency: each.currency,
+              pending: each.pending,
+              counterparty: each.counterparty,
+              details: each.details,
+              kind: each.kind,
+            })),
+            olderBefore: answer.olderBefore,
+            czkPerEur: answer.czkPerEur,
+            rateDate: answer.rateDate,
+          }),
+      };
+    case "bank access expired":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () =>
+          problem(503, "Bank access expired", {
+            type: "/problems/bank-access-expired",
+          }),
+      };
+    case "bank rate limited":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () =>
+          problem(429, "Bank rate limit reached", {
+            type: "/problems/bank-rate-limited",
+          }),
+      };
+    case "bank unavailable":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () =>
+          problem(503, "Bank unavailable", {
+            type: "/problems/bank-unavailable",
+          }),
+      };
+    case "nobody":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => problem(401, "Unauthorized"),
+      };
+    case "refused":
+      return refusedOutcome(answer);
+    default:
+      return troubleOutcome(answer);
+  }
 }
 
 function troubleOutcome(answer: Delayed<Trouble>): Outcome {

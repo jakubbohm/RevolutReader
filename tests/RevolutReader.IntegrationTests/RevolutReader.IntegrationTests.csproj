@@ -9,12 +9,20 @@
     <!-- The OpenAPI export starts an app copy (Wiring/OpenApi/OpenApiExport.cs, c007 design.md D9). -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers.Azurite" />
     <PackageReference Include="TUnit" />
     <PackageReference Include="WireMock.Net" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RevolutReader.Api\RevolutReader.Api.csproj" />
+  </ItemGroup>
+
+  <!-- The transaction store's in-memory fake, the unit tests' own, run by the same contract tests as the Table adapter
+       (Account/TransactionStoreContract.cs, c010 design.md D12): one file, so the fake the unit tests trust is the one
+       checked here. -->
+  <ItemGroup>
+    <Compile Include="..\RevolutReader.UnitTests\Account\InMemoryTransactionStore.cs" Link="Account\InMemoryTransactionStore.cs" />
   </ItemGroup>
 
 </Project>
