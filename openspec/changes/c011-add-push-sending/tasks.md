@@ -299,7 +299,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 46. [close] Slice 16 — A subscription with missing or wrong-sized keys is refused
 
-- [ ] 46.1 The scenario's test passes. Verify: green, including push-devices / A subscription with missing or wrong-sized keys is refused
+- [x] 46.1 The scenario's test passes. Verify: green, including push-devices / A subscription with missing or wrong-sized keys is refused
 
 ## 47. [unit] Slice 17 — Forgetting a device
 

@@ -220,7 +220,12 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="device"/>'s push address and public
   /// key, and a secret of <paramref name="bytes"/> made-up random bytes in base64url instead of its own.
   /// </summary>
-  public Task<RegistrationAnswer> RegisterWithSecretOfBytes(TestDevice device, int bytes) => throw new NotImplementedException();
+  public Task<RegistrationAnswer> RegisterWithSecretOfBytes(TestDevice device, int bytes) {
+    ArgumentNullException.ThrowIfNull(device);
+    ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+
+    return RegisterSubscription(device.PushAddress.AbsoluteUri, device.P256dh, Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(bytes)));
+  }
 
   /// <summary><c>DELETE /api/push/subscription</c> in the signed-in browser, naming <paramref name="device"/>'s push address.</summary>
   public Task<ForgetAnswer> Forget(TestDevice device) => throw new NotImplementedException();
