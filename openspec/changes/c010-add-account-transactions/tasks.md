@@ -467,23 +467,23 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 78. [wiring] Slice 33 — Loading older pages
 
-- [ ] 78.1 `ListEnd` (design.md D14) under the last day, watched by an `IntersectionObserver` with `rootMargin: '0px 0px 100% 0px'`, in its `loading` state ("Načítám starší pohyby"); `withOlderPage` (design.md D1). Verify: the scenario runs against the app
+- [x] 78.1 `ListEnd` (design.md D14) under the last day, watched by an `IntersectionObserver` with `rootMargin: '0px 0px 100% 0px'`, in its `loading` state ("Načítám starší pohyby"); `withOlderPage` (design.md D1). Verify: the scenario runs against the app
 
 ## 79. [close] Slice 33 — Older transactions load when the list reaches its end
 
-- [ ] 79.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions load when the list reaches its end
+- [x] 79.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions load when the list reaches its end
 
 ## 80. [wiring] Slice 34 — A failed older page
 
-- [ ] 80.1 `ListEnd`'s `error` state ("Starší pohyby se nepodařilo načíst" with "Zkusit znovu", focus to its line on tap); offline, nothing is sent and the error shows at once; only the button tries again (design.md D1). Verify: the scenario runs against the app
+- [x] 80.1 `ListEnd`'s `error` state ("Starší pohyby se nepodařilo načíst" with "Zkusit znovu", focus to its line on tap); offline, nothing is sent and the error shows at once; only the button tries again (design.md D1). Verify: the scenario runs against the app
 
 ## 81. [close] Slice 34 — Older transactions that failed to load can be tried again
 
-- [ ] 81.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions that failed to load can be tried again
+- [x] 81.1 The scenario's test passes. Verify: green, including account-transactions / Older transactions that failed to load can be tried again
 
 ## 82. [close] Slice 35 — The list ends where the history ends
 
-- [ ] 82.1 With `olderBefore` null, `ListEnd`'s `end` state ("Žádné starší pohyby") and no observer; the scenario's test passes. Verify: green, including account-transactions / The list ends where the history ends
+- [x] 82.1 With `olderBefore` null, `ListEnd`'s `end` state ("Žádné starší pohyby") and no observer; the scenario's test passes. Verify: green, including account-transactions / The list ends where the history ends
 
 ## 83. [integration] History import
 

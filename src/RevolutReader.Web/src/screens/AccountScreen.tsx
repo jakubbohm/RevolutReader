@@ -35,8 +35,8 @@ export interface AccountScreenProps {
  *
  * The transaction list (c010 design.md D7) reads the newest transactions once the server has named the user, and shows
  * its placeholders, then its days, or "Zatím žádné pohyby" when there are none, or its offline note, in the list slot,
- * when the screen has one; a problem with its read is its banner when the screen has none of its own. It joins the
- * screen's states at the join (D8).
+ * when the screen has one; a problem with its read is its banner when the screen has none of its own. Older pages load
+ * at the list's end, which shows their state (D1). It joins the screen's states at the join (D8).
  */
 export function AccountScreen({
   shown,
@@ -89,6 +89,8 @@ export function AccountScreen({
           list={list.shown.list}
           rate={list.shown.rate}
           rateDate={list.shown.rateDate}
+          onLoadOlder={list.loadOlder}
+          onRetryOlder={list.retryOlder}
         />
       ) : null}
       {shown.body === "list" && list.shown.body === "empty" ? (
