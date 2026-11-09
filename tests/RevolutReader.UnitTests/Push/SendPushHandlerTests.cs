@@ -60,7 +60,9 @@ public sealed class SendPushHandlerTests {
 
   /// <summary>
   /// A send that reaches both devices writes one line, <c>PushSent</c> at Information, whose values are the three counts
-  /// (reached, failed, removed) and nothing else: no title, text or page, no account, no push address or key (D4).
+  /// (reached, failed, removed) and nothing else: no title, text or page, no account, no push address or key (D4). The
+  /// counts are read by name, as the sketch's <c>PushLog.PushSent</c> names them (<c>delivered</c>, <c>failed</c>,
+  /// <c>removed</c>), in whatever order and casing the logging source generator writes them.
   /// </summary>
   [Test]
   public async Task A_send_logs_its_counts_only() {
@@ -78,7 +80,7 @@ public sealed class SendPushHandlerTests {
     line.ShouldSatisfyAllConditions(
       () => line.EventName.ShouldBe("PushSent"),
       () => line.Level.ShouldBe(LogLevel.Information),
-      () => line.OwnValues().ShouldBe(["2", "0", "0"], "the line's values: reached, failed, removed"),
+      () => line.OwnNamedValues().ShouldBe(["delivered=2", "failed=0", "removed=0"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "the line's values: the three counts, by name"),
       () => privateValues.Where(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase)).ShouldBeEmpty("nothing of the message, the account or a device in the line"));
   }
 
@@ -148,8 +150,11 @@ public sealed class SendPushHandlerTests {
     /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
     private const string ORIGINAL_FORMAT = "{OriginalFormat}";
 
-    /// <summary>The values of the line's own fields, in order, without its message template.</summary>
-    public IReadOnlyList<string?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value?.ToString())];
+    /// <summary>
+    /// The line's own fields as <c>name=value</c>, without its message template, in the order the logging source generator
+    /// enumerates them, which need not be the method's parameter order (this project's generator writes them reversed).
+    /// </summary>
+    public IReadOnlyList<string> OwnNamedValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => $"{pair.Key}={pair.Value}")];
 
     /// <summary>The event's name, the message and every value, as one text.</summary>
     public string AllText() => string.Join(" | ", [EventName, Message, .. Values.Select(static pair => $"{pair.Key}={pair.Value}")]);
