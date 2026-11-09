@@ -1,8 +1,9 @@
 using RevolutReader.Api.Account;
+using RevolutReader.Api.Push;
 
 namespace RevolutReader.Api.Storage;
 
-/// <summary>The transaction store's registration (c010 design.md D11).</summary>
+/// <summary>The stores' registrations on Table Storage: the transactions (c010 design.md D11) and the push devices (c011 design.md D11).</summary>
 public static class StorageRegistration {
   /// <summary>The connection's name, read from <c>ConnectionStrings:tables</c>.</summary>
   private const string TABLES = "tables";
@@ -34,6 +35,25 @@ public static class StorageRegistration {
 
     builder.AddAzureTableServiceClient(TABLES, static settings => settings.DisableHealthChecks = true);
     builder.Services.AddSingleton<ITransactionStore, TableTransactionStore>();
+
+    return builder;
+  }
+
+  /// <summary>
+  /// The push device store (c011 design.md D11): binds <see cref="PushDeviceStoreOptions"/> from its section, validated on
+  /// start, and <see cref="TablePushDeviceStore"/> as <see cref="IPushDeviceStore"/>, a singleton, so its table is created
+  /// once per process. It uses the tables client <see cref="AddTransactionStore"/> registers, with its connection check, so
+  /// Program.cs calls it after that one: a second client would be a second registration of the same connection.
+  /// </summary>
+  public static IHostApplicationBuilder AddPushDeviceStore(this IHostApplicationBuilder builder) {
+    ArgumentNullException.ThrowIfNull(builder);
+
+    builder.Services.AddOptions<PushDeviceStoreOptions>()
+      .BindConfiguration(PushDeviceStoreOptions.SECTION)
+      .ValidateDataAnnotations()
+      .ValidateOnStart();
+
+    builder.Services.AddSingleton<IPushDeviceStore, TablePushDeviceStore>();
 
     return builder;
   }

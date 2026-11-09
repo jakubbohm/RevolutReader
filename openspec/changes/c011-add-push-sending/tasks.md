@@ -89,18 +89,18 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 8. [integration] Slice 2 — Push device store
 
-- [ ] 8.1 An empty store reads as no devices
-- [ ] 8.2 A saved device reads back with every field unchanged, a push address with a query included
-- [ ] 8.3 Saving the same push address again leaves one device with the latest keys
-- [ ] 8.4 Saving a push address under another account moves the device to it
-- [ ] 8.5 Forgetting a device removes it and leaves the others
-- [ ] 8.6 Forgetting a push address that is not stored does nothing
-- [ ] 8.7 A push address with a slash, a question mark and a hash reads back unchanged
+- [x] 8.1 An empty store reads as no devices
+- [x] 8.2 A saved device reads back with every field unchanged, a push address with a query included
+- [x] 8.3 Saving the same push address again leaves one device with the latest keys
+- [x] 8.4 Saving a push address under another account moves the device to it
+- [x] 8.5 Forgetting a device removes it and leaves the others
+- [x] 8.6 Forgetting a push address that is not stored does nothing
+- [x] 8.7 A push address with a slash, a question mark and a hash reads back unchanged
 
 ## 9. [wiring] Slice 2 — Storage
 
-- [ ] 9.1 `PushDeviceStoreOptions` (section `PushDevices`, `TableName` default `pushdevices`, validated as C7b's), `TablePushDeviceStore`, `StorageRegistration.AddPushDeviceStore`, called in `Program.cs` after `AddTransactionStore`; `appsettings.json` gains the `PushDevices` section with its provenance comment (design.md D11). Verify: group 8's contract tests green on both stores
-- [ ] 9.2 Docs: README.md § Backend code (the device store's port in `Push/` and its adapter in `Storage/`; a storage failure is an exception); configuration.md (`PushDevices`); testing.md § Integration tests (the second contract); their `.claude/rules/` mirrors. Verify: each names design.md D11
+- [x] 9.1 `PushDeviceStoreOptions` (section `PushDevices`, `TableName` default `pushdevices`, validated as C7b's), `TablePushDeviceStore`, `StorageRegistration.AddPushDeviceStore`, called in `Program.cs` after `AddTransactionStore`; `appsettings.json` gains the `PushDevices` section with its provenance comment (design.md D11). Verify: group 8's contract tests green on both stores
+- [x] 9.2 Docs: README.md § Backend code (the device store's port in `Push/` and its adapter in `Storage/`; a storage failure is an exception); configuration.md (`PushDevices`); testing.md § Integration tests (the second contract); their `.claude/rules/` mirrors. Verify: each names design.md D11
 
 ## 9a. [acceptance] Slice 2 — The fake push service and the test device
 

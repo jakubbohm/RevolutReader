@@ -22,6 +22,8 @@ builder.Services.AddEnableBanking();
 builder.Services.AddBalance();
 // The store checks its connection while registering, so a missing one stops the app at start (c010 design.md D11).
 builder.AddTransactionStore();
+// On the tables client AddTransactionStore registers (c011 design.md D11).
+builder.AddPushDeviceStore();
 builder.Services.AddTransactions();
 builder.Services.AddPush();
 builder.Services.AddSignIn();
