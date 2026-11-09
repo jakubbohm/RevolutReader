@@ -239,7 +239,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 35. [wiring] Slice 12 — Gone at the push service
 
-- [ ] 35.1 `WebPushDelivery` answers `DeviceGone` for 404 and 410 (`FakePushService.Gone` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` against WireMock for 404 and 410 (design.md D13). Verify: the edge tests green
+- [x] 35.1 `WebPushDelivery` answers `DeviceGone` for 404 and 410 (`FakePushService.Gone` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` against WireMock for 404 and 410 (design.md D13). Verify: the edge tests green
 
 ## 36. [close] Slice 12 — A device the push service reports gone is deleted
 

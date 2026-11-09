@@ -1,3 +1,4 @@
+using System.Net;
 using Lib.Net.Http.WebPush;
 using Lib.Net.Http.WebPush.Authentication;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,8 @@ namespace RevolutReader.Api.Push;
 /// urgency, none for <see cref="PushUrgency.Normal"/> (RFC 8030 § 5.3's default). Sent on its own typed
 /// <see cref="HttpClient"/>, whose timeout is <c>Push:RequestTimeout</c> and which has no retry handler; the library's own
 /// retry after a 429 is off (D1), so a push is one request. The client keeps the framework's request logging and traces
-/// (D4). A push the service took is <see cref="Delivered"/>.
+/// (D4). A push the service took is <see cref="Delivered"/>; a 404 or 410 answer is <see cref="DeviceGone"/>, with that
+/// status.
 /// <para>
 /// The signing key is made for each push and disposed after it (<see cref="VapidAuthentication"/> is
 /// <see cref="IDisposable"/>): the sender sends to every device at once, and a key per push shares no signer between
@@ -41,10 +43,18 @@ public sealed class WebPushDelivery(HttpClient http, IOptions<PushOptions> optio
       Subject = settings.Subject.GetLeftPart(UriPartial.Authority),
     };
 
-    await _client.RequestPushMessageDeliveryAsync(subscription, message, vapid, VapidAuthenticationScheme.Vapid, cancellationToken);
+    try {
+      await _client.RequestPushMessageDeliveryAsync(subscription, message, vapid, VapidAuthenticationScheme.Vapid, cancellationToken);
+    }
+    catch (PushServiceClientException exception) when (IsGone(exception.StatusCode)) {
+      return new DeviceGone((int)exception.StatusCode);
+    }
 
     return new Delivered();
   }
+
+  /// <summary>Whether the push service's answer says the device is gone (D3, D13): 404 or 410.</summary>
+  private static bool IsGone(HttpStatusCode status) => status is HttpStatusCode.NotFound or HttpStatusCode.Gone;
 
   private static PushMessageUrgency UrgencyOf(PushUrgency urgency) => urgency switch {
     PushUrgency.VeryLow => PushMessageUrgency.VeryLow,
