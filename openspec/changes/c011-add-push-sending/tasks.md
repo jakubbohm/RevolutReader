@@ -138,7 +138,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 15. [close] Slice 4 — Every push lives 24 hours and is urgent
 
-- [ ] 15.1 The scenario's test passes. Verify: green, including push-sending / Every push lives 24 hours and is urgent
+- [x] 15.1 The scenario's test passes. Verify: green, including push-sending / Every push lives 24 hours and is urgent
 
 ## 16. [unit] Slice 5 — No devices
 
