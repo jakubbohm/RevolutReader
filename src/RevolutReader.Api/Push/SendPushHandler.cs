@@ -4,9 +4,10 @@ using RevolutReader.Api.SignIn;
 namespace RevolutReader.Api.Push;
 
 /// <summary>
-/// The sender (spec push-sending, c011 design.md D2, D3, D4): the allowlist first, an account not on it refused
-/// (<see cref="AccountNotAllowed"/>, one Warning line without the account) and nothing sent; then every device stored under the account (compared ignoring
-/// case, as the allowlist compares accounts) gets one push at once, each carrying the message's Declarative Web Push JSON
+/// The sender (spec push-sending, c011 design.md D2, D3, D4): the devices stored under the account (compared ignoring
+/// case, as the allowlist compares accounts) are found first. An account not on the allowlist is refused
+/// (<see cref="AccountNotAllowed"/>): its devices are deleted, one Warning line counts them without naming the account,
+/// and nothing is sent. Otherwise every one of its devices gets one push at once, each carrying the message's Declarative Web Push JSON
 /// on the app's own address (<c>Push:Subject</c>), kept for <see cref="LIFETIME"/> by the push service and sent as urgent.
 /// The answer counts the devices reached and those whose push failed; one line of those counts is logged, and nothing of
 /// the message, the account or a device. Never retried (D3). C9 sends through <see cref="Send"/>.
@@ -20,17 +21,19 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
     ArgumentException.ThrowIfNullOrWhiteSpace(account);
     ArgumentNullException.ThrowIfNull(message);
 
+    PushDevice[] devices = [.. (await store.ReadAll(cancellationToken))
+      .Where(device => string.Equals(device.Account, account, StringComparison.OrdinalIgnoreCase))];
+
     if (!allowlist.Allows(account)) {
-      // Nothing is deleted yet: the refused account's devices are deleted and counted with their own tests (tasks.md group 24).
-      PushLog.PushAccountNotAllowed(logger, removed: 0);
+      foreach (PushDevice device in devices)
+        await store.Forget(device.Endpoint, cancellationToken);
+
+      PushLog.PushAccountNotAllowed(logger, removed: devices.Length);
 
       return new AccountNotAllowed();
     }
 
     OutgoingPush push = new(PushMessages.DeclarativeJson(message, options.Value.Subject), LIFETIME, PushUrgency.High);
-    IEnumerable<PushDevice> devices = (await store.ReadAll(cancellationToken))
-      .Where(device => string.Equals(device.Account, account, StringComparison.OrdinalIgnoreCase));
-
     DeliveryOutcome[] outcomes = await Task.WhenAll(devices.Select(device => delivery.Deliver(device, push, cancellationToken)));
 
     PushSent sent = new(

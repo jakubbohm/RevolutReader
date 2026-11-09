@@ -181,9 +181,9 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 24. [unit] Slice 8 — Devices of a refused account
 
-- [ ] 24.1 A message to an account not on the allowlist deletes the devices still registered under it
-- [ ] 24.2 Those devices are matched ignoring letter case, and other accounts' devices stay
-- [ ] 24.3 The number of deleted devices is logged
+- [x] 24.1 A message to an account not on the allowlist deletes the devices still registered under it
+- [x] 24.2 Those devices are matched ignoring letter case, and other accounts' devices stay
+- [x] 24.3 The number of deleted devices is logged
 
 ## 25. [wiring] Slice 8 — A device registered before its account left the list
 
