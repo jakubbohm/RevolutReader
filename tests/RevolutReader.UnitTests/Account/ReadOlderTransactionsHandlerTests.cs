@@ -51,6 +51,23 @@ public sealed class ReadOlderTransactionsHandlerTests {
     ]);
   }
 
+  /// <summary>
+  /// A kept transaction whose counterparty is empty or of spaces only names no one: the page carries none, so the screen
+  /// names the kind instead (D4b).
+  /// </summary>
+  /// <param name="counterparty">Empty, or spaces only.</param>
+  [Test]
+  [Arguments("")]
+  [Arguments("   ")]
+  public async Task A_blank_counterparty_is_shown_as_none_on_an_older_page(string counterparty) {
+    InMemoryTransactionStore store = new();
+    await store.Keep([Kept("e-1", _november18, 0, -12.30m) with { Counterparty = counterparty }], CancellationToken.None);
+
+    TransactionPage page = await Handler(store).Handle(_november19, CancellationToken.None);
+
+    page.Transactions.ShouldHaveSingleItem().Counterparty.ShouldBeNull();
+  }
+
   private static ReadOlderTransactionsHandler Handler(ITransactionStore store) => new(store, NullLogger<ReadOlderTransactionsHandler>.Instance);
 
   /// <summary>A settled transaction the store keeps, with a known type code and a line of details that does not repeat its counterparty.</summary>

@@ -97,6 +97,24 @@ public sealed class ReadNewestTransactionsHandlerTests {
       () => page.RateDate.ShouldBe(new DateOnly(2026, 11, 8)));
   }
 
+  /// <summary>
+  /// A counterparty the bank sends empty or of spaces only names no one: the page carries none, pending or settled, so the
+  /// screen names the kind instead (D4b).
+  /// </summary>
+  /// <param name="counterparty">Empty, or spaces only.</param>
+  [Test]
+  [Arguments("")]
+  [Arguments("   ")]
+  public async Task A_blank_counterparty_is_shown_as_none_on_the_newest_page(string counterparty) {
+    StubBankAccount bank = new(Lists(
+      Pending(_november19, -8.90m) with { Counterparty = counterparty },
+      Settled(_november18, -12.30m) with { Counterparty = counterparty }));
+
+    TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore());
+
+    page.Transactions.Select(static transaction => transaction.Counterparty).ShouldBe([null, null]);
+  }
+
   // Older ones kept
 
   /// <param name="kept">Nothing; or one transaction kept on the window's first day, which is not older than the window.</param>
