@@ -586,7 +586,7 @@ export function useTransactionList(options: { enabled: boolean }): {
   - their `.claude/rules/` mirrors.
 - **Operations:** deployment.md: the table and the role in the deployed resources, a read-only check that rows arrive after the first open; the import's steps and the owner's temporary role (granted and removed) in the operations docs, with `expiring-approvals.md` untouched (nothing expires).
 - **CLAUDE.md § Commands:** `dotnet test` needs Docker running; the import command; the quick start's setting.
-- **CI:** none to change; the runners have Docker.
+- **CI:** the runners have Docker. The image smoke run gains a made-up `ConnectionStrings__tables` (`UseDevelopmentStorage=true`), since the app refuses to start without it (D11; found at the close, 2026-11-09).
 - **Design:** the loop in § Migration plan, step 1.
 - **Software factory** (the next free numbers when written):
   - *(New)* scenario dates in a frame relative to a clock that can only move forward;
