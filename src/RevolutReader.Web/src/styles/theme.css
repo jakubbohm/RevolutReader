@@ -182,6 +182,45 @@
 }
 
 /*
+ * The transaction sheet (design system TransactionSheet, Motion): it slides up over duration-sheet with ease-sheet
+ * while its scrim fades in, and both leave over duration-fast, holding their end until Radix removes them. Under
+ * reduced motion the sheet fades instead of sliding.
+ */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@utility animate-sheet-in {
+  animation: sheet-up var(--duration-sheet) var(--ease-sheet);
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in;
+  }
+}
+@utility animate-sheet-out {
+  animation: sheet-down var(--duration-fast) var(--ease-standard) forwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-out;
+  }
+}
+@utility animate-scrim-in {
+  animation: fade-in var(--duration-sheet) var(--ease-sheet);
+}
+@utility animate-scrim-out {
+  animation: fade-out var(--duration-fast) var(--ease-standard) forwards;
+}
+
+/*
  * The placeholders' slow pulse while data loads (design system Skeleton): 1.4 s, opacity only. None under reduced
  * motion: a pulse that never ends is motion, unlike a single fade.
  */

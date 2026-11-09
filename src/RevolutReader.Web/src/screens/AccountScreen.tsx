@@ -77,7 +77,11 @@ export function AccountScreen({
         <Skeleton variant="list" />
       ) : null}
       {shown.body === "list" && list.shown.body === "list" ? (
-        <TransactionList list={list.shown.list} rate={list.shown.rate} />
+        <TransactionList
+          list={list.shown.list}
+          rate={list.shown.rate}
+          rateDate={list.shown.rateDate}
+        />
       ) : null}
       {shown.body === "offline note" ? (
         <EmptyState variant="note">

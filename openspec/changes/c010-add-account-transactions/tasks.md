@@ -359,19 +359,19 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 53. [wiring] Slice 23 — TransactionSheet
 
-- [ ] 53.1 `TransactionSheet` on Radix `Dialog` (title, description, close button "Zavřít", amount and koruna value, "Stav", "Datum", "Popis", "Přepočet na koruny"; focus to the sheet and back to the row; design.md D4d, D14); `formatRate`, `formatDate`; the row opens it. Verify: the scenario runs against the app; Escape and the close button close it
+- [x] 53.1 `TransactionSheet` on Radix `Dialog` (title, description, close button "Zavřít", amount and koruna value, "Stav", "Datum", "Popis", "Přepočet na koruny"; focus to the sheet and back to the row; design.md D4d, D14); `formatRate`, `formatDate`; the row opens it. Verify: the scenario runs against the app; Escape and the close button close it
 
 ## 54. [close] Slice 23 — Tapping a transaction opens its details
 
-- [ ] 54.1 The scenario's test passes. Verify: green, including account-transactions / Tapping a transaction opens its details
+- [x] 54.1 The scenario's test passes. Verify: green, including account-transactions / Tapping a transaction opens its details
 
 ## 55. [wiring] Slice 24 — The description only with text
 
-- [ ] 55.1 "Popis" shows only when the transaction has details. Verify: the scenario runs against the app
+- [x] 55.1 "Popis" shows only when the transaction has details. Verify: the scenario runs against the app
 
 ## 56. [close] Slice 24 — The details leave out the description when the bank gave no text of its own
 
-- [ ] 56.1 The scenario's test passes. Verify: green, including account-transactions / The details leave out the description when the bank gave no text of its own
+- [x] 56.1 The scenario's test passes. Verify: green, including account-transactions / The details leave out the description when the bank gave no text of its own
 
 ## 57. [unit] Slice 25 — Pending
 
