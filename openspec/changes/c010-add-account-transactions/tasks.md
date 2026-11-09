@@ -525,7 +525,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 86. [wiring] Local check before the join
 
-- [ ] 86.1 `aspire start --isolated` in a browser (design.md § Migration plan, step 3): sign in; the Mock ASPSP's transactions grouped by day; a sheet opened and closed; the bank's error with the API stopped. Verify: recorded in `.tdd-state.md` with what was seen, without bank data
+- [x] 86.1 `aspire start --isolated` in a browser (design.md § Migration plan, step 3): sign in; the Mock ASPSP's transactions grouped by day; a sheet opened and closed; the bank's error with the API stopped. Verify: recorded in `.tdd-state.md` with what was seen, without bank data
 
 ## 87. [wiring] Join — taking C7a's merge
 
@@ -578,7 +578,7 @@ Waits for C7a's merge (design.md D8).
 
 ## 95. [close] Join — The transactions stay on screen through a failed refresh
 
-- [ ] 95.1 The scenario's test passes, then the local check of design.md § Migration plan step 4 with the balance. Verify: green, including account-transactions / The transactions stay on screen through a failed refresh; the check recorded in `.tdd-state.md`
+- [x] 95.1 The scenario's test passes, then the local check of design.md § Migration plan step 4 with the balance. Verify: green, including account-transactions / The transactions stay on screen through a failed refresh; the check recorded in `.tdd-state.md`
 
 ## 96. [close] Acceptance green
 
