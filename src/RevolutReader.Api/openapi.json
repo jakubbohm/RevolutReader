@@ -178,6 +178,47 @@
         }
       }
     },
+    "/api/push/key": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "summary": "The public push key the app subscribes with",
+        "operationId": "RevolutReaderApiPushPushKeyEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiPushPushKeyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/transactions": {
       "get": {
         "tags": [
@@ -559,6 +600,19 @@
           }
         },
         "description": "A transaction as the app shows it"
+      },
+      "RevolutReaderApiPushPushKeyResponse": {
+        "required": [
+          "publicKey"
+        ],
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string",
+            "description": "The VAPID public key (RFC 8292): the uncompressed P-256 point, base64url without padding"
+          }
+        },
+        "description": "The server's public push key, which the app subscribes to push notifications with"
       },
       "RevolutReaderApiSignInMeResponse": {
         "required": [

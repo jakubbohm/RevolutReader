@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.Json;
 using RevolutReader.AcceptanceTests.Dsl;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
@@ -48,6 +50,14 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// Filled in by the wiring groups (tasks.md 3.4, 10.4, 22.1, 25.1, 48.1); until then every method throws.
 /// </summary>
 public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushService pushService, IServiceProvider app) {
+  /// <summary>The server's public push key (D9).</summary>
+  private const string PUSH_KEY = "/api/push/key";
+
+  private const string JSON = "application/json";
+
+  /// <summary>The push key answer's one member (D9).</summary>
+  private const string PUBLIC_KEY = "publicKey";
+
   /// <summary>The signed-in browser.</summary>
   private HttpClient Browser => browser;
 
@@ -61,7 +71,18 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private IServiceProvider App => app;
 
   /// <summary><c>GET /api/push/key</c> in the signed-in browser: the public key, when the answer is exactly <c>{ publicKey }</c>.</summary>
-  public Task<string> AskForThePushKey() => throw new NotImplementedException();
+  public async Task<string> AskForThePushKey() {
+    using HttpResponseMessage response = await Browser.GetAsync(new Uri(PUSH_KEY, UriKind.Relative));
+    string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+    string body = await response.Content.ReadAsStringAsync();
+
+    string? publicKey = response.StatusCode == HttpStatusCode.OK && IsMediaType(mediaType, JSON) && JsonObjectOrNull(body) is JsonElement answer && answer.EnumerateObject().Count() == 1
+      ? Text(answer, PUBLIC_KEY)
+      : null;
+
+    return publicKey
+      ?? throw new InvalidOperationException($"GET {PUSH_KEY} answered what no push key fits: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+  }
 
   /// <summary><c>PUT /api/push/subscription</c> in the signed-in browser, with <paramref name="device"/>'s own subscription.</summary>
   public Task<RegistrationAnswer> Register(TestDevice device) => throw new NotImplementedException();
@@ -101,4 +122,23 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   /// <summary>How many requests the fake push service received at all, at any address.</summary>
   public int PushesReceivedAtAll() => throw new NotImplementedException();
+
+  /// <summary>The body as a JSON object, detached from its document; <see langword="null"/> when it is not one.</summary>
+  private static JsonElement? JsonObjectOrNull(string body) {
+    try {
+      using JsonDocument document = JsonDocument.Parse(body);
+
+      return document.RootElement.ValueKind == JsonValueKind.Object ? document.RootElement.Clone() : null;
+    }
+    catch (JsonException) {
+      return null;
+    }
+  }
+
+  /// <summary>Whether <paramref name="mediaType"/> is <paramref name="expected"/>, ignoring case; a parameter such as <c>charset</c> is not part of it.</summary>
+  private static bool IsMediaType(string mediaType, string expected) => string.Equals(mediaType, expected, StringComparison.OrdinalIgnoreCase);
+
+  /// <summary>The member <paramref name="name"/> when it is a JSON string; otherwise <see langword="null"/>.</summary>
+  private static string? Text(JsonElement value, string name) =>
+    value.TryGetProperty(name, out JsonElement member) && member.ValueKind == JsonValueKind.String ? member.GetString() : null;
 }

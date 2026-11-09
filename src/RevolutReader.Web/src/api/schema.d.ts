@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The public push key the app subscribes with */
+        get: operations["RevolutReaderApiPushPushKeyEndpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions": {
         parameters: {
             query?: never;
@@ -199,6 +216,11 @@ export interface components {
             details: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfSystemString"];
             /** @description The kind of transaction, from the bank's type code */
             kind: components["schemas"]["RevolutReaderApiAccountTransactionKind"];
+        };
+        /** @description The server's public push key, which the app subscribes to push notifications with */
+        RevolutReaderApiPushPushKeyResponse: {
+            /** @description The VAPID public key (RFC 8292): the uncompressed P-256 point, base64url without padding */
+            publicKey: string;
         };
         /** @description The signed-in user's name and email address */
         RevolutReaderApiSignInMeResponse: {
@@ -371,6 +393,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevolutReaderApiSignInMeResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiPushPushKeyEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevolutReaderApiPushPushKeyResponse"];
                 };
             };
             /** @description Unauthorized */

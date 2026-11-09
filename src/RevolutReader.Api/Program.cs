@@ -5,6 +5,7 @@ using RevolutReader.Api.Bank;
 using RevolutReader.Api.DataProtection;
 using RevolutReader.Api.Hosting;
 using RevolutReader.Api.Pages;
+using RevolutReader.Api.Push;
 using RevolutReader.Api.SignIn;
 using RevolutReader.Api.Storage;
 using RevolutReader.ServiceDefaults;
@@ -22,6 +23,7 @@ builder.Services.AddBalance();
 // The store checks its connection while registering, so a missing one stops the app at start (c010 design.md D11).
 builder.AddTransactionStore();
 builder.Services.AddTransactions();
+builder.Services.AddPush();
 builder.Services.AddSignIn();
 // Where the login cookie's keys live is chosen while registering services, so the composition root hands over the
 // configuration: the DataProtection section and AZURE_CLIENT_ID (c007 design.md D7).
