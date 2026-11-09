@@ -20,6 +20,9 @@ public sealed class SendPushHandlerTests {
   private const string LUCIE = "lucie@example.com";
   private const string PETR = "petr@example.com";
 
+  /// <summary>An account not on the sender's allowlist (which holds Lucie and Petr).</summary>
+  private const string EVA = "eva@example.com";
+
   /// <summary>The made-up app address, <c>Push:Subject</c>: the base of every page a tap opens (D2, D5).</summary>
   private const string APP_ADDRESS = "https://app.example.net";
 
@@ -162,6 +165,39 @@ public sealed class SendPushHandlerTests {
       () => line.Level.ShouldBe(LogLevel.Information),
       () => line.OwnNamedValues().ShouldBe(["delivered=2", "failed=0", "removed=0"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "the line's values: the three counts, by name"),
       () => privateValues.Where(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase)).ShouldBeEmpty("nothing of the message, the account or a device in the line"));
+  }
+
+  /// <summary>
+  /// Eva is not on the allowlist (Lucie and Petr are), yet a device is still stored under her account: a message to her is
+  /// refused, and no push is handed over, neither to her device nor to anyone else's (D3). What becomes of her device is
+  /// slice 8's.
+  /// </summary>
+  [Test]
+  public async Task A_message_to_an_account_not_on_the_allowlist_is_refused_and_nothing_is_handed_over() {
+    StubPushDelivery delivery = new();
+
+    SendResult result = await Handler(await StoreWith(Device(EVA), Device(LUCIE), Device(PETR)), delivery).Send(EVA, _message, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBeOfType<AccountNotAllowed>("Eva is not on the allowlist"),
+      () => delivery.HandedOver.ShouldBeEmpty("a refused message hands no push over"));
+  }
+
+  /// <summary>
+  /// The refusal writes its line, <c>PushAccountNotAllowed</c> at Warning (D4), and no line of the send names the refused
+  /// account, in any letter case, or holds anything of the message. The line's count is slice 8's (24.3), so it is not read.
+  /// </summary>
+  [Test]
+  public async Task A_refused_account_is_logged_without_its_address() {
+    CapturedLog log = new();
+
+    _ = await Handler(await StoreWith(Device(EVA)), new StubPushDelivery(), log).Send(EVA, _message, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    string[] privateValues = [EVA, _message.Title, _message.Text!, _message.Page];
+    lines.ShouldSatisfyAllConditions(
+      () => lines.ShouldContain(line => line.EventName == "PushAccountNotAllowed" && line.Level == LogLevel.Warning, "the refusal's line, at Warning"),
+      () => lines.Where(line => privateValues.Any(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase))).ShouldBeEmpty("no line names the account or holds the message"));
   }
 
   private static SendPushHandler Handler(IPushDeviceStore store, IPushDelivery delivery, ILogger<SendPushHandler>? logger = null) =>
