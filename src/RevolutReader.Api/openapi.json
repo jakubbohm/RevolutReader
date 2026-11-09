@@ -360,13 +360,13 @@
       },
       "RevolutReaderApiAccountTransactionKind": {
         "enum": [
-          "CardPayment",
-          "TopUp",
-          "Transfer",
-          "CashWithdrawal",
-          "Exchange",
-          "Refund",
-          "Other"
+          "card",
+          "topup",
+          "transfer",
+          "atm",
+          "exchange",
+          "refund",
+          "other"
         ],
         "type": "string"
       },

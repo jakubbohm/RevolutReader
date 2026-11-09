@@ -131,7 +131,7 @@ export interface components {
         /** @enum {string} */
         RevolutReaderApiAccountBankProblemType: "/problems/bank-access-expired" | "/problems/bank-rate-limited" | "/problems/bank-unavailable";
         /** @enum {string} */
-        RevolutReaderApiAccountTransactionKind: "CardPayment" | "TopUp" | "Transfer" | "CashWithdrawal" | "Exchange" | "Refund" | "Other";
+        RevolutReaderApiAccountTransactionKind: "card" | "topup" | "transfer" | "atm" | "exchange" | "refund" | "other";
         /** @description A page of the account's transactions, whether older ones are kept, and the koruna rate with its date */
         RevolutReaderApiAccountTransactionPageResponse: {
             /** @description The page's transactions, newest day first, in the bank's order within a day */

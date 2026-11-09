@@ -166,7 +166,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 14. [wiring] Slice 4 — Kinds in the answer
 
-- [ ] 14.1 `TransactionKind` written as the design system's seven names, `card`, `topup`, `transfer`, `atm`, `exchange`, `refund`, `other` (`JsonStringEnumMemberName`, as C13's `BankProblemType`); `TransactionsLog`. Regenerate the TS client. Verify: the scenario and the guard 1.3 run against the app; a second regenerate leaves no diff
+- [x] 14.1 `TransactionKind` written as the design system's seven names, `card`, `topup`, `transfer`, `atm`, `exchange`, `refund`, `other` (`JsonStringEnumMemberName`, as C13's `BankProblemType`); `TransactionsLog`. Regenerate the TS client. Verify: the scenario and the guard 1.3 run against the app; a second regenerate leaves no diff
 - [ ] 14.2 Docs: README.md § Backend code: a bank code is logged only when it looks like a code (design.md D4c), and its `.claude/rules/` mirror. Verify: it matches `TransactionKinds.LooksLikeACode`
 
 ## 15. [close] Slice 4 — A refund is told by the bank's type code
