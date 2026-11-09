@@ -451,11 +451,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 75. [wiring] Slice 32 — The list offline
 
-- [ ] 75.1 The 60 s cap (`setTimeout` with an `AbortController`), the note "Pohyby se načtou, jakmile budeš online." (`EmptyState` note, C7a's variant name), and the reload on the window's `online` event; while the phone says it is offline, the note shows and nothing is sent even with the session unknown (`GET /api/me` failed offline), until the join (design.md D7). Verify: the scenario runs against the app
+- [x] 75.1 The 60 s cap (`setTimeout` with an `AbortController`), the note "Pohyby se načtou, jakmile budeš online." (`EmptyState` note, C7a's variant name), and the reload on the window's `online` event; while the phone says it is offline, the note shows and nothing is sent even with the session unknown (`GET /api/me` failed offline), until the join (design.md D7). Verify: the scenario runs against the app
 
 ## 76. [close] Slice 32 — Offline, the transactions load once the phone is back online
 
-- [ ] 76.1 The scenario's test passes. Verify: green, including account-transactions / Offline, the transactions load once the phone is back online
+- [x] 76.1 The scenario's test passes. Verify: green, including account-transactions / Offline, the transactions load once the phone is back online
 
 ## 77. [unit] Slice 33 — Older pages on the screen
 
