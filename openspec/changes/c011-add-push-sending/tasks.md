@@ -321,7 +321,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 51. [close] Slice 18 — Forgetting a device that was never registered is fine
 
-- [ ] 51.1 The scenario's test passes. Verify: green, including push-devices / Forgetting a device that was never registered is fine
+- [x] 51.1 The scenario's test passes. Verify: green, including push-devices / Forgetting a device that was never registered is fine
 
 ## 52. [unit] The shared frontend pieces (design.md D8)
 
