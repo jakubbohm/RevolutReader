@@ -133,8 +133,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 14. [unit] Slice 4 — Lifetime and urgency
 
-- [ ] 14.1 Every push the sender hands over lives 24 hours
-- [ ] 14.2 Every push the sender hands over is urgent
+- [x] 14.1 Every push the sender hands over lives 24 hours
+- [x] 14.2 Every push the sender hands over is urgent
 
 ## 15. [close] Slice 4 — Every push lives 24 hours and is urgent
 

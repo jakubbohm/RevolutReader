@@ -51,6 +51,32 @@ public sealed class SendPushHandlerTests {
     delivery.HandedOver.ShouldAllBe(handedOver => handedOver.Push.Content == declarativeJson, "every push carries the message as Declarative Web Push JSON on the app's address");
   }
 
+  /// <summary>
+  /// Every push waits up to 24 hours at the push service while the device is offline (D2: <c>TTL: 86400</c>). The value
+  /// is written out here, not read from the sender, so a different lifetime (the library's default of four weeks, none,
+  /// an hour) fails.
+  /// </summary>
+  [Test]
+  public async Task Every_push_the_sender_hands_over_lives_24_hours() {
+    StubPushDelivery delivery = new();
+
+    _ = await Handler(await StoreWith(Device(LUCIE), Device(LUCIE)), delivery).Send(LUCIE, _message, CancellationToken.None);
+
+    delivery.HandedOver.Count.ShouldBe(2, "one push for each of Lucie's devices");
+    delivery.HandedOver.ShouldAllBe(handedOver => handedOver.Push.Lifetime == TimeSpan.FromSeconds(86400), "every push lives 86400 seconds");
+  }
+
+  /// <summary>Every push is sent as urgent (D2: <c>Urgency: high</c>), not of the normal urgency a push has by default.</summary>
+  [Test]
+  public async Task Every_push_the_sender_hands_over_is_urgent() {
+    StubPushDelivery delivery = new();
+
+    _ = await Handler(await StoreWith(Device(LUCIE), Device(LUCIE)), delivery).Send(LUCIE, _message, CancellationToken.None);
+
+    delivery.HandedOver.Count.ShouldBe(2, "one push for each of Lucie's devices");
+    delivery.HandedOver.ShouldAllBe(handedOver => handedOver.Push.Urgency == PushUrgency.High, "every push is urgent");
+  }
+
   [Test]
   public async Task The_answer_counts_the_devices_reached() {
     SendResult result = await Handler(await StoreWith(Device(LUCIE), Device(LUCIE), Device(LUCIE)), new StubPushDelivery()).Send(LUCIE, _message, CancellationToken.None);
