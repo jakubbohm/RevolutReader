@@ -326,29 +326,29 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 46. [unit] Slice 20 — Kind words
 
-- [ ] 46.1 Each known kind has its word: "Platba kartou", "Dobití účtu", "Převod", "Výběr z bankomatu", "Směna měny", "Vrácení peněz"
-- [ ] 46.2 Without details, a row's second line is the kind's word
+- [x] 46.1 Each known kind has its word: "Platba kartou", "Dobití účtu", "Převod", "Výběr z bankomatu", "Směna měny", "Vrácení peněz"
+- [x] 46.2 Without details, a row's second line is the kind's word
 
 ## 47. [close] Slice 20 — A row without the bank's own text names the kind of payment
 
-- [ ] 47.1 The scenario's test passes. Verify: green, including account-transactions / A row without the bank's own text names the kind of payment
+- [x] 47.1 The scenario's test passes. Verify: green, including account-transactions / A row without the bank's own text names the kind of payment
 
 ## 48. [unit] Slice 21 — No counterparty
 
-- [ ] 48.1 Without a counterparty, a row's first line is the kind's word
-- [ ] 48.2 Without a counterparty or details, the kind's word is not repeated on the second line
+- [x] 48.1 Without a counterparty, a row's first line is the kind's word
+- [x] 48.2 Without a counterparty or details, the kind's word is not repeated on the second line
 
 ## 49. [close] Slice 21 — A row without a counterparty names the kind of transaction
 
-- [ ] 49.1 The scenario's test passes. Verify: green, including account-transactions / A row without a counterparty names the kind of transaction
+- [x] 49.1 The scenario's test passes. Verify: green, including account-transactions / A row without a counterparty names the kind of transaction
 
 ## 50. [unit] Slice 22 — Unknown kind
 
-- [ ] 50.1 The kind other is "Příchozí platba" for money received and "Odchozí platba" for money spent
+- [x] 50.1 The kind other is "Příchozí platba" for money received and "Odchozí platba" for money spent
 
 ## 51. [close] Slice 22 — A row without a counterparty or text names an unknown kind by its direction
 
-- [ ] 51.1 The scenario's test passes. Verify: green, including account-transactions / A row without a counterparty or text names an unknown kind by its direction
+- [x] 51.1 The scenario's test passes. Verify: green, including account-transactions / A row without a counterparty or text names an unknown kind by its direction
 
 ## 52. [unit] Slice 23 — The sheet's words
 

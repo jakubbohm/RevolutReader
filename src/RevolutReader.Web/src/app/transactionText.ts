@@ -4,30 +4,40 @@ import type { Transaction, TransactionKind } from "./transactions";
 // What a transaction's row says (c010 design.md D4): its two lines, its koruna value and the sentence a screen reader
 // reads; pure.
 
-/**
- * The kinds' words a row shows so far (D4b): the first line of a transaction without a counterparty. The other kinds'
- * words come with their own slices (c010 tasks.md groups 46 and 50); until then such a line stays empty.
- */
-const KIND_WORDS: Partial<Record<TransactionKind, string>> = {
+/** Each known kind's word (D4b); `other` has none of its own and is named by its direction instead. */
+const KIND_WORDS: Record<Exclude<TransactionKind, "other">, string> = {
+  card: "Platba kartou",
   topup: "Dobití účtu",
+  transfer: "Převod",
+  atm: "Výběr z bankomatu",
+  exchange: "Směna měny",
+  refund: "Vrácení peněz",
 };
 
-function kindWord(kind: TransactionKind): string {
-  return KIND_WORDS[kind] ?? "";
+/**
+ * The kind's word (D4b): the known kinds' own, else "Příchozí platba" for money received and "Odchozí platba" for money
+ * spent, by the sign of `amount`.
+ */
+export function kindWord(kind: TransactionKind, amount: number): string {
+  if (kind !== "other") return KIND_WORDS[kind];
+
+  return amount > 0 ? "Příchozí platba" : "Odchozí platba";
 }
 
 /**
  * A row's two lines (D4b): the first the counterparty, else the kind's word; the second the bank's text, its lines
- * joined by " · ", or `null` without any.
+ * joined by " · ", else the kind's word, or `null` when the first line already is that word.
  */
 export function rowLines(tx: Transaction): {
   first: string;
   second: string | null;
 } {
-  return {
-    first: tx.counterparty ?? kindWord(tx.kind),
-    second: tx.details.length > 0 ? tx.details.join(" · ") : null,
-  };
+  const word = kindWord(tx.kind, tx.amount);
+  const first = tx.counterparty ?? word;
+
+  if (tx.details.length > 0) return { first, second: tx.details.join(" · ") };
+
+  return { first, second: first === word ? null : word };
 }
 
 /**
