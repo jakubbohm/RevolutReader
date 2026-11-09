@@ -263,6 +263,72 @@ public sealed class SendPushHandlerTests {
     delivery.HandedOver.ShouldBeEmpty("a refused message is sent to no device");
   }
 
+  /// <summary>
+  /// A device whose push service answers that it is gone (404 or 410, D3) is forgotten at once and counted as removed, not
+  /// as failed; the account's other device is kept and counted as reached.
+  /// </summary>
+  /// <param name="status">The push service's answer for a device that is gone.</param>
+  [Test]
+  [Arguments(404)]
+  [Arguments(410)]
+  public async Task A_device_the_push_service_reports_gone_is_forgotten_and_counted_as_removed(int status) {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    InMemoryPushDeviceStore store = await StoreWith(phone, tablet);
+    StubPushDelivery delivery = new StubPushDelivery().Answers(phone, new DeviceGone(status));
+
+    SendResult result = await Handler(store, delivery).Send(LUCIE, _message, CancellationToken.None);
+    IReadOnlyList<PushDevice> kept = await store.ReadAll(CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(new PushSent(Delivered: 1, Failed: 0, Removed: 1)),
+      () => kept.ShouldBe([tablet], "the gone phone is forgotten, the tablet kept"));
+  }
+
+  /// <summary>
+  /// A gone device writes its line, <c>PushDeviceGone</c> at Information (D4), whose one value is the push service's
+  /// status, read by name (<c>status</c>, as the sketch's <c>PushLog.PushDeviceGone</c> names it); no line of the send holds
+  /// the device's push address or keys, the account or the message.
+  /// </summary>
+  [Test]
+  public async Task A_gone_device_is_logged_with_the_status_only() {
+    PushDevice phone = Device(LUCIE);
+    CapturedLog log = new();
+
+    _ = await Handler(await StoreWith(phone, Device(LUCIE)), new StubPushDelivery().Answers(phone, new DeviceGone(410)), log).Send(LUCIE, _message, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    string[] privateValues = [phone.Endpoint, phone.P256dh, phone.Auth, LUCIE, _message.Title, _message.Text!, _message.Page];
+    lines.ShouldSatisfyAllConditions(
+      () => {
+        LogEntry gone = lines.Where(static line => line.EventName == "PushDeviceGone").ShouldHaveSingleItem("one line for the one gone device");
+        gone.Level.ShouldBe(LogLevel.Information);
+        gone.OwnNamedValues().ShouldBe(["status=410"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "the line's value: the status, by name");
+      },
+      () => lines.Where(line => privateValues.Any(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase))).ShouldBeEmpty("nothing of the device, the account or the message in any line"));
+  }
+
+  /// <summary>
+  /// The account's other devices still get the message when one is gone, also when the gone one comes first: each gets its
+  /// push once and is counted as reached, and both stay stored.
+  /// </summary>
+  [Test]
+  public async Task The_other_devices_of_the_account_still_get_the_message() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    PushDevice laptop = Device(LUCIE);
+    InMemoryPushDeviceStore store = await StoreWith(phone, tablet, laptop);
+    StubPushDelivery delivery = new StubPushDelivery().Answers(phone, new DeviceGone(410));
+
+    SendResult result = await Handler(store, delivery).Send(LUCIE, _message, CancellationToken.None);
+    IReadOnlyList<PushDevice> kept = await store.ReadAll(CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.Select(static handedOver => handedOver.Device).Where(device => device != phone).ShouldBe([tablet, laptop], ignoreOrder: true, "the tablet and the laptop each get the message once"),
+      () => result.Value.ShouldBe(new PushSent(Delivered: 2, Failed: 0, Removed: 1)),
+      () => kept.ShouldBe([tablet, laptop], ignoreOrder: true, "the other devices stay"));
+  }
+
   private static SendPushHandler Handler(IPushDeviceStore store, IPushDelivery delivery, ILogger<SendPushHandler>? logger = null) =>
     new(store, delivery, Allowlist.Parse($"{LUCIE}, {PETR}"), Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,
