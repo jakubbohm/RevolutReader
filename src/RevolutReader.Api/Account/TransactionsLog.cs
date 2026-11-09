@@ -20,6 +20,13 @@ public static partial class TransactionsLog {
   [LoggerMessage(EventName = "UnknownTypeCode", Level = LogLevel.Warning, Message = "A transaction has a type code the app does not know: {Code}")]
   public static partial void UnknownTypeCode(ILogger logger, string code);
 
+  /// <summary>
+  /// A code-shaped type code containing REFUND, shown as a refund on a guess (D4c): logged, quoted, until the first real
+  /// refund in the logs confirms the guess; then this line goes.
+  /// </summary>
+  [LoggerMessage(EventName = "RefundTypeCode", Level = LogLevel.Warning, Message = "A transaction has a type code containing REFUND, shown as a refund: {Code}")]
+  public static partial void RefundTypeCode(ILogger logger, string code);
+
   /// <summary>A type code the app does not know that does not look like a code: never quoted, the bank could have put anything there (D4c).</summary>
   [LoggerMessage(EventName = "TypeCodeNotLikeACode", Level = LogLevel.Warning, Message = "A transaction has a type code the app does not know, which does not look like a code; not quoted")]
   public static partial void TypeCodeNotLikeACode(ILogger logger);

@@ -9,8 +9,9 @@ namespace RevolutReader.Api.Account;
 /// before the window too (<see cref="TransactionPaging.ToKeep"/>, D5; settled ones without a reference logged by count,
 /// <see cref="TransactionsLog.SettledWithoutReference"/>); then the live transactions dated from
 /// <see cref="TransactionPaging.WindowStart"/> (today being the UTC date of the clock, D3), pending ones included, in the
-/// bank's order, each with the bank's text as the app shows it (<see cref="TransactionText"/>, D4b), with the koruna rate
-/// and its date; <see cref="TransactionPage.OlderBefore"/> is the window's start when a kept transaction is older,
+/// bank's order, each with the bank's text as the app shows it (<see cref="TransactionText"/>, D4b) and its kind
+/// (<see cref="TransactionKinds"/>, D4; the page's type codes the app does not know logged once each, D4c), with the koruna
+/// rate and its date; <see cref="TransactionPage.OlderBefore"/> is the window's start when a kept transaction is older,
 /// counting those this read has just kept. A bank failure comes back as it is, and nothing is kept. The store failing is
 /// an exception: the page is not answered without its write (D5).
 /// </summary>
@@ -46,8 +47,9 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
 
   /// <summary>
   /// The live read's settled transactions kept (D5), a count of those without a reference logged when there are any; then
-  /// the page: the live transactions dated from the window's start, in the bank's order, and the window's start as
-  /// OlderBefore when a transaction kept before this read, or by it, is older (D10).
+  /// the page: the live transactions dated from the window's start, in the bank's order, their type codes the app does not
+  /// know logged (D4c), and the window's start as OlderBefore when a transaction kept before this read, or by it, is older
+  /// (D10).
   /// </summary>
   private async Task<TransactionPage> KeptAndShown(IReadOnlyList<BankTransaction> live, IReadOnlyList<KeptTransaction> keptBefore, DateOnly windowStart, CancellationToken cancellationToken) {
     ToKeep toKeep = TransactionPaging.ToKeep(live);
@@ -56,11 +58,36 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     if (toKeep.WithoutReference > 0)
       TransactionsLog.SettledWithoutReference(logger, toKeep.WithoutReference);
 
+    IReadOnlyList<BankTransaction> onPage = [.. live.Where(transaction => transaction.Date >= windowStart)];
+    LogUnknownTypeCodes(onPage);
+
     return new TransactionPage(
-      [.. live.Where(transaction => transaction.Date >= windowStart).Select(Shown)],
+      [.. onPage.Select(Shown)],
       keptBefore.Concat(toKeep.Transactions).Any(transaction => transaction.Date < windowStart) ? windowStart : null,
       KorunaRate.CzkPerEur,
       KorunaRate.Date);
+  }
+
+  /// <summary>
+  /// The page's type codes the app does not know (<see cref="TransactionKinds.IsKnown"/>), each thing once per page however
+  /// many transactions carry it (D4c): each distinct code-shaped code quoted, as a refund code when it contains REFUND, else
+  /// as an unknown one; the codes that do not look like one in a single unquoted line; the missing ones in a single line.
+  /// </summary>
+  private void LogUnknownTypeCodes(IReadOnlyList<BankTransaction> onPage) {
+    IReadOnlyList<string?> unknown = [.. onPage.Select(static transaction => transaction.TypeCode).Where(static code => !TransactionKinds.IsKnown(code)).Distinct()];
+
+    foreach (string code in unknown.OfType<string>().Where(TransactionKinds.LooksLikeACode)) {
+      if (TransactionKinds.Of(code) == TransactionKind.Refund)
+        TransactionsLog.RefundTypeCode(logger, code);
+      else
+        TransactionsLog.UnknownTypeCode(logger, code);
+    }
+
+    if (unknown.OfType<string>().Any(static code => !TransactionKinds.LooksLikeACode(code)))
+      TransactionsLog.TypeCodeNotLikeACode(logger);
+
+    if (unknown.Contains(null))
+      TransactionsLog.NoTypeCode(logger);
   }
 
   private static ShownTransaction Shown(BankTransaction transaction) => new(
@@ -70,6 +97,5 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     transaction.Status == TransactionStatus.Pending,
     transaction.Counterparty,
     TransactionText.Details(transaction.Counterparty, transaction.PaymentDetails),
-    // Other for now: TransactionKinds.Of names the kind with slice 4.
-    TransactionKind.Other);
+    TransactionKinds.Of(transaction.TypeCode));
 }

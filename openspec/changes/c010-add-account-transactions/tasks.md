@@ -152,17 +152,17 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 13. [unit] Slice 4 — Transaction kinds
 
-- [ ] 13.1 `CARD_PAYMENT`, `TOPUP`, `TRANSFER`, `ATM` and `EXCHANGE` are a card payment, a top-up, a transfer, a cash withdrawal and an exchange
-- [ ] 13.2 A code containing `REFUND` is a refund, in any letter case
-- [ ] 13.3 Any other code is other
-- [ ] 13.4 A missing code is other
-- [ ] 13.5 Capitals, digits and underscores, up to 40 characters, look like a code
-- [ ] 13.6 Any other character, or more than 40, does not look like a code
-- [ ] 13.7 The newest page logs an unknown, code-shaped type code as a warning carrying the code
-- [ ] 13.8 The newest page logs a type code that does not look like a code without quoting it
-- [ ] 13.9 The newest page logs a transaction without a type code
-- [ ] 13.10 The newest page logs each thing once per page: an unknown code once however many transactions carry it, two different unknown codes once each, codes that do not look like one once, transactions without a code once (added 2026-11-09, the user: design.md D4c)
-- [ ] 13.11 The newest page shows a code containing `REFUND` as a refund and logs it as a warning carrying the code, once per distinct code (added 2026-11-09, the user: design.md D4c)
+- [x] 13.1 `CARD_PAYMENT`, `TOPUP`, `TRANSFER`, `ATM` and `EXCHANGE` are a card payment, a top-up, a transfer, a cash withdrawal and an exchange
+- [x] 13.2 A code containing `REFUND` is a refund, in any letter case
+- [x] 13.3 Any other code is other
+- [x] 13.4 A missing code is other
+- [x] 13.5 Capitals, digits and underscores, up to 40 characters, look like a code
+- [x] 13.6 Any other character, or more than 40, does not look like a code
+- [x] 13.7 The newest page logs an unknown, code-shaped type code as a warning carrying the code
+- [x] 13.8 The newest page logs a type code that does not look like a code without quoting it
+- [x] 13.9 The newest page logs a transaction without a type code
+- [x] 13.10 The newest page logs each thing once per page: an unknown code once however many transactions carry it, two different unknown codes once each, codes that do not look like one once, transactions without a code once (added 2026-11-09, the user: design.md D4c)
+- [x] 13.11 The newest page shows a code containing `REFUND` as a refund and logs it as a warning carrying the code, once per distinct code (added 2026-11-09, the user: design.md D4c)
 
 ## 14. [wiring] Slice 4 — Kinds in the answer
 
