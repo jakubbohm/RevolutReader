@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, type RenderHookResult } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { SECOND, startTestClock, timePasses } from "../test/clock";
 import {
@@ -13,30 +13,40 @@ import {
   transaction,
   transactionsPage,
 } from "../test/server";
-import { useTransactionList } from "./useTransactionList";
+import {
+  useTransactionList,
+  type TransactionListModel,
+} from "./useTransactionList";
 
 // The list's sequence (c010 design.md D7; § Rule ownership: useTransactionList), driven through the hook on the fake
 // server and the test clock, and observed in what the list shows and the requests it sends.
 
 // D7: the newest page has a 60 s cap, through `setTimeout` and an `AbortController`; with no answer by then it is
-// aborted and ends as offline, the list's note and no banner.
+// aborted and ends as offline: the list reports it to the screen (D8), whose state makes the offline banner and note,
+// and its own place stays empty.
 
 test("A newest page with no answer within 60 s ends as offline", async () => {
   startTestClock();
   answerWith({ transactions: noAnswerYet });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
 
   await timePasses(59 * SECOND);
-  expect(result.current, "at 59 s, still reading").toMatchObject({
-    shown: { body: "placeholder" },
-    banner: null,
+  expect(result.current.report, "at 59 s, still reading").toEqual({
+    reading: true,
+    problem: null,
+    onScreen: false,
+  });
+  expect(result.current.shown, "at 59 s, placeholders").toEqual({
+    body: "placeholder",
   });
   await timePasses(SECOND);
 
-  expect(result.current, "at 60 s, offline").toMatchObject({
-    shown: { body: "offline note" },
-    banner: null,
+  expect(result.current.report, "at 60 s, offline").toEqual({
+    reading: false,
+    problem: { kind: "offline" },
+    onScreen: false,
   });
+  expect(result.current.shown, "at 60 s, no list").toEqual({ body: "none" });
   expect(timeline(), "the read is aborted").toContain(
     "aborted GET /api/transactions",
   );
@@ -76,7 +86,7 @@ test("The next older page is asked before the last page's `olderBefore`", async 
       "2026-09-28": transactionsPage([STATIONERY]),
     },
   });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
   await timePasses(0);
 
   act(() => {
@@ -102,7 +112,7 @@ test("No second older page is asked while one is loading", async () => {
       "2026-10-20": after(5 * SECOND, transactionsPage([BOOKSHOP])),
     },
   });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
   await timePasses(0);
 
   // The list's end shows twice in one turn, then again a second later, while the page is still on its way.
@@ -127,7 +137,7 @@ test('After a failed older page, nothing is asked until "Zkusit znovu", whatever
       "2026-10-20": [serverError, transactionsPage([BOOKSHOP])],
     },
   });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
   await timePasses(0);
   act(() => {
     result.current.loadOlder();
@@ -173,14 +183,15 @@ test('After a failed older page, nothing is asked until "Zkusit znovu", whatever
   });
 });
 
-// D8: a failed older page stays in its own row (the list's end) and never takes the banner, before the join and after.
+// D8: a failed older page stays in its own row (the list's end) and never takes the banner: the list never reports it
+// as its problem, which is what the screen's banner reads (`screenState`).
 test("A failed older page never takes the banner", async () => {
   startTestClock();
   answerWith({
     transactions: NEWEST_PAGE,
     olderTransactions: { "2026-10-20": serverError },
   });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
   await timePasses(0);
   act(() => {
     result.current.loadOlder();
@@ -191,7 +202,10 @@ test("A failed older page never takes the banner", async () => {
     body: "list",
     list: { older: "error" },
   });
-  expect(result.current.banner).toBeNull();
+  expect(
+    result.current.report.problem,
+    "no problem reported to the screen",
+  ).toBeNull();
 });
 
 // D7: C7a's request rules, the 60 s cap among them, apply to an older page too; with no answer by then it is aborted
@@ -204,7 +218,7 @@ test("An older page with no answer within 60 s ends as failed", async () => {
       "2026-10-20": [noAnswerYet, transactionsPage([BOOKSHOP])],
     },
   });
-  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  const { result } = renderTheList();
   await timePasses(0);
   act(() => {
     result.current.loadOlder();
@@ -235,6 +249,16 @@ test("An older page with no answer within 60 s ends as failed", async () => {
     OLDER_BEFORE_OCTOBER_20,
   ]);
 });
+
+/**
+ * The list's sequence as the account screen renders it for a signed-in session. No read here finds the login ended, so
+ * its callback, a hand-written no-op, is never called.
+ */
+function renderTheList(): RenderHookResult<TransactionListModel, unknown> {
+  return renderHook(() =>
+    useTransactionList({ enabled: true, onLoginEnded: () => undefined }),
+  );
+}
 
 /** The older pages the app asked for, in order. */
 function olderRequests(): string[] {
