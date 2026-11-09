@@ -548,12 +548,12 @@ Waits for C7a's merge (design.md D8).
 - [x] 89.1 After a refresh, the list holds the new newest page and every day already shown that is older than its `olderBefore`
 - [x] 89.2 A refresh whose page says nothing older is kept leaves the new page alone
 - [x] 89.3 The next older page after a refresh is asked before the last older page loaded
-- [ ] 89.4 The banner shows the most important problem: offline, expired access, the limit, the bank not answering, the balance's unexpected answer, the list's unexpected answer
-- [ ] 89.5 Both reads failing at the bank show "Banka teď neodpovídá"; the list alone failing shows "Pohyby se nepodařilo načíst"
+- [x] 89.4 The banner shows the most important problem: offline, expired access, the limit, the bank not answering, the balance's unexpected answer, the list's unexpected answer
+- [x] 89.5 Both reads failing at the bank show "Banka teď neodpovídá"; the list alone failing shows "Pohyby se nepodařilo načíst"
 - [x] 89.6 A failed sign-out stays above the list's problem until the next action
-- [ ] 89.7 "Obnovuji…" lasts while either read is under way
-- [ ] 89.8 After the server woke, the waiting screen holds the list's place until the newest page has come, with no placeholders after it
-- [ ] 89.9 A list on screen stays through a reload that fails, wakes or finds the phone offline
+- [x] 89.7 "Obnovuji…" lasts while either read is under way
+- [x] 89.8 After the server woke, the waiting screen holds the list's place until the newest page has come, with no placeholders after it
+- [x] 89.9 A list on screen stays through a reload that fails, wakes or finds the phone offline
 - [x] 89.10 A failed older page never takes the banner
 
 ## 90. [wiring] Join — The list in C7a's screen
