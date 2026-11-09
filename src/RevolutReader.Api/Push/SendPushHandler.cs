@@ -10,7 +10,9 @@ namespace RevolutReader.Api.Push;
 /// and nothing is sent. Otherwise every one of its devices gets one push at once, each carrying the message's Declarative Web Push JSON
 /// on the app's own address (<c>Push:Subject</c>), kept for <see cref="LIFETIME"/> by the push service and sent as urgent.
 /// The answer counts the devices reached and those whose push failed; one line of those counts is logged, and nothing of
-/// the message, the account or a device. Never retried (D3). C9 sends through <see cref="Send"/>.
+/// the message, the account or a device. Never retried (D3). A message <see cref="PushMessages.Check"/> refuses is a
+/// caller's bug: it throws <see cref="ArgumentException"/>, naming the refused members, never their values (D10). C9
+/// sends through <see cref="Send"/>.
 /// </summary>
 public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delivery, Allowlist allowlist, IOptions<PushOptions> options, ILogger<SendPushHandler> logger) {
   /// <summary>How long a push waits at the push service while the device is offline (D2): 24 hours.</summary>
@@ -20,6 +22,11 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
   public async Task<SendResult> Send(string account, PushMessage message, CancellationToken cancellationToken) {
     ArgumentException.ThrowIfNullOrWhiteSpace(account);
     ArgumentNullException.ThrowIfNull(message);
+
+    IReadOnlyList<RefusedMember> refused = PushMessages.Check(message, options.Value.Subject);
+
+    if (refused.Count > 0)
+      throw new ArgumentException($"A push cannot carry this message; refused: {string.Join(", ", refused.Select(static member => member.Member))}.", nameof(message));
 
     PushDevice[] devices = [.. (await store.ReadAll(cancellationToken))
       .Where(device => string.Equals(device.Account, account, StringComparison.OrdinalIgnoreCase))];

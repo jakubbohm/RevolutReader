@@ -10,6 +10,10 @@ public static class PushMessages {
   /// <summary>The member that marks a push as Declarative Web Push, and its one value (WebKit, iOS 18.4 and later).</summary>
   private const int DECLARATIVE_WEB_PUSH = 8030;
 
+  /// <summary>The members a refusal names, as the message request names them (D10), and their fixed reasons.</summary>
+  private const string TITLE = "title";
+  private const string MISSING = "Missing.";
+
   /// <summary>
   /// Letters of every script as they are, so a Czech text takes its UTF-8 bytes rather than a six-character escape per
   /// letter, which counts against a push's size (D2); quotation marks, backslashes, control characters and the
@@ -18,7 +22,17 @@ public static class PushMessages {
   private static readonly JsonSerializerOptions _json = new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) };
 
   /// <summary>The members of <paramref name="message"/> a push cannot carry, each with a fixed reason, never its value (D2, D10); none when it can.</summary>
-  public static IReadOnlyList<RefusedMember> Check(PushMessage message, Uri appAddress) => throw new NotImplementedException();
+  public static IReadOnlyList<RefusedMember> Check(PushMessage message, Uri appAddress) {
+    ArgumentNullException.ThrowIfNull(message);
+    ArgumentNullException.ThrowIfNull(appAddress);
+
+    List<RefusedMember> refused = [];
+
+    if (string.IsNullOrWhiteSpace(message.Title))
+      refused.Add(new RefusedMember(TITLE, MISSING));
+
+    return refused;
+  }
 
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as
