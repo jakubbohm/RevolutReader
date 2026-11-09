@@ -45,13 +45,14 @@
   - Encrypts with `aes128gcm` (RFC 8291, `Aes128GcmEncodedContent`) and signs with the RFC 8292 header `vapid t=…, k=…` (`PushServiceClient.DefaultAuthenticationScheme = VapidAuthenticationScheme.Vapid`), read in its [source](https://github.com/tpeczek/Lib.Net.Http.WebPush/blob/HEAD/src/Lib.Net.Http.WebPush/PushServiceClient.cs).
   - Takes our own `HttpClient` (`new PushServiceClient(HttpClient)`), registered like the project's other clients, with no retry handler (README.md § Backend code), so tests reach the fake push service.
   - Reports a failed send as `PushServiceClientException` with its `StatusCode`, which gives 404 and 410 (gone, D3).
-  - Depends on Portable.BouncyCastle (last released 2021). No known vulnerability in either (`dotnet list package --vulnerable --include-transitive`, 2026-11-08). The build runs with `TreatWarningsAsErrors`, so a vulnerability published later turns it red; the escape route is the own implementation below.
+  - On .NET 6 and later it depends only on the same author's Lib.Net.Http.EncryptedContentEncoding 2.1.1 and uses .NET's own cryptography; Portable.BouncyCastle is a dependency of its .NET Framework and netstandard2.0 builds only (the package's metadata, and no BouncyCastle assembly loaded on net11.0: the bootstrap's probe, 2026-11-09). No known vulnerability (`dotnet list package --vulnerable --include-transitive`, 2026-11-09). The build runs with `TreatWarningsAsErrors`, so a vulnerability published later turns it red; the escape route is the own implementation below.
+  - **Its retries are switched off** (bootstrap's probe): by default (`AutoRetryAfter = true`, `MaxRetriesAfter = 0`) it retries a 429 after its `Retry-After` with no limit, and `HttpClient.Timeout` does not end the loop. `WebPushDelivery` sets `AutoRetryAfter = false`, so a 429 is one request and counts as failed (D3).
 - **Not chosen:**
   - [WebPush](https://www.nuget.org/packages/WebPush) 1.0.13 (MPL-2.0, 2026-04-28): its assembly sends only the older draft encryption `aesgcm` with the `WebPush` / `Crypto-Key: p256ecdsa=` header (strings read from the DLL, 2026-11-08), and its README marks Safari unsupported.
   - Our own code on .NET's cryptography (ECDH P-256, HKDF, AES-GCM, ES256; about 150–200 lines, provable against RFC 8291's worked example): no third-party cryptography, about half a day more. The owner chose speed.
   - Azure Notification Hubs (asked by the owner): [Microsoft Learn](https://learn.microsoft.com/en-us/azure/notification-hubs/browser-push) (updated 2026-03-04) says "Apple Safari isn't included" and lists iOS as not supported; it would also add a namespace, a hub and a connection-string secret, and still need VAPID keys.
 - **The tests decrypt independently** (D7): their own RFC 8291 decryption on .NET's cryptography, never the library's decoder, so the library never checks itself.
-- *(propose)* The library's exact type and member names are confirmed by the bootstrap's probe and written into § Public API sketch before `/tdd-apply`.
+- The library's exact type and member names were confirmed by the bootstrap's probe (2026-11-09) and are in § Public API sketch (`WebPushDelivery`). Two more facts from it: the token's `aud` is the push address's scheme and host **without its port** (the same as the origin for the real push services, all on 443), and every request gets a newly signed token (no token cache unless one is set).
 
 ### D2 — Every push is a Declarative Web Push message (S3)
 
@@ -64,7 +65,7 @@
 - **`navigate` is always a page of the app itself,** never another site. *(propose)* The server builds it: the app's own address (`Push:Subject`, D5) with the message's page, a path that starts with a single `/` and lies outside `/api` (a page the app serves, `PagesExtensions`). The page defaults to `/` (the account screen).
 - **Never `app_badge`** (the design system: "no badges counting anything").
 - **Lifetime and urgency:** every push waits up to **24 hours** at the push service when the device is offline (`TTL: 86400`) and is sent as **urgent** (`Urgency: high`). C9 sets its own values for its notifications; *(propose)* the delivery port takes both with each push, and the sender passes these two for every message today.
-- *(propose)* **Size:** the JSON's UTF-8 bytes may be at most **3993**, the plaintext a push service must accept: RFC 8291 § 4, 4096 octets of body less the 86-octet header, at least one octet of padding and the 16-octet tag (read 2026-11-09). A longer message is refused (D10) rather than cut, because a cut text would read as complete.
+- *(propose)* **Size:** the JSON's UTF-8 bytes may be at most **3993**, the plaintext a push service must accept: RFC 8291 § 4, 4096 octets of body less the 86-octet header, at least one octet of padding and the 16-octet tag (read 2026-11-09). A longer message is refused (D10) rather than cut, because a cut text would read as complete. The library checks no size (bootstrap's probe: 3993 bytes give exactly 4096 octets of body; longer content is sent anyway, from 4080 bytes in two records), so this check is the only one.
 
 ### D3 — Who gets a push (S4)
 
@@ -105,7 +106,7 @@
 - **The fake push service** (testing.md § Decided later left it to C8): a WireMock server per test, like `Drivers/FakeBank`, standing in for Apple's or Google's push service. *(propose)* `Drivers/FakePushService` starts before the app copy, and its `Configure` writes the `Push` section: a made-up VAPID pair generated once per test run, a made-up message key, `Subject` a made-up app address, and the fake's own origin as a known push service (`Push:Services:FakePushService`, plain `http` on a loopback host, which only loopback entries allow, D9).
 - **A test device plays the phone:** it makes its own P-256 key pair and 16-byte secret, as a browser does, and its push address points at the fake (`http://127.0.0.1:<port>/push/<device>`). The test signs in as Lucie, registers the device through the real API, then sends through the message endpoint with the key.
 - **The fake checks what Apple would, and more,** and answers 403 when a check fails, so a wrong push counts as failed and the scenario goes red:
-  - the token is an ES256 JWT signed with the app's VAPID key, `k` is that key, `aud` is the fake's own origin, `exp` lies in the future and no more than 24 hours ahead (RFC 8292), `sub` is an `https:` address;
+  - the token is an ES256 JWT signed with the app's VAPID key, `k` is that key, `aud` is the fake's own scheme and host (the library leaves out the port, D1; the real push services have none), `exp` lies in the future and no more than 24 hours ahead (RFC 8292), `sub` is an `https:` address;
   - `TTL` and `Urgency` are present (their values are what the scenarios assert);
   - `Content-Encoding: aes128gcm`, and the body decrypts with the device's own key and secret (the tests' own decryption, D1);
   - the decrypted JSON holds the expected title, text and address.
@@ -132,7 +133,8 @@
 | `PUT /api/push/subscription` | signed-in, allowed users | stores or updates this device (push address and keys) under the signed-in account (D3), 204; registering the same device again moves it to the account signed in now |
 | `DELETE /api/push/subscription` | signed-in, allowed users | forgets this device, 204; also when it was never stored (used at sign-out by C8c) |
 
-- **The bodies** *(propose)*: `PUT` takes the browser's own `PushSubscription.toJSON()`: `{ "endpoint", "expirationTime", "keys": { "p256dh", "auth" } }`, `expirationTime` read and ignored. `DELETE` takes `{ "endpoint" }`. The push address travels in the body, never in the URL, so it never reaches the request telemetry (D4). The bootstrap's probe checks that FastEndpoints binds a `DELETE` body and that the API description and the generated client carry it; if not, the forget becomes `POST /api/push/subscription/forget`, and the owner is told before `/tdd-apply`.
+- **The bodies** *(propose)*: `PUT` takes the browser's own `PushSubscription.toJSON()`: `{ "endpoint", "expirationTime", "keys": { "p256dh", "auth" } }`, `expirationTime` read and ignored. `DELETE` takes `{ "endpoint" }`. The push address travels in the body, never in the URL, so it never reaches the request telemetry (D4).
+- **The bodies in the contract** (bootstrap's probe, 2026-11-09): FastEndpoints binds a `DELETE` body, and openapi-fetch sends one. These are the first endpoints with a request body, and the project's `Description(…, clearDefaults: true)` drops the body from `openapi.json`; so both declare it with `Accepts<T>("application/json")`, which keeps it in the description and in `schema.d.ts` as required. Its effect on routing: a request without a JSON body never reaches either endpoint and gets the catch-all's 404, as an unknown address does. The app's module always sends JSON. No `POST …/forget` fallback is needed.
 - **Known push services only:** whatever address a device registers, the server later sends a request to it, so `PUT` accepts only addresses at Apple's, Google's, Mozilla's and Microsoft's push services. Without it a signed-in user could make the server call any address, e.g. inside Azure's network. *(propose)* The list:
   - in `appsettings.json` as `Push:Services`, named entries, so a test adds one without rewriting the others: `Apple` `https://*.push.apple.com`, `Google` `https://fcm.googleapis.com`, `Mozilla` `https://updates.push.services.mozilla.com`, `Microsoft` `https://*.notify.windows.com`. Hosts from [pushpad's known-push-services list](https://github.com/pushpad/known-push-services/blob/master/whitelist) (last changed 2026-06-01, read 2026-11-09), leaving out its legacy (`android.googleapis.com`), staging and test hosts;
   - an entry is an origin: `https`, a host or `*.` and a host suffix, no path, query or fragment; plain `http` only on a loopback host (the tests' fake, as `EnableBankingOptionsValidator` allows for the bank);
@@ -152,7 +154,8 @@ The owner chose it instead of a confirmation push when notifications are turned 
   - the key is checked **before the body is read:** the endpoint binds nothing (`EndpointWithoutRequest`) and reads its JSON body itself once the key matched, so a keyless request with a malformed body still gets the 404, never FastEndpoints' binding 400;
   - the 404 is `TypedResults.NotFound()`: a status with no body, which `UseStatusCodePages` fills in exactly as it does for `ApiNotFound`;
   - a wrong method on the address answers the catch-all's 404 already (README.md § Backend code);
-  - a test pins that the answers are the same: status, content type and body, apart from `traceId`;
+  - a test pins that the answers are the same: status, content type and body, apart from `traceId`. The bootstrap's probe showed them identical (in the test harness and on Kestrel: 404, the same headers, the same problem body with no `instance`), also for a keyless request with a malformed body;
+  - kept out of the description with `Description(x => x.ExcludeFromDescription())`, ASP.NET's own extension (FastEndpoints 9's beta has none of its own; the probe showed the endpoint absent from the export);
   - a convention test reads the committed `openapi.json` (which CI's drift check keeps equal to the code) and finds no `/api/push/messages`.
 - **The request:** `{ "account", "title", "text", "page" }`, the target account (an email address) and the same message object the app's own sender uses (`PushMessage`): the **title**, the optional **text**, and the optional **page** a tap opens (D2, `/` when none). Whatever C9 later adds to the message, this endpoint can send too, so C9 can be tested the same way.
 - **What it refuses:**
@@ -190,7 +193,8 @@ The owner chose it instead of a confirmation push when notifications are turned 
 
 - **Timeout:** each push request waits at most **10 seconds** (`Push:RequestTimeout`, the push client's `HttpClient.Timeout`). A push service answers in well under a second; the devices are sent to in parallel, so a whole message waits at most about 10 s, which the owner's PowerShell and C9's trigger can afford. A request that runs out counts as failed (D3).
 - **The caller's cancellation** passes on as cancellation, never as a failed device: the adapter tells its own timeout from the caller's token.
-- **The adapter** (`WebPushDelivery`) maps: 201 (the success Apple and Google answer; the library's success) → delivered; `PushServiceClientException` with 404 or 410 → gone; with any other status → failed, with that status; an `HttpRequestException` or its own timeout → failed, with no status.
+- **The adapter** (`WebPushDelivery`) maps: 201 (the success Apple and Google answer; the library's success) → delivered; `PushServiceClientException` with 404 or 410 → gone; with any other status (429 included, its retries off, D1) → failed, with that status; an `HttpRequestException` or its own timeout → failed, with no status.
+- **Telling the timeout from the caller** (bootstrap's probe): `HttpClient.Timeout` surfaces as `TaskCanceledException` whose inner exception is a `TimeoutException`; the caller's cancellation as an `OperationCanceledException` while the caller's token `IsCancellationRequested`. The caller's case is checked first.
 
 ### D14 — Capabilities and scenarios *(propose)*
 
@@ -286,6 +290,20 @@ public interface IPushDelivery {
 /// <summary>IPushDelivery on Lib.Net.Http.WebPush's PushServiceClient (D1, D13), with its own HttpClient (timeout
 /// Push:RequestTimeout, no retry handler), the VAPID pair and Subject from PushOptions, the vapid scheme.</summary>
 public sealed class WebPushDelivery(HttpClient http, IOptions<PushOptions> options) : IPushDelivery;
+// The library's names, confirmed by the bootstrap's probe (Lib.Net.Http.WebPush 3.3.1, 2026-11-09):
+//   new PushServiceClient(http) { DefaultAuthentication = new VapidAuthentication(publicKey, privateKey) { Subject = … },
+//     DefaultAuthenticationScheme = VapidAuthenticationScheme.Vapid, AutoRetryAfter = false }
+//     (PushServiceClient is not IDisposable and never disposes our HttpClient; VapidAuthentication is IDisposable;
+//      its Expiration defaults to 43200 s, at most 86400; Subject must be mailto: or https:)
+//   var subscription = new PushSubscription { Endpoint = device.Endpoint };
+//   subscription.SetKey(PushEncryptionKeyName.P256DH, device.P256dh); subscription.SetKey(PushEncryptionKeyName.Auth, device.Auth);
+//   new PushMessage(push.Content) { TimeToLive = (int)push.Lifetime.TotalSeconds, Urgency = PushMessageUrgency.High }
+//     (PushMessageUrgency { VeryLow, Low, Normal, High }; without TimeToLive the client's default is 28 days)
+//   await client.RequestPushMessageDeliveryAsync(subscription, message, cancellationToken);   // Task; success = no exception
+//   failures: PushServiceClientException (StatusCode, Headers, Body); TaskCanceledException { InnerException: TimeoutException }
+//     for HttpClient.Timeout; HttpRequestException (HttpRequestError.ConnectionError) for no connection.
+//   On the wire: Authorization "vapid t=<ES256 JWT>, k=<public key>", TTL, Urgency, Content-Encoding aes128gcm,
+//     Content-Type application/octet-stream; JWT claims aud (scheme://host, no port), exp, sub.
 
 /// <summary>The sender's answer (D3).</summary>
 public sealed record PushSent(int Delivered, int Failed, int Removed);
@@ -339,18 +357,20 @@ public sealed class PushKeyEndpoint(IOptions<PushOptions> options) : EndpointWit
 public sealed record PushKeyResponse(string PublicKey);
 
 /// <summary>PUT /api/push/subscription: the signed-in email (JwtRegisteredClaimNames.Email) → RegisterDeviceHandler;
-/// Registered → 204; SubscriptionRefused → FastEndpoints' validation 400 naming each member. Description: 204, 400, 401, 403.</summary>
+/// Registered → 204; SubscriptionRefused → FastEndpoints' validation 400 naming each member. Description: Accepts<SubscriptionRequest>
+/// ("application/json"), 204, 400, 401, 403 (D9: clearDefaults would otherwise drop the body).</summary>
 public sealed class SubscriptionEndpoint(RegisterDeviceHandler handler) : Endpoint<SubscriptionRequest>;
 public sealed record SubscriptionRequest { public string? Endpoint { get; init; } public double? ExpirationTime { get; init; }
   public SubscriptionKeys? Keys { get; init; } }
 public sealed record SubscriptionKeys { public string? P256dh { get; init; } public string? Auth { get; init; } }
 
-/// <summary>DELETE /api/push/subscription → ForgetDeviceHandler → 204. Description: 204, 401, 403.</summary>
+/// <summary>DELETE /api/push/subscription → ForgetDeviceHandler → 204. Description: Accepts<ForgetSubscriptionRequest>
+/// ("application/json"), 204, 401, 403 (D9).</summary>
 public sealed class ForgetSubscriptionEndpoint(ForgetDeviceHandler handler) : Endpoint<ForgetSubscriptionRequest>;
 public sealed record ForgetSubscriptionRequest { public string? Endpoint { get; init; } }
 
 /// <summary>
-/// POST /api/push/messages (D10): AllowAnonymous, excluded from the description, binds nothing. MessageKeyCheck first →
+/// POST /api/push/messages (D10): AllowAnonymous, Description(x => x.ExcludeFromDescription()), binds nothing. MessageKeyCheck first →
 /// TypedResults.NotFound() (body-less, filled by UseStatusCodePages); then the JSON body (MessageRequest) read by hand →
 /// 400 for an unreadable body; PushMessages.Check and a missing account → FastEndpoints' validation 400; then
 /// SendPushHandler: PushSent → 200 MessageOutcomeResponse; AccountNotAllowed → 404 /problems/push-account-not-allowed.
@@ -500,8 +520,8 @@ export function fromBase64Url(text: string): Uint8Array;  export function toBase
 | `ForgetDeviceHandler.Handle` | — | — | the store's failures |
 | `IPushDeviceStore` | rows / — | — (a missing device is not an error) | the adapter's `RequestFailedException`; a row it cannot read → `InvalidOperationException` naming the column, never its value |
 | `GET /api/push/key` | 200 | 401, 403 | → 500 (C7a's handler) |
-| `PUT /api/push/subscription` | 204 | 400 (the refused members; an unreadable body), 401, 403 | → 500 |
-| `DELETE /api/push/subscription` | 204 | 400 (an unreadable body), 401, 403 | → 500 |
+| `PUT /api/push/subscription` | 204 | 400 (the refused members; JSON it cannot read), 401, 403; no JSON body: the catch-all's 404 (D9) | → 500 |
+| `DELETE /api/push/subscription` | 204 | 400 (JSON it cannot read), 401, 403; no JSON body: the catch-all's 404 (D9) | → 500 |
 | `POST /api/push/messages` | 200 `MessageOutcomeResponse` | 404 (no key, as an unknown address), 404 `/problems/push-account-not-allowed`, 400 (refused members; an unreadable body) | → 500 |
 | `readPushKey`, `sendSubscription`, `forgetSubscription` | the kinds | every answer and failure becomes a kind | none; never throw |
 | `subscribe`, `unsubscribe`, `currentSubscription` | the browser's values | — | the browser's own failures, passed on (D8) |
@@ -553,10 +573,11 @@ No frontend scenario and no manual row: the frontend pieces are unit-tested (D8)
 ## Risks / Trade-offs
 
 - **[Apple refuses what the library sends, or shows nothing]** → tests check RFC 8291 and 8292 with their own decryption, but only C8b's iPhone check proves it. Fallback: our own implementation (D1, about half a day), behind the same `IPushDelivery`.
-- **[The library's names differ from the sketch]** → the bootstrap's probe confirms them first (D1).
-- **[A vulnerability is published in Portable.BouncyCastle]** → the build turns red (`TreatWarningsAsErrors`); the same fallback.
-- **[FastEndpoints drops a `DELETE` body, or the API description does]** → the bootstrap's probe; fallback `POST /api/push/subscription/forget`, told to the owner first (D9).
-- **[The keyless 404 differs from the unknown address's in some detail]** (a header, the `instance`) → a test compares the two answers whole except `traceId` (D10); the bootstrap's probe shows it before the slice.
+- **[The library's names differ from the sketch]** → settled: the bootstrap's probe confirmed them (D1, the sketch).
+- **[The library retries on its own]** → its 429 retries are switched off (`AutoRetryAfter = false`, D1); `Wiring/WebPush/` tests a 429 as one request.
+- **[A vulnerability is published in the library or Lib.Net.Http.EncryptedContentEncoding]** → the build turns red (`TreatWarningsAsErrors`); the same fallback.
+- **[FastEndpoints drops a `DELETE` body, or the API description does]** → settled: it binds the body; `Accepts<T>` keeps it in the description (D9).
+- **[The keyless 404 differs from the unknown address's in some detail]** (a header, the `instance`) → the bootstrap's probe showed them identical; a test compares the two answers whole except `traceId` (D10).
 - **[The production keys are missing when the merge deploys]** → the new revision stops (deployment.md step 5). The guided task runs before the merge, and its read-back lists the three names.
 - **[A wildcard host matches more than meant]** → matching on the parsed host by whole labels; unit tests with look-alike hosts (D9).
 - **[Petr on the test allowlist breaks a scenario that assumed one address]** → the test-writer runs the whole suite when adding him; the DSL's allowlist steps check the configured list.
@@ -573,6 +594,8 @@ No frontend scenario and no manual row: the frontend pieces are unit-tested (D8)
    - FastEndpoints binds a `DELETE` request's JSON body, and the exported `openapi.json` and the generated `schema.d.ts` carry it (D9);
    - an anonymous `EndpointWithoutRequest` answering `TypedResults.NotFound()` gives the same answer as an unknown `/api` address, and `ExcludeFromDescription` keeps it out of the export (D10).
 3. **Baseline:** the full suite green, except the traceability check naming this change's 18 new scenarios.
+
+**Done 2026-11-09:** the package added, no known vulnerability; the probes' outcomes are in D1 (dependencies, retries off, names, `aud`), D2 (no size check in the library), D7 (`aud`), D9 (`Accepts<T>`), D10 (identical 404s, `ExcludeFromDescription`), D13 (telling the timeout from the caller) and the sketch. None contradicted D9 or D10. The probe code was deleted; the RFC 8291 decryption the library probe proved on RFC 8291 Appendix A is a model for `TestDevice` (the test-writer's own code).
 
 ## Migration plan
 

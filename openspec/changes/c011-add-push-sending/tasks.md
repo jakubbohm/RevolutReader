@@ -104,8 +104,8 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 10. [wiring] Slice 2 — Delivery and the endpoints
 
-- [ ] 10.1 `WebPushDelivery` on Lib.Net.Http.WebPush with its typed `HttpClient` (timeout `Push:RequestTimeout`, no resilience handler), the VAPID pair, `Subject` and the `vapid` scheme; `TTL` and `Urgency` from each push (design.md D1, D13). Verify: `HttpClientDefaultsTests` stays green
-- [ ] 10.2 `SubscriptionEndpoint` `PUT /api/push/subscription` (the signed-in email → `RegisterDeviceHandler` → 204); `MessageEndpoint` `POST /api/push/messages` (anonymous, excluded from the description, binds nothing; `MessageKeyCheck` first; the body read by hand; `SendPushHandler` → 200 with the three counts), as design.md D9, D10. Verify: build passes
+- [ ] 10.1 `WebPushDelivery` on Lib.Net.Http.WebPush with its typed `HttpClient` (timeout `Push:RequestTimeout`, no resilience handler), the VAPID pair, `Subject` and the `vapid` scheme, its retries off (`AutoRetryAfter = false`); `TTL` and `Urgency` from each push (design.md D1, D13, the sketch's library names). Verify: `HttpClientDefaultsTests` stays green
+- [ ] 10.2 `SubscriptionEndpoint` `PUT /api/push/subscription` (the signed-in email → `RegisterDeviceHandler` → 204; its body declared with `Accepts<SubscriptionRequest>("application/json")`, D9); `MessageEndpoint` `POST /api/push/messages` (anonymous, excluded from the description, binds nothing; `MessageKeyCheck` first; the body read by hand; `SendPushHandler` → 200 with the three counts), as design.md D9, D10. Verify: build passes
 - [ ] 10.3 `Conventions/AnonymousEndpointsTests` gains `POST /api/push/messages` (an anonymous endpoint goes on the allowlist). Verify: the convention test is green
 - [ ] 10.4 Drivers: `TestDevice` (its P-256 pair and 16-byte secret; RFC 8291 decryption on .NET's cryptography, never the library); `FakePushService`'s checks (token signature, `k`, `aud`, `exp`, `sub`, `TTL`, `Urgency`, `Content-Encoding`; 403 when one fails) and its record of pushes; `PushDriver` and `PushDsl` for registering and sending (design.md D7). Verify: the scenario's test runs to its assertions
 - [ ] 10.5 Regenerate the TS client; commit both files. Verify: `/api/push/messages` is in neither; the type check passes
@@ -244,7 +244,7 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 38. [wiring] Slice 13 — Failures at the push service
 
-- [ ] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on; `FakePushService.FailsOnce`; edge tests in `IntegrationTests/Wiring/WebPush/` for 429, 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
+- [ ] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on; `FakePushService.FailsOnce`; edge tests in `IntegrationTests/Wiring/WebPush/` for 429 (one request, never retried), 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
 
 ## 39. [close] Slice 13 — A device whose push service fails is counted as failed and kept
 
@@ -297,7 +297,7 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 48. [wiring] Slice 17 — The forget endpoint
 
-- [ ] 48.1 `ForgetSubscriptionEndpoint` `DELETE /api/push/subscription` with `{ endpoint }` in its body → `ForgetDeviceHandler` → 204 (or the bootstrap's fallback, design.md D9); `PushDriver` and `PushDsl` for forgetting. Verify: build passes
+- [ ] 48.1 `ForgetSubscriptionEndpoint` `DELETE /api/push/subscription` with `{ endpoint }` in its body → `ForgetDeviceHandler` → 204, its body declared with `Accepts<ForgetSubscriptionRequest>("application/json")` (design.md D9); `PushDriver` and `PushDsl` for forgetting. Verify: build passes
 - [ ] 48.2 Regenerate the TS client; commit both files. Verify: the type check passes
 
 ## 49. [close] Slice 17 — A forgotten device gets no more messages

@@ -50,7 +50,7 @@ None. The new endpoints follow the rules `sign-in` (allowed users only, writes f
 ## Impact
 
 - **Backend:** a new `Push/` folder (settings, the device store port, the sender and its delivery port, the endpoints, the log lines) and the store's Table adapter in `Storage/`; `Program.cs` registrations; `appsettings.json` gains the `Push` and `PushDevices` sections.
-- **Package:** `Lib.Net.Http.WebPush` 3.3.1 (MIT, 2025-03-09; Portable.BouncyCastle with it), checked in explore on 2026-11-08 (S2).
+- **Package:** `Lib.Net.Http.WebPush` 3.3.1 (MIT, 2025-03-09; on .NET it brings only Lib.Net.Http.EncryptedContentEncoding, design.md D1), checked in explore on 2026-11-08 (S2).
 - **API contract:** three endpoints in `openapi.json` and the regenerated `schema.d.ts`; the message endpoint stays out of both.
 - **AppHost:** three secret parameters, `push-vapid-public-key`, `push-vapid-private-key`, `push-message-key`.
 - **Infrastructure:** `infra/platform.bicep` (the `pushdevices` table, the environment's domain as an output), `infra/features.bicep` (three Key Vault references, `Push__Subject` from the app's address), `infra/main.bicep` (passing it on). No new resource type, role or manual role change. The three secrets must be in Key Vault before the merge.
