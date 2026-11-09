@@ -1,6 +1,6 @@
 // The shared infrastructure (c005 design.md D1, D13): the log workspace with Application Insights on
-// it, Key Vault, the app's identity and its roles, the storage account (C6) and the Container Apps
-// environment. A feature PR changes this file only when it adds something shared. Everything here
+// it, Key Vault, the app's identity and its roles, the storage account (C6) with its table (C7b) and
+// the Container Apps environment. A feature PR changes this file only when it adds something shared. Everything here
 // is managed by the deployment stack: a resource deleted from this file is deleted from Azure on the
 // next deploy.
 
@@ -106,11 +106,12 @@ resource appWritesTelemetry 'Microsoft.Authorization/roleAssignments@2022-04-01'
 // ---- The login cookie's encryption keys (C6, c007 design.md D7) ----
 // ASP.NET Data Protection keeps its key ring in one blob, encrypted by a Key Vault key, both reached
 // with the app's identity. Someone who reads the blob still cannot forge login cookies without the
-// key, which never leaves Key Vault. C7's tables join this account.
+// key, which never leaves Key Vault. C7b's table joins this account (below).
 
 // The storage account: shared keys off, so only Azure roles give access; no anonymous blob access;
 // TLS 1.2. The environment has no network of its own and reaches it over the internet; the
-// identity's role on the container below is the guard, as for Key Vault.
+// identity's roles below, on the container and on the account's tables, are the guard, as for Key
+// Vault.
 resource storage 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   name: 'strevolutreader'
   location: location
@@ -189,6 +190,42 @@ resource appUsesKeysKey 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// ---- The settled transactions (C7b, c010 design.md D5, D11) ----
+// One table in the same account, reached with the app's identity, so shared keys stay off. The app
+// creates it too when it is missing; declaring it here keeps it in the stack.
+
+resource tables 'Microsoft.Storage/storageAccounts/tableServices@2025-01-01' = {
+  parent: storage
+  name: 'default'
+}
+
+// The kept history: every settled transaction the app has read, the days older than the bank's 90
+// included. Removing this table from the stack (or the account above) deletes it with its rows, and
+// those older days are gone for good. A rollback of the app keeps it (c010 design.md § Migration
+// plan, step 7). Its name is the app's default Transactions:TableName (appsettings.json).
+resource transactionsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'transactions'
+}
+
+// Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
+// tables, and creates its table when it is missing on first use. On the account rather than the one
+// table, because no doc says a role on the one table allows that creation; the account scope does.
+// It reaches the account's tables and nothing else (no blobs), and the app is their only user; C8a's
+// table here needs the same role (c010 design.md D11, the user, 2026-11-09). One of the roles the
+// deploy identity may assign (docs/operations/azure-prerequisites.md, step 5).
+var storageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
+
+resource appKeepsTransactions 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, appIdentity.id, storageTableDataContributor)
+  scope: storage
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageTableDataContributor)
+    principalId: appIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // The Container Apps environment: Azure's default "workload profiles" type with only the
 // Consumption profile, so there is no environment fee and the monthly free grant applies
 // (ADR-0006-hosting-registry-and-job). The workspace's key is read here, inside the deployment,
@@ -217,7 +254,7 @@ resource environment 'Microsoft.App/managedEnvironments@2026-07-01' = {
 @description('The Container Apps environment the app runs in.')
 output environmentId string = environment.id
 
-@description('The app\'s user-assigned identity, which reads Key Vault, writes to Application Insights and reaches the login cookie\'s keys.')
+@description('The app\'s user-assigned identity, which reads Key Vault, writes to Application Insights, reaches the login cookie\'s keys and keeps the settled transactions.')
 output appIdentityId string = appIdentity.id
 
 @description('The vault that holds the hand-provisioned secrets.')
@@ -231,3 +268,6 @@ output keysBlobUri string = '${storage.properties.primaryEndpoints.blob}${keysCo
 
 @description('The Key Vault key that encrypts the key ring, without a version, so a rotated key is picked up.')
 output keyVaultKeyUri string = keysKey.properties.keyUri
+
+@description('The storage account\'s table endpoint, where the settled transactions are kept (c010 design.md D11).')
+output tableEndpoint string = storage.properties.primaryEndpoints.table

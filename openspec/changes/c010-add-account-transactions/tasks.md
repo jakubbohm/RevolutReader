@@ -509,7 +509,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 85. [wiring] Deployment
 
-- [ ] 85.1 Update infra Bicep + `.bicepparam`, as design.md D11 describes:
+- [x] 85.1 Update infra Bicep + `.bicepparam`, as design.md D11 describes:
   - `platform.bicep`: the table service and the table `transactions` (with a comment: removing it from the stack deletes the history), the app identity's Storage Table Data Contributor on it, the table endpoint as an output;
   - `main.bicep` passes it on;
   - `features.bicep`: `ConnectionStrings__tables` on the container app.
