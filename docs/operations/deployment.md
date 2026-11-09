@@ -132,7 +132,7 @@ Since C7b the app keeps the settled transactions in the table `transactions` of 
 1. The stack lists the table and the new role (the stack query in [Checks](#checks)), the new revision starts, and the app's telemetry shows no storage error.
 2. The first open at the app's address keeps the settled transactions of the last 89 days, since the table holds none yet (c010 design.md D3). Then the read-only check below.
 3. [The history import](#the-history-import-c7b), once.
-4. The list compared once with the Revolut app.
+4. The list compared once with the Revolut app. Before that, the app is closed fully and opened again on every device that had it open (on a phone, swiped away from the app switcher; in a desktop browser, its tab closed): a list that reached its end before the import keeps saying there is nothing older until the app starts afresh (c010 PR #65 review, finding 7).
 
 The import's counts and the file's deletion go into `pm/progress.md` through a small docs PR, since they come after the archive.
 
