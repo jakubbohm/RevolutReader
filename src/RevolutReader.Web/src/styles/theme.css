@@ -212,3 +212,14 @@
 @utility animate-progress-indeterminate {
   animation: progress-indeterminate 1.5s var(--ease-standard) infinite;
 }
+
+/*
+ * The busy spinner (the design system's loading state, its `tp-spin`): `loader-circle` turning once per duration-spin,
+ * for a button or menu item at work. It stands still under reduced motion.
+ */
+@utility animate-busy-spin {
+  animation: spin var(--duration-spin) linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

@@ -69,7 +69,7 @@ export function Button({
         <LoaderCircle
           size={20}
           aria-hidden="true"
-          className="animate-spin [animation-duration:var(--duration-spin)] motion-reduce:animate-none"
+          className="animate-busy-spin"
         />
       ) : Icon ? (
         <Icon size={20} aria-hidden="true" />

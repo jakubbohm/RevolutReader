@@ -87,7 +87,7 @@ export function AccountMenu({
               <LoaderCircle
                 size={20}
                 aria-hidden="true"
-                className="animate-spin [animation-duration:var(--duration-spin)] motion-reduce:animate-none"
+                className="animate-busy-spin"
               />
             ) : (
               <LogOut size={20} aria-hidden="true" />
