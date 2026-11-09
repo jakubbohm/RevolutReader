@@ -45,15 +45,37 @@ public sealed class RefusedMessageTests {
     await ShouldBeRefusedNaming("title", Message(ACCOUNT, "\"   \""), [MessageEndpointApp.ALLOWED_ACCOUNT, TEXT, PAGE]);
 
   /// <summary>A page that is not a page of the app (D2) is refused by the rules, and the endpoint answers before the sender sees it.</summary>
-  /// <param name="page">An absolute address, and an address on another host that starts with two slashes.</param>
+  /// <param name="page">
+  /// An absolute address, an address on another host that starts with two slashes, and an empty page, which is given and
+  /// so refused (D2, the owner's decision 2026-11-09: only a page left out, or <c>null</c>, opens <c>/</c>).
+  /// </param>
   [Test]
   [Arguments("https://example.com/stranka-3c5d")]
   [Arguments("//example.com/stranka-3c5d")]
+  [Arguments("")]
   public async Task A_message_whose_page_is_not_a_page_of_the_app_is_refused_naming_the_page(string page) =>
     await ShouldBeRefusedNaming(
       "page",
       $$"""{ "account": {{ACCOUNT}}, "title": "{{TITLE}}", "text": "{{TEXT}}", "page": "{{page}}" }""",
       [MessageEndpointApp.ALLOWED_ACCOUNT, TITLE, TEXT, "example.com", "stranka-3c5d"]);
+
+  /// <summary>
+  /// A page left out of the request, or <c>null</c>, is no page given, so the message opens <c>/</c> (D2) and its page is
+  /// not refused. Pinned without reaching storage: the title is blank, so the message is refused anyway, and the problem
+  /// names <c>title</c> alone, never <c>page</c>.
+  /// </summary>
+  /// <param name="page">The request's <c>page</c> member as JSON, or <see langword="null"/> to leave it out.</param>
+  [Test]
+  [Arguments(null)] // left out
+  [Arguments("null")]
+  public async Task A_message_with_no_page_given_is_not_refused_for_its_page(string? page) {
+    string pageMember = page is null ? string.Empty : $", \"page\": {page}";
+
+    await ShouldBeRefusedNaming(
+      "title",
+      $$"""{ "account": {{ACCOUNT}}, "title": "   ", "text": "{{TEXT}}"{{pageMember}} }""",
+      [MessageEndpointApp.ALLOWED_ACCOUNT, TEXT]);
+  }
 
   /// <param name="body">A body that is not the request's JSON.</param>
   /// <param name="sent">The values in it that the problem must not quote.</param>
