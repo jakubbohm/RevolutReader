@@ -8,6 +8,7 @@ import {
 import {
   byDay,
   dayTotals,
+  withNewestPage,
   withOlderPage,
   type ListState,
 } from "./transactionList";
@@ -144,6 +145,86 @@ test("An older page whose first day is already shown adds its transactions to th
   ]);
 });
 
+// A refresh at the join (c010 design.md D1, D8): it replaces the newest page only; the older pages already loaded stay,
+// because the boundary between them is a fixed date. The list shown here was read on 2026-11-20: its newest page held
+// 2026-10-20 to 2026-11-20 (`olderBefore` 2026-10-20), and one older page has loaded since (`olderBefore` 2026-09-28).
+// The refresh comes two days later, so its newest page starts on 2026-10-22.
+
+/** A payment on the first newest page's first day: older than the refresh's window. */
+const KIOSK_OCTOBER_21 = transaction("card", -3.8, "2026-10-21", {
+  counterparty: "Trafika Můstek",
+});
+/** A card payment still pending when the list was first read. */
+const BAKERY_PENDING = transaction("card", -12.3, "2026-11-18", {
+  counterparty: "Pekárna U Lípy",
+  pending: true,
+});
+/** A payment that was pending on 2026-11-19 when the list was first read, and that the bank has since dropped. */
+const CINEMA_PENDING = transaction("card", -9.5, "2026-11-19", {
+  counterparty: "Kino Lucerna",
+  pending: true,
+});
+/** The first older page's day. */
+const BOOKSHOP_OCTOBER_15 = transaction("card", -7.5, "2026-10-15", {
+  counterparty: "Knihkupectví Luxor",
+});
+/** The same bakery payment, settled by the time of the refresh. */
+const BAKERY_SETTLED = { ...BAKERY_PENDING, pending: false };
+/** A payment made since the list was first read. */
+const NEWSAGENT_NOVEMBER_22 = transaction("card", -2.4, "2026-11-22", {
+  counterparty: "Papírnictví Tužka",
+});
+
+/** The list as shown before the refresh, with the first older page loaded. */
+function shownBeforeTheRefresh(): ListState {
+  return {
+    days: byDay([
+      CINEMA_PENDING,
+      BAKERY_PENDING,
+      KIOSK_OCTOBER_21,
+      BOOKSHOP_OCTOBER_15,
+    ]),
+    nextBefore: "2026-09-28",
+    older: "idle",
+  };
+}
+
+test("After a refresh, the list holds the new newest page and every day already shown that is older than its `olderBefore`", () => {
+  const next = withNewestPage(
+    shownBeforeTheRefresh(),
+    newestPage([NEWSAGENT_NOVEMBER_22, BAKERY_SETTLED], "2026-10-22"),
+  );
+
+  // 2026-11-19 is gone with the newest page it was on; 2026-10-21 fell out of the live window and stays as shown.
+  expect(next.days).toEqual(
+    byDay([
+      NEWSAGENT_NOVEMBER_22,
+      BAKERY_SETTLED,
+      KIOSK_OCTOBER_21,
+      BOOKSHOP_OCTOBER_15,
+    ]),
+  );
+});
+
+test("A refresh whose page says nothing older is kept leaves the new page alone", () => {
+  const next = withNewestPage(
+    shownBeforeTheRefresh(),
+    newestPage([NEWSAGENT_NOVEMBER_22, BAKERY_SETTLED], null),
+  );
+
+  expect(next.days).toEqual(byDay([NEWSAGENT_NOVEMBER_22, BAKERY_SETTLED]));
+  expect(next.nextBefore, "no older page to ask").toBeNull();
+});
+
+test("The next older page after a refresh is asked before the last older page loaded", () => {
+  const next = withNewestPage(
+    shownBeforeTheRefresh(),
+    newestPage([NEWSAGENT_NOVEMBER_22, BAKERY_SETTLED], "2026-10-22"),
+  );
+
+  expect(next.nextBefore).toBe("2026-09-28");
+});
+
 /** The list as shown while the next older page, the one before `nextBefore`, is read. */
 function listOf(
   transactions: TransactionInApi[],
@@ -163,4 +244,12 @@ function olderPage(
     czkPerEur: KORUNA_RATE,
     rateDate: RATE_DATE,
   };
+}
+
+/** A newest page of these transactions, at C13's rate and its date: the same shape as an older page. */
+function newestPage(
+  transactions: TransactionInApi[],
+  olderBefore: string | null,
+): TransactionPage {
+  return olderPage(transactions, olderBefore);
 }

@@ -1,14 +1,28 @@
 import type { Balance } from "./balance";
+import type { ListProblem } from "./listState";
 import type { Session } from "./session";
 
-/** The screen's one banner (c009 design.md D5, D6, D7). */
+/**
+ * The screen's one banner (c009 design.md D5, D6, D7). At the join (c010 design.md D8), `of: "list"` marks a problem of
+ * the transactions' read alone, in the list's words.
+ */
 export type Problem =
-  | { kind: "bank unavailable" }
+  | { kind: "bank unavailable"; of?: "list" }
   | { kind: "bank rate limited" }
   | { kind: "bank access expired" }
-  | { kind: "unexpected" }
+  | { kind: "unexpected"; of?: "list" }
   | { kind: "offline" }
   | { kind: "sign-out failed"; offline: boolean };
+
+/** What the list reports to the screen at the join (c010 design.md D8). */
+export interface ListReport {
+  /** Its newest page is being read, at first or again. */
+  reading: boolean;
+  /** What went wrong with its last newest page, if anything. */
+  problem: ListProblem | null;
+  /** A newest page has come: the list shows its days, or that there are none yet. */
+  onScreen: boolean;
+}
 
 /** What the screen knows (c009 design.md D2, D3, D5, D6, D7). */
 export interface Facts {
@@ -25,6 +39,8 @@ export interface Facts {
   /** The screen's one banner. */
   problem: Problem | null;
   signingOut: boolean;
+  /** What the list reports (c010 design.md D8); absent, it has nothing to report. */
+  list?: ListReport;
 }
 
 /** What the screen shows (c009 design.md D2, D7, D10). */

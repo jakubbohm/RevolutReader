@@ -1,6 +1,14 @@
 import { expect, test } from "vitest";
 import type { Balance } from "./balance";
-import { shown, type Facts, type Problem } from "./screenState";
+import type { ListProblem } from "./listState";
+import {
+  OFFLINE,
+  shown,
+  type Facts,
+  type ListReport,
+  type Problem,
+  type Shown,
+} from "./screenState";
 
 // What the account screen shows, from what it knows (c009 design.md D2, the phases of the first load; D7, the list slot
 // under the header): plain values in, the screen out. The balance and the user are made up.
@@ -17,7 +25,10 @@ const READ: Balance = {
   czkPerEur: 24.3,
 };
 
-/** The facts at the very start, before any answer and with nothing stored, changed by `changes`. */
+/**
+ * The facts at the very start, before any answer and with nothing stored, changed by `changes`; the list idle, with no
+ * problem and nothing on screen (`listReport`).
+ */
 function facts(changes: Partial<Facts>): Facts {
   return {
     session: "waiting",
@@ -27,8 +38,14 @@ function facts(changes: Partial<Facts>): Facts {
     wokeUp: false,
     problem: null,
     signingOut: false,
+    list: listReport({}),
     ...changes,
   };
+}
+
+/** What the list reports (c010 design.md D8), changed by `changes`: by default idle, with no problem, nothing on screen yet. */
+function listReport(changes: Partial<ListReport>): ListReport {
+  return { reading: false, problem: null, onScreen: false, ...changes };
 }
 
 test("Before any answer, with nothing stored, the account screen is empty and has no menu", () => {
@@ -326,3 +343,252 @@ test.each(unexpectedAnswers)(
     });
   },
 );
+
+// ---- c010: the join with the list (c010 design.md D8) ----
+// The list reports to the screen whether its newest page is being read, the problem its last one left, and whether a
+// newest page has come (`ListReport`). One banner by precedence: offline; expired access; the request limit; the bank
+// not answering; the balance's unexpected answer; the list's unexpected answer. A problem of the list's read alone is
+// worded as the list's (`of: "list"`: "Pohyby se nepodařilo načíst"); without it, C7a's words.
+
+/** Lucie with her balance read, the balance's problem and the list's as given, a list on screen. */
+function withProblems(
+  balanceProblem: Problem | null,
+  listProblem: ListProblem | null,
+): Facts {
+  return facts({
+    session: LUCIE,
+    balance: READ,
+    problem: balanceProblem,
+    list: listReport({ problem: listProblem, onScreen: true }),
+  });
+}
+
+const EXPIRED = { kind: "bank access expired" } as const;
+const LIMIT = { kind: "bank rate limited" } as const;
+const BANK_DOWN = { kind: "bank unavailable" } as const;
+const UNEXPECTED = { kind: "unexpected" } as const;
+const LIST_OFFLINE = { kind: "offline" } as const;
+
+const precedence: {
+  label: string;
+  checks: {
+    balance: Problem | null;
+    list: ListProblem | null;
+    banner: Problem;
+  }[];
+}[] = [
+  {
+    label: "offline over expired access, whichever read has it",
+    checks: [
+      { balance: OFFLINE, list: EXPIRED, banner: OFFLINE },
+      { balance: EXPIRED, list: LIST_OFFLINE, banner: OFFLINE },
+    ],
+  },
+  {
+    label: "expired access over the request limit, whichever read has it",
+    checks: [
+      { balance: EXPIRED, list: LIMIT, banner: EXPIRED },
+      { balance: LIMIT, list: EXPIRED, banner: EXPIRED },
+    ],
+  },
+  {
+    label:
+      "the request limit over the bank not answering, whichever read has it",
+    checks: [
+      { balance: LIMIT, list: BANK_DOWN, banner: LIMIT },
+      { balance: BANK_DOWN, list: LIMIT, banner: LIMIT },
+    ],
+  },
+  {
+    label:
+      "the bank not answering over an unexpected answer, whichever read has it",
+    checks: [
+      // The balance's words: only its read failed at the bank.
+      { balance: BANK_DOWN, list: UNEXPECTED, banner: BANK_DOWN },
+      // Either wording: only the precedence is claimed here.
+      {
+        balance: UNEXPECTED,
+        list: BANK_DOWN,
+        banner: expect.objectContaining(BANK_DOWN) as Problem,
+      },
+    ],
+  },
+  {
+    label:
+      "the balance's unexpected answer over the list's, which shows when nothing else does",
+    checks: [
+      { balance: UNEXPECTED, list: UNEXPECTED, banner: UNEXPECTED },
+      {
+        balance: null,
+        list: UNEXPECTED,
+        banner: { ...UNEXPECTED, of: "list" },
+      },
+    ],
+  },
+];
+
+test.each(precedence)(
+  "The banner shows the most important problem: $label",
+  ({ checks }) => {
+    for (const { balance, list, banner } of checks)
+      expect(
+        bannerOf(shown(withProblems(balance, list))),
+        `the balance's ${balance?.kind ?? "none"}, the list's ${list?.kind ?? "none"}`,
+      ).toEqual(banner);
+  },
+);
+
+test('Both reads failing at the bank show "Banka teď neodpovídá"; the list alone failing shows "Pohyby se nepodařilo načíst"', () => {
+  // The scenario's fresh start: nothing stored, and the bank answers neither read.
+  const bothFailed = facts({
+    session: LUCIE,
+    problem: BANK_DOWN,
+    list: listReport({ problem: BANK_DOWN }),
+  });
+  expect(bannerOf(shown(bothFailed)), "both failed: C7a's words").toEqual(
+    BANK_DOWN,
+  );
+
+  expect(
+    bannerOf(shown(withProblems(null, BANK_DOWN))),
+    "the list alone: the list's words",
+  ).toEqual({ ...BANK_DOWN, of: "list" });
+});
+
+// c009 design.md D6: a failed sign-out's banner replaces any other until the next action, which clears it the moment
+// it starts (C7a's sequence); the list's problems rank below it.
+const listProblems: ListProblem[] = [
+  LIST_OFFLINE,
+  EXPIRED,
+  LIMIT,
+  BANK_DOWN,
+  UNEXPECTED,
+];
+
+test.each(listProblems)(
+  "A failed sign-out stays above the list's problem until the next action: $kind",
+  (listProblem) => {
+    const signOutFailed: Problem = { kind: "sign-out failed", offline: false };
+
+    expect(bannerOf(shown(withProblems(signOutFailed, listProblem)))).toEqual(
+      signOutFailed,
+    );
+  },
+);
+
+// D8: "Obnovuji…" waits for both answers, on a refresh and on the first load on an awake server alike; the balance's
+// read alone is C7a's (above).
+const listReads: { label: string; list: ListReport }[] = [
+  {
+    label: "the list read again after the balance has come",
+    list: listReport({ reading: true, onScreen: true }),
+  },
+  {
+    label: "the list's first page read after the balance has come",
+    list: listReport({ reading: true }),
+  },
+];
+
+test.each(listReads)(
+  '"Obnovuji…" lasts while either read is under way: $label',
+  ({ list }) => {
+    expect(
+      shown(facts({ session: LUCIE, balance: READ, reading: "no", list })),
+    ).toMatchObject({
+      screen: "account",
+      header: { balance: READ, refreshing: true },
+    });
+  },
+);
+
+test("After the server woke, the waiting screen holds the list's place until the newest page has come, with no placeholders after it", () => {
+  // The first answer took 20 s; the balance has come since, and the header shows it as it stands, never refreshing.
+  const afterTheWake: Partial<Facts> = {
+    session: LUCIE,
+    balance: READ,
+    reading: "no",
+    wait: "long",
+    wokeUp: true,
+  };
+
+  expect(
+    shown(facts({ ...afterTheWake, list: listReport({ reading: true }) })),
+    "the newest page is still read",
+  ).toMatchObject({
+    screen: "account",
+    header: { balance: READ, refreshing: false },
+    body: "waking",
+  });
+  expect(
+    shown(facts({ ...afterTheWake, list: listReport({ onScreen: true }) })),
+    "the newest page has come",
+  ).toMatchObject({
+    screen: "account",
+    header: { balance: READ, refreshing: false },
+    body: "list",
+  });
+});
+
+// D8: once a list is on screen it stays, under the banner, through every reload; the offline note and the waking-up
+// screen take the list's place only while none has come.
+const listOnScreen: {
+  label: string;
+  changes: Partial<Facts>;
+  shows: object;
+}[] = [
+  {
+    label: "both reads fail at the bank, with no balance to show",
+    changes: {
+      session: LUCIE,
+      problem: BANK_DOWN,
+      list: listReport({ problem: BANK_DOWN, onScreen: true }),
+    },
+    shows: { header: null, body: "list" },
+  },
+  {
+    label: "the server woke, and the balance is still read",
+    changes: {
+      session: LUCIE,
+      balance: STORED,
+      reading: "first",
+      wait: "long",
+      wokeUp: true,
+      list: listReport({ onScreen: true }),
+    },
+    shows: { body: "list" },
+  },
+  {
+    label: "the balance's read finds the phone offline",
+    changes: {
+      session: LUCIE,
+      balance: READ,
+      problem: OFFLINE,
+      list: listReport({ onScreen: true }),
+    },
+    shows: { banner: OFFLINE, body: "list" },
+  },
+  {
+    label: "the list's read finds the phone offline",
+    changes: {
+      session: LUCIE,
+      balance: READ,
+      list: listReport({ problem: LIST_OFFLINE, onScreen: true }),
+    },
+    shows: { banner: OFFLINE, body: "list" },
+  },
+];
+
+test.each(listOnScreen)(
+  "A list on screen stays through a reload that fails, wakes or finds the phone offline: $label",
+  ({ changes, shows }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      ...shows,
+    });
+  },
+);
+
+/** The account screen's banner; `undefined` for any other screen. */
+function bannerOf(screen: Shown): Problem | null | undefined {
+  return screen.screen === "account" ? screen.banner : undefined;
+}

@@ -173,6 +173,27 @@ test('After a failed older page, nothing is asked until "Zkusit znovu", whatever
   });
 });
 
+// D8: a failed older page stays in its own row (the list's end) and never takes the banner, before the join and after.
+test("A failed older page never takes the banner", async () => {
+  startTestClock();
+  answerWith({
+    transactions: NEWEST_PAGE,
+    olderTransactions: { "2026-10-20": serverError },
+  });
+  const { result } = renderHook(() => useTransactionList({ enabled: true }));
+  await timePasses(0);
+  act(() => {
+    result.current.loadOlder();
+  });
+  await timePasses(0);
+
+  expect(result.current.shown, "the older page failed").toMatchObject({
+    body: "list",
+    list: { older: "error" },
+  });
+  expect(result.current.banner).toBeNull();
+});
+
 /** The older pages the app asked for, in order. */
 function olderRequests(): string[] {
   return requests().filter((sent) =>
