@@ -134,13 +134,21 @@ public sealed class PushMessagesTests {
   public void An_empty_page_is_not_a_page_of_the_app() =>
     PushMessages.IsAppPage(string.Empty).ShouldBeFalse();
 
-  /// <summary>A message whose page is not a page of the app is refused, naming <c>page</c> alone, with a fixed reason that quotes nothing of the page (D10).</summary>
+  /// <summary>
+  /// A message whose page is not a page of the app is refused, naming <c>page</c> alone, with a fixed reason that quotes
+  /// nothing of the page (D10). Also a page that is not even an address, which the app's address cannot be combined with
+  /// (<c>new Uri(appAddress, page)</c> throws for it): refused like any other, never an exception.
+  /// </summary>
   /// <param name="page">A page from each kind the rules refuse.</param>
   [Test]
   [Arguments("https://example.com/stranka-3c5d")]
   [Arguments("//example.com/stranka-3c5d")]
   [Arguments("/api/stranka-3c5d")]
   [Arguments("")]
+  [Arguments("http://")] // not an address
+  [Arguments("http://[")]
+  [Arguments("a:b")]
+  [Arguments("https://exa mple.com")]
   public void A_message_whose_page_is_not_a_page_of_the_app_is_refused_naming_the_page(string page) {
     RefusedMember refused = PushMessages.Check(new PushMessage(TITLE, TEXT, page), _appAddress).ShouldHaveSingleItem("only the page is refused; the title and the text are fine");
 

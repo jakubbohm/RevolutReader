@@ -63,13 +63,16 @@ public sealed class RefusedMessageTests {
 
   /// <summary>A page that is not a page of the app (D2) is refused by the rules, and the endpoint answers before the sender sees it.</summary>
   /// <param name="page">
-  /// An absolute address, an address on another host that starts with two slashes, and an empty page, which is given and
-  /// so refused (D2, the owner's decision 2026-11-09: only a page left out, or <c>null</c>, opens <c>/</c>).
+  /// An absolute address, an address on another host that starts with two slashes, an empty page, which is given and so
+  /// refused (D2, the owner's decision 2026-11-09: only a page left out, or <c>null</c>, opens <c>/</c>), and pages that
+  /// are not even addresses, which the app's address cannot be combined with: a 400, never a 500.
   /// </param>
   [Test]
   [Arguments("https://example.com/stranka-3c5d")]
   [Arguments("//example.com/stranka-3c5d")]
   [Arguments("")]
+  [Arguments("http://[")] // not an address
+  [Arguments("https://exa mple.com")]
   public async Task A_message_whose_page_is_not_a_page_of_the_app_is_refused_naming_the_page(string page) =>
     await ShouldBeRefusedNaming(
       "page",
