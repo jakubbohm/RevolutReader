@@ -191,7 +191,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 26. [close] Slice 8 — A message to an account no longer on the allowlist deletes its devices
 
-- [ ] 26.1 The scenario's test passes. Verify: green, including push-sending / A message to an account no longer on the allowlist deletes its devices
+- [x] 26.1 The scenario's test passes. Verify: green, including push-sending / A message to an account no longer on the allowlist deletes its devices
 
 ## 27. [unit] Slice 9 — A message's title and account
 
