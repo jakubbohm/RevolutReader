@@ -327,7 +327,7 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
   public Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken);
 }
 
-/// <summary>An older page from the store only (D1); never reads the bank. Logs unknown type codes.</summary>
+/// <summary>An older page from the store only (D1); never reads the bank. Logs no type codes: only the newest page does, for the transactions it shows (D4c).</summary>
 public sealed class ReadOlderTransactionsHandler(ITransactionStore store, ILogger<ReadOlderTransactionsHandler> logger) {
   public Task<TransactionPage> Handle(DateOnly before, CancellationToken cancellationToken);
 }
