@@ -14,31 +14,31 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), as design.md § Public API sketch and D7:
+- [x] 1.1 Foundation (API), as design.md § Public API sketch and D7:
   - `Drivers/FakePushService` (a WireMock server per test, started before the app copy; its `Configure` writes the `Push` section: a made-up VAPID pair generated once per test run, a made-up message key, a made-up `Subject`, and its own origin as `Push:Services:FakePushService`), `Drivers/TestDevice`, `Drivers/PushDriver`, `Dsl/PushDsl` and its records as signatures whose methods throw `NotImplementedException`; `AcceptanceTest.Push`; `FakePushService.Configure` called next to `FakeBank.Configure` for every app copy;
   - `Drivers/AzuriteStorage.Configure` also sets `PushDevices:TableName` to a table of the app copy's own;
   - `Dsl/Visitor.Petr` (`Petr Novák`, `petr@example.com`, made up), and `FakeMicrosoft.ALLOWED_EMAILS` holds Lucie and Petr;
   - `Dsl/ProblemDescription.PushAccountNotAllowed` (`Account not allowed`, `/problems/push-account-not-allowed`).
 
   Verify: build passes; every acceptance test that was green stays green (the allowlist steps check the configured list)
-- [ ] 1.2 Acceptance: push-devices / The app gets the public push key
-- [ ] 1.3 Acceptance: push-devices / Registering the same device again moves it to the account signed in now
-- [ ] 1.4 Acceptance: push-devices / A push address outside the known push services is refused
-- [ ] 1.5 Acceptance: push-devices / A subscription with missing or wrong-sized keys is refused
-- [ ] 1.6 Acceptance: push-devices / A forgotten device gets no more messages
-- [ ] 1.7 Acceptance: push-devices / Forgetting a device that was never registered is fine
-- [ ] 1.8 Acceptance: push-sending / A registered device receives a message sent to its account
-- [ ] 1.9 Acceptance: push-sending / A message reaches every device of the account and none of another account's
-- [ ] 1.10 Acceptance: push-sending / Every push lives 24 hours and is urgent
-- [ ] 1.11 Acceptance: push-sending / An allowed account with no devices gets zero counts
-- [ ] 1.12 Acceptance: push-sending / A message without the right key gets the answer of an unknown address
-- [ ] 1.13 Acceptance: push-sending / A message to an account not on the allowlist is refused
-- [ ] 1.14 Acceptance: push-sending / A message to an account no longer on the allowlist deletes its devices
-- [ ] 1.15 Acceptance: push-sending / A message without a title is refused
-- [ ] 1.16 Acceptance: push-sending / A message whose page is not a page of the app is refused
-- [ ] 1.17 Acceptance: push-sending / A message too long for a push is refused
-- [ ] 1.18 Acceptance: push-sending / A device the push service reports gone is deleted
-- [ ] 1.19 Acceptance: push-sending / A device whose push service fails is counted as failed and kept
+- [x] 1.2 Acceptance: push-devices / The app gets the public push key
+- [x] 1.3 Acceptance: push-devices / Registering the same device again moves it to the account signed in now
+- [x] 1.4 Acceptance: push-devices / A push address outside the known push services is refused
+- [x] 1.5 Acceptance: push-devices / A subscription with missing or wrong-sized keys is refused
+- [x] 1.6 Acceptance: push-devices / A forgotten device gets no more messages
+- [x] 1.7 Acceptance: push-devices / Forgetting a device that was never registered is fine
+- [x] 1.8 Acceptance: push-sending / A registered device receives a message sent to its account
+- [x] 1.9 Acceptance: push-sending / A message reaches every device of the account and none of another account's
+- [x] 1.10 Acceptance: push-sending / Every push lives 24 hours and is urgent
+- [x] 1.11 Acceptance: push-sending / An allowed account with no devices gets zero counts
+- [x] 1.12 Acceptance: push-sending / A message without the right key gets the answer of an unknown address
+- [x] 1.13 Acceptance: push-sending / A message to an account not on the allowlist is refused
+- [x] 1.14 Acceptance: push-sending / A message to an account no longer on the allowlist deletes its devices
+- [x] 1.15 Acceptance: push-sending / A message without a title is refused
+- [x] 1.16 Acceptance: push-sending / A message whose page is not a page of the app is refused
+- [x] 1.17 Acceptance: push-sending / A message too long for a push is refused
+- [x] 1.18 Acceptance: push-sending / A device the push service reports gone is deleted
+- [x] 1.19 Acceptance: push-sending / A device whose push service fails is counted as failed and kept
 
 ## 2. [unit] Slice 1 — Push settings
 
