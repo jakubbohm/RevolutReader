@@ -1,17 +1,26 @@
 import { screen, within } from "@testing-library/react";
 import { expect } from "vitest";
 import { errorBanner, warningBanner } from "../test/banners";
-import { startTestClock, timePasses, userOnTheTestClock } from "../test/clock";
+import {
+  ago,
+  HOUR,
+  startTestClock,
+  timePasses,
+  userOnTheTestClock,
+} from "../test/clock";
 import { scrollToEnd } from "../test/intersection";
 import { renderApp } from "../test/renderApp";
 import { scenario } from "../test/scenario";
 import {
+  balance,
   bankAccessExpired,
   bankRateLimited,
   bankUnavailable,
   goOffline,
   goOnline,
+  kept,
   noAnswerYet,
+  phoneKeeps,
   serverError,
   signedIn,
   transaction,
@@ -408,9 +417,12 @@ scenario(
   "Offline, the transactions load once the phone is back online",
   async () => {
     startTestClock(TODAY);
+    // The phone keeps a balance (the GIVEN; c010 design.md D8: C7a's server setup, so the scenario holds unchanged).
+    await phoneKeeps(kept(286.4, ago(2 * HOUR)));
     goOffline();
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2]),
     });
 
