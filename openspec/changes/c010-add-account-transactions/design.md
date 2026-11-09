@@ -387,8 +387,10 @@ public static class StorageRegistration {
 // HistoryImport/HistoryFile.cs — reads the M1 file's shape into EbTransactionPage lists (the adapter's JSON options).
 // HistoryImport/HistoryImporter.cs — maps, filters (from 2026-08-09; D9's day rule) and keeps; returns counts.
 // HistoryImport/HistoryImporterTests.cs — against Azurite with a made-up file, in the default run.
-// HistoryImport/HistoryImport.cs — [Explicit]: the owner's file and the deployed table (settings
-//   HistoryImport:File and HistoryImport:TableEndpoint, AzureCliCredential); prints counts only.
+// HistoryImport/HistoryImportCheck.cs — [Explicit] (named like MockAspspCheck; HistoryImport is the namespace):
+//   the owner's file and the deployed table (settings HistoryImport:File and HistoryImport:TableEndpoint,
+//   AzureCliCredential), or for the local check HistoryImport:TableConnectionString instead of the endpoint
+//   (Azurite takes no Azure login); prints counts only. Written by the test-writer (the user, 2026-11-09).
 
 // ---- tests/RevolutReader.AcceptanceTests ----
 

@@ -499,7 +499,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 84. [wiring] History import — the explicit check
 
-- [ ] 84.1 `HistoryImport` (`[Explicit]`): reads `HistoryImport:File` and `HistoryImport:TableEndpoint`, writes with `AzureCliCredential` through `TableTransactionStore`, prints counts only. Verify: it runs nothing in the default suite; run against Azurite with the made-up file, it prints the counts
+- [ ] 84.1 `HistoryImportCheck` (`[Explicit]`; written by the test-writer, the user 2026-11-09): reads `HistoryImport:File` and `HistoryImport:TableEndpoint`, writes with `AzureCliCredential` through `TableTransactionStore` (or, for the local check, `HistoryImport:TableConnectionString` instead of the endpoint), prints counts only. Verify: it runs nothing in the default suite; run against Azurite with the made-up file, it prints the counts
 - [ ] 84.2 Docs:
   - `CLAUDE.md` § Commands: the import's command and settings (explicit, run once, owner only);
   - docs/operations/deployment.md: the import's steps, the owner's temporary Storage Table Data Contributor (granted and removed by the owner, design.md D9), the counts to compare, the file and its backup deleted;
