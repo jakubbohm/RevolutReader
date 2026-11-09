@@ -1,4 +1,4 @@
-import type { Transaction } from "./transactions";
+import type { Transaction, TransactionPage } from "./transactions";
 
 /** One day of the list (c010 design.md D1, D14): its transactions in the answer's order, and its totals in whole cents. */
 export interface Day {
@@ -52,4 +52,18 @@ export function dayTotals(transactions: Transaction[]): {
   }
 
   return { incoming, outgoing };
+}
+
+/**
+ * The list with an older page at its end (c010 design.md D1): the page's days join the end of the list, and a first day
+ * the list already shows takes the page's transactions of that day. Stub until c010 tasks.md tasks 77.1 and 77.2 are
+ * implemented; `void` keeps the unused-parameter check quiet until then.
+ */
+export function withOlderPage(
+  state: ListState,
+  page: TransactionPage,
+): ListState {
+  void state;
+  void page;
+  throw new Error("not implemented");
 }

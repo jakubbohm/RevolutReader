@@ -24,6 +24,10 @@ export interface TransactionListModel {
   banner: ListProblem | null;
   /** "Zkusit znovu": reads the newest page again, unless a read is under way. */
   retry: () => void;
+  /** The marker under the last day shows: asks the next older page (c010 design.md D1). */
+  loadOlder: () => void;
+  /** "Zkusit znovu" under a failed older page: asks that page again (c010 design.md D1). */
+  retryOlder: () => void;
 }
 
 /** The list a page makes, with the koruna rate and its date the page carried. */
@@ -129,7 +133,19 @@ export function useTransactionList(options: {
         : { ...page, reading, problem },
     ),
     retry,
+    loadOlder,
+    retryOlder,
   };
+}
+
+/** Stub until c010 tasks.md tasks 77.3–77.5 are implemented. */
+function loadOlder(): void {
+  throw new Error("not implemented");
+}
+
+/** Stub until c010 tasks.md task 77.5 is implemented. */
+function retryOlder(): void {
+  throw new Error("not implemented");
 }
 
 /** The newest page as the list shows it: its days, the day the next older page is asked before, nothing loading yet. */

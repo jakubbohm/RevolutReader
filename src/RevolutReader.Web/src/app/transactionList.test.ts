@@ -1,6 +1,17 @@
 import { expect, test } from "vitest";
-import { transaction } from "../test/server";
-import { byDay, dayTotals } from "./transactionList";
+import {
+  KORUNA_RATE,
+  RATE_DATE,
+  transaction,
+  type TransactionInApi,
+} from "../test/server";
+import {
+  byDay,
+  dayTotals,
+  withOlderPage,
+  type ListState,
+} from "./transactionList";
+import type { TransactionPage } from "./transactions";
 
 // The list by day (c010 design.md D1, D14): the transactions grouped by their date in the answer's order, each day with
 // its totals in whole cents. Amounts are signed euros as the API answers them (negative for money spent); the
@@ -54,3 +65,102 @@ test("A day's totals sum money received and refunds as received, payments as spe
   // Received 50.00 + 5.95 + 0.10 + 0.20 = 56.25 (56.25000000000001 when added up as euros); spent 12.30 + 3.80 = 16.10.
   expect(totals).toEqual({ incoming: 5625, outgoing: 1610 });
 });
+
+// An older page at the list's end (c010 design.md D1): pages of whole days, the older page's days after the shown ones.
+
+test("An older page's days join the end of the list", () => {
+  const bakery = transaction("card", -12.3, "2026-11-18", {
+    counterparty: "Pekárna U Lípy",
+  });
+  const bookshop = transaction("card", -7.5, "2026-10-15", {
+    counterparty: "Knihkupectví Luxor",
+  });
+  const stationery = transaction("card", -2.4, "2026-10-12", {
+    counterparty: "Papírnictví Tužka",
+  });
+  const shown = listOf([bakery], "2026-10-20");
+
+  const next = withOlderPage(
+    shown,
+    olderPage([bookshop, stationery], "2026-09-30"),
+  );
+
+  expect(next.days).toEqual([
+    {
+      date: "2026-11-18",
+      transactions: [bakery],
+      totals: dayTotals([bakery]),
+    },
+    {
+      date: "2026-10-15",
+      transactions: [bookshop],
+      totals: dayTotals([bookshop]),
+    },
+    {
+      date: "2026-10-12",
+      transactions: [stationery],
+      totals: dayTotals([stationery]),
+    },
+  ]);
+});
+
+test("An older page whose first day is already shown adds its transactions to that day", () => {
+  const bakery = transaction("card", -12.3, "2026-11-18", {
+    counterparty: "Pekárna U Lípy",
+  });
+  const kiosk = transaction("card", -3.8, "2026-10-20", {
+    counterparty: "Trafika Můstek",
+  });
+  const pocketMoney = transaction("transfer", 50, "2026-10-20", {
+    counterparty: "Táta",
+  });
+  const bookshop = transaction("card", -7.5, "2026-10-15", {
+    counterparty: "Knihkupectví Luxor",
+  });
+  const shown = listOf([bakery, kiosk], "2026-10-21");
+
+  const next = withOlderPage(
+    shown,
+    olderPage([pocketMoney, bookshop], "2026-09-30"),
+  );
+
+  // The day shows once: the shown transactions first, then the page's, and its totals over all of them.
+  expect(next.days).toEqual([
+    {
+      date: "2026-11-18",
+      transactions: [bakery],
+      totals: dayTotals([bakery]),
+    },
+    {
+      date: "2026-10-20",
+      transactions: [kiosk, pocketMoney],
+      totals: dayTotals([kiosk, pocketMoney]),
+    },
+    {
+      date: "2026-10-15",
+      transactions: [bookshop],
+      totals: dayTotals([bookshop]),
+    },
+  ]);
+});
+
+/** The list as shown while the next older page, the one before `nextBefore`, is read. */
+function listOf(
+  transactions: TransactionInApi[],
+  nextBefore: string,
+): ListState {
+  return { days: byDay(transactions), nextBefore, older: "loading" };
+}
+
+/** An older page of these transactions, at C13's rate and its date. */
+function olderPage(
+  transactions: TransactionInApi[],
+  olderBefore: string | null,
+): TransactionPage {
+  return {
+    transactions,
+    olderBefore,
+    czkPerEur: KORUNA_RATE,
+    rateDate: RATE_DATE,
+  };
+}
