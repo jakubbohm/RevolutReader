@@ -15,7 +15,28 @@ public sealed record ShownTransaction(
   bool Pending,
   string? Counterparty,
   IReadOnlyList<string> Details,
-  TransactionKind Kind);
+  TransactionKind Kind) {
+  /// <summary>
+  /// A transaction from the bank or the store as the app shows it, the newest page's or an older one's: the bank's text as
+  /// the app shows it (<see cref="TransactionText"/>, D4b) and its kind from the type code (<see cref="TransactionKinds"/>,
+  /// D4); whether it is pending is the caller's to say.
+  /// </summary>
+  internal static ShownTransaction Of(
+    DateOnly date,
+    decimal amount,
+    string currency,
+    bool pending,
+    string? counterparty,
+    IReadOnlyList<string> paymentDetails,
+    string? typeCode) => new(
+      date,
+      amount,
+      currency,
+      pending,
+      counterparty,
+      TransactionText.Details(counterparty, paymentDetails),
+      TransactionKinds.Of(typeCode));
+}
 
 /// <summary>A page of transactions as the app shows it (c010 design.md D10).</summary>
 /// <param name="Transactions">In the page's order.</param>

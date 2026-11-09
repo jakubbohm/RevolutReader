@@ -90,12 +90,13 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
       TransactionsLog.NoTypeCode(logger);
   }
 
-  private static ShownTransaction Shown(BankTransaction transaction) => new(
+  /// <summary>A live transaction as the app shows it: pending when the bank has not settled it.</summary>
+  private static ShownTransaction Shown(BankTransaction transaction) => ShownTransaction.Of(
     transaction.Date,
     transaction.Amount,
     transaction.Currency,
     transaction.Status == TransactionStatus.Pending,
     transaction.Counterparty,
-    TransactionText.Details(transaction.Counterparty, transaction.PaymentDetails),
-    TransactionKinds.Of(transaction.TypeCode));
+    transaction.PaymentDetails,
+    transaction.TypeCode);
 }

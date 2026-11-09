@@ -16,12 +16,12 @@ public sealed class ReadOlderTransactionsHandler(ITransactionStore store, ILogge
   }
 
   /// <summary>A kept transaction as the app shows it: settled, so never pending.</summary>
-  private static ShownTransaction Shown(KeptTransaction transaction) => new(
+  private static ShownTransaction Shown(KeptTransaction transaction) => ShownTransaction.Of(
     transaction.Date,
     transaction.Amount,
     transaction.Currency,
-    Pending: false,
+    pending: false,
     transaction.Counterparty,
-    TransactionText.Details(transaction.Counterparty, transaction.PaymentDetails),
-    TransactionKinds.Of(transaction.TypeCode));
+    transaction.PaymentDetails,
+    transaction.TypeCode);
 }
