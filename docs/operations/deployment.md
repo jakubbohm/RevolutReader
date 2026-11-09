@@ -1,8 +1,8 @@
 # Deployment
 
-> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
+> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), the push keys (C8a), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table; after its deploy, the checks' results and the import's).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C8a: the guided task for the push keys. Before it, C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table; after its deploy, the checks' results and the import's).
 
 ## Identifiers (non-secret)
 
@@ -229,6 +229,99 @@ Once, after the first open (c010 design.md D9). The explicit check `HistoryImpor
    ```
 
 5. **The file and its backup,** once the counts are right: planned to be deleted here, with `Remove-Item spikes/enable-banking/secrets/transactions-2026-11-04.json` in the main checkout and the backup of it (suggested on 2026-11-08). **On 2026-11-09 the owner kept both** for now; the file stays gitignored and is never published. While they exist they are a second copy of the oldest days. Once they are deleted, the days older than the bank's 90 exist only in the table, so a rollback must keep it ([Rolling back](#rolling-back)).
+
+## Push (C8a)
+
+Since C8a the app sends Web Push messages (c011 design.md). It needs three values: the VAPID key pair, which signs every push's token and which every browser subscribes with, and the message key, which lets a request through the owner's message endpoint (c011 design.md D10). The container app reads them as Key Vault references (`Push--VapidPublicKey`, `Push--VapidPrivateKey`, `Push--MessageKey`, appearing to the app as `Push__VapidPublicKey`, `Push__VapidPrivateKey`, `Push__MessageKey`), so **they must be in the vault before C8a's merge**: Container Apps refuses to update the app while a reference points at a missing secret ([The first deployment](#the-first-deployment), step 5).
+
+### Guided task: the push keys
+
+One PowerShell 7 block makes the keys, with .NET's own `ECDsa` on P-256 and 32 random bytes, and writes them where they belong without printing them (c011 design.md D5). The laptop and production get **separate values**. The production ones live only in Key Vault: a lost or replaced key heals itself, because every device replaces its subscription at its next opening (D5). The laptop's go to the AppHost's user-secrets and, like every other local secret, to the backup vault ([local-secrets.md](local-secrets.md)).
+
+**Formats** (D5): base64url without padding; the public key the 65-byte uncompressed point (`0x04`, X, Y), the private key the 32-byte scalar, the message key 32 random bytes. The app checks them at start and refuses to start, naming the setting and never a value, when a key does not decode to its form or the two halves are not one pair.
+
+**The owner runs it**, in the owner's own PowerShell 7 window, from any folder: it writes to Key Vault, which CLAUDE.md leaves to the owner's go and Claude Code's permission check blocks for Claude anyway. First the shared part, which writes nothing, then one variant in the same window. Each value reaches Key Vault through a temporary file deleted at once and the user-secrets as JSON on the standard input, so none appears on a command line; nothing prints a value, and the read-back lists names only.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+
+function ConvertTo-Base64Url([byte[]] $bytes) {
+    [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+# A new VAPID pair and message key; nothing printed
+function New-PushKeys {
+    $ec = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+    try {
+        $p = $ec.ExportParameters($true)
+        @{
+            Public  = ConvertTo-Base64Url ([byte[]] (@(4) + $p.Q.X + $p.Q.Y))
+            Private = ConvertTo-Base64Url $p.D
+            Message = ConvertTo-Base64Url ([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        }
+    } finally { $ec.Dispose() }
+}
+
+function Set-VaultSecret([string] $vault, [string] $name, [string] $value) {
+    $file = New-TemporaryFile
+    try {
+        Set-Content -LiteralPath $file -Value $value -NoNewline -Encoding utf8NoBOM
+        az keyvault secret set --subscription $sub --vault-name $vault --name $name --file $file --encoding utf-8 --output none
+        if ($LASTEXITCODE -ne 0) { throw "Writing $name to $vault failed." }
+    } finally { Remove-Item -LiteralPath $file }
+}
+```
+
+**Production** (c011 task 54.2, before C8a's merge): into `kv-revolutreader` only. Needs the owner's Key Vault Secrets Officer role ([azure-prerequisites.md](azure-prerequisites.md), item 7).
+
+```powershell
+$keys = New-PushKeys
+Set-VaultSecret 'kv-revolutreader' 'Push--VapidPublicKey'  $keys.Public
+Set-VaultSecret 'kv-revolutreader' 'Push--VapidPrivateKey' $keys.Private
+Set-VaultSecret 'kv-revolutreader' 'Push--MessageKey'      $keys.Message
+$keys = $null
+
+# Names only
+az keyvault secret list --subscription $sub --vault-name kv-revolutreader --query "[?starts_with(name, 'Push--')].name" --output tsv
+```
+
+**The laptop** (c011 task 54.1): into the AppHost's user-secrets and the backup vault, which the block opens for this address only and closes again ([local-secrets.md § Opening and closing the backup vault](local-secrets.md#opening-and-closing-the-backup-vault)).
+
+```powershell
+$id     = '683c44fb-149f-4c9d-8503-0d836e0a1639'      # the AppHost's UserSecretsId
+$backup = 'jb-localdev-secrets-copy'
+$keys   = New-PushKeys
+$local  = [ordered]@{
+    'Parameters:push-vapid-public-key'  = $keys.Public
+    'Parameters:push-vapid-private-key' = $keys.Private
+    'Parameters:push-message-key'       = $keys.Message
+}
+$local | ConvertTo-Json -Compress | dotnet user-secrets set --id $id | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Writing the user-secrets failed.' }
+
+# The backup vault: open for this address, write (retrying while the rule takes effect), close
+$ip = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 15)).Trim()
+az keyvault network-rule add --subscription $sub --name $backup --ip-address $ip --output none
+az keyvault update --subscription $sub --name $backup --public-network-access Enabled --output none
+try {
+    foreach ($attempt in 1..4) {
+        try {
+            foreach ($key in $local.Keys) { Set-VaultSecret $backup ('RevolutReader--AppHost--' + ($key -replace ':', '--')) $local[$key] }
+            break
+        } catch { if ($attempt -eq 4) { throw }; Start-Sleep -Seconds 30 }
+    }
+    az keyvault secret list --subscription $sub --vault-name $backup --query "[?starts_with(name, 'RevolutReader--AppHost--Parameters--push')].name" --output tsv
+} finally {
+    az keyvault update --subscription $sub --name $backup --public-network-access Disabled --output none
+    az keyvault network-rule remove --subscription $sub --name $backup --ip-address $ip --output none
+}
+
+# Names only
+(Get-Content -Raw (Join-Path $env:APPDATA "Microsoft/UserSecrets/$id/secrets.json") | ConvertFrom-Json).PSObject.Properties.Name | Where-Object { $_ -like 'Parameters:push-*' }
+$keys = $null; $local = $null
+```
+
+**Running a variant again** replaces its three values together; a pair is only ever written whole. If a write fails partway, run the whole variant again at once, because the app refuses to start on the halves of two pairs. In production Azure picks up the new values within 30 minutes and restarts the app ([Guided task: the Enable Banking values](#guided-task-the-enable-banking-values-into-key-vault)); every device then replaces its subscription at its next opening, and whoever sends messages reads the new message key.
 
 ## Checks
 

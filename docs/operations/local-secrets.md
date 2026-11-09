@@ -1,8 +1,8 @@
 # Local secrets
 
-> The secrets on the owner's machine that local runs and the explicit bank checks read (roadmap steps C5 and C6): what they are, how they are set from the owner's files, how they are backed up to the owner's personal Key Vault and how they come back on a new machine. The rules behind it: [configuration.md § Local development and tests](../conventions/configuration.md#local-development-and-tests) and c004 design.md D6. Production values are in Key Vault `kv-revolutreader` instead ([deployment.md § Guided task](deployment.md#guided-task-the-enable-banking-values-into-key-vault)).
+> The secrets on the owner's machine that local runs and the explicit bank checks read (roadmap steps C5, C6 and C8a): what they are, how they are set from the owner's files, how they are backed up to the owner's personal Key Vault and how they come back on a new machine. The rules behind it: [configuration.md § Local development and tests](../conventions/configuration.md#local-development-and-tests) and c004 design.md D6. Production values are in Key Vault `kv-revolutreader` instead ([deployment.md § Guided task](deployment.md#guided-task-the-enable-banking-values-into-key-vault)).
 >
-> Commands are PowerShell 7, run from the root of the **main checkout** (`D:\source\jakubbohm\RevolutReader`), where the gitignored `secrets/` folders of the spikes are. User-secrets are per machine, so every checkout and worktree on the machine shares them. **Nothing here prints a value:** keys go in from their files, and the checks list names only. Last updated: 2026-11-08 (C6: the sign-in's two values).
+> Commands are PowerShell 7, run from the root of the **main checkout** (`D:\source\jakubbohm\RevolutReader`), where the gitignored `secrets/` folders of the spikes are. User-secrets are per machine, so every checkout and worktree on the machine shares them. **Nothing here prints a value:** keys go in from their files, and the checks list names only. Last updated: 2026-11-09 (C8a: the three push keys).
 
 ## What is stored
 
@@ -16,6 +16,9 @@ All of them sit in the **AppHost's** user-secrets (its `UserSecretsId` is `683c4
 | `Parameters:enablebanking-account-id` | `aspire start`, Check 1 | the one entry of `account_uids` in the same file (the account "RevolutReader C5 Test") | `RevolutReader--AppHost--Parameters--enablebanking-account-id` |
 | `Parameters:signin-client-secret` | `aspire start` (C6) | the Entra registration's client secret `RevolutReader C6`, created by [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6), which writes it here, to Key Vault and to the backup vault at once; no file holds it (expires 2027-11-08) | `RevolutReader--AppHost--Parameters--signin-client-secret` |
 | `Parameters:signin-allowed-emails` | `aspire start` (C6) | the allowlist, typed by the owner at that block's hidden prompt: the comma-separated personal Microsoft accounts allowed in (the same list as production, [configuration.md](../conventions/configuration.md)) | `RevolutReader--AppHost--Parameters--signin-allowed-emails` |
+| `Parameters:push-vapid-public-key` | `aspire start` (C8a) | the laptop's own VAPID public key, never production's (c011 design.md D5), made by the laptop variant of [deployment.md § Guided task: the push keys](deployment.md#guided-task-the-push-keys), which writes it here and to the backup vault at once; no file holds it | `RevolutReader--AppHost--Parameters--push-vapid-public-key` |
+| `Parameters:push-vapid-private-key` | `aspire start` (C8a) | its private half, from the same block | `RevolutReader--AppHost--Parameters--push-vapid-private-key` |
+| `Parameters:push-message-key` | `aspire start` (C8a) | the laptop's own message key, 32 random bytes, from the same block | `RevolutReader--AppHost--Parameters--push-message-key` |
 | `RealAccountCheck:ApplicationId` | Check 2 only | the production application ID `469fb438-ada6-4831-9498-70a1890097d6` ([spike § Identifiers](../../spikes/enable-banking/README.md#identifiers-non-secret)) | `RevolutReader--AppHost--RealAccountCheck--ApplicationId` |
 | `RealAccountCheck:PrivateKey` | Check 2 only | the text of `spikes/enable-banking/secrets/469fb438-ada6-4831-9498-70a1890097d6.pem` | `RevolutReader--AppHost--RealAccountCheck--PrivateKey` |
 | `RealAccountCheck:SessionId` | Check 2 only | `session_id` in `spikes/enable-banking/secrets/session.json` (the real account's session) | `RevolutReader--AppHost--RealAccountCheck--SessionId` |
@@ -95,7 +98,7 @@ if (-not $session.session_id) { throw 'No session_id in session.json.' }
 
 ## 3. Back up to the vault
 
-The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway), between [opening and closing the vault](#opening-and-closing-the-backup-vault). It copies every `Parameters:*` and `RealAccountCheck:*` key that the user-secrets hold (since C6 the sign-in's two as well; that block already backs them up when it creates them). Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
+The owner runs it after § 1 or § 2 (an Azure write: CLAUDE.md asks for the owner's go, and Claude Code's permission check blocks Claude's secret writes anyway), between [opening and closing the vault](#opening-and-closing-the-backup-vault). It copies every `Parameters:*` and `RealAccountCheck:*` key that the user-secrets hold (since C6 the sign-in's two and since C8a the three push keys as well; the blocks that create them already back them up). Each value goes through a temporary file that is deleted at once, so it never appears on a command line.
 
 ```powershell
 $sub   = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
