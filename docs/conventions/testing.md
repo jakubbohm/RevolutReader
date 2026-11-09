@@ -228,5 +228,5 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 ## Decided later
 
 - **Database tests:** F0-2 chose Azure Table Storage ([ADR-0005-data-storage](../adr/0005-data-storage.md)). Database tests run against Azurite in a test container (`Testcontainers.Azurite`, with the image pinned explicitly). The change that first stores data (C7 or its first slice) sets them up.
-- **Fake push-notification service:** C8.
+- **Fake push-notification service:** C8a (decided in C8's explore, [#51](https://github.com/jakubbohm/RevolutReader/issues/51), S9: a WireMock server per test, checked and decrypted by the tests' own code).
 - **Test commands:** decided in C1 and listed in [`CLAUDE.md` § Commands](../../CLAUDE.md#commands) (one group's tests, one change's acceptance tests, the traceability check, the full suite).

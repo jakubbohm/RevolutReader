@@ -17,7 +17,7 @@
 
 Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them. The account allowlist in Key Vault and the user-secrets (C6) has no expiry; changing it: [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6). The login cookie's encryption keys (C6) renew themselves: ASP.NET Data Protection adds a new key every 90 days to the blob and keeps the old ones for reading.
 
-**To be added by their steps** (do not guess them here): the VAPID keys for push (C8).
+**To be added by their steps** (do not guess them here): the VAPID keys and the message key for push (C8a).
 
 ## 1. Enable Banking account link
 
