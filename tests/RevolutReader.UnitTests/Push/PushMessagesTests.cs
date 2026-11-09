@@ -9,7 +9,8 @@ namespace RevolutReader.UnitTests.Push;
 /// and a <c>notification</c> holding the title, the text as <c>body</c> when there is text, and <c>navigate</c>, the app's
 /// own address (<c>Push:Subject</c>) with the message's page, <c>/</c> by default. Never <c>app_badge</c>, and nothing else
 /// is added. The tests read the JSON as a browser does, by member and value, never by its text's formatting. The app's
-/// address is made up, an https origin of a reserved domain.
+/// address is made up, an https origin of a reserved domain. The rules (<see cref="PushMessages.Check"/>, D10) refuse a
+/// message a push cannot carry, naming the member with a fixed reason, never its value.
 /// </summary>
 public sealed class PushMessagesTests {
   private const string TITLE = "Ahoj";
@@ -52,6 +53,31 @@ public sealed class PushMessagesTests {
 
     MemberNames(json).ShouldBe(["web_push", "notification"], ignoreOrder: true);
     MemberNames(json.GetProperty("notification")).ShouldBe(["title", "body", "navigate"], ignoreOrder: true);
+  }
+
+  /// <summary>
+  /// A message whose title is empty is refused, naming <c>title</c> alone, with a fixed reason (D10). The endpoint maps a
+  /// title left out of the request itself (the sketch's <c>MessageEndpoint</c>); to the rules, a message without a title is
+  /// one whose title has nothing in it.
+  /// </summary>
+  [Test]
+  public void A_message_without_a_title_is_refused_naming_the_title() =>
+    ShouldRefuseOnlyTheTitle(new PushMessage(string.Empty, TEXT, PAGE));
+
+  /// <summary>A title of spaces only is blank: refused as a missing one (D10), naming <c>title</c> alone, with a fixed reason.</summary>
+  [Test]
+  public void A_message_whose_title_is_only_spaces_is_refused_naming_the_title() =>
+    ShouldRefuseOnlyTheTitle(new PushMessage("   ", TEXT, PAGE));
+
+  /// <summary>The rules refuse exactly one member of <paramref name="message"/>, <c>title</c>, with a reason that holds none of the message's values.</summary>
+  private static void ShouldRefuseOnlyTheTitle(PushMessage message) {
+    RefusedMember refused = PushMessages.Check(message, _appAddress).ShouldHaveSingleItem("only the title is refused; the text and the page are fine");
+
+    refused.ShouldSatisfyAllConditions(
+      () => refused.Member.ShouldBe("title"),
+      () => refused.Reason.ShouldNotBeNullOrWhiteSpace("a fixed reason"),
+      () => refused.Reason.ShouldNotContain(TEXT, Case.Insensitive, "never a value"),
+      () => refused.Reason.ShouldNotContain(PAGE, Case.Insensitive, "never a value"));
   }
 
   /// <summary>The message's JSON for the made-up app address, parsed as a browser reads it.</summary>

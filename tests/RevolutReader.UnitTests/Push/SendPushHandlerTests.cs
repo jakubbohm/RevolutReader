@@ -248,6 +248,21 @@ public sealed class SendPushHandlerTests {
       () => line.OwnNamedValues().ShouldBe(["removed=2"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "the line's value: the two deleted devices, by name"));
   }
 
+  /// <summary>
+  /// A message the rules refuse (here a blank title, D10) is a caller's bug, never an expected outcome: the sender throws
+  /// <see cref="ArgumentException"/> (§ Error model) and hands no push over, though Lucie is allowed and has devices.
+  /// </summary>
+  [Test]
+  public async Task The_sender_refuses_a_message_the_rules_refuse_with_an_argument_error() {
+    StubPushDelivery delivery = new();
+    SendPushHandler sender = Handler(await StoreWith(Device(LUCIE), Device(LUCIE)), delivery);
+    PushMessage blankTitle = _message with { Title = "   " };
+
+    _ = await Should.ThrowAsync<ArgumentException>(() => sender.Send(LUCIE, blankTitle, CancellationToken.None));
+
+    delivery.HandedOver.ShouldBeEmpty("a refused message is sent to no device");
+  }
+
   private static SendPushHandler Handler(IPushDeviceStore store, IPushDelivery delivery, ILogger<SendPushHandler>? logger = null) =>
     new(store, delivery, Allowlist.Parse($"{LUCIE}, {PETR}"), Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,

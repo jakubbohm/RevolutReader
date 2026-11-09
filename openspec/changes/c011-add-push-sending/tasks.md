@@ -197,7 +197,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 - [ ] 27.1 A message without a title is refused, naming the title
 - [ ] 27.2 A message whose title is only spaces is refused, naming the title
-- [ ] 27.3 A message without an account is refused, naming the account
+- [x] 27.3 A message without an account is refused, naming the account
 - [ ] 27.4 The sender refuses a message the rules refuse with an argument error
 
 ## 28. [wiring] Slice 9 — Refusals as problem descriptions

@@ -17,6 +17,9 @@ public static class PushMessages {
   /// </summary>
   private static readonly JsonSerializerOptions _json = new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) };
 
+  /// <summary>The members of <paramref name="message"/> a push cannot carry, each with a fixed reason, never its value (D2, D10); none when it can.</summary>
+  public static IReadOnlyList<RefusedMember> Check(PushMessage message, Uri appAddress) => throw new NotImplementedException();
+
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as
   /// <c>body</c> only when there is text, and <c>navigate</c>, the page resolved against <paramref name="appAddress"/>

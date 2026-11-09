@@ -1,13 +1,6 @@
-using System.Buffers.Text;
-using System.Diagnostics;
 using System.Net;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Shouldly;
 
 namespace RevolutReader.IntegrationTests.Wiring.Push;
@@ -21,34 +14,24 @@ namespace RevolutReader.IntegrationTests.Wiring.Push;
 /// under <c>/api</c> no endpoint serves; the two answers are compared whole, apart from <c>traceId</c>: the status, the
 /// content type and the body. The unknown address's answer is checked to be a 404 too, so two equal failures cannot pass.
 /// <para>
-/// The app copy runs in environment <c>Production</c> on made-up settings (as <c>OpenApiExport</c>'s), with a message key
-/// made per test. Its storage connection is Azurite's shorthand, never reached: a keyless request reads no table. A
-/// request as PowerShell sends it: no fetch metadata, no <c>Origin</c>, so the rule against writes from other sites lets
-/// it through (c007 design.md D4). Written by the test-writer while the endpoint already existed (group 10), so it may
-/// pass at once.
+/// Each test has its own app copy (<see cref="MessageEndpointApp"/>); a keyless request reads no table. Written by the
+/// test-writer while the endpoint already existed (group 10), so it may pass at once.
 /// </para>
 /// </summary>
 public sealed class KeylessMessageTests {
-  private const string MESSAGES = "/api/push/messages";
+  private const string MESSAGES = MessageEndpointApp.MESSAGES;
   private const string UNKNOWN_API_ADDRESS = "/api/no-such-address";
-  private const string MESSAGE_KEY_HEADER = "X-Message-Key";
+  private const string MESSAGE_KEY_HEADER = MessageEndpointApp.MESSAGE_KEY_HEADER;
   private const string JSON = "application/json";
 
   /// <summary>The one member a problem description carries that differs per request (D10).</summary>
   private const string TRACE_ID = "traceId";
 
-  /// <summary>An account on the made-up allowlist and a message the endpoint would send with the key.</summary>
-  private const string ACCOUNT = "lucie@example.com";
+  /// <summary>A message to the account on the app copy's allowlist, which the endpoint would send with the key.</summary>
   private const string VALID_BODY = """{ "account": "lucie@example.com", "title": "Ahoj", "text": "Zkušební zpráva", "page": "/" }""";
 
   /// <summary>A body that is not JSON: the start of one, cut off.</summary>
   private const string MALFORMED_BODY = """{ "account": "lucie@exa""";
-
-  /// <summary>An uncompressed elliptic-curve point's first byte (SEC 1, § 2.3.3).</summary>
-  private const byte UNCOMPRESSED_POINT = 0x04;
-
-  /// <summary>The message key's size (D5).</summary>
-  private const int MESSAGE_KEY_BYTES = 32;
 
   /// <summary>What goes on a line of the key header sent twice.</summary>
   public enum KeyLine {
@@ -61,14 +44,14 @@ public sealed class KeylessMessageTests {
 
   [Test]
   public async Task A_request_without_the_key_header_and_with_a_valid_body_gets_the_answer_of_an_unknown_address() {
-    await using KeylessFactory app = new();
+    await using MessageEndpointApp app = new();
 
     await ShouldAnswerAsAnUnknownAddress(app, VALID_BODY, keyLines: []);
   }
 
   [Test]
   public async Task A_request_without_the_key_header_and_with_a_malformed_body_gets_the_answer_of_an_unknown_address() {
-    await using KeylessFactory app = new();
+    await using MessageEndpointApp app = new();
 
     await ShouldAnswerAsAnUnknownAddress(app, MALFORMED_BODY, keyLines: []);
   }
@@ -79,8 +62,8 @@ public sealed class KeylessMessageTests {
   [Arguments(KeyLine.Right, KeyLine.Wrong)]
   [Arguments(KeyLine.Wrong, KeyLine.Right)]
   public async Task A_request_with_the_key_header_twice_gets_the_answer_of_an_unknown_address(KeyLine first, KeyLine second) {
-    await using KeylessFactory app = new();
-    string wrongKey = MadeUpMessageKey();
+    await using MessageEndpointApp app = new();
+    string wrongKey = MessageEndpointApp.MadeUpMessageKey();
 
     await ShouldAnswerAsAnUnknownAddress(app, VALID_BODY, keyLines: [KeyOf(first), KeyOf(second)]);
 
@@ -94,7 +77,7 @@ public sealed class KeylessMessageTests {
   /// </summary>
   [Test]
   public async Task With_the_right_key_once_the_endpoint_answers_otherwise_than_an_unknown_address() {
-    await using KeylessFactory app = new();
+    await using MessageEndpointApp app = new();
     using HttpClient owner = app.CreateClient();
 
     string atTheEndpoint = await WholeAnswer(owner, MESSAGES, MALFORMED_BODY, [app.MessageKey]);
@@ -108,7 +91,7 @@ public sealed class KeylessMessageTests {
   /// (none: no header) to the message endpoint and to the unknown address, and compares the two answers whole, apart from
   /// <c>traceId</c>; the unknown address's must be a 404.
   /// </summary>
-  private static async Task ShouldAnswerAsAnUnknownAddress(KeylessFactory app, string body, string[] keyLines) {
+  private static async Task ShouldAnswerAsAnUnknownAddress(MessageEndpointApp app, string body, string[] keyLines) {
     using HttpClient owner = app.CreateClient();
 
     string atTheEndpoint = await WholeAnswer(owner, MESSAGES, body, keyLines);
@@ -154,47 +137,4 @@ public sealed class KeylessMessageTests {
     return problem.ToJsonString();
   }
 
-  /// <summary>A made-up message key, as the owner's block makes one: 32 random bytes in base64url.</summary>
-  private static string MadeUpMessageKey() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(MESSAGE_KEY_BYTES));
-
-  /// <summary>
-  /// An app copy in environment <c>Production</c> on made-up settings, added last so they win, with its own message key.
-  /// The storage connection goes in as a host setting, which the factory hands to the app's builder before Program.cs
-  /// registers the stores (as <c>OpenApiExport</c>'s factory does).
-  /// </summary>
-  private sealed class KeylessFactory : WebApplicationFactory<Program> {
-    private const string TABLES_CONNECTION = "ConnectionStrings:tables";
-    private const string MADE_UP_TABLES_CONNECTION = "UseDevelopmentStorage=true";
-
-    /// <summary>This app copy's message key, made up.</summary>
-    public string MessageKey { get; } = MadeUpMessageKey();
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder) {
-      builder.UseEnvironment(Environments.Production);
-      builder.UseSetting(TABLES_CONNECTION, MADE_UP_TABLES_CONNECTION);
-      builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings()));
-    }
-
-    /// <summary>Made up, never real: each secret the app checks at start, the keys generated per app copy.</summary>
-    private Dictionary<string, string?> MadeUpSettings() {
-      using RSA key = RSA.Create(2048);
-      using ECDsa vapidKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-      ECParameters vapid = vapidKey.ExportParameters(includePrivateParameters: true);
-      byte[] x = vapid.Q.X ?? throw new UnreachableException("An exported P-256 key has its point.");
-      byte[] y = vapid.Q.Y ?? throw new UnreachableException("An exported P-256 key has its point.");
-      byte[] d = vapid.D ?? throw new UnreachableException("A key exported with its private parameters has its scalar.");
-
-      return new() {
-        ["EnableBanking:ApplicationId"] = Guid.NewGuid().ToString(),
-        ["EnableBanking:PrivateKey"] = key.ExportPkcs8PrivateKeyPem(),
-        ["EnableBanking:SessionId"] = Guid.NewGuid().ToString(),
-        ["EnableBanking:AccountId"] = Guid.NewGuid().ToString(),
-        ["SignIn:ClientSecret"] = $"made-up-client-secret-{Guid.NewGuid()}",
-        ["SignIn:AllowedEmails"] = ACCOUNT,
-        ["Push:VapidPublicKey"] = Base64Url.EncodeToString([UNCOMPRESSED_POINT, .. x, .. y]),
-        ["Push:VapidPrivateKey"] = Base64Url.EncodeToString(d),
-        ["Push:MessageKey"] = MessageKey,
-      };
-    }
-  }
 }
