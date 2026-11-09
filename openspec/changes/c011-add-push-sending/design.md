@@ -108,7 +108,7 @@
 - **A test device plays the phone:** it makes its own P-256 key pair and 16-byte secret, as a browser does, and its push address points at the fake (`http://127.0.0.1:<port>/push/<device>`). The test signs in as Lucie, registers the device through the real API, then sends through the message endpoint with the key.
 - **The fake checks what Apple would, and more,** and answers 403 when a check fails, so a wrong push counts as failed and the scenario goes red:
   - the token is an ES256 JWT signed with the app's VAPID key, `k` is that key, `aud` is the fake's own scheme and host (the library leaves out the port, D1; the real push services have none), `exp` lies in the future and no more than 24 hours ahead (RFC 8292), `sub` is an `https:` address;
-  - `TTL` and `Urgency` are present (their values are what the scenarios assert);
+  - `TTL` is present, as RFC 8030 requires; `Urgency`, when present, is one of RFC 8030's four values, and a push without it is of normal urgency (RFC 8030 § 5.3; the library sends none for `Normal`) and is accepted, so C9's normal pushes pass (the owner, 2026-11-09, after a review finding). Their values are what the scenarios assert;
   - `Content-Encoding: aes128gcm`, and the body decrypts with the device's own key and secret (the tests' own decryption, D1);
   - the decrypted JSON holds the expected title, text and address.
 - **"Gone" and failures** are the fake's answers: 410 for a device the app must delete, 500 once for one counted as failed and kept.
@@ -300,8 +300,9 @@ public sealed class WebPushDelivery(HttpClient http, IOptions<PushOptions> optio
 //      its Expiration defaults to 43200 s, at most 86400; Subject must be mailto: or https:)
 //   var subscription = new PushSubscription { Endpoint = device.Endpoint };
 //   subscription.SetKey(PushEncryptionKeyName.P256DH, device.P256dh); subscription.SetKey(PushEncryptionKeyName.Auth, device.Auth);
-//   new PushMessage(push.Content) { TimeToLive = (int)push.Lifetime.TotalSeconds, Urgency = PushMessageUrgency.High }
-//     (PushMessageUrgency { VeryLow, Low, Normal, High }; without TimeToLive the client's default is 28 days)
+//   new PushMessage(push.Content) { TimeToLive = (int)push.Lifetime.TotalSeconds, Urgency = <push.Urgency as PushMessageUrgency> }
+//     (PushMessageUrgency { VeryLow, Low, Normal, High }; Normal sends no Urgency header, RFC 8030 § 5.3's default;
+//      without TimeToLive the client's default is 28 days)
 //   await client.RequestPushMessageDeliveryAsync(subscription, message, cancellationToken);   // Task; success = no exception
 //   failures: PushServiceClientException (StatusCode, Headers, Body); TaskCanceledException { InnerException: TimeoutException }
 //     for HttpClient.Timeout; HttpRequestException (HttpRequestError.ConnectionError) for no connection.
@@ -416,7 +417,8 @@ public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<Pus
 // Drivers/FakePushService.cs — WireMock per test; Configure writes the Push section (D7): the run's VAPID pair, this test's
 //   message key, the made-up Subject https://app.example.net, and its own origin as Push:Services:FakePushService. Answers
 //   201 to every push at /push/<device>, unless told: Gone(device) → 410 from then on, FailsOnce(device) → 500 once.
-//   Checks token, k, aud, exp, sub, TTL, Urgency and Content-Encoding (403 when one fails); records every request with its
+//   Checks token, k, aud, exp, sub, TTL, Urgency's value when present (none = normal) and Content-Encoding (403 when one
+//   fails); records every request with its
 //   headers, body, whether its token passed and the answer (ReceivedPush).
 public sealed class FakePushService : IDisposable {
   public const string SERVICE_NAME = nameof(FakePushService);
