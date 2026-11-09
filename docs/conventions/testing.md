@@ -203,6 +203,28 @@ Decided in C7b (c010 design.md D12), from [ADR-0005-data-storage § Decision](..
 - **A table of its own** for each app copy and each contract test: `t` and a new GUID's 32 hex digits, a valid `Transactions:TableName`. Tests stay apart without cleanup, and the adapter creates its table when it is missing.
 - **Docker must be running:** every acceptance test that starts an app copy needs Azurite, so `dotnet test` needs Docker ([`CLAUDE.md` § Commands](../../CLAUDE.md#commands)). Without it the tests stop with a message saying so (§ Integration tests).
 
+## Fake push service: a local fake in front of our real push sending
+
+Decided in C8's explore (#51, S9) and built in C8a (c011 design.md D7), with [ADR-0010-web-push](../adr/0010-web-push.md).
+
+- **A WireMock.Net server per test,** `Drivers/FakePushService`, stands in for Apple's or Google's push service, as `Drivers/FakeBank` stands in for the bank. It starts before the app copy. Its `Configure` writes the `Push` section:
+  - a made-up VAPID pair, generated once per test run;
+  - a made-up message key, made per test;
+  - a made-up app address as `Subject`;
+  - the fake's own origin as a known push service (`Push:Services:FakePushService`). That entry is plain `http` on a loopback host, which only a loopback entry allows.
+- **A test device plays the phone:** `Drivers/TestDevice` makes its own P-256 key pair and 16-byte secret, as a browser does. Its push address points at the fake. The test signs in, registers the device through the real API, and sends through the message endpoint with the key.
+- **The fake checks what Apple would, and more,** and answers 403 when a check fails, so a wrong push counts as failed and the scenario goes red:
+  - **The token:** an ES256 JWT signed with the app's VAPID key, `k` that key, `aud` the fake's scheme and host, `exp` in the future and at most 24 hours ahead, `sub` an `https:` address (RFC 8292).
+  - **The headers:** `TTL` present; `Urgency`, when present, one of RFC 8030's four values (a push without it is of normal urgency); `Content-Encoding: aes128gcm`.
+  - **The body** decrypts with the device's own key and secret, by **the tests' own RFC 8291 decryption** on .NET's cryptography, never the library's, so the library never checks itself. The decrypted JSON holds the expected message.
+- **Gone and failed devices** are the fake's answers: 410 for a device the app must delete, 500 once for one counted as failed and kept.
+- **The test-writer owns the fake push service and the test device,** as every fake: their checks are the only test that pushes follow RFC 8291 and RFC 8292, so the implementer, whose sending they judge, never writes or edits them. Self-tests in `HarnessSelfTests/` prove the checks bite:
+  - the decryption reproduces RFC 8291 Appendix A;
+  - the fake refuses another signing key, a wrong `exp` or `aud`, no `TTL`, an unknown `Urgency` and another encoding;
+  - the fake accepts a correct push built by the test's own code.
+- **The frontend's stand-ins:** jsdom has no notifications and no push. `src/test/push.ts` stands in for `Notification`, `PushManager` with the service worker registration, and a `PushSubscription`, and it records what was asked of it. Every test's cleanup removes it, and `src/test/server.ts` answers the three push addresses.
+- **What tests cannot show:** that Apple accepts our token and encryption. That is the manual check on the iPhone (C8b, [tests/manual-scenarios.md](../../tests/manual-scenarios.md)).
+
 ## Test sign-in: fake the signature, never the security code
 
 The principle is DoseUp's (its software-factory entry F-68). The mechanics differ, because the backend runs the sign-in itself and keeps a login cookie ([ADR-0003-sign-in](../adr/0003-sign-in.md), Q2): [software-factory/lessons.md R-24](../software-factory/lessons.md).
@@ -235,7 +257,7 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 
 ## Defaults
 
-- **Fake only what you don't own** (as DoseUp): the bank, the sign-in signature and the clock. Everything else is real, including the database in a test container.
+- **Fake only what you don't own** (as DoseUp): the bank, the sign-in signature, the clock and, since C8a, the push services. Everything else is real, including the database in a test container.
 - **Isolation by construction** (as DoseUp): one app copy per test and unique names from the DSL; no cleanup between tests.
 - **Zero automatic re-runs** (as DoseUp): a flaky test is fixed or deleted.
 - **Not adopted** ([software-factory/divergences.md R-14](../software-factory/divergences.md)): mutation testing (the close step runs Stryker.NET only if it is configured); architecture tests (ArchUnitNET), until a structural rule needs enforcing; browser end-to-end tests (Playwright). The cheapest later addition would be one Playwright smoke test against the deployed app.
@@ -243,5 +265,5 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 ## Decided later
 
 - **Database tests:** decided in C7b and described in § Storage (Azurite in a test container, [ADR-0005-data-storage](../adr/0005-data-storage.md)).
-- **Fake push-notification service:** C8a (decided in C8's explore, [#51](https://github.com/jakubbohm/RevolutReader/issues/51), S9: a WireMock server per test, checked and decrypted by the tests' own code).
+- **Fake push-notification service:** decided in C8's explore ([#51](https://github.com/jakubbohm/RevolutReader/issues/51), S9), built in C8a and described in § Fake push service.
 - **Test commands:** decided in C1 and listed in [`CLAUDE.md` § Commands](../../CLAUDE.md#commands) (one group's tests, one change's acceptance tests, the traceability check, the full suite).

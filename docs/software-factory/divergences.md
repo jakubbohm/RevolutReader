@@ -164,3 +164,10 @@ Here ([README.md § Backend code](../conventions/README.md#backend-code), 2026-1
 Given up: a `type` that identifies the problem outside this app and leads to its description. RFC 9457 asks a consumer to compare the type after resolving it, which a generic client does: it gets the app's own address plus the path, not the string the screen compares, and opening it shows the app's start page.
 
 *Switch back when:* a client other than the app's own screen reads the API.
+
+**R-76 · The push client's own request lines and traces keep the device's push address**
+Full version: the push client silenced as the bank client is (`RemoveAllLoggers()`, and its requests marked `HttpRequestTracing.Exclude` through a small handler, since the library builds its own requests), and the telemetry guard reading exported traces as well as log lines ([lessons.md R-76](lessons.md), R-51).
+Here (c011 design.md D4, the owner, 2026-11-09, after a review finding): **the framework's request lines (Information, with the URL) and the exported HTTP-client traces (`url.full`) keep each device's push address.** The app's own lines never name it, and the guard (`Conventions/PushTelemetryTests`) exempts only the push client's own category. Application Insights is the project's private telemetry ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), item 6), and a push address alone cannot deliver a push: that also takes the VAPID private key and the device's own two keys.
+Given up: a push service's address with the device's token sits in the private telemetry for 30 days. Someone with the owner's Azure access and the vault's keys could push to the devices. The guard would not see a key or email that reached an exported trace.
+
+*Switch back when:* the telemetry is read by anyone but the owner, it goes anywhere public, or the app outlives its planned period. The switch is the two measures in the push client's registration and a trace reader in the guard.

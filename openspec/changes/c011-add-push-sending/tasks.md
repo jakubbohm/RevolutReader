@@ -354,11 +354,11 @@ The test-writer also writes `src/test/push.ts` (the stand-ins for `Notification`
 
 ## 55. [close] Acceptance green
 
-- [ ] 55.1 All 18 acceptance tests of this change pass, and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean
+- [x] 55.1 All 18 acceptance tests of this change pass, and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean
 - [x] 55.2 Local check with `aspire start --isolated` (design.md § Migration plan, step 2; the laptop keys passed as `Parameters__*` environment variables from the worktree, never written to the shared user-secrets): the push key in the signed-in browser; a message to the owner's account answers three zeros; a wrong key answers as an unknown address. Verify: the owner sees each
-- [ ] 55.3 Docs: ADR-0010-web-push (design.md D15), linked from docs/adr/README.md; testing.md § Decided later and a § Fake push service (design.md D7); their `.claude/rules/` mirrors. Verify: the ADR's decisions match design.md D1–D3, D5 and D10
-- [ ] 55.4 Docs: the software-factory lessons and inventory lines of design.md D17. Verify: each names the decision it records
-- [ ] 55.5 `pm/progress.md`: C8a's row (status, the change link, notes); `CLAUDE.md` § Commands (the quick start's push values, task 3.2). Verify: the row links the change
+- [x] 55.3 Docs: ADR-0010-web-push (design.md D15), linked from docs/adr/README.md; testing.md § Decided later and a § Fake push service (design.md D7); their `.claude/rules/` mirrors. Verify: the ADR's decisions match design.md D1–D3, D5 and D10
+- [x] 55.4 Docs: the software-factory lessons and inventory lines of design.md D17. Verify: each names the decision it records
+- [x] 55.5 `pm/progress.md`: C8a's row (status, the change link, notes); `CLAUDE.md` § Commands (the quick start's push values, task 3.2). Verify: the row links the change
 
 ## Workflow follow-up
 
