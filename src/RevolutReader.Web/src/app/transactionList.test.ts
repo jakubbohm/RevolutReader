@@ -67,6 +67,27 @@ test("A day's totals sum money received and refunds as received, payments as spe
   expect(totals).toEqual({ incoming: 5625, outgoing: 1610 });
 });
 
+test("A day's totals count euro amounts only, never an amount in another currency", () => {
+  // The heading's totals are in euros (c010 design.md D4, D14): an amount in another currency is not added to them.
+  const totals = dayTotals([
+    transaction("card", -10, "2026-11-19", {
+      counterparty: "Pekárna U Lípy",
+    }),
+    transaction("card", -12.3, "2026-11-19", {
+      counterparty: "Book Depot",
+      currency: "USD",
+    }),
+    transaction("topup", 20, "2026-11-19"),
+    transaction("refund", 7.5, "2026-11-19", {
+      counterparty: "Book Depot",
+      currency: "USD",
+    }),
+  ]);
+
+  // Received 20.00 EUR, not 27.50; spent 10.00 EUR, not 22.30.
+  expect(totals).toEqual({ incoming: 2000, outgoing: 1000 });
+});
+
 // An older page at the list's end (c010 design.md D1): pages of whole days, the older page's days after the shown ones.
 
 test("An older page's days join the end of the list", () => {
