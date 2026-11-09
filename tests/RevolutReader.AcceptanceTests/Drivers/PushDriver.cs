@@ -67,6 +67,14 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private const string MESSAGE_KEY = "X-Message-Key";
 
   private const string JSON = "application/json";
+  private const string PROBLEM_JSON = "application/problem+json";
+
+  /// <summary>The problem description's members the driver reads (RFC 9457).</summary>
+  private const string TYPE = "type";
+  private const string STATUS = "status";
+
+  /// <summary>How each of RFC 9110's types starts, which ASP.NET gives a problem of a plain status.</summary>
+  private const string RFC_9110_TYPE = "https://tools.ietf.org/html/rfc9110#section-";
 
   /// <summary>An address under <c>/api</c> no endpoint serves (D10's comparison).</summary>
   private const string UNKNOWN_API_ADDRESS = "/api/no-such-address";
@@ -113,6 +121,14 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <summary>A push's headers the device reads (RFC 8030 § 5.2, § 5.3).</summary>
   private const string TTL = "TTL";
   private const string URGENCY = "Urgency";
+
+  /// <summary>
+  /// The refusals the DSL knows for a message, with the status each case belongs to; the other cases of the class's table
+  /// come with the wiring groups that read them.
+  /// </summary>
+  private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
+    [ProblemDescription.PushAccountNotAllowed] = HttpStatusCode.NotFound,
+  };
 
   /// <summary>The signed-in browser.</summary>
   private HttpClient Browser => browser;
@@ -185,7 +201,7 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
     using HttpResponseMessage response = await Owner.SendAsync(request);
 
-    return await MessageAnswerOf(response);
+    return await MessageAnswerOf(response, message.Values);
   }
 
   /// <summary><c>POST /api/push/messages</c> from the owner's client, with a wrong message key, to <paramref name="account"/>, titled <paramref name="title"/>.</summary>
@@ -309,19 +325,43 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   /// <summary>
   /// The answer as a <see cref="MessageAnswer"/>, when its exact shape fits one: 200 <c>application/json</c> with exactly
-  /// <c>delivered</c>, <c>failed</c> and <c>removed</c>, each a whole number; otherwise the step fails, naming the answer.
+  /// <c>delivered</c>, <c>failed</c> and <c>removed</c>, each a whole number, or a refusal (<see cref="RefusalOf"/>);
+  /// otherwise the step fails, naming the answer. A refusal holding any of <paramref name="sentValues"/> fails the step.
   /// </summary>
-  private static async Task<MessageAnswer> MessageAnswerOf(HttpResponseMessage response) {
+  private static async Task<MessageAnswer> MessageAnswerOf(HttpResponseMessage response, IReadOnlyCollection<string> sentValues) {
     string mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
     string body = await response.Content.ReadAsStringAsync();
+    JsonElement? json = JsonObjectOrNull(body);
 
-    MessageAnswer? answer = response.StatusCode == HttpStatusCode.OK && IsMediaType(mediaType, JSON) && JsonObjectOrNull(body) is JsonElement counts && counts.EnumerateObject().Count() == 3
-      && Int(counts, DELIVERED) is int delivered && Int(counts, FAILED) is int failed && Int(counts, REMOVED) is int removed
-      ? MessageAnswer.Counts(delivered, failed, removed)
-      : null;
+    MessageAnswer? answer = response.StatusCode == HttpStatusCode.OK
+      ? json is JsonElement counts && IsMediaType(mediaType, JSON) && counts.EnumerateObject().Count() == 3
+        && Int(counts, DELIVERED) is int delivered && Int(counts, FAILED) is int failed && Int(counts, REMOVED) is int removed
+        ? MessageAnswer.Counts(delivered, failed, removed)
+        : null
+      : json is JsonElement problem ? RefusalOf(response.StatusCode, mediaType, problem) : null;
+
+    if (answer?.Problem is not null && sentValues.FirstOrDefault(value => body.Contains(value, StringComparison.OrdinalIgnoreCase)) is not null)
+      throw new InvalidOperationException($"POST {MESSAGES} answered a refusal that holds a value the request sent: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
 
     return answer
       ?? throw new InvalidOperationException($"POST {MESSAGES} answered what no message answer fits: {(int)response.StatusCode} {response.Content.Headers.ContentType} {body}");
+  }
+
+  /// <summary>
+  /// The refusal, when the answer is a problem description of a case in <see cref="_statusByCase"/> with that case's status:
+  /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (RFC
+  /// 9110's read as <see langword="null"/>). Otherwise <see langword="null"/>.
+  /// </summary>
+  private static MessageAnswer? RefusalOf(HttpStatusCode status, string mediaType, JsonElement problem) {
+    if (!IsMediaType(mediaType, PROBLEM_JSON) || Int(problem, STATUS) != (int)status)
+      return null;
+
+    if (Text(problem, TITLE) is not string title || Text(problem, TYPE) is not string type)
+      return null;
+
+    ProblemDescription description = new(title, type.StartsWith(RFC_9110_TYPE, StringComparison.Ordinal) ? null : type);
+
+    return _statusByCase.TryGetValue(description, out HttpStatusCode caseStatus) && caseStatus == status ? MessageAnswer.Refused(description) : null;
   }
 
   /// <summary>

@@ -172,8 +172,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 22. [wiring] Slice 7 — The refusal's problem
 
-- [ ] 22.1 `MessageEndpoint` answers `AccountNotAllowed` with 404, `type` `/problems/push-account-not-allowed`, title `Account not allowed`. Verify: the scenario's test reads that problem
-- [ ] 22.2 Docs: README.md § Backend code, the case → status table's row (design.md § Error model), and its mirror. Verify: the row names the scenario
+- [x] 22.1 `MessageEndpoint` answers `AccountNotAllowed` with 404, `type` `/problems/push-account-not-allowed`, title `Account not allowed`. Verify: the scenario's test reads that problem
+- [x] 22.2 Docs: README.md § Backend code, the case → status table's row (design.md § Error model), and its mirror. Verify: the row names the scenario
 
 ## 23. [close] Slice 7 — A message to an account not on the allowlist is refused
 
