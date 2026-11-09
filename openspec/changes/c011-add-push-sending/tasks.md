@@ -187,7 +187,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 25. [wiring] Slice 8 — A device registered before its account left the list
 
-- [ ] 25.1 `PushDriver` saves a device for a made-up account through the app copy's `IPushDeviceStore`, and reads whether a push address is still registered (design.md § How each scenario is verified). Verify: the scenario's test runs to its assertions
+- [x] 25.1 `PushDriver` saves a device for a made-up account through the app copy's `IPushDeviceStore`, and reads whether a push address is still registered (design.md § How each scenario is verified). Verify: the scenario's test runs to its assertions
 
 ## 26. [close] Slice 8 — A message to an account no longer on the allowlist deletes its devices
 

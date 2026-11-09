@@ -6,7 +6,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
 using RevolutReader.AcceptanceTests.Dsl;
+using RevolutReader.Api.Push;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
 
@@ -142,6 +144,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// <summary>The app copy's services, for its device store.</summary>
   private IServiceProvider App => app;
 
+  /// <summary>The app copy's own device store: the real Table adapter on the test's own table in Azurite.</summary>
+  private IPushDeviceStore Store => App.GetRequiredService<IPushDeviceStore>();
+
   /// <summary>The wrong key and the JSON body <see cref="SendMessageWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
   private (string Key, string Body)? _lastWrongKeyMessage;
 
@@ -224,10 +229,21 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   }
 
   /// <summary>Saves <paramref name="device"/> under <paramref name="account"/> through the app copy's own device store, as a registration would have.</summary>
-  public Task SaveDeviceFor(TestDevice device, string account) => throw new NotImplementedException();
+  public Task SaveDeviceFor(TestDevice device, string account) {
+    ArgumentNullException.ThrowIfNull(device);
+    ArgumentNullException.ThrowIfNull(account);
+
+    return Store.Save(new PushDevice(device.PushAddress.AbsoluteUri, device.P256dh, device.Auth, account), CancellationToken.None);
+  }
 
   /// <summary>Whether the app copy's own device store holds <paramref name="device"/>'s push address, under any account.</summary>
-  public Task<bool> IsRegistered(TestDevice device) => throw new NotImplementedException();
+  public async Task<bool> IsRegistered(TestDevice device) {
+    ArgumentNullException.ThrowIfNull(device);
+
+    IReadOnlyList<PushDevice> stored = await Store.ReadAll(CancellationToken.None);
+
+    return stored.Any(kept => string.Equals(kept.Endpoint, device.PushAddress.AbsoluteUri, StringComparison.Ordinal));
+  }
 
   /// <summary>Every push <paramref name="device"/>'s push service received, in the order received, as the device reads it.</summary>
   public IReadOnlyList<PushReceived> PushesReceivedFor(TestDevice device) {
