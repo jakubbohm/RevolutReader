@@ -167,8 +167,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 21. [unit] Slice 7 — Accounts not on the allowlist
 
-- [ ] 21.1 A message to an account not on the allowlist is refused and nothing is handed over
-- [ ] 21.2 A refused account is logged without its address
+- [x] 21.1 A message to an account not on the allowlist is refused and nothing is handed over
+- [x] 21.2 A refused account is logged without its address
 
 ## 22. [wiring] Slice 7 — The refusal's problem
 
