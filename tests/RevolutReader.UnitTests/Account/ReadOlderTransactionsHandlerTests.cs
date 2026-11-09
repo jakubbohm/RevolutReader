@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using RevolutReader.Api.Account;
 using Shouldly;
 
@@ -6,7 +5,7 @@ namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
 /// An older page (c010 design.md D1, D10): the kept transactions before a day, from the store alone, with the koruna rate
-/// and its date as the newest page carries them. The handler is given a store and a logger and nothing else: it has no
+/// and its date as the newest page carries them. The handler is given a store and nothing else: it has no
 /// bank to read, and the page it answers can only come from what the store keeps. The store is
 /// <see cref="InMemoryTransactionStore"/>. The kinds, the shown details and the log are other slices' rules and are left
 /// alone here; the rate and its date are written out, as the contract. The transactions are made up.
@@ -68,7 +67,7 @@ public sealed class ReadOlderTransactionsHandlerTests {
     page.Transactions.ShouldHaveSingleItem().Counterparty.ShouldBeNull();
   }
 
-  private static ReadOlderTransactionsHandler Handler(ITransactionStore store) => new(store, NullLogger<ReadOlderTransactionsHandler>.Instance);
+  private static ReadOlderTransactionsHandler Handler(ITransactionStore store) => new(store);
 
   /// <summary>A settled transaction the store keeps, with a known type code and a line of details that does not repeat its counterparty.</summary>
   private static KeptTransaction Kept(string reference, DateOnly date, int position, decimal amount) =>
