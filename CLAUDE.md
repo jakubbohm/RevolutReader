@@ -98,3 +98,4 @@ Memory is versioned: memory edits are part of the task's commit and branch, neve
 ## Code navigation
 
 - The repo is indexed in codebase-memory-mcp as project `D-source-jakubbohm-RevolutReader`. Prefer its graph tools (`search_graph`, `trace_path`, `get_code_snippet`) for code exploration; re-run `index_repository` after significant changes.
+- A git worktree is a project of its own, named after its path (`D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`), indexed by `index_repository` with the worktree's path; the server's file watcher keeps an indexed project current. `/tdd-apply` indexes its worktree before the first group and hands the name to its agents ([testing.md § Test-first workflow](docs/conventions/testing.md#test-first-workflow)).
