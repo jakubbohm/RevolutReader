@@ -18,6 +18,7 @@ import {
   bankAccessExpired,
   bankRateLimited,
   bankUnavailable,
+  DEFAULT_TRANSACTIONS,
   goOffline,
   kept,
   leaveApp,
@@ -123,9 +124,11 @@ scenario(
   async () => {
     startTestClock();
     await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+    // The bank answers no read, the transactions' neither (c010 design.md D8).
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
       balance: bankUnavailable,
+      transactions: bankUnavailable,
     });
 
     await timePasses(0);
@@ -147,9 +150,11 @@ scenario(
   "Too many refreshes shows a warning with no action",
   async () => {
     startTestClock();
+    // The bank's limit holds for every read, so the transactions read with the refresh meets it too (c010 design.md D8).
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
       balance: [balance(286.4), bankRateLimited],
+      transactions: [DEFAULT_TRANSACTIONS, bankRateLimited],
     });
     const user = userOnTheTestClock();
     await timePasses(0);
@@ -174,9 +179,11 @@ scenario(
   "Expired bank access asks to let Dad know",
   async () => {
     startTestClock();
+    // The access to the account has expired for every read of it, the transactions too (c010 design.md D8).
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
       balance: bankAccessExpired,
+      transactions: bankAccessExpired,
     });
 
     await timePasses(0);
