@@ -295,6 +295,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 - [ ] 45.3 A key that is not base64url is refused, naming it
 - [x] 45.4 A missing secret is refused, naming it
 - [ ] 45.5 A secret that is not 16 bytes is refused, naming it
+- [ ] 45.6 A public key of 65 bytes starting with 0x04 that is not a point on P-256 is refused, naming it (design.md D9)
 
 ## 46. [close] Slice 16 — A subscription with missing or wrong-sized keys is refused
 
