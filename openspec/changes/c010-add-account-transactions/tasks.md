@@ -175,23 +175,23 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 16. [close] Slice 5 — The bank sees the signed-in user's address and browser
 
-- [ ] 16.1 The scenario's test passes (slice 2's endpoint reads as the present user). Verify: green, including account-transactions / The bank sees the signed-in user's address and browser
+- [x] 16.1 The scenario's test passes (slice 2's endpoint reads as the present user). Verify: green, including account-transactions / The bank sees the signed-in user's address and browser
 
 ## 17. [close] Slice 6 — A transactions request without a browser name reads nothing at the bank
 
-- [ ] 17.1 `TransactionsDriver.AskForNewestNamingNoBrowser` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A transactions request without a browser name reads nothing at the bank
+- [x] 17.1 `TransactionsDriver.AskForNewestNamingNoBrowser` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A transactions request without a browser name reads nothing at the bank
 
 ## 18. [close] Slice 7 — Expired bank access answers its own problem
 
-- [ ] 18.1 The scenario's test passes. Verify: green, including account-transactions / Expired bank access answers its own problem
+- [x] 18.1 The scenario's test passes. Verify: green, including account-transactions / Expired bank access answers its own problem
 
 ## 19. [close] Slice 8 — A reached bank limit answers its own problem
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including account-transactions / A reached bank limit answers its own problem
+- [x] 19.1 The scenario's test passes. Verify: green, including account-transactions / A reached bank limit answers its own problem
 
 ## 20. [close] Slice 9 — A bank that does not answer is its own problem
 
-- [ ] 20.1 The scenario's test passes. Verify: green, including account-transactions / A bank that does not answer is its own problem
+- [x] 20.1 The scenario's test passes. Verify: green, including account-transactions / A bank that does not answer is its own problem
 
 ## 21. [unit] Slice 10 — Live read start
 
@@ -582,9 +582,9 @@ Waits for C7a's merge (design.md D8).
 
 ## 96. [close] Acceptance green
 
-- [ ] 96.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
-- [ ] 96.2 Docs: the software-factory lessons and inventory lines of design.md § Cross-cutting effects. Verify: each names the decision it records
-- [ ] 96.3 `pm/progress.md`: the C7b row; Q7 decided (outcome, record: this design D1–D7 with the ADR-0001 and ADR-0005 amendments, the date). `CLAUDE.md` checked against every command this change added. Verify: the row links the change; `CLAUDE.md`'s commands run as written
+- [x] 96.1 All acceptance tests of this change pass, and the full suite is green. That includes `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the frontend build, and the traceability check (every scenario claimed exactly once). Verify: the commands' output
+- [x] 96.2 Docs: the software-factory lessons and inventory lines of design.md § Cross-cutting effects. Verify: each names the decision it records
+- [x] 96.3 `pm/progress.md`: the C7b row; Q7 decided (outcome, record: this design D1–D7 with the ADR-0001 and ADR-0005 amendments, the date). `CLAUDE.md` checked against every command this change added. Verify: the row links the change; `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 

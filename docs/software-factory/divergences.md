@@ -104,9 +104,10 @@ Full version: relational Postgres with migrations, unless something strong pulls
 Here ([ADR-0005-data-storage](../adr/0005-data-storage.md), 2026-11-05): **Azure Table Storage in the app's own storage account** — three kinds of records, a few hundred items in all, read by key; nothing manual, no secret, deleted with the stack.
 Given up:
 - no queries beyond keys, no joins, no schema;
-- no migration discipline, because nothing enforces the shape of stored data.
+- no migration discipline, because nothing enforces the shape of stored data;
+- since C7b, not even key queries for the transactions: every request reads the whole table and pages it in memory ([lessons.md R-26](lessons.md), the first table; ADR-0005 item 4 amended 2026-11-09).
 
-*Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period.
+*Switch back when:* the data gains relations or needs real queries, more features arrive, or the app runs well beyond its planned period; for the whole-table read, when the transactions table grows past a few hundred rows.
 
 **R-27 · The production app scales to zero, with a caller outside the app for the check**
 Full version: an always-on host for anything real users depend on, with the job scheduled inside the app ([lessons.md R-27](lessons.md)).
