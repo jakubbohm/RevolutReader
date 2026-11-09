@@ -224,8 +224,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 ## 32. [unit] Slice 11 — The size of a push
 
 - [x] 32.1 A message whose JSON is exactly 3993 bytes is accepted
-- [ ] 32.2 A message whose JSON is 3994 bytes is refused, naming the message
-- [ ] 32.3 The size counts UTF-8 bytes, so Czech letters count twice
+- [x] 32.2 A message whose JSON is 3994 bytes is refused, naming the message
+- [x] 32.3 The size counts UTF-8 bytes, so Czech letters count twice
 
 ## 33. [close] Slice 11 — A message too long for a push is refused
 

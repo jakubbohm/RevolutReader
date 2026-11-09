@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,6 +17,14 @@ public static partial class PushMessages {
   private const string MISSING = "Missing.";
   private const string PAGE = "page";
   private const string NOT_A_PAGE = "Not a page of the app.";
+  private const string MESSAGE = "message";
+  private const string TOO_LONG = "Too long for a push.";
+
+  /// <summary>
+  /// The most UTF-8 bytes a push's JSON may take (D2): the plaintext a push service must accept, RFC 8291 § 4, 4096 octets
+  /// of body less the 86-octet header, one octet of padding and the 16-octet tag.
+  /// </summary>
+  public const int MOST_BYTES = 3993;
 
   /// <summary>
   /// Letters of every script as they are, so a Czech text takes its UTF-8 bytes rather than a six-character escape per
@@ -48,6 +57,8 @@ public static partial class PushMessages {
 
     if (!IsAppPage(message.Page))
       refused.Add(new RefusedMember(PAGE, NOT_A_PAGE));
+    else if (Encoding.UTF8.GetByteCount(DeclarativeJson(message, appAddress)) > MOST_BYTES)
+      refused.Add(new RefusedMember(MESSAGE, TOO_LONG));
 
     return refused;
   }
