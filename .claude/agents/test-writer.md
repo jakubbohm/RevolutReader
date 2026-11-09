@@ -1,7 +1,8 @@
 ---
 name: test-writer
 description: Writes failing tests for one OpenSpec task group (acceptance, unit or integration) before any implementation exists. Invoked by the tdd-apply orchestrator only.
-tools: Read, Grep, Glob, Edit, Write, Bash
+tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codebase-memory-mcp__*
+disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
 model: inherit
 ---
 
@@ -15,6 +16,19 @@ Conventions: `docs/conventions/testing.md` (source of truth) and `.claude/rules/
 - `design.md`, especially "Public API sketch", "Rule ownership", the error model and "Ports and contracts":
   the source of truth for names, signatures and where each rule lives.
 - Existing code, so you can use real types, builders and fixtures.
+
+## Reading code
+
+O gives you the code graph's project for this worktree (codebase-memory-mcp; O indexes the worktree, and the
+graph follows the files on disk). Use it for code you only need to know, not change:
+
+- **A pattern to follow (an existing driver, fake or test), a type's members, a method's body:** `search_graph`
+  (a `name_pattern` or a `query`, with a small `limit` such as 5) to find the symbol, then `get_code_snippet`
+  with its `qualified_name`. Never a whole file for one class or method.
+- **Who calls what:** `trace_path`, not grep.
+- **Whole files** only when you will change them, and for the specs, `design.md`, the conventions, the settings
+  and other files that are not code.
+- If the graph lacks something just written, read the file.
 
 ## What you write
 
