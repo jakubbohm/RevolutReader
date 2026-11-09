@@ -167,7 +167,7 @@ After C7a merges, the branch takes `main` (memory: merge the earlier PR's tip be
   - It prints counts only (read, settled, kept, days skipped). Running it twice changes nothing (upserts).
 - *(propose)* **It never touches a day the table already holds, nor the export's own day,** which the file may hold only in part: positions within a day must come from one complete read. The live reads fill those days (D3). It imports only days before the earlier of the export's day and the oldest kept day.
 - **Tested against Azurite** with a made-up file of the same shape, in the default run.
-- **The owner's access:** a temporary Storage Table Data Contributor on the table for the owner's own account. Claude gives the PowerShell 7 block (subscription named, the principal looked up at run time, no personal ID in the repository); the owner runs it; Claude checks read-only; the same for the removal afterwards (memory: Azure grants are run by the owner).
+- **The owner's access:** a temporary Storage Table Data Contributor on the storage account for the owner's own account (as the app's role, D11: the import writes through the same store, which creates its table if missing; 2026-11-09). Claude gives the PowerShell 7 block (subscription named, the principal looked up at run time, no personal ID in the repository); the owner runs it; Claude checks read-only; the same for the removal afterwards (memory: Azure grants are run by the owner).
 - **Then the owner deletes the file and its backup** (the backup Claude suggested on 2026-11-08, since from 2026-11-09 the file is the only copy of the oldest days). `pm/progress.md` records the counts and the deletion.
 
 ### D10 — The API contract *(propose)*
