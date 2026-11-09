@@ -72,8 +72,8 @@ Decided by the user, 2026-11-05:
   - M8's stack deletion deletes the stored bank data with everything else (kickoff ch. 9.6).
 - **C6 creates the storage account,** for the sign-in cookie's Data Protection keys in Blob Storage ([ADR-0006-hosting-registry-and-job § Decision](0006-hosting-registry-and-job.md#decision), item 2). That covers the Bicep, the `.bicepparam` and the AppHost.
 - **C7, or its first slice** (C7b since C7's split, 2026-11-08)**:**
-  - the table role assignment and the table design in that account;
-  - importing the M1 history file.
+  - the table role assignment and the table design in that account; *(2026-11-09, C7b, c010 design.md D11: done. The table `transactions`, and the app identity's Storage Table Data Contributor on the storage account rather than the one table, because the app creates its table when it is missing and no doc says a role on one table allows that (the user). It reaches the account's tables and nothing else, the app is their only user, and C8a's table in the same account needs the same role. The table design: Decision, item 4.)*
+  - importing the M1 history file. *(C7b: an explicit check the owner runs once after the deploy, with a temporary role of the owner's; then the file is deleted: [deployment.md § The history import](../operations/deployment.md#the-history-import-c7b).)*
 - **C8** (C8a since C8's split, 2026-11-09)**:** the push subscriptions go into a table.
 - **Tables answer key lookups only.** If C7 or C9 needs more, the data is small enough to move with a script.
 - **Database tests** run against Azurite ([testing.md § Decided later](../conventions/testing.md#decided-later)). Health probes still never touch storage ([README.md § Backend code](../conventions/README.md#backend-code)).

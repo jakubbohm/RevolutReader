@@ -36,7 +36,7 @@ None of these is a credential: knowing them gives no access. They are public, he
      | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | the app identity, on the vault's secrets (C4) | M3 |
      | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` | (C8, the push subscription) | M3 |
      | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | the app identity, on the container `dataprotection` (C6) | M3 |
-     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` | (C7, the stored balance) | M3 |
+     | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` | (C7b, the app's transactions table, on the storage account) | M3 |
      | Monitoring Metrics Publisher | `3913510d-42f4-4e42-8a64-420c390055eb` ([Microsoft Learn: built-in roles for Monitor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#monitoring-metrics-publisher), updated 2026-07-01, read 2026-11-08) | the app identity, on Application Insights, to write its telemetry ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)) | C12 |
      | Key Vault Crypto User | `12338af0-0e69-4776-bea7-57ae8d297424` | the app identity, on the key `dataprotection`, to wrap and unwrap the login cookie's keys (C6, c007 design.md D7) | C6 |
 

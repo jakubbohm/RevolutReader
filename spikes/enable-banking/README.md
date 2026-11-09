@@ -53,7 +53,7 @@ Kept in `secrets/` (gitignored, along with `*.pem` and `*.key`) on the owner's m
 
 - `secrets/<application-id>.pem`: the application's private key.
 - `secrets/session.json`: session ID and account UIDs from step 5. Together with the key, they give access to bank data.
-- `secrets/transactions-<date>.json`: the history download from step 5. This is bank data, not a secret: it stays here until it is imported into the database (the change that creates the transaction store), and is then deleted.
+- `secrets/transactions-<date>.json`: the history download from step 5. This is bank data, not a secret: it stays here until C7b's explicit check `HistoryImportCheck` imports it into the deployed table, once, after C7b's deploy ([deployment.md § The history import](../../docs/operations/deployment.md#the-history-import-c7b)); then the owner deletes it and its backup.
 
 ## Findings
 

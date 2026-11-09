@@ -500,7 +500,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 ## 84. [wiring] History import — the explicit check
 
 - [x] 84.1 `HistoryImportCheck` (`[Explicit]`; written by the test-writer, the user 2026-11-09): reads `HistoryImport:File` and `HistoryImport:TableEndpoint`, writes with `AzureCliCredential` (naming `HistoryImport:Subscription`) through `TableTransactionStore` (or, for the local check, `HistoryImport:TableConnectionString` instead of the endpoint), prints counts only. Verify: it runs nothing in the default suite; run against Azurite with the made-up file, it prints the counts
-- [ ] 84.2 Docs:
+- [x] 84.2 Docs:
   - `CLAUDE.md` § Commands: the import's command and settings (explicit, run once, owner only);
   - docs/operations/deployment.md: the import's steps, the owner's temporary Storage Table Data Contributor (granted and removed by the owner, design.md D9), the counts to compare, the file and its backup deleted;
   - `spikes/enable-banking/README.md`: the history file is imported by `HistoryImport`, then deleted.
@@ -515,7 +515,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
   - `features.bicep`: `ConnectionStrings__tables` on the container app.
 
   `main.bicepparam` is unchanged. Verify: `az bicep lint --file infra/main.bicep` reports nothing; the read-only preview (docs/operations/deployment.md) shows the new resources and no deletion
-- [ ] 85.2 Docs:
+- [x] 85.2 Docs:
   - workflow.md § 5: the table and its role;
   - deployment.md: the table in the deployed resources, the read-only check that rows arrive after the first open, the rollback that keeps the table (design.md § Migration plan, step 7);
   - ADR-0005 § Consequences: C7b's table and role done;
