@@ -253,7 +253,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 38. [wiring] Slice 13 — Failures at the push service
 
-- [ ] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on (`FakePushService.FailsOnce` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` for 429 (one request, never retried), 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
+- [x] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on (`FakePushService.FailsOnce` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` for 429 (one request, never retried), 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
 
 ## 39. [close] Slice 13 — A device whose push service fails is counted as failed and kept
 
