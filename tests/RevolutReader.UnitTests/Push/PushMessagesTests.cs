@@ -69,6 +69,80 @@ public sealed class PushMessagesTests {
   public void A_message_whose_title_is_only_spaces_is_refused_naming_the_title() =>
     ShouldRefuseOnlyTheTitle(new PushMessage("   ", TEXT, PAGE));
 
+  /// <summary>
+  /// A page of the app is a path that starts with a single <c>/</c> and lies outside <c>/api</c> (D2): the start page and
+  /// any path under it, with or without a query. "Outside <c>/api</c>" is by whole segment, as the app's own pages are
+  /// (<c>PagesExtensions</c>: every address whose first segment is not <c>api</c>), so a path that only begins with the
+  /// letters "api", or has <c>api</c> further down, is a page.
+  /// </summary>
+  [Test]
+  [Arguments("/")]
+  [Arguments("/transakce")]
+  [Arguments("/transakce/2026-11")]
+  [Arguments("/?od=2026-11-01")]
+  [Arguments("/transakce?od=2026-11-01&do=2026-11-09")]
+  [Arguments("/apiary")] // begins with the letters "api", but its first segment is not api
+  [Arguments("/apis/x")]
+  [Arguments("/transakce/api")] // api further down
+  public void The_start_page_and_a_path_under_it_with_or_without_a_query_are_pages_of_the_app(string page) =>
+    PushMessages.IsAppPage(page).ShouldBeTrue();
+
+  /// <summary>An absolute address is not a page, also one at the app's own address: a page is a path (D2), which the server puts on the app's address itself.</summary>
+  [Test]
+  [Arguments("https://example.com/")]
+  [Arguments("https://app.example.net/transakce")] // the app's own address, but absolute
+  [Arguments("http://example.com/")]
+  [Arguments("mailto:someone@example.com")]
+  [Arguments("javascript:alert(1)")]
+  public void An_absolute_address_is_not_a_page_of_the_app(string page) =>
+    PushMessages.IsAppPage(page).ShouldBeFalse();
+
+  /// <summary>Two slashes, or a slash and a backslash (which browsers read as two slashes), start an address on another host, not a path (D2).</summary>
+  [Test]
+  [Arguments("//example.com/")]
+  [Arguments("//example.com")]
+  [Arguments("///example.com/")]
+  [Arguments("/\\example.com/")]
+  [Arguments("/\\example.com")]
+  public void A_path_starting_with_two_slashes_or_a_slash_and_a_backslash_is_not_a_page_of_the_app(string page) =>
+    PushMessages.IsAppPage(page).ShouldBeFalse();
+
+  /// <summary>
+  /// The addresses under <c>/api</c> are the API's, not pages (D2): <c>/api</c> itself, with a trailing slash, a query or
+  /// more segments, in any letter case, as the app's own routes compare them (<c>PagesExtensions</c>).
+  /// </summary>
+  [Test]
+  [Arguments("/api")]
+  [Arguments("/api/")]
+  [Arguments("/api/push/messages")]
+  [Arguments("/api?x=1")]
+  [Arguments("/api/?x=1")]
+  [Arguments("/API/x")]
+  [Arguments("/Api")]
+  public void A_path_under_api_is_not_a_page_of_the_app(string page) =>
+    PushMessages.IsAppPage(page).ShouldBeFalse();
+
+  [Test]
+  public void An_empty_page_is_not_a_page_of_the_app() =>
+    PushMessages.IsAppPage(string.Empty).ShouldBeFalse();
+
+  /// <summary>A message whose page is not a page of the app is refused, naming <c>page</c> alone, with a fixed reason that quotes nothing of the page (D10).</summary>
+  /// <param name="page">A page from each kind the rules refuse.</param>
+  [Test]
+  [Arguments("https://example.com/stranka-3c5d")]
+  [Arguments("//example.com/stranka-3c5d")]
+  [Arguments("/api/stranka-3c5d")]
+  [Arguments("")]
+  public void A_message_whose_page_is_not_a_page_of_the_app_is_refused_naming_the_page(string page) {
+    RefusedMember refused = PushMessages.Check(new PushMessage(TITLE, TEXT, page), _appAddress).ShouldHaveSingleItem("only the page is refused; the title and the text are fine");
+
+    refused.ShouldSatisfyAllConditions(
+      () => refused.Member.ShouldBe("page"),
+      () => refused.Reason.ShouldNotBeNullOrWhiteSpace("a fixed reason"),
+      () => refused.Reason.ShouldNotContain("example.com", Case.Insensitive, "never a value"),
+      () => refused.Reason.ShouldNotContain("stranka-3c5d", Case.Insensitive, "never a value"));
+  }
+
   /// <summary>The rules refuse exactly one member of <paramref name="message"/>, <c>title</c>, with a reason that holds none of the message's values.</summary>
   private static void ShouldRefuseOnlyTheTitle(PushMessage message) {
     RefusedMember refused = PushMessages.Check(message, _appAddress).ShouldHaveSingleItem("only the title is refused; the text and the page are fine");

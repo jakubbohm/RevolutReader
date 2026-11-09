@@ -21,6 +21,9 @@ public static class PushMessages {
   /// </summary>
   private static readonly JsonSerializerOptions _json = new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) };
 
+  /// <summary>Whether <paramref name="page"/> is a page of the app (D2): a path that starts with a single <c>/</c> and lies outside <c>/api</c>.</summary>
+  public static bool IsAppPage(string page) => throw new NotImplementedException();
+
   /// <summary>The members of <paramref name="message"/> a push cannot carry, each with a fixed reason, never its value (D2, D10); none when it can.</summary>
   public static IReadOnlyList<RefusedMember> Check(PushMessage message, Uri appAddress) {
     ArgumentNullException.ThrowIfNull(message);
