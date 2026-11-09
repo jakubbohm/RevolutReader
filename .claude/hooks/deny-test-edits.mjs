@@ -18,9 +18,6 @@ const path = raw.replace(/\\/g, "/");
 const allowed = [
   /\/tests\/RevolutReader\.AcceptanceTests\/Drivers\//i, // real driver methods, in [wiring] and [close]
   /\/tests\/RevolutReader\.IntegrationTests\/Wiring\//i, // adapter edge-case tests, in [wiring]
-  // Not tests: the one-off history import's own code, kept in the integration project because the owner runs it once
-  // as an explicit check (c010 design.md D9; the user's go, 2026-11-09). Its tests next to it stay denied.
-  /\/tests\/RevolutReader\.IntegrationTests\/HistoryImport\/(HistoryFile|HistoryImporter)\.cs$/i,
 ];
 
 const denied = [
