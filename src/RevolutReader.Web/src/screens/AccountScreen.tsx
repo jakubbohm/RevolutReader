@@ -1,5 +1,6 @@
 import { Inbox, WifiOff } from "lucide-react";
 import type { JSX } from "react";
+import type { ListProblem } from "../app/listState";
 import type { Problem, ShownAccount } from "../app/screenState";
 import { useNow } from "../app/useNow";
 import { useTransactionList } from "../app/useTransactionList";
@@ -33,8 +34,9 @@ export interface AccountScreenProps {
  * the waking-up screen is the whole screen. The freshness line counts again every minute.
  *
  * The transaction list (c010 design.md D7) reads the newest transactions once the server has named the user, and shows
- * its placeholders, then its days, or "Zatím žádné pohyby" when there are none, in the list slot, when the screen has
- * one; it joins the screen's states at the join (D8).
+ * its placeholders, then its days, or "Zatím žádné pohyby" when there are none, or its offline note, in the list slot,
+ * when the screen has one; a problem with its read is its banner when the screen has none of its own. It joins the
+ * screen's states at the join (D8).
  */
 export function AccountScreen({
   shown,
@@ -46,8 +48,14 @@ export function AccountScreen({
   // The server names the account only once it has said who is signed in (`shown`).
   const list = useTransactionList({ enabled: shown.account !== null });
   const { header } = shown;
+  // One banner (design system Banner): the screen's, else the list's, where the screen has the list's place (c010
+  // design.md D7); the order between the two is the join's (D8).
   const banner =
-    shown.banner === null ? null : bannerFor(shown.banner, onRetry);
+    shown.banner !== null
+      ? bannerFor(shown.banner, onRetry)
+      : shown.body === "list" && list.banner !== null
+        ? listBannerFor(list.banner, list.retry)
+        : null;
 
   return (
     <AppShell
@@ -91,7 +99,9 @@ export function AccountScreen({
           </EmptyState>
         </div>
       ) : null}
-      {shown.body === "offline note" ? (
+      {shown.body === "offline note" ||
+      (shown.body === "list" && list.shown.body === "offline note") ? (
+        // The screen's offline note (c009 design.md D7 a), or the list's own (c010 design.md D7), in the list's place.
         <EmptyState variant="note">
           Pohyby se načtou, jakmile budeš online.
         </EmptyState>
@@ -168,6 +178,53 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
             : "Zkus to prosím za chvíli."}
         </Banner>
       );
+  }
+}
+
+/**
+ * The list's banner, by the problem with its newest page (c010 design.md D7), until the join folds it into the screen's
+ * (D8); offline is the list's note instead:
+ * - the bank access expired: the error "Propojení s bankou vypršelo", with no action, since only Dad can renew it;
+ * - the bank's limit is reached: the warning "Příliš mnoho obnovení", with no action, since trying again would not help;
+ * - the bank does not answer: the error "Pohyby se nepodařilo načíst", saying so, with "Zkusit znovu";
+ * - any other answer, 401 and 403 among them until the join: the same error with "Zkus to prosím za chvíli." and
+ *   "Zkusit znovu".
+ *
+ * "Zkusit znovu" reads the newest page again.
+ */
+function listBannerFor(
+  problem: ListProblem,
+  onRetry: () => void,
+): JSX.Element | null {
+  const retry = { label: "Zkusit znovu", onClick: onRetry };
+
+  switch (problem.kind) {
+    case "bank access expired":
+      return (
+        <Banner tone="error" title="Propojení s bankou vypršelo">
+          Obnovit propojení musí táta, dej mu prosím vědět.
+        </Banner>
+      );
+    case "bank rate limited":
+      return (
+        <Banner tone="warning" title="Příliš mnoho obnovení">
+          Banka teď další dotazy nepřijímá. Zkus to znovu později.
+        </Banner>
+      );
+    case "bank unavailable":
+      return (
+        <Banner tone="error" title="Pohyby se nepodařilo načíst" action={retry}>
+          Banka teď neodpovídá. Zkus to prosím za chvíli.
+        </Banner>
+      );
+    case "unexpected":
+      return (
+        <Banner tone="error" title="Pohyby se nepodařilo načíst" action={retry}>
+          Zkus to prosím za chvíli.
+        </Banner>
+      );
+    case "offline":
+      return null;
   }
 }
 

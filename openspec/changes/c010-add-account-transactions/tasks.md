@@ -414,35 +414,35 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 66. [wiring] Slice 28 — Expired access
 
-- [ ] 66.1 The error banner "Propojení s bankou vypršelo" / "Obnovit propojení musí táta, dej mu prosím vědět.", no button (design.md D7). Verify: the scenario runs against the app
+- [x] 66.1 The error banner "Propojení s bankou vypršelo" / "Obnovit propojení musí táta, dej mu prosím vědět.", no button (design.md D7). Verify: the scenario runs against the app
 
 ## 67. [close] Slice 28 — Expired bank access asks to let Dad know about the transactions
 
-- [ ] 67.1 The scenario's test passes. Verify: green, including account-transactions / Expired bank access asks to let Dad know about the transactions
+- [x] 67.1 The scenario's test passes. Verify: green, including account-transactions / Expired bank access asks to let Dad know about the transactions
 
 ## 68. [wiring] Slice 29 — The request limit
 
-- [ ] 68.1 `Banner`'s warning tone (`role="status"`), to C7a's props (design.md D13); the warning "Příliš mnoho obnovení" / "Banka teď další dotazy nepřijímá. Zkus to znovu později.", no button. Verify: the scenario runs against the app
+- [x] 68.1 `Banner`'s warning tone (`role="status"`), to C7a's props (design.md D13); the warning "Příliš mnoho obnovení" / "Banka teď další dotazy nepřijímá. Zkus to znovu později.", no button. Verify: the scenario runs against the app
 
 ## 69. [close] Slice 29 — Too many refreshes shows a warning instead of the transactions
 
-- [ ] 69.1 The scenario's test passes. Verify: green, including account-transactions / Too many refreshes shows a warning instead of the transactions
+- [x] 69.1 The scenario's test passes. Verify: green, including account-transactions / Too many refreshes shows a warning instead of the transactions
 
 ## 70. [wiring] Slice 30 — The bank not answering
 
-- [ ] 70.1 `Banner`'s `action`, a ghost-styled button inside the banner (design.md D13); the error "Pohyby se nepodařilo načíst" / "Banka teď neodpovídá. Zkus to prosím za chvíli." with "Zkusit znovu", which reads the newest page again. Verify: the scenario runs against the app
+- [x] 70.1 `Banner`'s `action`, a ghost-styled button inside the banner (design.md D13); the error "Pohyby se nepodařilo načíst" / "Banka teď neodpovídá. Zkus to prosím za chvíli." with "Zkusit znovu", which reads the newest page again. Verify: the scenario runs against the app
 
 ## 71. [close] Slice 30 — A bank that does not answer the transactions shows a retry
 
-- [ ] 71.1 The scenario's test passes. Verify: green, including account-transactions / A bank that does not answer the transactions shows a retry
+- [x] 71.1 The scenario's test passes. Verify: green, including account-transactions / A bank that does not answer the transactions shows a retry
 
 ## 72. [wiring] Slice 31 — An unexpected answer
 
-- [ ] 72.1 The error "Pohyby se nepodařilo načíst" / "Zkus to prosím za chvíli." with "Zkusit znovu" for an unexpected read, and for 401 and 403 until the join (design.md D7). Verify: the scenario runs against the app
+- [x] 72.1 The error "Pohyby se nepodařilo načíst" / "Zkus to prosím za chvíli." with "Zkusit znovu" for an unexpected read, and for 401 and 403 until the join (design.md D7). Verify: the scenario runs against the app
 
 ## 73. [close] Slice 31 — An unexpected answer to the transactions read shows a retry
 
-- [ ] 73.1 The scenario's test passes. Verify: green, including account-transactions / An unexpected answer to the transactions read shows a retry
+- [x] 73.1 The scenario's test passes. Verify: green, including account-transactions / An unexpected answer to the transactions read shows a retry
 
 ## 74. [unit] Slice 32 — Offline
 
