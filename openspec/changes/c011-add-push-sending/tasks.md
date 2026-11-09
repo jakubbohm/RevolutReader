@@ -332,7 +332,7 @@ The test-writer also writes `src/test/push.ts` (the stand-ins for `Notification`
 
 ## 53. [unit] Guards
 
-- [ ] 53.1 A registration and a send log no push address, key, email address, title or text (`Conventions/PushTelemetryTests`, design.md D4)
+- [ ] 53.1 A registration and a send log no key, email address, title or text, and no push address outside the push client's own request lines (`Conventions/PushTelemetryTests`, design.md D4)
 
 ## 54. [wiring] Deployment
 

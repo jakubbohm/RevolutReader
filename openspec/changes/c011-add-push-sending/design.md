@@ -77,9 +77,10 @@
 
 ### D4 — Logs (S5)
 
-- Counts and outcomes only. Never the message text (C9's will hold amounts; the owner's are private), never a device's push address or keys (with them anyone could reach that device), never an email address.
+- Counts and outcomes only. Never the message text (C9's will hold amounts; the owner's are private), never a device's keys, never an email address. The app's own lines never name a device's push address either.
+- **The push client's own request logging and traces keep the push address** (the owner, 2026-11-09, after a review finding): like every outgoing client except the bank's, the push client keeps the framework's request lines (Information, with the request's URL) and its exported HTTP-client traces (`url.full`), so a device's push address, the push service's address with the device's token in its path, reaches Application Insights. Accepted: Application Insights is the project's private telemetry, and a push address alone cannot deliver a push (that also takes the VAPID private key and the device's own two keys). Weighed and not chosen: the bank client's two measures, `RemoveAllLoggers()` and requests marked `HttpRequestTracing.Exclude` (through a small handler, since the library builds its own requests), with the guard below also reading exported traces.
 - *(propose)* The lines, source-generated in `PushLog`: `PushSent` (Information: reached, failed, removed); `PushDeliveryFailed` (Warning: the status, or none when no answer came); `PushDeviceGone` (Information: the status); `PushAccountNotAllowed` (Warning: how many devices were deleted). Registering and forgetting a device log nothing of their own; the request telemetry already records them, and its URLs carry no push address (the address travels in the request body, D9).
-- *(propose)* A convention test (`Conventions/PushTelemetryTests`) captures every line a registration and a send write and finds no push address, key, email, title or text in them.
+- *(propose)* A convention test (`Conventions/PushTelemetryTests`) captures every line a registration and a send write and finds no key, email, title or text in them, and no push address outside the push client's own request lines (above).
 
 ### D5 — The keys (S6, S7)
 
@@ -220,6 +221,7 @@ Web Push is new to the factory (A6). The next free numbers when written (R-70 wa
 - *(New)* Declarative Web Push as the message format for an iOS Home Screen app, and why it removes the revocation risk (D2);
 - *(New)* a key-protected operator endpoint that answers exactly like a missing address, checked before its body is read, and kept out of the API description (D10);
 - *(New)* push addresses only at known push services, against server-side request forgery, with plain `http` allowed only for a loopback test fake (D9);
+- *(Divergence, apply, 2026-11-09)* push addresses reach the private telemetry through the push client's own request lines and traces (D4, the owner's choice for speed); the full version gives the push client the bank client's two measures and a guard over exported traces as well as log lines;
 - *(Apply, 2026-11-09)* the apply's test-writer and implementer are spawned fresh per chapter of slices (C8a: five chapters, from the foundation to the close), not kept for the whole change as the skill says nor spawned per slice: the test-writer spent about 320k tokens on the acceptance group alone, so one pair for 18 slices outgrows its context, while a fresh pair per slice rereads the design and conventions (about 50k tokens) for many small slices; the files are the source of truth, so a fresh agent loses nothing that matters. Links the size guide's lesson, which named splitting the apply among fresh agents as its reversal; a candidate change to the tdd-apply skill;
 - inventory lines: the fake push service with its test device (template), the push module and its test stand-ins (template), the key-generation block (example).
 
@@ -599,7 +601,7 @@ No frontend scenario and no manual row: the frontend pieces are unit-tested (D8)
 - **[The production keys are missing when the merge deploys]** → the new revision stops (deployment.md step 5). The guided task runs before the merge, and its read-back lists the three names.
 - **[A wildcard host matches more than meant]** → matching on the parsed host by whole labels; unit tests with look-alike hosts (D9).
 - **[Petr on the test allowlist breaks a scenario that assumed one address]** → the test-writer runs the whole suite when adding him; the DSL's allowlist steps check the configured list.
-- **[A push address or an email in telemetry]** → addresses travel in bodies, never URLs; `PushLog` takes numbers only; the guard test (D4).
+- **[A push address or an email in telemetry]** → addresses travel in bodies, never in the app's URLs; `PushLog` takes numbers only; the guard test (D4). The push client's own request lines and traces do hold the push address: accepted by the owner (D4).
 - **[A brute force on the message key]** → 256 bits, constant-time comparison; no rate limit (accepted, Non-Goals).
 - **[Locally a tap opens `https://localhost/`]** → harmless in C8a, which shows nothing; a heads-up for C8b (D5).
 - **[18 slices make a long `/tdd-apply`]** → several slices only close, because earlier ones turned them green (tasks.md).
