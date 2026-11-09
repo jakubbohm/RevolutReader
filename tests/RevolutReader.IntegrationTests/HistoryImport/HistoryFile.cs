@@ -9,10 +9,14 @@ namespace RevolutReader.IntegrationTests.HistoryImport;
 /// The M1 history file (c010 design.md D9), as <c>spikes/enable-banking/export-history.ps1</c> writes it:
 /// <c>{exported_utc, history_start, date_from, accounts:[{account, pages:[{transactions, continuation_key}]}]}</c>, each
 /// page the bank's raw answer, unchanged, read as the adapter reads a page (<see cref="EbTransactionPage"/>, the API
-/// reference's snake_case names).
+/// reference's snake_case names). <c>history_start</c> may be missing: the script's first run, which wrote the M1 file on
+/// 2026-11-04, did not write it.
 /// </summary>
 /// <param name="ExportedUtc">When the file was written (<c>exported_utc</c>, <c>yyyy-MM-ddTHH:mm:ssZ</c>).</param>
-/// <param name="HistoryStart">The history's first day (<c>history_start</c>, <c>yyyy-MM-dd</c>).</param>
+/// <param name="HistoryStart">
+/// The history's first day (<c>history_start</c>, <c>yyyy-MM-dd</c>); in a file without one, the day after
+/// <paramref name="DateFrom"/>, as the script derives one from the other.
+/// </param>
 /// <param name="DateFrom">The day the download asked from (<c>date_from</c>): the day before <paramref name="HistoryStart"/>.</param>
 /// <param name="Accounts">Each account's pages, in the file's order.</param>
 public sealed record HistoryFile(DateTimeOffset ExportedUtc, DateOnly HistoryStart, DateOnly DateFrom, IReadOnlyList<HistoryAccount> Accounts) {
@@ -45,8 +49,10 @@ public sealed record HistoryFile(DateTimeOffset ExportedUtc, DateOnly HistorySta
       throw new JsonException($"{THE_FILE} is not a JSON object.");
 
     DateTimeOffset exportedUtc = Time(file, EXPORTED_UTC);
-    DateOnly historyStart = Day(file, HISTORY_START);
     DateOnly dateFrom = Day(file, DATE_FROM);
+    // The first run of export-history.ps1, which wrote the M1 file on 2026-11-04, wrote no history_start. The script
+    // derives date_from as history_start minus one day (Enable Banking reads dates as UTC), so the day after is the start.
+    DateOnly historyStart = file.TryGetProperty(HISTORY_START, out _) ? Day(file, HISTORY_START) : dateFrom.AddDays(1);
     List<HistoryAccount> accounts = [];
 
     foreach (JsonElement account in Member(file, ACCOUNTS, JsonValueKind.Array, THE_FILE).EnumerateArray())

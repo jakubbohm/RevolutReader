@@ -62,6 +62,18 @@ internal static class MadeUpHistory {
     };
   }
 
+  /// <summary>
+  /// The file without its <c>history_start</c>, as the first run of the export script wrote the M1 file on 2026-11-04 (its
+  /// evidence: <c>spikes/enable-banking/evidence/2026-11-04-history-export.json</c>); <c>date_from</c> stays.
+  /// </summary>
+  public static JsonObject WithoutHistoryStart(JsonObject file) {
+    ArgumentNullException.ThrowIfNull(file);
+
+    file.Remove("history_start");
+
+    return file;
+  }
+
   /// <summary>The page at <paramref name="index"/> (0 first) of the file's one account.</summary>
   public static JsonObject Page(JsonObject file, int index) {
     ArgumentNullException.ThrowIfNull(file);

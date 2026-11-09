@@ -2,7 +2,7 @@
 
 > How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table; after its deploy, the checks' results and the import's).
 
 ## Identifiers (non-secret)
 
@@ -134,9 +134,15 @@ Since C7b the app keeps the settled transactions in the table `transactions` of 
 3. [The history import](#the-history-import-c7b), once.
 4. The list compared once with the Revolut app. Before that, the app is closed fully and opened again on every device that had it open (on a phone, swiped away from the app switcher; in a desktop browser, its tab closed): a list that reached its end before the import keeps saying there is nothing older until the app starts afresh (c010 PR #65 review, finding 7).
 
-The import's counts and the file's deletion go into `pm/progress.md` through a small docs PR, since they come after the archive.
+**Done on 2026-11-09,** after the deploy of #65 ([run 42650506155](https://github.com/jakubbohm/RevolutReader/actions/runs/42650506155)):
 
-**Rows arrive after the first open (read-only).** Reading the rows needs a data role, which only the app holds (and the owner during the import); the storage account's metrics need none. The first command shows the table's requests per operation and outcome: after the first open, expect successful writes and reads (`Success`) and no `AuthorizationError`. A `CreateTable` with a client error is expected too: the app's create-if-missing, answered "already exists". The second shows the number of rows in the account's tables; Microsoft's reference lists it hourly but does not say how soon a change shows ([Monitoring data reference for Azure Table Storage](https://learn.microsoft.com/en-us/azure/storage/tables/monitor-table-storage-reference), updated 2025-07-02, read 2026-11-09), and the import below prints the exact count. Written from that reference before any row existed: if the operation names differ, adjust them here.
+- **Step 1:** the stack listed the table and the app identity's role; the revision running the merge's image started; no storage error in the telemetry.
+- **Step 2:** the first open kept the last 89 days. In `AppRequests` and `AppDependencies`: `GET /api/transactions` 200, the table's writes (`$batch`, 202) and its read (200), and the create-if-missing's 409.
+- **Step 3:** the import's counts were as expected, and a read-only check of the table found every one of the file's transactions in it ([The history import](#the-history-import-c7b), step 3).
+- **Step 4:** the owner reopened the app and compared the list with the Revolut app: all fine.
+- **A warning at the app's start since C7b, harmless:** `Azure.Core` logs "Error response … 401 Unauthorized" with an `x-ms-keyvault-region` header. That is the Key Vault client's first request, which it sends without a token to learn where to get one (the challenge) and then repeats with a token; the client is the one protecting the cookie keys with the Key Vault key ([The sign-in's values and settings](#the-sign-ins-values-and-settings-c6)). Azure.Core logs every error answer as a warning. Before C7b the Azure SDK's own log lines never reached the app's logging; since C7b the tables client forwards them, and `appsettings.json` keeps their warnings (`"Azure": "Warning"`). A 403 from Key Vault would be a real failure: the app identity without its role.
+
+**Rows arrive after the first open (read-only).** Reading the rows needs a data role, which only the app holds (and the owner during the import); the storage account's metrics need none. The first command shows the table's requests per operation and outcome: after the first open, expect successful writes and reads (`Success`) and no `AuthorizationError`. A `CreateTable` with a client error is expected too: the app's create-if-missing, answered "already exists". The second shows the number of rows in the account's tables; Microsoft's reference lists it hourly but does not say how soon a change shows ([Monitoring data reference for Azure Table Storage](https://learn.microsoft.com/en-us/azure/storage/tables/monitor-table-storage-reference), updated 2025-07-02, read 2026-11-09), and the import below prints the exact count. **The names confirmed, 2026-11-09:** written from that reference before any row existed, the first command then showed, for the hour of the first open and the import, `QueryEntities` and `EntityGroupTransaction` (the writes) with `Success`, `CreateTable` with `ClientOtherError` (the create-if-missing) and no `AuthorizationError`. The second still read 0 for that hour, and so did `TableCount`, although the table existed: a change shows there late, so trust the import's count.
 
 ```powershell
 $sub          = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -155,6 +161,8 @@ az monitor metrics list --subscription $sub --resource $tableService --metrics T
 ### The history import (C7b)
 
 Once, after the first open (c010 design.md D9). The explicit check `HistoryImportCheck` reads the M1 history file, `spikes/enable-banking/secrets/transactions-2026-11-04.json` (gitignored, only in the main checkout on the owner's machine), through the app's own page reading and mapping, and keeps its settled transactions from 2026-08-09 through the app's Table adapter. It keeps only the days before the oldest day the table already holds: the live reads keep that day and every later one, since a day's order must come from one complete read. It writes by upserts, so a second run changes nothing, and it prints counts only. The owner runs it in the owner's own PowerShell 7 window, from the main checkout on `main` after C7b's merge.
+
+**The file has no `history_start`.** It was written at 19:05 UTC on 2026-11-04 by an earlier version of `spikes/enable-banking/export-history.ps1` than the one committed about an hour later, which adds `history_start`; the run's evidence lacks it too. So the first run, on 2026-11-09, stopped before writing anything. Since then the reader takes a missing `history_start` as the day after `date_from`, the way the committed script derives `date_from` (one day earlier, because Enable Banking reads dates as UTC); a `history_start` that is there is still read and checked.
 
 1. **The owner's temporary role.** Owner of the subscription gives no access to table data, so the owner's account gets Storage Table Data Contributor on the storage account, removed again at step 4. On the account, like the app's, because the import goes through the same create-if-missing. The owner runs the grant (Claude Code's permission check blocks role assignments). The account's ID is looked up when the block runs, as in [azure-prerequisites.md](azure-prerequisites.md), item 7, and written nowhere. A new role can take up to 10 minutes to take effect ([The first deployment](#the-first-deployment), step 5).
 
@@ -206,6 +214,8 @@ Once, after the first open (c010 design.md D9). The explicit check `HistoryImpor
 
    A different read or settled count is a finding: bring it to Claude, and keep the file. Running the check once more is safe and shows the import is complete: it keeps 0 and counts every day of the file as skipped, since the table now holds the file's oldest day.
 
+   **Run on 2026-11-09,** from C7b's worktree with the reader's fix above, before that fix was merged: transactions read 116, settled 116, kept 2, days skipped 42 (of the file's 43 days), rows in the table 131. Claude then checked the table read-only with the owner's temporary role: every one of the file's 116 transactions is in it, by its reference, and nothing else in its days.
+
 4. **The role removed,** in the same window (in a new one, run step 1's lines up to the `throw` first). Claude checks it with step 1's read-only command.
 
    ```powershell
@@ -218,7 +228,7 @@ Once, after the first open (c010 design.md D9). The explicit check `HistoryImpor
    Remove-Variable me, owners, mine
    ```
 
-5. **The file and its backup deleted,** once the counts are right: `Remove-Item spikes/enable-banking/secrets/transactions-2026-11-04.json` in the main checkout, and the backup of it (suggested on 2026-11-08). From then on, the days older than the bank's 90 exist only in the table, so a rollback must keep it ([Rolling back](#rolling-back)).
+5. **The file and its backup,** once the counts are right: planned to be deleted here, with `Remove-Item spikes/enable-banking/secrets/transactions-2026-11-04.json` in the main checkout and the backup of it (suggested on 2026-11-08). **On 2026-11-09 the owner kept both** for now; the file stays gitignored and is never published. While they exist they are a second copy of the oldest days. Once they are deleted, the days older than the bank's 90 exist only in the table, so a rollback must keep it ([Rolling back](#rolling-back)).
 
 ## Checks
 
@@ -317,7 +327,7 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 ## Rolling back
 
 - **A version that does not start or misbehaves:** revert its PR (the merged PR's page has a Revert button, which opens a new PR). Its merge deploys the previous code through the same pipeline; nothing is changed in Azure by hand.
-- **Since C7b, a rollback keeps the table** (c010 design.md § Migration plan, step 7). A plain revert of C7b's PR would remove the table `transactions` from the stack, which deletes it with its rows; once the history file is deleted, the days older than the bank's 90 are gone for good. So the revert PR reverts the app's code but keeps, in `infra/platform.bicep`, the table service, the table and the app's Storage Table Data Contributor on the account. The transactions' endpoints and the list disappear, and the kept history waits for the fix.
+- **Since C7b, a rollback keeps the table** (c010 design.md § Migration plan, step 7). A plain revert of C7b's PR would remove the table `transactions` from the stack, which deletes it with its rows; once the history file is deleted (the owner keeps it for now, [The history import](#the-history-import-c7b), step 5), the days older than the bank's 90 are gone for good. So the revert PR reverts the app's code but keeps, in `infra/platform.bicep`, the table service, the table and the app's Storage Table Data Contributor on the account. The transactions' endpoints and the list disappear, and the kept history waits for the fix.
 - **A mistake in the Bicep:** fix it forward in a PR; the stack converges on what the Bicep declares. A resource deleted by mistake is created again empty. A deleted vault comes back with its secrets with `az keyvault recover --subscription $sub --name kv-revolutreader` within 90 days; recover it before the next deploy, which would otherwise fail on the name.
 
 ## Removing everything (M8)

@@ -14,6 +14,7 @@
 - [PowerShell bulk-replace pitfalls](powershell-bulk-replace-pitfalls.md) — one-pair arrays flatten, comma beats +; prefer Edit, check diff --stat
 - [Aspire from a worktree](aspire-worktree-isolated-check.md) — `aspire start --isolated`; a throwaway check passes Parameters__* env vars, never writes the shared user-secrets
 - [Personal data: public vs private](public-vs-private-personal-data.md) — public places: no personal data, bank data or secrets; private telemetry: personal data fine, secrets never, bank data only by a recorded decision
+- [Claude may read bank data](claude-may-read-bank-data.md) — read it locally whenever it helps (files, rows, telemetry); never publish it (GitHub, commits, PRs, CI logs, evidence)
 - [No personal IDs in the repo](no-personal-ids-in-repo.md) — owner IDs never in Bicep params or GitHub vars; grant a person's access by hand with a run-time lookup
 - [Tickets are GitHub issues](tickets-are-github-issues.md) — no Jira in this project; "ticket"/"Jira ticket" means a GitHub issue here; never touch the employer's Atlassian site
 - [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up

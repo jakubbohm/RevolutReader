@@ -15,4 +15,6 @@ The owner's rule (2026-11-08, c006 open question 4 and the software-factory rule
 - When unsure whether a place is public, treat it as public.
 - It is also a software-factory rule (lesson written in c006 task 10.2).
 
+Claude itself may read bank data in the session (the owner, 2026-11-09): [[claude-may-read-bank-data]].
+
 Related: [[no-personal-ids-in-repo]], [[factory-gets-full-version]].

@@ -66,6 +66,24 @@ public sealed class HistoryImporterTests {
   }
 
   /// <summary>
+  /// The file has no <c>history_start</c>, as the first run of the export script wrote the M1 file on 2026-11-04; its
+  /// <c>date_from</c> is 2026-08-08, so its history starts the day after, as the script derives one from the other. It holds
+  /// a settled transaction on 2026-08-09 and one on 2026-08-08. The table is empty.
+  /// </summary>
+  [Test]
+  public async Task A_file_without_a_history_start_is_imported_from_the_day_after_its_date_from() {
+    TableTransactionStore store = NewStore();
+    JsonObject file = MadeUpHistory.WithoutHistoryStart(MadeUpHistory.File([
+      MadeUpHistory.Settled("h-101", _august9),
+      MadeUpHistory.Settled("h-001", _august8),
+    ]));
+
+    await Import(file, store);
+
+    (await store.ReadAll(CancellationToken.None)).Select(static transaction => transaction.Reference).ShouldBe(["h-101"]);
+  }
+
+  /// <summary>
   /// 2026-09-14 runs over the page break, with a pending one between its settled ones; the days before and after it have
   /// one each. The table is empty.
   /// </summary>
