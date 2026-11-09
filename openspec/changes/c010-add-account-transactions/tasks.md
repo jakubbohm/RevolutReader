@@ -274,13 +274,13 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 37. [unit] Slice 17 — Reading the transactions
 
-- [ ] 37.1 A 200 page reads as the page
-- [ ] 37.2 Each bank problem reads as its kind by its exact `type`
-- [ ] 37.3 A 401 reads as signed out and a 403 as refused, naming the email
-- [ ] 37.4 Any other status, a hosting error page in plain text or a body that is not a page reads as unexpected
-- [ ] 37.5 A read while the phone says it is offline sends nothing and reads as offline
-- [ ] 37.6 A request that fails without an answer reads as offline
-- [ ] 37.7 While the newest page is read and the server is awake, the list shows placeholders
+- [x] 37.1 A 200 page reads as the page
+- [x] 37.2 Each bank problem reads as its kind by its exact `type`
+- [x] 37.3 A 401 reads as signed out and a 403 as refused, naming the email
+- [x] 37.4 Any other status, a hosting error page in plain text or a body that is not a page reads as unexpected
+- [x] 37.5 A read while the phone says it is offline sends nothing and reads as offline
+- [x] 37.6 A request that fails without an answer reads as offline
+- [x] 37.7 While the newest page is read and the server is awake, the list shows placeholders
 
 ## 38. [wiring] Slice 17 — The list on the account screen
 
