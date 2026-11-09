@@ -243,7 +243,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 36. [close] Slice 12 — A device the push service reports gone is deleted
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including push-sending / A device the push service reports gone is deleted
+- [x] 36.1 The scenario's test passes. Verify: green, including push-sending / A device the push service reports gone is deleted
 
 ## 37. [unit] Slice 13 — Failing push services
 
