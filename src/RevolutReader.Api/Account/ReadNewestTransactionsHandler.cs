@@ -8,12 +8,12 @@ namespace RevolutReader.Api.Account;
 /// then the bank, read from there as the present user; then its settled transactions kept, every day it read, the days
 /// before the window too (<see cref="TransactionPaging.ToKeep"/>, D5; settled ones without a reference logged by count,
 /// <see cref="TransactionsLog.SettledWithoutReference"/>); then the live transactions dated from
-/// <see cref="TransactionPaging.WindowStart"/> (today being the UTC date of the clock, D3), pending ones included, in the
-/// bank's order, each with the bank's text as the app shows it (<see cref="TransactionText"/>, D4b) and its kind
-/// (<see cref="TransactionKinds"/>, D4; the page's type codes the app does not know logged once each, D4c), with the koruna
-/// rate and its date; <see cref="TransactionPage.OlderBefore"/> is the window's start when a kept transaction is older,
-/// counting those this read has just kept. A bank failure comes back as it is, and nothing is kept. The store failing is
-/// an exception: the page is not answered without its write (D5).
+/// <see cref="TransactionPaging.WindowStart"/> (today being the UTC date of the clock, D3), pending ones included, newest
+/// day first and in the bank's order within a day, each with the bank's text as the app shows it
+/// (<see cref="TransactionText"/>, D4b) and its kind (<see cref="TransactionKinds"/>, D4; the page's type codes the app
+/// does not know logged once each, D4c), with the koruna rate and its date; <see cref="TransactionPage.OlderBefore"/> is
+/// the window's start when a kept transaction is older, counting those this read has just kept. A bank failure comes back
+/// as it is, and nothing is kept. The store failing is an exception: the page is not answered without its write (D5).
 /// </summary>
 public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger) {
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
@@ -47,8 +47,8 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
 
   /// <summary>
   /// The live read's settled transactions kept (D5), a count of those without a reference logged when there are any; then
-  /// the page: the live transactions dated from the window's start, in the bank's order, their type codes the app does not
-  /// know logged (D4c), and the window's start as OlderBefore when a transaction kept before this read, or by it, is older
+  /// the page: the live transactions dated from the window's start, newest day first and in the bank's order within a day,
+  /// their type codes the app does not know logged (D4c), and the window's start as OlderBefore when a transaction kept before this read, or by it, is older
   /// (D10).
   /// </summary>
   private async Task<TransactionPage> KeptAndShown(IReadOnlyList<BankTransaction> live, IReadOnlyList<KeptTransaction> keptBefore, DateOnly windowStart, CancellationToken cancellationToken) {
@@ -61,8 +61,10 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     IReadOnlyList<BankTransaction> onPage = [.. live.Where(transaction => transaction.Date >= windowStart)];
     LogUnknownTypeCodes(onPage);
 
+    // Newest day first: the bank's order across days is not guaranteed (pending ones can come after the booked ones).
+    // OrderByDescending is a stable sort, so the bank's order within a day is kept.
     return new TransactionPage(
-      [.. onPage.Select(Shown)],
+      [.. onPage.OrderByDescending(static transaction => transaction.Date).Select(Shown)],
       keptBefore.Concat(toKeep.Transactions).Any(transaction => transaction.Date < windowStart) ? windowStart : null,
       KorunaRate.CzkPerEur,
       KorunaRate.Date);
