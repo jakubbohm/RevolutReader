@@ -142,7 +142,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 16. [unit] Slice 5 — No devices
 
-- [ ] 16.1 An allowed account with no devices gets zero counts and no push is handed over
+- [x] 16.1 An allowed account with no devices gets zero counts and no push is handed over
 
 ## 17. [close] Slice 5 — An allowed account with no devices gets zero counts
 

@@ -85,6 +85,22 @@ public sealed class SendPushHandlerTests {
   }
 
   /// <summary>
+  /// Petr is on the allowlist and has registered no device, while Lucie has: a message to Petr is no error, it hands no
+  /// push over and answers three zeros (D3). Lucie's devices sit in the store, so the zeros come from filtering by account,
+  /// not from an empty store.
+  /// </summary>
+  [Test]
+  public async Task An_allowed_account_with_no_devices_gets_zero_counts_and_no_push_is_handed_over() {
+    StubPushDelivery delivery = new();
+
+    SendResult result = await Handler(await StoreWith(Device(LUCIE), Device(LUCIE)), delivery).Send(PETR, _message, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(new PushSent(Delivered: 0, Failed: 0, Removed: 0)),
+      () => delivery.HandedOver.ShouldBeEmpty("Petr has no device, and Lucie's get nothing"));
+  }
+
+  /// <summary>
   /// Only the named account's devices get the message (D3): not Petr's, also allowed, and not those of accounts whose
   /// addresses merely contain Lucie's, at either end (whole addresses, as the allowlist compares them).
   /// </summary>
