@@ -375,7 +375,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 57. [unit] Slice 25 — Pending
 
-- [ ] 57.1 A pending row's second line is "Čeká na zpracování"
+- [x] 57.1 A pending row's second line is "Čeká na zpracování"
 
 ## 58. [wiring] Slice 25 — The pending row
 
@@ -387,9 +387,9 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 60. [unit] Slice 26 — Refunds
 
-- [ ] 60.1 A refund's amount is shown as received, with a plus sign
-- [ ] 60.2 A refund whose first line is the counterparty and whose second line is the bank's text shows the "Vrácení" chip
-- [ ] 60.3 A refund whose second line is the kind's word, or whose first line is, shows no chip
+- [x] 60.1 A refund's amount is shown as received, with a plus sign
+- [x] 60.2 A refund whose first line is the counterparty and whose second line is the bank's text shows the "Vrácení" chip
+- [x] 60.3 A refund whose second line is the kind's word, or whose first line is, shows no chip
 
 ## 61. [wiring] Slice 26 — The refund row
 

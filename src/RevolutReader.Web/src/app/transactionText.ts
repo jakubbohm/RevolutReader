@@ -24,9 +24,16 @@ export function kindWord(kind: TransactionKind, amount: number): string {
   return amount > 0 ? "Příchozí platba" : "Odchozí platba";
 }
 
+/** A pending row's second line (D4b), in place of the bank's text or the kind's word. */
+const PENDING_LINE = "Čeká na zpracování";
+
+/** The chip a refund's row shows before its second line (D4c), as shown and as its label reads it. */
+export const REFUND_CHIP = "Vrácení";
+
 /**
- * A row's two lines (D4b): the first the counterparty, else the kind's word; the second the bank's text, its lines
- * joined by " · ", else the kind's word, or `null` when the first line already is that word.
+ * A row's two lines (D4b): the first the counterparty, else the kind's word; the second "Čeká na zpracování" while
+ * pending, else the bank's text, its lines joined by " · ", else the kind's word, or `null` when the first line already
+ * is that word.
  */
 export function rowLines(tx: Transaction): {
   first: string;
@@ -35,6 +42,7 @@ export function rowLines(tx: Transaction): {
   const word = kindWord(tx.kind, tx.amount);
   const first = tx.counterparty ?? word;
 
+  if (tx.pending) return { first, second: PENDING_LINE };
   if (tx.details.length > 0) return { first, second: tx.details.join(" · ") };
 
   return { first, second: first === word ? null : word };
@@ -52,12 +60,16 @@ export function sheetSubtitle(tx: Transaction): string | null {
 
 /**
  * Whether a row shows the "Vrácení" chip before its second line (D4c): a refund whose first line is the counterparty
- * and whose second line is the bank's text, so that no line says "Vrácení" twice. Stub until c010 tasks.md tasks 60.2
- * and 60.3 are implemented; `void` keeps the unused-parameter check quiet until then.
+ * and whose second line is the bank's text, so that no line says "Vrácení" twice. A pending refund's second line is
+ * "Čeká na zpracování", not the bank's text, so it shows none.
  */
 export function showsRefundChip(tx: Transaction): boolean {
-  void tx;
-  throw new Error("not implemented");
+  return (
+    tx.kind === "refund" &&
+    !tx.pending &&
+    tx.counterparty !== null &&
+    tx.details.length > 0
+  );
 }
 
 /**
@@ -89,14 +101,16 @@ export function korunaValue(
 }
 
 /**
- * The row's spoken label (D14): what the row shows, in order, joined by commas (the first line, the second, the amount,
- * the spoken koruna value at `rate`), without a time: `Pekárna U Lípy, Praha 2, −12,30 €, přibližně 299 Kč`.
+ * The row's spoken label (D14): what the row shows, in order, joined by commas (the first line, the "Vrácení" chip, the
+ * second line, the amount, the spoken koruna value at `rate`), without a time: `Pekárna U Lípy, Praha 2, −12,30 €,
+ * přibližně 299 Kč`.
  */
 export function rowLabel(tx: Transaction, rate: number): string {
   const { first, second } = rowLines(tx);
 
   return [
     first,
+    showsRefundChip(tx) ? REFUND_CHIP : null,
     second,
     formatAmount(tx.amount, tx.currency),
     korunaValue(tx, rate)?.spoken,
