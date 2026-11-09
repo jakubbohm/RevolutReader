@@ -159,8 +159,9 @@ public sealed class ReadNewestTransactionsHandlerTests {
       .ShouldBe(["e-kept-1"], "the store holds what it held before, and nothing more");
   }
 
-  // The log: a type code the app does not know (D4c). Each page holds one transaction whose code is in question, so the
-  // tests hold whether the handler logs once per transaction or once per code on the page.
+  // The log: a type code the app does not know (D4c). In the first three tests each page holds one transaction whose code
+  // is in question, so they hold whether the handler logs once per transaction or once per code on the page; the tests
+  // after them hold that it logs once per page for each thing it reports.
 
   /// <summary>
   /// Among two transactions with codes the app knows, one with a code it does not, shaped like a code: one warning, whose
@@ -211,6 +212,65 @@ public sealed class ReadNewestTransactionsHandlerTests {
       () => warning.EventName.ShouldBe("NoTypeCode"),
       () => warning.OwnValues().ShouldBeEmpty("the line's values: none"),
       () => warning.ShouldHoldNoBankData());
+  }
+
+  /// <summary>
+  /// Several transactions on one page with the same thing to report: one warning for each thing, never one per transaction
+  /// (D4c: each distinct unknown code once, a code that does not look like one once, a missing code once, with no count).
+  /// Each warning is written as its event's name followed by its own values; the order of two codes is left open.
+  /// </summary>
+  /// <param name="page">
+  /// One unknown code on three transactions; two unknown codes, one on two transactions and one on one; three different codes
+  /// that do not look like one; three transactions without a code.
+  /// </param>
+  [Test]
+  [Arguments("one unknown code on several transactions")]
+  [Arguments("two different unknown codes")]
+  [Arguments("several codes that do not look like one")]
+  [Arguments("several transactions without a code")]
+  public async Task The_newest_page_logs_each_thing_once_per_page(string page) {
+    (string?[] Codes, string[] Warnings) expected = page switch {
+      "one unknown code on several transactions" => (["CASHBACK", "CASHBACK", "CASHBACK"], ["UnknownTypeCode CASHBACK"]),
+      "two different unknown codes" => (["CASHBACK", "INTEREST", "CASHBACK"], ["UnknownTypeCode CASHBACK", "UnknownTypeCode INTEREST"]),
+      "several codes that do not look like one" => (["Platba v kavárně", "card payment", "Dobití účtu"], ["TypeCodeNotLikeACode"]),
+      "several transactions without a code" => ([null, null, null], ["NoTypeCode"]),
+      _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Not a known case."),
+    };
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(
+      Settled(_november19, -12.30m) with { TypeCode = expected.Codes[0] },
+      Settled(_november18, -7.20m) with { TypeCode = expected.Codes[1] },
+      Settled(_november18, 50.00m) with { TypeCode = expected.Codes[2] }));
+
+    _ = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    IReadOnlyList<LogEntry> warnings = log.Warnings();
+    warnings.ShouldSatisfyAllConditions(
+      () => warnings.Select(static warning => warning.EventAndOwnValues()).ShouldBe(expected.Warnings, ignoreOrder: true, "the warnings: one for each thing to report"),
+      () => warnings.SelectMany(static warning => warning.BankData()).ShouldBeEmpty("bank data in the warnings"));
+  }
+
+  /// <summary>
+  /// Three refunds on one page, two with <c>CARD_REFUND</c> and one with <c>REFUND</c>: each is shown as a refund, and the page
+  /// logs one warning for each distinct code, whose only value is the code, never as a code the app does not know (D4c: logged
+  /// until the first real refund confirms the guess). The order of the two warnings is left open.
+  /// </summary>
+  [Test]
+  public async Task The_newest_page_shows_a_code_containing_REFUND_as_a_refund_and_logs_it_as_a_warning_carrying_the_code_once_per_distinct_code() {
+    CapturedLog log = new();
+    StubBankAccount bank = new(Lists(
+      Settled(_november19, 12.30m) with { TypeCode = "CARD_REFUND" },
+      Settled(_november18, 7.20m) with { TypeCode = "REFUND" },
+      Settled(_november18, 50.00m) with { TypeCode = "CARD_REFUND" }));
+
+    TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore(), logger: log);
+
+    IReadOnlyList<LogEntry> warnings = log.Warnings();
+    page.ShouldSatisfyAllConditions(
+      () => page.Transactions.Select(static transaction => transaction.Kind).ShouldBe([TransactionKind.Refund, TransactionKind.Refund, TransactionKind.Refund]),
+      () => warnings.Select(static warning => warning.EventAndOwnValues())
+        .ShouldBe(["RefundTypeCode CARD_REFUND", "RefundTypeCode REFUND"], ignoreOrder: true, "the warnings: one for each distinct refund code, carrying the code alone"),
+      () => warnings.SelectMany(static warning => warning.BankData()).ShouldBeEmpty("bank data in the warnings"));
   }
 
   // Where the live read starts (D3)
@@ -417,15 +477,21 @@ public sealed class ReadNewestTransactionsHandlerTests {
     /// <summary>The values of the line's own fields, in order, without its message template.</summary>
     public IReadOnlyList<string?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value?.ToString())];
 
+    /// <summary>The event's name followed by the line's own values, separated by spaces: "UnknownTypeCode CASHBACK".</summary>
+    public string EventAndOwnValues() => string.Join(" ", [EventName, .. OwnValues()]);
+
     /// <summary>The message and every value, as one text.</summary>
     public string AllText() => string.Join(" | ", [Message, .. Values.Select(static pair => $"{pair.Key}={pair.Value}")]);
 
-    /// <summary>Fails when the line holds any of the transactions' bank data.</summary>
-    public void ShouldHoldNoBankData() {
+    /// <summary>The transactions' bank data the line holds, none when it is clean.</summary>
+    public IReadOnlyList<string> BankData() {
       string text = AllText();
 
-      _bankData.Where(value => text.Contains(value, StringComparison.OrdinalIgnoreCase)).ShouldBeEmpty("bank data in the line");
+      return [.. _bankData.Where(value => text.Contains(value, StringComparison.OrdinalIgnoreCase))];
     }
+
+    /// <summary>Fails when the line holds any of the transactions' bank data.</summary>
+    public void ShouldHoldNoBankData() => BankData().ShouldBeEmpty("bank data in the line");
 
     #region Object overrides
 
