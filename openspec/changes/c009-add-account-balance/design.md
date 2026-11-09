@@ -117,6 +117,7 @@
 - **Never two at once:** a trigger while a read is under way is ignored, and "Obnovit" ignores taps while it spins.
 - **During a refresh** the header reads "Obnovuji…" with the balance still shown. A refresh while the server sleeps shows no waking-up screen; the waking-up screen belongs to the first load only.
 - **The 60 s cap:** a refresh with no answer after 60 s ends as offline (the "Jsi offline" banner, balance kept). The first load has no cap; it shows the slow waking-up screen at 30 s. *(propose)* The cap uses `setTimeout` with an `AbortController`, not `AbortSignal.timeout`, so the tests' fake timers drive it.
+- **Asking again who is signed in** *(code review of #59, finding 8; the owner's choice, 2026-11-09)*: when the first question found the phone offline or got an unexpected answer, the repeat asks `GET /api/me` again. The moment it starts, the screen's problem goes (D7 c): no "Jsi offline" and no unexpected banner while it runs. The screen shows what it has, the stored balance in its default state or the empty frame, with no waking-up screen and no busy sign. The question has the same 60 s cap and then ends as offline. Its answer is taken in as usual, and for a signed-in user the balance read follows.
 
 ### D4 — The balance kept on the phone
 
