@@ -64,6 +64,8 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
       await store.Forget(device.Endpoint, cancellationToken);
       PushLog.PushDeviceGone(logger, gone.Status);
     }
+    else if (outcome.Value is DeliveryFailed failed)
+      PushLog.PushDeliveryFailed(logger, failed.Status);
 
     return outcome;
   }
