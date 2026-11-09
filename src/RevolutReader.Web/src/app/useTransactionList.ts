@@ -5,9 +5,14 @@ import {
   type ListProblem,
   type ListShown,
 } from "./listState";
-import { byDay, type ListState } from "./transactionList";
+import {
+  withNewestPage,
+  withOlderPage,
+  type ListState,
+} from "./transactionList";
 import {
   readNewestTransactions,
+  readOlderTransactions,
   type TransactionPage,
   type TransactionsRead,
 } from "./transactions";
@@ -24,13 +29,16 @@ export interface TransactionListModel {
   banner: ListProblem | null;
   /** "Zkusit znovu": reads the newest page again, unless a read is under way. */
   retry: () => void;
-  /** The marker under the last day shows: asks the next older page (c010 design.md D1). */
+  /**
+   * The marker under the last day shows: asks the next older page (c010 design.md D1), unless one is loading, the last
+   * one failed, or nothing older is kept.
+   */
   loadOlder: () => void;
   /** "Zkusit znovu" under a failed older page: asks that page again (c010 design.md D1). */
   retryOlder: () => void;
 }
 
-/** The list a page makes, with the koruna rate and its date the page carried. */
+/** The list a page makes, with the koruna rate and its date the newest page carried. */
 interface ShownPage {
   list: ListState;
   rate: number;
@@ -38,19 +46,25 @@ interface ShownPage {
 }
 
 /**
- * The list's sequence (c010 design.md D2, D7): the newest page (`GET /api/transactions`), read once `enabled` says the
- * session is signed in, so nothing is read at the bank for a visitor who is not; its placeholders while it is read, its
- * days once it is. A read with no answer within 60 s is aborted and ends as offline. Its outcome replaces the problem
- * the one before left; a failed read keeps a list already shown.
+ * The list's sequence (c010 design.md D1, D2, D7): the newest page (`GET /api/transactions`), read once `enabled` says
+ * the session is signed in, so nothing is read at the bank for a visitor who is not; its placeholders while it is read,
+ * its days once it is. A read with no answer within 60 s is aborted and ends as offline. Its outcome replaces the
+ * problem the one before left; a failed read keeps a list already shown, and a newest page read again replaces only the
+ * newest page (`withNewestPage`).
  *
  * Offline, before the join with C7a's screen (D7, D8): opened while the phone says it is offline, the list says so and
  * sends nothing, even with the session unknown; a read the phone finds offline sends nothing either. Coming back online
  * reads the newest page again for a signed-in session; with the session unknown, the note goes, and the read follows
  * once the screen has asked who is signed in.
  *
- * One read at a time: a read asked for while one is under way is ignored, not queued, so the page is read once even
- * when its effect runs twice (React's strict mode). An answer that comes after the screen left is dropped. What the list
- * shows is what `listShown` makes of what is known.
+ * Older pages (D1): `loadOlder`, when the list's end comes near, asks the page before the last page's `olderBefore`,
+ * one at a time, and its days join the end of the list. A failed one stays failed until "Zkusit znovu" (`retryOlder`):
+ * neither the end coming near again nor the phone coming back online asks it again, so a dead connection never loops.
+ * Offline, the read sends nothing and fails at once.
+ *
+ * One newest read at a time: a read asked for while one is under way is ignored, not queued, so the page is read once
+ * even when its effect runs twice (React's strict mode). An answer that comes after the screen left is dropped. What the
+ * list shows is what `listShown` makes of what is known.
  */
 export function useTransactionList(options: {
   enabled: boolean;
@@ -65,8 +79,18 @@ export function useTransactionList(options: {
   );
   /** Set the moment a read starts, so a second one asked for in the same turn sees it (state would not yet). */
   const readUnderWay = useRef(false);
+  /**
+   * The list as last shown, set with it (`show`), so the older pages' guards see a page that started loading in the same
+   * turn, and an answer joins the list as it is when the answer comes.
+   */
+  const shownPage = useRef<ShownPage | null>(null);
   /** Whether the screen is on the page, for answers that come after it left. */
   const onPage = useRef(false);
+
+  const show = useCallback((next: ShownPage): void => {
+    shownPage.current = next;
+    setPage(next);
+  }, []);
 
   /**
    * Reads the newest page, with the 60 s cap: a timer of the page's own and an `AbortController`, not
@@ -93,9 +117,43 @@ export function useTransactionList(options: {
     if (!onPage.current) return;
 
     setReading(false);
-    if (read.kind === "read") setPage(shownPageOf(read.page));
+    if (read.kind === "read") show(withNewest(shownPage.current, read.page));
     else setProblem(problemOf(read));
-  }, []);
+  }, [show]);
+
+  /**
+   * Reads the next older page, unless nothing older is kept or one is loading; the list says it is loading from the
+   * moment it is asked. The answer joins the list as it is then, or marks the page failed; it is dropped when the
+   * screen left, or when a newest page read meanwhile says nothing older is kept.
+   */
+  const readOlder = useCallback(async (): Promise<void> => {
+    const asked = shownPage.current;
+    if (
+      asked === null ||
+      asked.list.nextBefore === null ||
+      asked.list.older === "loading"
+    )
+      return;
+    const before = asked.list.nextBefore;
+    show({ ...asked, list: { ...asked.list, older: "loading" } });
+
+    const read = await readOlderTransactions(before);
+    const answered = shownPage.current;
+    if (
+      !onPage.current ||
+      answered === null ||
+      answered.list.nextBefore !== before
+    )
+      return;
+
+    show({
+      ...answered,
+      list:
+        read.kind === "read"
+          ? withOlderPage(answered.list, read.page)
+          : { ...answered.list, older: "error" },
+    });
+  }, [show]);
 
   useEffect(() => {
     onPage.current = true;
@@ -126,6 +184,14 @@ export function useTransactionList(options: {
     void readNewest();
   }, [readNewest]);
 
+  const loadOlder = useCallback((): void => {
+    if (shownPage.current?.list.older === "idle") void readOlder();
+  }, [readOlder]);
+
+  const retryOlder = useCallback((): void => {
+    if (shownPage.current?.list.older === "error") void readOlder();
+  }, [readOlder]);
+
   return {
     ...listShown(
       page === null
@@ -138,24 +204,10 @@ export function useTransactionList(options: {
   };
 }
 
-/** Stub until c010 tasks.md tasks 77.3–77.5 are implemented. */
-function loadOlder(): void {
-  throw new Error("not implemented");
-}
-
-/** Stub until c010 tasks.md task 77.5 is implemented. */
-function retryOlder(): void {
-  throw new Error("not implemented");
-}
-
-/** The newest page as the list shows it: its days, the day the next older page is asked before, nothing loading yet. */
-function shownPageOf(page: TransactionPage): ShownPage {
+/** The list with a newest page read (`withNewestPage`), at the koruna rate and its date the page carried. */
+function withNewest(shown: ShownPage | null, page: TransactionPage): ShownPage {
   return {
-    list: {
-      days: byDay(page.transactions),
-      nextBefore: page.olderBefore,
-      older: "idle",
-    },
+    list: withNewestPage(shown?.list ?? null, page),
     rate: page.czkPerEur,
     rateDate: page.rateDate,
   };

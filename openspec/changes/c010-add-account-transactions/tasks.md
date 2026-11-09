@@ -459,11 +459,11 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 77. [unit] Slice 33 — Older pages on the screen
 
-- [ ] 77.1 An older page's days join the end of the list
-- [ ] 77.2 An older page whose first day is already shown adds its transactions to that day
-- [ ] 77.3 The next older page is asked before the last page's `olderBefore`
-- [ ] 77.4 No second older page is asked while one is loading
-- [ ] 77.5 After a failed older page, nothing is asked until "Zkusit znovu", whatever the scrolling or the network does
+- [x] 77.1 An older page's days join the end of the list
+- [x] 77.2 An older page whose first day is already shown adds its transactions to that day
+- [x] 77.3 The next older page is asked before the last page's `olderBefore`
+- [x] 77.4 No second older page is asked while one is loading
+- [x] 77.5 After a failed older page, nothing is asked until "Zkusit znovu", whatever the scrolling or the network does
 
 ## 78. [wiring] Slice 33 — Loading older pages
 

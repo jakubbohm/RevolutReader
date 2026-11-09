@@ -55,15 +55,49 @@ export function dayTotals(transactions: Transaction[]): {
 }
 
 /**
- * The list with an older page at its end (c010 design.md D1): the page's days join the end of the list, and a first day
- * the list already shows takes the page's transactions of that day. Stub until c010 tasks.md tasks 77.1 and 77.2 are
- * implemented; `void` keeps the unused-parameter check quiet until then.
+ * The list with a newest page read (c010 design.md D1): the first read is the page alone. A later one replaces the
+ * newest page only: the list holds the new page's days and every day already shown that is older than its
+ * `olderBefore`, and the next older page and its state stay as they were, so a failed older page stays failed. A page
+ * that says nothing older is kept stands alone.
+ */
+export function withNewestPage(
+  state: ListState | null,
+  page: TransactionPage,
+): ListState {
+  const newest = byDay(page.transactions);
+  const { olderBefore } = page;
+  if (state === null || olderBefore === null)
+    return { days: newest, nextBefore: olderBefore, older: "idle" };
+
+  return {
+    // Dates are `yyyy-MM-dd`, so they compare as text.
+    days: [...newest, ...state.days.filter((day) => day.date < olderBefore)],
+    nextBefore: state.nextBefore,
+    older: state.older,
+  };
+}
+
+/**
+ * The list with an older page at its end (c010 design.md D1, D14): the page's days join the end of the list, and a first
+ * day the list already shows takes the page's transactions of that day after its own, its totals over all of them, so
+ * no date has two headings. The next older page is asked before the page's `olderBefore`, none being loaded now.
  */
 export function withOlderPage(
   state: ListState,
   page: TransactionPage,
 ): ListState {
-  void state;
-  void page;
-  throw new Error("not implemented");
+  const days = [...state.days];
+  for (const day of byDay(page.transactions)) {
+    const last = days.at(-1);
+    if (last?.date === day.date) {
+      const transactions = [...last.transactions, ...day.transactions];
+      days[days.length - 1] = {
+        date: day.date,
+        transactions,
+        totals: dayTotals(transactions),
+      };
+    } else days.push(day);
+  }
+
+  return { days, nextBefore: page.olderBefore, older: "idle" };
 }
