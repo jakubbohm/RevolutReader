@@ -1,5 +1,6 @@
 import { api, askTheApi, type ApiAnswer } from "../api/client";
 import type { components } from "../api/schema";
+import { bankProblemOf } from "./bankProblem";
 
 /** A transaction's kind, as the API names it: the design system's `TxKind` names (c010 design.md D10). */
 export type TransactionKind =
@@ -62,21 +63,6 @@ export async function readOlderTransactions(
   );
 }
 
-/** The `type` of a bank problem, as the API description lists them (C13's `BankProblem`). */
-type BankProblemType =
-  components["schemas"]["RevolutReaderApiAccountBankProblem"]["type"];
-
-/**
- * What each bank problem means for the read, by its `type`, compared exactly as written: never resolved to an address,
- * and never the status alone, which two of them share and the hosting proxy answers too (c010 design.md D7). Keyed by
- * the generated type's literals, so a type renamed on either side fails the type check.
- */
-const readOfBankProblem: Record<BankProblemType, TransactionsRead> = {
-  "/problems/bank-access-expired": { kind: "bank access expired" },
-  "/problems/bank-rate-limited": { kind: "bank rate limited" },
-  "/problems/bank-unavailable": { kind: "bank unavailable" },
-};
-
 /**
  * The kinds the API names, keyed by the generated type's literals, so a kind added or renamed on either side fails the
  * type check.
@@ -98,7 +84,7 @@ const UNEXPECTED: TransactionsRead = { kind: "unexpected" };
  * - offline (nothing sent, or no answer came, an aborted read among them), 401, 403 and a success that is not JSON are
  *   every read's (`askTheApi`);
  * - 200 with a page's shape: the page, with exactly its fields; any other 200 body is unexpected;
- * - a bank problem, by its `type` (`readOfBankProblem`); only the newest page's live read answers one;
+ * - a bank problem, by its `type` (`bankProblemOf`); only the newest page's live read answers one;
  * - any other status, a plain-text hosting page among them, is unexpected.
  */
 function readOf(answer: ApiAnswer): TransactionsRead {
@@ -109,10 +95,7 @@ function readOf(answer: ApiAnswer): TransactionsRead {
     return page === null ? UNEXPECTED : { kind: "read", page };
   }
 
-  const problemType = typeOf(answer.error);
-  return problemType !== null && isBankProblemType(problemType)
-    ? readOfBankProblem[problemType]
-    : UNEXPECTED;
+  return bankProblemOf(answer.error) ?? UNEXPECTED;
 }
 
 /**
@@ -182,15 +165,4 @@ function isListOfText(value: unknown): value is string[] {
 
 function isKind(value: unknown): value is TransactionKind {
   return typeof value === "string" && Object.hasOwn(KINDS, value);
-}
-
-/** The problem's `type`, when the body is an object with one as text; `null` otherwise (a plain-text page, say). */
-function typeOf(body: unknown): string | null {
-  if (typeof body !== "object" || body === null || !("type" in body))
-    return null;
-  return typeof body.type === "string" ? body.type : null;
-}
-
-function isBankProblemType(type: string): type is BankProblemType {
-  return Object.hasOwn(readOfBankProblem, type);
 }

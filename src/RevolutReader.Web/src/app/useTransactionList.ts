@@ -5,6 +5,7 @@ import {
   type ListProblem,
   type ListShown,
 } from "./listState";
+import type { ListReport } from "./screenState";
 import {
   withNewestPage,
   withOlderPage,
@@ -20,15 +21,36 @@ import {
 /** How long the newest page may go unanswered before it is aborted and counts as offline (c010 design.md D7). */
 const NEWEST_PAGE_LIMIT_MS = 60_000;
 
+/** A newest page's read that found the login ended (c010 design.md D8): 401, or 403 with the email its problem names. */
+export type LoginEnded = Extract<
+  TransactionsRead,
+  { kind: "signed out" } | { kind: "refused" }
+>;
+
+/** What the account screen tells the list (c010 design.md D8). */
+export interface TransactionListOptions {
+  /** The session is signed in: the newest page is read once it is, and never for a visitor who is not. */
+  enabled: boolean;
+  /**
+   * A newest page's read found the login ended (401, 403): the account screen's sign-in or no-access screen takes it
+   * (c009 design.md D4, D5 c). Without it, the list shows it as an unexpected answer.
+   */
+  onLoginEnded?: (ended: LoginEnded) => void;
+  /** A newest page's read has landed, whatever it brought: a wake waits for it (c010 design.md D8). */
+  onNewestLanded?: () => void;
+}
+
 /**
- * What the account screen needs from the list's sequence: what the list's place shows, the banner with it, and "Zkusit
- * znovu" in that banner.
+ * What the account screen needs from the list's sequence: what the list's place shows, the banner the list's own
+ * problem makes, what the list reports to the screen's state, and the list's actions.
  */
 export interface TransactionListModel {
   shown: ListShown;
   banner: ListProblem | null;
-  /** "Zkusit znovu": reads the newest page again, unless a read is under way. */
-  retry: () => void;
+  /** What the list reports to the account screen's state (c010 design.md D8). */
+  report: ListReport;
+  /** The screen's refresh signal (c010 design.md D8): reads the newest page again, unless a read is under way. */
+  refresh: () => void;
   /**
    * The marker under the last day shows: asks the next older page (c010 design.md D1), unless one is loading, the last
    * one failed, or nothing older is kept.
@@ -46,16 +68,13 @@ interface ShownPage {
 }
 
 /**
- * The list's sequence (c010 design.md D1, D2, D7): the newest page (`GET /api/transactions`), read once `enabled` says
- * the session is signed in, so nothing is read at the bank for a visitor who is not; its placeholders while it is read,
- * its days once it is. A read with no answer within 60 s is aborted and ends as offline. Its outcome replaces the
- * problem the one before left; a failed read keeps a list already shown, and a newest page read again replaces only the
- * newest page (`withNewestPage`).
- *
- * Offline, before the join with C7a's screen (D7, D8): opened while the phone says it is offline, the list says so and
- * sends nothing, even with the session unknown; a read the phone finds offline sends nothing either. Coming back online
- * reads the newest page again for a signed-in session; with the session unknown, the note goes, and the read follows
- * once the screen has asked who is signed in.
+ * The list's sequence (c010 design.md D1, D2, D7, D8): the newest page (`GET /api/transactions`), read once `enabled`
+ * says the session is signed in, so nothing is read at the bank for a visitor who is not, and again on the account
+ * screen's refresh signal (`refresh`: "Obnovit", "Zkusit znovu", every return to the screen, back online); its
+ * placeholders while it is read, its days once it is. A read with no answer within 60 s is aborted and ends as offline;
+ * a read the phone finds offline sends nothing. Its outcome replaces the problem the one before left; a failed read
+ * keeps a list already shown, and a newest page read again replaces only the newest page (`withNewestPage`). A read that
+ * finds the login ended goes to the account screen (`onLoginEnded`).
  *
  * Older pages (D1): `loadOlder`, when the list's end comes near, asks the page before the last page's `olderBefore`,
  * one at a time, and its days join the end of the list. A failed one stays failed until "Zkusit znovu" (`retryOlder`):
@@ -64,19 +83,15 @@ interface ShownPage {
  *
  * One newest read at a time: a read asked for while one is under way is ignored, not queued, so the page is read once
  * even when its effect runs twice (React's strict mode). An answer that comes after the screen left is dropped. What the
- * list shows is what `listShown` makes of what is known.
+ * list shows is what `listShown` makes of what is known; what it reports to the account screen, `report`.
  */
-export function useTransactionList(options: {
-  enabled: boolean;
-}): TransactionListModel {
+export function useTransactionList(
+  options: TransactionListOptions,
+): TransactionListModel {
   const { enabled } = options;
   const [reading, setReading] = useState(false);
   const [page, setPage] = useState<ShownPage | null>(null);
-  // Opened while the phone says it is offline: the list says so at once, whether or not the session is known, and
-  // nothing is sent (D7).
-  const [problem, setProblem] = useState<ListProblem | null>(() =>
-    navigator.onLine ? null : LIST_OFFLINE,
-  );
+  const [problem, setProblem] = useState<ListProblem | null>(null);
   /** Set the moment a read starts, so a second one asked for in the same turn sees it (state would not yet). */
   const readUnderWay = useRef(false);
   /**
@@ -86,6 +101,12 @@ export function useTransactionList(options: {
   const shownPage = useRef<ShownPage | null>(null);
   /** Whether the screen is on the page, for answers that come after it left. */
   const onPage = useRef(false);
+  /** The account screen's latest callbacks, for an answer that comes after it rendered again. */
+  const callbacks = useRef(options);
+
+  useEffect(() => {
+    callbacks.current = options;
+  });
 
   const show = useCallback((next: ShownPage): void => {
     shownPage.current = next;
@@ -95,7 +116,7 @@ export function useTransactionList(options: {
   /**
    * Reads the newest page, with the 60 s cap: a timer of the page's own and an `AbortController`, not
    * `AbortSignal.timeout`, so the tests' clock drives it too. The problem goes the moment the read starts; its outcome
-   * sets the next.
+   * sets the next, or goes to the account screen when it found the login ended.
    */
   const readNewest = useCallback(async (): Promise<void> => {
     if (readUnderWay.current) return;
@@ -117,7 +138,11 @@ export function useTransactionList(options: {
     if (!onPage.current) return;
 
     setReading(false);
+    const { onLoginEnded, onNewestLanded } = callbacks.current;
+    onNewestLanded?.();
     if (read.kind === "read") show(withNewest(shownPage.current, read.page));
+    else if (isLoginEnded(read) && onLoginEnded !== undefined)
+      onLoginEnded(read);
     else setProblem(problemOf(read));
   }, [show]);
 
@@ -167,20 +192,7 @@ export function useTransactionList(options: {
     if (enabled) void readNewest();
   }, [enabled, readNewest]);
 
-  useEffect(() => {
-    function onOnline(): void {
-      if (enabled) void readNewest();
-      // The phone no longer says it is offline; the read follows once the session is known.
-      else setProblem((now) => (now?.kind === "offline" ? null : now));
-    }
-
-    window.addEventListener("online", onOnline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-    };
-  }, [enabled, readNewest]);
-
-  const retry = useCallback((): void => {
+  const refresh = useCallback((): void => {
     void readNewest();
   }, [readNewest]);
 
@@ -198,7 +210,8 @@ export function useTransactionList(options: {
         ? { list: null, reading, problem }
         : { ...page, reading, problem },
     ),
-    retry,
+    report: { reading, problem, onScreen: page !== null },
+    refresh,
     loadOlder,
     retryOlder,
   };
@@ -213,9 +226,14 @@ function withNewest(shown: ShownPage | null, page: TransactionPage): ShownPage {
   };
 }
 
+function isLoginEnded(read: TransactionsRead): read is LoginEnded {
+  return read.kind === "signed out" || read.kind === "refused";
+}
+
 /**
  * The list's problem for a read that brought no page (D7): offline (nothing sent, no answer, or the cap's abort) and
- * the three bank problems as they are; any other answer, 401 and 403 among them until the join (D8), is unexpected.
+ * the three bank problems as they are; any other answer is unexpected, 401 and 403 among them when no account screen
+ * takes them (D8).
  */
 function problemOf(
   read: Exclude<TransactionsRead, { kind: "read" }>,

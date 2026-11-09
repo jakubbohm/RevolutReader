@@ -14,6 +14,11 @@ import {
   loadStoredBalance,
   storeBalance,
 } from "./storedBalance";
+import {
+  useTransactionList,
+  type LoginEnded,
+  type TransactionListModel,
+} from "./useTransactionList";
 
 /** How long the first question may go unanswered before the screen says the server is waking (D2). */
 const WAKING_AFTER_MS = 1_500;
@@ -30,12 +35,20 @@ const REFRESH_LIMIT_MS = 60_000;
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
+  /** The transaction list in the list slot (c010 design.md D8): what it shows, and its older pages. */
+  list: Pick<TransactionListModel, "shown" | "loadOlder" | "retryOlder">;
   /** "Obnovit": the screen's refresh signal (`repeat`). */
   refresh: () => void;
   /** "Zkusit znovu": asks again on the slow waking-up screen; otherwise repeats what was under way, at once (`repeat`). */
   retry: () => void;
   /** "Odhlásit se" in the account menu; settles when the sign-out has ended, whatever its outcome (it never rejects). */
   signOut: () => Promise<void>;
+}
+
+/** A wake under way (D2): which of the first reads have landed since the woken server answered (c010 design.md D8). */
+interface Wake {
+  balance: boolean;
+  list: boolean;
 }
 
 /**
@@ -52,11 +65,16 @@ export interface AccountScreenModel {
  * then end as offline. One question and one read at a time: a repeat while one is under way is ignored, not queued.
  * Each new question or read clears the screen's problem the moment it starts, and its outcome sets the next (D3, D7 c).
  *
+ * The transaction list joins the screen (c010 design.md D8; `useTransactionList`): its newest page is read once the
+ * server has named a signed-in user, beside the balance, and again on every repeat, so both requests go out together.
+ * It reports whether it reads, its problem and whether a list is on screen, and `shown` makes one screen of both. After
+ * a wake, the waking-up screen stays until both first reads have landed, whatever they brought.
+ *
  * "Odhlásit se" signs out; once the server has confirmed it, the balance the phone keeps is forgotten and the sign-in
  * screen shows with its note that the sign-out happened. A sign-out that failed (a server error, offline) leaves the
  * visitor on the account screen, still signed in, so the note never claims a sign-out that did not happen (c007
- * design.md D2). A 401 or 403 to who is signed in or to a balance read forgets the balance too, and shows the sign-in
- * screen (without the note) or the no-access screen (D4, D5 c).
+ * design.md D2). A 401 or 403 to who is signed in, to a balance read or to the list's newest page forgets the balance
+ * too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c; c010 D8).
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -65,7 +83,7 @@ export function useAccountScreen(): AccountScreenModel {
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
   const [wait, setWait] = useState<Facts["wait"]>("short");
-  const [wokeUp, setWokeUp] = useState(false);
+  const [wake, setWake] = useState<Wake | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   /** Set the moment a sign-out starts, so a second tap in the same turn sees it (state would not yet). */
   const signOutUnderWay = useRef(false);
@@ -104,13 +122,46 @@ export function useAccountScreen(): AccountScreenModel {
   }, []);
 
   /**
+   * A first read has landed, whatever it brought (D2; c010 design.md D8): once the balance's and the list's newest page
+   * both have, a wake is over, and the server is awake for every read after them (D3).
+   */
+  const landed = useCallback((read: keyof Wake): void => {
+    setWake((now) => {
+      if (now === null) return null;
+      const next = { ...now, [read]: true };
+      return next.balance && next.list ? null : next;
+    });
+  }, []);
+
+  /**
+   * The list's newest page found the login ended (c010 design.md D8): the same as a balance read that does (D5 c), once;
+   * the login ends only once on this screen, so a list's read that lands after that is dropped.
+   */
+  const endLoginFromTheList = useCallback(
+    (ended: LoginEnded): void => {
+      if (loginsEnded.current > 0) return;
+      void endLogin(
+        ended.kind === "signed out"
+          ? { kind: "signed-out", justSignedOut: false }
+          : { kind: "refused", email: ended.email },
+      );
+    },
+    [endLogin],
+  );
+
+  const listLanded = useCallback((): void => {
+    landed("list");
+  }, [landed]);
+
+  /**
    * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
    * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
    * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
    * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
    * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
-   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, a wake
-   * is over: later reads show the header refreshing or the placeholder, never the waking-up screen (D2, D3).
+   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, the
+   * wake no longer waits for it (`landed`): after the wake, reads show the header refreshing or the placeholder, never
+   * the waking-up screen (D2, D3).
    */
   const readTheBalance = useCallback(
     async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
@@ -138,8 +189,8 @@ export function useAccountScreen(): AccountScreenModel {
       }
       if (!onPage.current || login !== loginsEnded.current) return;
 
-      // A read has landed, whatever it brought: a wake is over, and the server is awake for every read after it (D2, D3).
-      setWokeUp(false);
+      // A read has landed, whatever it brought: a wake no longer waits for it (D2, D3; c010 design.md D8).
+      landed("balance");
 
       // The login has ended (D5 c): a 401 leads to the sign-in screen, with no note that a sign-out happened; a 403 to
       // the no-access screen, naming the account.
@@ -168,7 +219,7 @@ export function useAccountScreen(): AccountScreenModel {
       )
         setProblem({ kind: read.kind });
     },
-    [endLogin],
+    [endLogin, landed],
   );
 
   /**
@@ -254,16 +305,16 @@ export function useAccountScreen(): AccountScreenModel {
 
   /**
    * The first load's answer to who is signed in: a signed-in user's that took 1.5 s or more woke the server, so the
-   * waking-up screen stays until the balance read that follows at once lands, whatever it brings (D2; `readTheBalance`
-   * ends the wake). Any other late answer is no wake: no answer at all is offline (D2), and after an unexpected one no
-   * read follows until a repeated question; the sign-in and no-access screens have no waking-up screen. The read that
-   * follows it is the first load's, with no limit.
+   * waking-up screen stays until the reads that follow at once, the balance's and the list's newest page, have landed,
+   * whatever they bring (D2; c010 design.md D8; `landed` ends the wake). Any other late answer is no wake: no answer at
+   * all is offline (D2), and after an unexpected one no read follows until a repeated question; the sign-in and
+   * no-access screens have no waking-up screen. The balance read that follows it is the first load's, with no limit.
    */
   const takeInFirstAnswer = useCallback(
     async (answer: Session): Promise<void> => {
       firstAnswered.current = true;
       if (firstAnswerLate.current && answer.kind === "signed-in")
-        setWokeUp(true);
+        setWake({ balance: false, list: false });
       await takeInAnswer(answer, true);
     },
     [takeInAnswer],
@@ -326,15 +377,32 @@ export function useAccountScreen(): AccountScreenModel {
     session.kind === "unexpected";
   const hasRead = balance !== null;
 
+  // The list reads its newest page once the server has named a signed-in user, never for a visitor (c010 design.md D8).
+  const list = useTransactionList({
+    enabled: signedIn,
+    onLoginEnded: endLoginFromTheList,
+    onNewestLanded: listLanded,
+  });
+  const { refresh: refreshTheList } = list;
+
   /**
-   * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; the balance read for a
-   * signed-in user, shown as the first read until one succeeded, and always with the refresh's limit. Nothing for a
-   * visitor on the sign-in or no-access screen.
+   * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; for a signed-in user, the
+   * balance read, shown as the first read until one succeeded, and always with the refresh's limit, and the list's newest
+   * page with it (c010 design.md D8). Nothing for a visitor on the sign-in or no-access screen.
    */
   const repeat = useCallback((): void => {
-    if (signedIn) void readTheBalance(hasRead ? "refresh" : "first", false);
-    else if (unanswered) void askWhoIsSignedIn();
-  }, [signedIn, unanswered, hasRead, readTheBalance, askWhoIsSignedIn]);
+    if (signedIn) {
+      void readTheBalance(hasRead ? "refresh" : "first", false);
+      refreshTheList();
+    } else if (unanswered) void askWhoIsSignedIn();
+  }, [
+    signedIn,
+    unanswered,
+    hasRead,
+    readTheBalance,
+    refreshTheList,
+    askWhoIsSignedIn,
+  ]);
 
   // Every return to the screen and coming back online repeat what was under way: no throttle.
   useEffect(() => watchRefreshTriggers(repeat), [repeat]);
@@ -377,13 +445,19 @@ export function useAccountScreen(): AccountScreenModel {
     balance: balance ?? stored,
     reading,
     wait,
-    wokeUp,
+    wokeUp: wake !== null,
     problem,
     signingOut,
+    list: list.report,
   };
 
   return {
     shown: shown(facts),
+    list: {
+      shown: list.shown,
+      loadOlder: list.loadOlder,
+      retryOlder: list.retryOlder,
+    },
     refresh: repeat,
     retry,
     signOut: signOutFromMenu,

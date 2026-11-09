@@ -558,23 +558,23 @@ Waits for C7a's merge (design.md D8).
 
 ## 90. [wiring] Join — The list in C7a's screen
 
-- [ ] 90.1 The list in C7a's slot; `useTransactionList` takes C7a's refresh signal, and reports its problem and whether it is reading to C7a's screen state; "Zkusit znovu" reads both; 401 and 403 go to C7a's screens; the list's offline note gives way to C7a's (design.md D8). Verify: the join's scenarios run against the app; the pre-join list tests stay green
+- [x] 90.1 The list in C7a's slot; `useTransactionList` takes C7a's refresh signal, and reports its problem and whether it is reading to C7a's screen state; "Zkusit znovu" reads both; 401 and 403 go to C7a's screens; the list's offline note gives way to C7a's (design.md D8). Verify: the join's scenarios run against the app; the pre-join list tests stay green
 
 ## 91. [close] Join — Refreshing replaces the newest transactions and keeps the older ones
 
-- [ ] 91.1 The scenario's test passes. Verify: green, including account-transactions / Refreshing replaces the newest transactions and keeps the older ones
+- [x] 91.1 The scenario's test passes. Verify: green, including account-transactions / Refreshing replaces the newest transactions and keeps the older ones
 
 ## 92. [close] Join — "Obnovuji…" lasts until the transactions have come too
 
-- [ ] 92.1 The scenario's test passes. Verify: green, including account-transactions / "Obnovuji…" lasts until the transactions have come too
+- [x] 92.1 The scenario's test passes. Verify: green, including account-transactions / "Obnovuji…" lasts until the transactions have come too
 
 ## 93. [close] Join — A bank that answers neither read shows one banner
 
-- [ ] 93.1 The scenario's test passes. Verify: green, including account-transactions / A bank that answers neither read shows one banner
+- [x] 93.1 The scenario's test passes. Verify: green, including account-transactions / A bank that answers neither read shows one banner
 
 ## 94. [close] Join — After the server wakes, the transactions replace the waiting screen directly
 
-- [ ] 94.1 The scenario's test passes. Verify: green, including account-transactions / After the server wakes, the transactions replace the waiting screen directly
+- [x] 94.1 The scenario's test passes. Verify: green, including account-transactions / After the server wakes, the transactions replace the waiting screen directly
 
 ## 95. [close] Join — The transactions stay on screen through a failed refresh
 

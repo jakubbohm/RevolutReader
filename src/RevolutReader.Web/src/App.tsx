@@ -23,7 +23,7 @@ export function App({ device }: AppProps): JSX.Element {
  * not meet a sleeping server.
  */
 function Screens(): JSX.Element {
-  const { shown, refresh, retry, signOut } = useAccountScreen();
+  const { shown, list, refresh, retry, signOut } = useAccountScreen();
 
   useEffect(() => keepServerAwake(pingServer), []);
 
@@ -36,6 +36,7 @@ function Screens(): JSX.Element {
       return (
         <AccountScreen
           shown={shown}
+          list={list}
           onRefresh={refresh}
           onRetry={retry}
           onSignOut={signOut}
