@@ -177,7 +177,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 23. [close] Slice 7 — A message to an account not on the allowlist is refused
 
-- [ ] 23.1 The scenario's test passes. Verify: green, including push-sending / A message to an account not on the allowlist is refused
+- [x] 23.1 The scenario's test passes. Verify: green, including push-sending / A message to an account not on the allowlist is refused
 
 ## 24. [unit] Slice 8 — Devices of a refused account
 
