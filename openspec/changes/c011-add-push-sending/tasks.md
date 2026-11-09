@@ -163,7 +163,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 20. [close] Slice 6 — A message without the right key gets the answer of an unknown address
 
-- [ ] 20.1 The scenario's test passes. Verify: green, including push-sending / A message without the right key gets the answer of an unknown address
+- [x] 20.1 The scenario's test passes. Verify: green, including push-sending / A message without the right key gets the answer of an unknown address
 
 ## 21. [unit] Slice 7 — Accounts not on the allowlist
 
