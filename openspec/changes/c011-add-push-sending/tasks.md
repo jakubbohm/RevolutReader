@@ -261,7 +261,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 40. [unit] Slice 14 — Registering again
 
-- [ ] 40.1 Registering a stored push address under another account saves it under the new account
+- [x] 40.1 Registering a stored push address under another account saves it under the new account
 
 ## 41. [close] Slice 14 — Registering the same device again moves it to the account signed in now
 

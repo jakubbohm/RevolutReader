@@ -19,6 +19,7 @@ namespace RevolutReader.UnitTests.Push;
 /// </summary>
 public sealed class RegisterDeviceHandlerTests {
   private const string LUCIE = "lucie@example.com";
+  private const string PETR = "petr@example.com";
 
   /// <summary>The values registering never reads: only the known services are its business.</summary>
   private const string NOT_READ_WHEN_REGISTERING = "made up, not read when registering";
@@ -75,6 +76,35 @@ public sealed class RegisterDeviceHandlerTests {
     Dictionary<string, string> services = new(_knownServices, StringComparer.Ordinal) { ["LocalFake"] = loopbackService };
 
     await ShouldBeAccepted($"{loopbackService}/push/{MadeUpToken()}", services);
+  }
+
+  /// <summary>
+  /// A device is known by its push address (spec push-devices, D11): registering a stored address again, from another
+  /// signed-in account, replaces the stored device whole. It ends up once, under the new account only, with the new
+  /// registration's keys; the other devices, of either account, stay as they were.
+  /// </summary>
+  [Test]
+  public async Task Registering_a_stored_push_address_under_another_account_saves_it_under_the_new_account() {
+    InMemoryPushDeviceStore store = new();
+    string sharedPhone = $"https://fcm.googleapis.com/fcm/send/{MadeUpToken()}";
+    DeviceKeys keysForLucie = DeviceKeys.New();
+    DeviceKeys keysForPetr = DeviceKeys.New();
+    DeviceKeys tabletKeys = DeviceKeys.New();
+    DeviceKeys laptopKeys = DeviceKeys.New();
+    PushDevice luciesTablet = new($"https://web.push.apple.com/{MadeUpToken()}", tabletKeys.P256dh, tabletKeys.Auth, LUCIE);
+    PushDevice petrsLaptop = new($"https://updates.push.services.mozilla.com/wpush/v2/{MadeUpToken()}", laptopKeys.P256dh, laptopKeys.Auth, PETR);
+    await store.Save(luciesTablet, CancellationToken.None);
+    await store.Save(petrsLaptop, CancellationToken.None);
+    RegisterDeviceHandler handler = Handler(store, _knownServices);
+    (await handler.Handle(new DeviceSubscription(sharedPhone, keysForLucie.P256dh, keysForLucie.Auth), LUCIE, CancellationToken.None)).Value.ShouldBeOfType<Registered>("Lucie registers the phone first");
+
+    RegistrationResult result = await handler.Handle(new DeviceSubscription(sharedPhone, keysForPetr.P256dh, keysForPetr.Auth), PETR, CancellationToken.None);
+
+    result.Value.ShouldBeOfType<Registered>();
+    (await store.ReadAll(CancellationToken.None)).ShouldBe(
+      [luciesTablet, petrsLaptop, new PushDevice(sharedPhone, keysForPetr.P256dh, keysForPetr.Auth, PETR)],
+      ignoreOrder: true,
+      "the phone once, under Petr with the keys he registered; the tablet and the laptop as they were");
   }
 
   /// <summary>Registers a device with well-formed keys at <paramref name="pushAddress"/>; it must be registered and stored.</summary>
