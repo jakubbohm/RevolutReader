@@ -59,6 +59,44 @@ public sealed class SendPushHandlerTests {
   }
 
   /// <summary>
+  /// Only the named account's devices get the message (D3): not Petr's, also allowed, and not those of accounts whose
+  /// addresses merely contain Lucie's, at either end (whole addresses, as the allowlist compares them).
+  /// </summary>
+  [Test]
+  public async Task A_message_goes_only_to_the_devices_of_the_account_it_names() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new();
+    InMemoryPushDeviceStore store = await StoreWith(
+      phone, Device(PETR), tablet, Device($"not.{LUCIE}"), Device($"{LUCIE}.cz"));
+
+    SendResult result = await Handler(store, delivery).Send(LUCIE, _message, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.Select(static handedOver => handedOver.Device).ShouldBe([phone, tablet], ignoreOrder: true, "Lucie's phone and tablet, and no other account's device"),
+      () => result.Value.ShouldBe(new PushSent(Delivered: 2, Failed: 0, Removed: 0)));
+  }
+
+  /// <summary>
+  /// The account a device was registered under and the account a message names are compared ignoring letter case (D3,
+  /// as the allowlist compares them), whichever side differs; another account's device still gets nothing.
+  /// </summary>
+  [Test]
+  [Arguments("Lucie@Example.COM", LUCIE)] // the device registered under the address as the sign-in wrote it
+  [Arguments(LUCIE, "LUCIE@EXAMPLE.COM")] // the message names the account in capitals
+  public async Task Devices_are_matched_to_the_account_ignoring_letter_case(string registeredUnder, string messageTo) {
+    PushDevice phone = Device(registeredUnder);
+    PushDevice tablet = Device(registeredUnder);
+    StubPushDelivery delivery = new();
+
+    SendResult result = await Handler(await StoreWith(phone, Device(PETR), tablet), delivery).Send(messageTo, _message, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.Select(static handedOver => handedOver.Device).ShouldBe([phone, tablet], ignoreOrder: true, "both of Lucie's devices, whatever the letter case, and not Petr's"),
+      () => result.Value.ShouldBe(new PushSent(Delivered: 2, Failed: 0, Removed: 0)));
+  }
+
+  /// <summary>
   /// A send that reaches both devices writes one line, <c>PushSent</c> at Information, whose values are the three counts
   /// (reached, failed, removed) and nothing else: no title, text or page, no account, no push address or key (D4). The
   /// counts are read by name, as the sketch's <c>PushLog.PushSent</c> names them (<c>delivered</c>, <c>failed</c>,

@@ -124,8 +124,8 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 12. [unit] Slice 3 — Only the account's devices
 
-- [ ] 12.1 A message goes only to the devices of the account it names
-- [ ] 12.2 Devices are matched to the account ignoring letter case
+- [x] 12.1 A message goes only to the devices of the account it names
+- [x] 12.2 Devices are matched to the account ignoring letter case
 
 ## 13. [close] Slice 3 — A message reaches every device of the account and none of another account's
 
