@@ -2,7 +2,7 @@
 
 > What roadmap step M3 set up by hand in Azure and GitHub so that the deployment pipeline (C4) can run, C4's one addition (item 7), and C12's and C6's widened role condition (item 5): the identifiers, why each part looks the way it does, the commands to rebuild it, and how to check it. Everything else in Azure is Bicep ([workflow.md § 5](../conventions/workflow.md#5-infrastructure)), deployed as described in [deployment.md](deployment.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-08 (C12: the deploy identity may assign a fifth role; C6: the sixth role, applied).
+> Commands are PowerShell 7. **Every Azure command names the subscription explicitly:** the owner's Azure CLI login also sees employer subscriptions in other directories, and the CLI's default subscription is one of them. Last updated: 2026-11-10 (C8a: Key Vault Secrets Officer in item 5 recorded as unused. Before it, 2026-11-08: C12, the deploy identity may assign a fifth role; C6, the sixth role, applied).
 
 ## Identifiers (non-secret)
 
@@ -29,12 +29,12 @@ None of these is a credential: knowing them gives no access. They are public, he
    - This repository's prefix comes from `gh api repos/jakubbohm/RevolutReader/actions/oidc/customization/sub` (`use_immutable_subject: true`, `sub_claim_prefix`, read 2026-11-05). The `:environment:production` suffix follows GitHub's documented pattern; GitHub shows immutable examples only for branches, so the first login in C4 was the real check, and it passed (see [Checks](#checks)).
 5. **Roles on `rg-revolutreader` only:**
    - **Contributor:** creates and changes resources, including the deployment stack. It cannot manage a stack's deny settings, which the project does not use.
-   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for six roles only. These are the roles Bicep grants in C4, C6, C7, C8 and C12. The pipeline cannot grant Owner or widen its own rights.
+   - **Role Based Access Control Administrator, with a condition** allowing it to create and delete role assignments for six roles only. These are the roles Bicep grants in C4, C6, C7 and C12, and one that no step uses since C8a (below). The pipeline cannot grant Owner or widen its own rights.
 
      | Role | ID | Granted by the Bicep to | Added |
      |---|---|---|---|
      | Key Vault Secrets User | `4633458b-17de-408a-b874-0445c86b69e6` | the app identity, on the vault's secrets (C4) | M3 |
-     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` | (C8, the push subscription) | M3 |
+     | Key Vault Secrets Officer | `b86a8fe4-44ce-4948-aee5-eccb2c155cd7` | nobody: **unused** (2026-11-10, C8a, c011 design.md D16). It was kept for the push subscriptions, but C8a stores them in a table, and the owner writes the push keys with the owner's own role (item 7). It stays grantable: narrowing the condition takes one of the owner's manual commands, and whether to do that is the owner's call, outside C8a | M3 |
      | Storage Blob Data Contributor | `ba92f5b4-2d11-453d-a403-e96b0029c9fe` | the app identity, on the container `dataprotection` (C6) | M3 |
      | Storage Table Data Contributor | `0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3` | (C7b, the app's transactions table, on the storage account) | M3 |
      | Monitoring Metrics Publisher | `3913510d-42f4-4e42-8a64-420c390055eb` ([Microsoft Learn: built-in roles for Monitor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#monitoring-metrics-publisher), updated 2026-07-01, read 2026-11-08) | the app identity, on Application Insights, to write its telemetry ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md)) | C12 |

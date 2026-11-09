@@ -1,6 +1,6 @@
 // The shared infrastructure (c005 design.md D1, D13): the log workspace with Application Insights on
-// it, Key Vault, the app's identity and its roles, the storage account (C6) with its table (C7b) and
-// the Container Apps environment. A feature PR changes this file only when it adds something shared. Everything here
+// it, Key Vault, the app's identity and its roles, the storage account (C6) with its tables (C7b,
+// C8a) and the Container Apps environment. A feature PR changes this file only when it adds something shared. Everything here
 // is managed by the deployment stack: a resource deleted from this file is deleted from Azure on the
 // next deploy.
 
@@ -208,12 +208,22 @@ resource transactionsTable 'Microsoft.Storage/storageAccounts/tableServices/tabl
   name: 'transactions'
 }
 
+// The devices that receive pushes (C8a, c011 design.md D11, D12): one row per device, its push
+// address and keys and the account it registered under. Only subscriptions: removing this table from
+// the stack deletes them, and the devices register again (c011 design.md § Migration plan, step 5).
+// Its name is the app's default PushDevices:TableName.
+resource pushDevicesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'pushdevices'
+}
+
 // Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
 // tables, and creates its table when it is missing on first use. On the account rather than the one
 // table, because no doc says a role on the one table allows that creation; the account scope does.
-// It reaches the account's tables and nothing else (no blobs), and the app is their only user; C8a's
-// table here needs the same role (c010 design.md D11, the user, 2026-11-09). One of the roles the
-// deploy identity may assign (docs/operations/azure-prerequisites.md, step 5).
+// It reaches the account's tables and nothing else (no blobs), and the app is their only user; it
+// covers C8a's table above too, so C8a adds no role (c010 design.md D11, the user, 2026-11-09;
+// c011 design.md D12). One of the roles the deploy identity may assign
+// (docs/operations/azure-prerequisites.md, step 5).
 var storageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 
 resource appKeepsTransactions 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -253,6 +263,9 @@ resource environment 'Microsoft.App/managedEnvironments@2026-07-01' = {
 
 @description('The Container Apps environment the app runs in.')
 output environmentId string = environment.id
+
+@description('The environment\'s default domain: an external app in it answers at https://<app name>.<this domain> (c011 design.md D12).')
+output environmentDefaultDomain string = environment.properties.defaultDomain
 
 @description('The app\'s user-assigned identity, which reads Key Vault, writes to Application Insights, reaches the login cookie\'s keys and keeps the settled transactions.')
 output appIdentityId string = appIdentity.id

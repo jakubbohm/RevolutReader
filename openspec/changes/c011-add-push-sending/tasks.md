@@ -348,9 +348,9 @@ The test-writer also writes `src/test/push.ts` (the stand-ins for `Notification`
 
 - [x] 54.1 Guided (the owner): the laptop's push keys, with the laptop variant of task 43.2's block, into the AppHost's user-secrets and the backup vault (design.md D5). Verify: Claude lists the three user-secrets names and the three backup names, never values
 - [x] 54.2 Guided (the owner, before the merge): the production push keys into Key Vault with the block from task 43.2 (design.md D5). Verify: Claude lists the vault's secret names read-only and finds `Push--VapidPublicKey`, `Push--VapidPrivateKey`, `Push--MessageKey`, never values
-- [ ] 54.3 Update infra Bicep + `.bicepparam` as design.md D12 describes: `platform.bicep` (the `pushdevices` table; the environment's default domain as an output), `features.bicep` (section "Push (C8)": three Key Vault references and four settings; the app's name as one variable), `main.bicep` (the domain passed on); no `.bicepparam` change. Verify: `az bicep lint --file infra/main.bicep` clean
-- [ ] 54.4 The read-only preview (deployment.md § Previewing a change to the Bicep, with the owner's login). Verify: it shows exactly the table, three secrets and four settings on the container app
-- [ ] 54.5 Docs: deployment.md (the deployed table; § Sending a test message, design.md D6; the after-merge checks of design.md § Migration plan, step 4); expiring-approvals.md (the three keys: no expiry, how to restore, a lost key heals itself); azure-prerequisites.md step 5 (design.md D16's dated note). Verify: each names design.md
+- [x] 54.3 Update infra Bicep + `.bicepparam` as design.md D12 describes: `platform.bicep` (the `pushdevices` table; the environment's default domain as an output), `features.bicep` (section "Push (C8)": three Key Vault references and four settings; the app's name as one variable), `main.bicep` (the domain passed on); no `.bicepparam` change. Verify: `az bicep lint --file infra/main.bicep` clean
+- [x] 54.4 The read-only preview (deployment.md § Previewing a change to the Bicep, with the owner's login). Verify: it shows exactly the table, three secrets and four settings on the container app
+- [x] 54.5 Docs: deployment.md (the deployed table; § Sending a test message, design.md D6; the after-merge checks of design.md § Migration plan, step 4); expiring-approvals.md (the three keys: no expiry, how to restore, a lost key heals itself); azure-prerequisites.md step 5 (design.md D16's dated note). Verify: each names design.md
 
 ## 55. [close] Acceptance green
 
