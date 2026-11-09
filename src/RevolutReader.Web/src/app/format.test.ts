@@ -3,8 +3,10 @@ import { inTimeZone } from "../test/timeZone";
 import {
   czkApproxLabel,
   formatCzkApprox,
+  formatDate,
   formatDayHeader,
   formatEur,
+  formatRate,
   formatUpdated,
 } from "./format";
 
@@ -15,7 +17,7 @@ import {
 // any time zone; months count from 0 (10 is November).
 //
 // The list's formats (c010 design.md D4, D6, D14, translated from the design system's formats), in the blocks marked
-// "c010": the day headings, euro amounts with their sign, and the koruna value's rounding. Where a task names the minus
+// "c010": the day headings, euro amounts with their sign, the koruna value's rounding, and the sheet's date and rate line. Where a task names the minus
 // sign (U+2212), the expected string is exact. Dates are the API's calendar dates (`yyyy-MM-dd`); "now" is a wall-clock
 // time on the phone, as above.
 
@@ -165,4 +167,34 @@ test('The koruna value is the amount\'s size times the rate, rounded half up to 
   // 5.00 × 24.3 = 121.5, exactly half: up, for money spent and received alike.
   expect(spaced(formatCzkApprox(-5, RATE))).toBe("≈ 122 Kč");
   expect(spaced(formatCzkApprox(5, RATE))).toBe("≈ 122 Kč");
+});
+
+// ---- c010, Slice 23: the sheet's formats (D4d) ----
+
+/** C13's `KorunaRate.Date`, as the API answers it. */
+const RATE_DATE = "2026-11-08";
+
+test('The rate line reads "1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026"', () => {
+  expect(spaced(formatRate(RATE, RATE_DATE))).toBe(
+    "1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026",
+  );
+  // The rate always to two decimals; the date as the API's calendar day, west of Greenwich too.
+  inTimeZone("America/Los_Angeles", () => {
+    expect(spaced(formatRate(25, "2026-01-05"))).toBe(
+      "1 € ≈ 25,00 Kč · orientační kurz z 5. 1. 2026",
+    );
+  });
+});
+
+test('A date reads "18. 11. 2026"', () => {
+  expect(spaced(formatDate("2026-11-18"))).toBe("18. 11. 2026");
+  // Day and month without a leading zero.
+  expect(spaced(formatDate("2026-01-05"))).toBe("5. 1. 2026");
+  // The API's calendar day in any time zone: read as UTC midnight, it would be the day before west of Greenwich.
+  inTimeZone("America/Los_Angeles", () => {
+    expect(spaced(formatDate("2026-11-18"))).toBe("18. 11. 2026");
+  });
+  inTimeZone("Asia/Tokyo", () => {
+    expect(spaced(formatDate("2026-11-18"))).toBe("18. 11. 2026");
+  });
 });

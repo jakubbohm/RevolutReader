@@ -109,6 +109,27 @@ export function formatDayHeader(date: string, now: Date): string {
 }
 
 /**
+ * The API's calendar date (`yyyy-MM-dd`) as the sheet's "Datum" shows it, day and month without a leading zero:
+ * `18. 11. 2026`, `5. 1. 2026`; the same day in any time zone (c010 design.md D4d).
+ * Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ */
+export function formatDate(date: string): string {
+  void date;
+  throw new Error("not implemented");
+}
+
+/**
+ * The sheet's "Přepočet na koruny" line: the koruna rate the koruna values use, to two decimals, with the API's date
+ * of the rate (`yyyy-MM-dd`), as `1 € ≈ 24,30 Kč · orientační kurz z 8. 11. 2026` (c010 design.md D4d).
+ * Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ */
+export function formatRate(rate: number, rateDate: string): string {
+  void rate;
+  void rateDate;
+  throw new Error("not implemented");
+}
+
+/**
  * When the server read the balance, as the freshness line says it: `Aktualizováno právě teď` under a minute,
  * `před 2 min` under an hour, `před 2 h` under three hours; after that the time it was read: `v 9:05` today,
  * `včera v 14:05` yesterday, else `3. 11. v 14:05`, with the year after the month outside this year

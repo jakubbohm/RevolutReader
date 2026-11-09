@@ -41,6 +41,27 @@ export function rowLines(tx: Transaction): {
 }
 
 /**
+ * The sheet's subtitle (D4d): the kind's word, or `null` when the sheet's title, the row's first line, already is that
+ * word. Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until then.
+ */
+export function sheetSubtitle(tx: Transaction): string | null {
+  void tx;
+  throw new Error("not implemented");
+}
+
+/**
+ * The sheet's "Stav" (D4c, D4d): "Čeká na zpracování" while pending; once settled "Vráceno na účet" for a refund, else
+ * "Zaúčtováno". Stub until c010 tasks.md task 53.1 is implemented; `void` keeps the unused-parameter check quiet until
+ * then.
+ */
+export function statusWord(
+  tx: Transaction,
+): "Zaúčtováno" | "Vráceno na účet" | "Čeká na zpracování" {
+  void tx;
+  throw new Error("not implemented");
+}
+
+/**
  * The koruna value under a row's amount at `rate` (D6), as shown (`≈ 299 Kč`) and as spoken (`přibližně 299 Kč`); `null`
  * for an amount in another currency than the euro, which has none (D4).
  */

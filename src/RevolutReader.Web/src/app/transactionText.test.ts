@@ -1,11 +1,16 @@
 import { expect, test } from "vitest";
 import { transaction } from "../test/server";
 import { formatAmount } from "./format";
-import { rowLabel, rowLines } from "./transactionText";
+import {
+  rowLabel,
+  rowLines,
+  sheetSubtitle,
+  statusWord,
+} from "./transactionText";
 import type { TransactionKind } from "./transactions";
 
 // What a transaction's row says (c010 design.md D4, D6, D14): its two lines, its amount and the sentence a screen reader
-// reads. `details` are the bank's lines as the API answers them, already without the one that repeats the counterparty.
+// reads; and, from slice 23, its sheet's subtitle and status (D4d). `details` are the bank's lines as the API answers them, already without the one that repeats the counterparty.
 // Amounts are written as on the screen, with U+2212 for a minus sign; every kind of space reads as one. The
 // transactions are made up; the rate is C13's.
 
@@ -143,4 +148,75 @@ test(`The kind other is "Příchozí platba" for money received and "Odchozí pl
 
   expect(rowLines(received).first).toBe("Příchozí platba");
   expect(rowLines(spent).first).toBe("Odchozí platba");
+});
+
+// ---- c010, Slice 23: the sheet's words (D4d) ----
+
+test("The sheet's subtitle is the kind's word, and there is none when the title already is that word", () => {
+  // The sheet's title is the row's first line: the counterparty, else the kind's word.
+  const bakery = transaction("card", -12.3, "2026-11-18", {
+    counterparty: "Pekárna U Lípy",
+    details: ["Praha 2"],
+  });
+  const pharmacy = transaction("refund", 5.95, "2026-11-18", {
+    counterparty: "Lékárna Benu",
+    details: ["Reklamace"],
+  });
+  const club = transaction("other", -15, "2026-11-18", {
+    counterparty: "Spolek Sousedé",
+  });
+  const cash = transaction("atm", -40, "2026-11-18", {
+    details: ["Bankomat Anděl"],
+  });
+  const received = transaction("other", 20, "2026-11-18");
+
+  expect({
+    bakery: sheetSubtitle(bakery),
+    pharmacy: sheetSubtitle(pharmacy),
+    club: sheetSubtitle(club),
+    cash: sheetSubtitle(cash),
+    received: sheetSubtitle(received),
+  }).toEqual({
+    bakery: "Platba kartou",
+    pharmacy: "Vrácení peněz",
+    club: "Odchozí platba",
+    // Without a counterparty the title is the kind's word already.
+    cash: null,
+    received: null,
+  });
+});
+
+test(`A settled transaction is "Zaúčtováno", a settled refund "Vráceno na účet", a pending one "Čeká na zpracování"`, () => {
+  const bakery = transaction("card", -12.3, "2026-11-18", {
+    counterparty: "Pekárna U Lípy",
+  });
+  const pocketMoney = transaction("transfer", 20, "2026-11-18", {
+    counterparty: "Táta",
+  });
+  const pharmacy = transaction("refund", 5.95, "2026-11-18", {
+    counterparty: "Lékárna Benu",
+  });
+  const cafe = transaction("card", -8.9, "2026-11-18", {
+    counterparty: "Kavárna Na Rohu",
+    pending: true,
+  });
+  const pendingRefund = transaction("refund", 3.2, "2026-11-18", {
+    counterparty: "Kavárna Na Rohu",
+    pending: true,
+  });
+
+  expect({
+    bakery: statusWord(bakery),
+    pocketMoney: statusWord(pocketMoney),
+    pharmacy: statusWord(pharmacy),
+    cafe: statusWord(cafe),
+    pendingRefund: statusWord(pendingRefund),
+  }).toEqual({
+    bakery: "Zaúčtováno",
+    pocketMoney: "Zaúčtováno",
+    pharmacy: "Vráceno na účet",
+    cafe: "Čeká na zpracování",
+    // Not on the account yet, so not returned to it yet either.
+    pendingRefund: "Čeká na zpracování",
+  });
 });
