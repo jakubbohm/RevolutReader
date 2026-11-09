@@ -102,12 +102,20 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 - [ ] 9.1 `PushDeviceStoreOptions` (section `PushDevices`, `TableName` default `pushdevices`, validated as C7b's), `TablePushDeviceStore`, `StorageRegistration.AddPushDeviceStore`, called in `Program.cs` after `AddTransactionStore`; `appsettings.json` gains the `PushDevices` section with its provenance comment (design.md D11). Verify: group 8's contract tests green on both stores
 - [ ] 9.2 Docs: README.md § Backend code (the device store's port in `Push/` and its adapter in `Storage/`; a storage failure is an exception); configuration.md (`PushDevices`); testing.md § Integration tests (the second contract); their `.claude/rules/` mirrors. Verify: each names design.md D11
 
+## 9a. [acceptance] Slice 2 — The fake push service and the test device
+
+Written by the test-writer, as every fake (the owner, 2026-11-09, after a review finding; design.md D7): these checks are the only test of RFC 8291 and RFC 8292, so the implementer, whose sending they judge, never writes them. No implementer step and no owner's gate (no scenario changes). The self-tests live outside `Drivers/` (which the implementer may edit in wiring groups) and outside `Scenarios/`; the implementer never edits `Drivers/FakePushService.cs`, `Drivers/TestDevice.cs` or `Drivers/ReceivedPush.cs`.
+
+- [ ] 9a.1 `TestDevice.Decrypt`: RFC 8291 on .NET's `ECDiffieHellman`, `HKDF` and `AesGcm`, never the library. Self-test: it reproduces RFC 8291 Appendix A's plaintext from its keys and body
+- [ ] 9a.2 `FakePushService`'s checks and record (design.md D7): the token an ES256 JWT signed with the run's VAPID key, `k` that key, `aud` the fake's scheme and host, `exp` in the future and at most 24 hours ahead, `sub` an `https:` address; `TTL` present; `Urgency`'s value checked only when present; `Content-Encoding: aes128gcm`; 403 when one fails, 201 otherwise; every request recorded (`ReceivedPush`). Self-tests: 403 for a push signed with another key, an expired `exp`, an `exp` more than 24 hours ahead, a wrong `aud`, no `TTL`, an unknown `Urgency`, another `Content-Encoding`; 201 for a correct push the test builds with its own code (never the library), with and without `Urgency`
+- [ ] 9a.3 `FakePushService.Gone` (410 from then on) and `FailsOnce` (500 once, then as before), with self-tests. Verify (whole group): the self-tests green; this change's acceptance tests still fail at runtime
+
 ## 10. [wiring] Slice 2 — Delivery and the endpoints
 
 - [ ] 10.1 `WebPushDelivery` on Lib.Net.Http.WebPush with its typed `HttpClient` (timeout `Push:RequestTimeout`, no resilience handler), the VAPID pair, `Subject` and the `vapid` scheme, its retries off (`AutoRetryAfter = false`); `TTL` and `Urgency` from each push (design.md D1, D13, the sketch's library names). Verify: `HttpClientDefaultsTests` stays green
 - [ ] 10.2 `SubscriptionEndpoint` `PUT /api/push/subscription` (the signed-in email → `RegisterDeviceHandler` → 204; its body declared with `Accepts<SubscriptionRequest>("application/json")`, D9); `MessageEndpoint` `POST /api/push/messages` (anonymous, excluded from the description, binds nothing; `MessageKeyCheck` first; the body read by hand; `SendPushHandler` → 200 with the three counts), as design.md D9, D10. Verify: build passes
 - [ ] 10.3 `Conventions/AnonymousEndpointsTests` gains `POST /api/push/messages` (an anonymous endpoint goes on the allowlist). Verify: the convention test is green
-- [ ] 10.4 Drivers: `TestDevice` (its P-256 pair and 16-byte secret; RFC 8291 decryption on .NET's cryptography, never the library); `FakePushService`'s checks (token signature, `k`, `aud`, `exp`, `sub`, `TTL` present, `Urgency`'s value only when present, since none means normal, `Content-Encoding`; 403 when one fails; its doc comment says so) and its record of pushes; `PushDriver` and `PushDsl` for registering and sending (design.md D7). Verify: the scenario's test runs to its assertions
+- [ ] 10.4 Drivers: `PushDriver` for registering and sending, reading what reached each phone through the fake push service's record and the test device's decryption (group 9a, the test-writer's; never edited here) (design.md D7). Verify: the scenario's test runs to its assertions
 - [ ] 10.5 Regenerate the TS client; commit both files. Verify: `/api/push/messages` is in neither; the type check passes
 
 ## 11. [close] Slice 2 — A registered device receives a message sent to its account
@@ -230,7 +238,7 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 35. [wiring] Slice 12 — Gone at the push service
 
-- [ ] 35.1 `WebPushDelivery` answers `DeviceGone` for 404 and 410; `FakePushService.Gone` answers 410; edge tests in `IntegrationTests/Wiring/WebPush/` against WireMock for 404 and 410 (design.md D13). Verify: the edge tests green
+- [ ] 35.1 `WebPushDelivery` answers `DeviceGone` for 404 and 410 (`FakePushService.Gone` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` against WireMock for 404 and 410 (design.md D13). Verify: the edge tests green
 
 ## 36. [close] Slice 12 — A device the push service reports gone is deleted
 
@@ -244,7 +252,7 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 38. [wiring] Slice 13 — Failures at the push service
 
-- [ ] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on; `FakePushService.FailsOnce`; edge tests in `IntegrationTests/Wiring/WebPush/` for 429 (one request, never retried), 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
+- [ ] 38.1 `WebPushDelivery` answers `DeliveryFailed` for any other status, no connection and its own timeout, and passes the caller's cancellation on (`FakePushService.FailsOnce` is group 9a's); edge tests in `IntegrationTests/Wiring/WebPush/` for 429 (one request, never retried), 500, no connection, the timeout (a short `RequestTimeout`) and the caller's cancellation. Verify: the edge tests green
 
 ## 39. [close] Slice 13 — A device whose push service fails is counted as failed and kept
 
