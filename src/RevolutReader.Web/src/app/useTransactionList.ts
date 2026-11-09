@@ -18,8 +18,11 @@ import {
   type TransactionsRead,
 } from "./transactions";
 
-/** How long the newest page may go unanswered before it is aborted and counts as offline (c010 design.md D7). */
-const NEWEST_PAGE_LIMIT_MS = 60_000;
+/**
+ * How long a page may go unanswered before it is aborted (c010 design.md D7, C7a's request rules): the newest page then
+ * counts as offline, an older page as failed.
+ */
+const PAGE_LIMIT_MS = 60_000;
 
 /** A newest page's read that found the login ended (c010 design.md D8): 401, or 403 with the email its problem names. */
 export type LoginEnded = Extract<
@@ -79,7 +82,7 @@ interface ShownPage {
  * Older pages (D1): `loadOlder`, when the list's end comes near, asks the page before the last page's `olderBefore`,
  * one at a time, and its days join the end of the list. A failed one stays failed until "Zkusit znovu" (`retryOlder`):
  * neither the end coming near again nor the phone coming back online asks it again, so a dead connection never loops.
- * Offline, the read sends nothing and fails at once.
+ * Offline, the read sends nothing and fails at once; with no answer within 60 s it is aborted and fails.
  *
  * One newest read at a time: a read asked for while one is under way is ignored, not queued, so the page is read once
  * even when its effect runs twice (React's strict mode). An answer that comes after the screen left is dropped. What the
@@ -114,8 +117,7 @@ export function useTransactionList(
   }, []);
 
   /**
-   * Reads the newest page, with the 60 s cap: a timer of the page's own and an `AbortController`, not
-   * `AbortSignal.timeout`, so the tests' clock drives it too. The problem goes the moment the read starts; its outcome
+   * Reads the newest page, with the 60 s cap (`withPageLimit`). The problem goes the moment the read starts; its outcome
    * sets the next, or goes to the account screen when it found the login ended.
    */
   const readNewest = useCallback(async (): Promise<void> => {
@@ -124,17 +126,11 @@ export function useTransactionList(
     setReading(true);
     setProblem(null);
 
-    const limit = new AbortController();
-    const limitTimer = setTimeout(() => {
-      limit.abort();
-    }, NEWEST_PAGE_LIMIT_MS);
-
-    const read = await readNewestTransactions({ signal: limit.signal }).finally(
-      () => {
-        clearTimeout(limitTimer);
-        readUnderWay.current = false;
-      },
-    );
+    const read = await withPageLimit((signal) =>
+      readNewestTransactions({ signal }),
+    ).finally(() => {
+      readUnderWay.current = false;
+    });
     if (!onPage.current) return;
 
     setReading(false);
@@ -147,9 +143,10 @@ export function useTransactionList(
   }, [show]);
 
   /**
-   * Reads the next older page, unless nothing older is kept or one is loading; the list says it is loading from the
-   * moment it is asked. The answer joins the list as it is then, or marks the page failed; it is dropped when the
-   * screen left, or when a newest page read meanwhile says nothing older is kept.
+   * Reads the next older page, with the 60 s cap (`withPageLimit`), unless nothing older is kept or one is loading; the
+   * list says it is loading from the moment it is asked. The answer joins the list as it is then, or marks the page
+   * failed (an aborted read among them); it is dropped when the screen left, or when a newest page read meanwhile says
+   * nothing older is kept.
    */
   const readOlder = useCallback(async (): Promise<void> => {
     const asked = shownPage.current;
@@ -162,7 +159,9 @@ export function useTransactionList(
     const before = asked.list.nextBefore;
     show({ ...asked, list: { ...asked.list, older: "loading" } });
 
-    const read = await readOlderTransactions(before);
+    const read = await withPageLimit((signal) =>
+      readOlderTransactions(before, { signal }),
+    );
     const answered = shownPage.current;
     if (
       !onPage.current ||
@@ -215,6 +214,26 @@ export function useTransactionList(
     loadOlder,
     retryOlder,
   };
+}
+
+/**
+ * A page's read with the 60 s cap (c010 design.md D7): a timer of the read's own and an `AbortController`, not
+ * `AbortSignal.timeout`, so the tests' clock drives it too. An aborted read ends as offline (`askTheApi`); the timer goes
+ * when the read ends.
+ */
+async function withPageLimit(
+  read: (signal: AbortSignal) => Promise<TransactionsRead>,
+): Promise<TransactionsRead> {
+  const limit = new AbortController();
+  const limitTimer = setTimeout(() => {
+    limit.abort();
+  }, PAGE_LIMIT_MS);
+
+  try {
+    return await read(limit.signal);
+  } finally {
+    clearTimeout(limitTimer);
+  }
 }
 
 /** The list with a newest page read (`withNewestPage`), at the koruna rate and its date the page carried. */
