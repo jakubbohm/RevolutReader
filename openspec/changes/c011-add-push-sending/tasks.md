@@ -81,11 +81,11 @@ Run with `/tdd-apply c011-add-push-sending` (roadmap C8a; the owner picks the re
 
 ## 7. [unit] Slice 2 — Sending
 
-- [ ] 7.1 Every device of an allowed account gets the message once
-- [ ] 7.2 Each push carries the message's Declarative Web Push JSON
-- [ ] 7.3 The answer counts the devices reached
-- [ ] 7.4 A send logs its counts only
-- [ ] 7.5 The right message key matches
+- [x] 7.1 Every device of an allowed account gets the message once
+- [x] 7.2 Each push carries the message's Declarative Web Push JSON
+- [x] 7.3 The answer counts the devices reached
+- [x] 7.4 A send logs its counts only
+- [x] 7.5 The right message key matches
 
 ## 8. [integration] Slice 2 — Push device store
 
