@@ -377,11 +377,13 @@ $key = $null
 **A wrong key answers as an unknown address does** (D10). The endpoint stays hidden, so the two answers below are the same: status, content type, and body apart from `traceId`. Nothing is sent to a device.
 
 ```powershell
+# PowerShell hands an application/problem+json body over as bytes, so it is decoded first
 function Get-Answer($response) {
+    $text = if ($response.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($response.Content) } else { $response.Content }
     [pscustomobject]@{
         Status      = [int] $response.StatusCode
         ContentType = $response.Headers['Content-Type'] -join ''
-        Body        = $response.Content | ConvertFrom-Json | Select-Object * -ExcludeProperty traceId | ConvertTo-Json -Compress
+        Body        = $text | ConvertFrom-Json | Select-Object * -ExcludeProperty traceId | ConvertTo-Json -Compress
     }
 }
 $wrong   = Invoke-WebRequest -Method Post -Uri "$app/api/push/messages" -Headers @{ 'X-Message-Key' = 'not-the-key' } `
@@ -390,6 +392,11 @@ $unknown = Invoke-WebRequest -Method Post -Uri "$app/api/no-such-address" `
     -ContentType 'application/json; charset=utf-8' -Body $body -SkipHttpErrorCheck
 Get-Answer $wrong; Get-Answer $unknown
 ```
+
+**Run locally on 2026-11-10** (c011 task 55.2, with `aspire start --isolated` from the change's worktree, on the owner's go):
+- The message to the owner's account answered `{"delivered":0,"failed":0,"removed":0}`.
+- The wrong key and the unknown address both answered 404, `application/problem+json`, with the same body apart from `traceId`.
+- As a control, the right key with a message without a title answered 400 naming `title`, so the comparison can tell answers apart.
 
 ## Checks
 
