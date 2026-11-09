@@ -24,7 +24,7 @@ Roadmap step **C8a** ([#51](https://github.com/jakubbohm/RevolutReader/issues/51
 - **The owner's message endpoint** (D10, D14): `POST /api/push/messages` with the message key in a header: a message to every device of a named account, answering how many devices got it, failed and were removed. Without the right key it answers exactly as an unknown `/api` address does. It is kept out of the API description and stays open after development, for tests and the owner's own messages.
 - **The shared frontend pieces** (D8): a push module (get the key, subscribe with it, send and forget the subscription, unsubscribe, read the current subscription and the key it was made with) with unit tests, and the test kit's stand-ins for `Notification`, `PushManager` and the service worker registration. No screen and no scenario of their own.
 - **Tests** (D7): a fake push service per test (WireMock) that checks the token, the lifetime and the urgency; test devices with their own keys, whose messages the tests decrypt with their own code, never the library's.
-- **Records:** ADR-0010-web-push (D16); configuration.md (the `Push` and `PushDevices` sections, three hand-provisioned secrets); expiring-approvals.md and local-secrets.md (the keys, no expiry); deployment.md (the guided task, the table, a test message); testing.md § Decided later; azure-prerequisites.md notes the unused Key Vault Secrets Officer grant (D17); software-factory lessons and inventory lines (D18).
+- **Records:** ADR-0010-web-push (D15); configuration.md (the `Push` and `PushDevices` sections, three hand-provisioned secrets); expiring-approvals.md and local-secrets.md (the keys, no expiry); deployment.md (the guided task, the table, a test message); testing.md § Decided later; azure-prerequisites.md notes the unused Key Vault Secrets Officer grant (D16); software-factory lessons and inventory lines (D17).
 
 ## Capabilities
 
@@ -44,7 +44,7 @@ None. The new endpoints follow the rules `sign-in` (allowed users only, writes f
 - **Notifications about the account:** C9 (#52), with its own message content (Q8) and its own lifetime and urgency.
 - **Retries, badges, a confirmation push when notifications are turned on, a test button:** not chosen in explore (S3, S4, A2).
 - **An on/off switch for the message endpoint:** it stays open (A2).
-- **Changing the deploy identity's role condition:** a manual step outside this change (D17).
+- **Changing the deploy identity's role condition:** a manual step outside this change (D16).
 - **Proving that Apple accepts the push:** C8b's manual check on the iPhone (S9).
 
 ## Impact

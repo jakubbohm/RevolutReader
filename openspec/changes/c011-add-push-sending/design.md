@@ -103,7 +103,7 @@
 
 ### D7 — Tests (S9)
 
-- **The fake push service** (testing.md § Decided later left it to C8): a WireMock server per test, like `Drivers/FakeBank`, standing in for Apple's or Google's push service. *(propose)* `Drivers/FakePushService` starts before the app copy, and its `Configure` writes the `Push` section: a made-up VAPID pair generated once per test run, a made-up message key, `Subject` a made-up app address, and the fake's own origin as a known push service (`Push:Services:FakePushService`, plain `http` on a loopback host, which only loopback entries allow, D9).
+- **The fake push service** (testing.md § Decided later left it to C8): a WireMock server per test, like `Drivers/FakeBank`, standing in for Apple's or Google's push service. *(propose)* `Drivers/FakePushService` starts before the app copy, and its `Configure` writes the `Push` section: a made-up VAPID pair generated once per test run, a made-up message key per test, `Subject` a made-up app address, and the fake's own origin as a known push service (`Push:Services:FakePushService`, plain `http` on a loopback host, which only loopback entries allow, D9).
 - **A test device plays the phone:** it makes its own P-256 key pair and 16-byte secret, as a browser does, and its push address points at the fake (`http://127.0.0.1:<port>/push/<device>`). The test signs in as Lucie, registers the device through the real API, then sends through the message endpoint with the key.
 - **The fake checks what Apple would, and more,** and answers 403 when a check fails, so a wrong push counts as failed and the scenario goes red:
   - the token is an ES256 JWT signed with the app's VAPID key, `k` is that key, `aud` is the fake's own scheme and host (the library leaves out the port, D1; the real push services have none), `exp` lies in the future and no more than 24 hours ahead (RFC 8292), `sub` is an `https:` address;
@@ -111,7 +111,7 @@
   - `Content-Encoding: aes128gcm`, and the body decrypts with the device's own key and secret (the tests' own decryption, D1);
   - the decrypted JSON holds the expected title, text and address.
 - **"Gone" and failures** are the fake's answers: 410 for a device the app must delete, 500 once for one counted as failed and kept.
-- **No test needs a real secret:** the VAPID keys and the message key are made up for each test run, as the bank's key is.
+- **No test needs a real secret:** the VAPID keys are made up for each test run, as the bank's key is, and the message key for each test.
 - **Storage** runs on C7b's Azurite setup, as merged; *(propose)* `AzuriteStorage.Configure` also gives each app copy a `PushDevices:TableName` of its own.
 - *(propose)* **A second allowed user,** Petr (`petr@example.com`, made up), joins the fake Microsoft's allowlist and `Dsl/Visitor`, because two scenarios need two allowed accounts. The DSL's allowlist steps check the configured list (testing.md § Test sign-in), so they keep holding.
 - **The frontend:** jsdom has none of the browser's notification and push features, so the frontend test kit gets small stand-ins for `Notification`, `PushManager` and the service worker registration (built here, used by C8b and C8c; D8).
@@ -220,6 +220,7 @@ Web Push is new to the factory (A6). The next free numbers when written (R-70 wa
 - *(New)* Declarative Web Push as the message format for an iOS Home Screen app, and why it removes the revocation risk (D2);
 - *(New)* a key-protected operator endpoint that answers exactly like a missing address, checked before its body is read, and kept out of the API description (D10);
 - *(New)* push addresses only at known push services, against server-side request forgery, with plain `http` allowed only for a loopback test fake (D9);
+- *(Apply, 2026-11-09)* the apply's test-writer and implementer are spawned fresh per chapter of slices (C8a: five chapters, from the foundation to the close), not kept for the whole change as the skill says nor spawned per slice: the test-writer spent about 320k tokens on the acceptance group alone, so one pair for 18 slices outgrows its context, while a fresh pair per slice rereads the design and conventions (about 50k tokens) for many small slices; the files are the source of truth, so a fresh agent loses nothing that matters. Links the size guide's lesson, which named splitting the apply among fresh agents as its reversal; a candidate change to the tdd-apply skill;
 - inventory lines: the fake push service with its test device (template), the push module and its test stand-ins (template), the key-generation block (example).
 
 ## Public API sketch
@@ -409,47 +410,64 @@ public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<Pus
 
 // ---- tests/RevolutReader.AcceptanceTests ----
 
-// Drivers/FakePushService.cs — WireMock per test; Configure writes the Push section (D7). Answers 201 to every push at
-//   /push/<device>, unless told: Gone(device) → 410, FailsOnce(device) → 500 once. Checks token, k, aud, exp, sub,
-//   TTL, Urgency and Content-Encoding (403 when one fails); records every push with its headers and body.
+// As the acceptance group wrote it (group 1, approved 2026-11-09; this sketch updated to match in a [plan] fix):
+// Drivers/FakePushService.cs — WireMock per test; Configure writes the Push section (D7): the run's VAPID pair, this test's
+//   message key, the made-up Subject https://app.example.net, and its own origin as Push:Services:FakePushService. Answers
+//   201 to every push at /push/<device>, unless told: Gone(device) → 410 from then on, FailsOnce(device) → 500 once.
+//   Checks token, k, aud, exp, sub, TTL, Urgency and Content-Encoding (403 when one fails); records every request with its
+//   headers, body, whether its token passed and the answer (ReceivedPush).
 public sealed class FakePushService : IDisposable {
+  public const string SERVICE_NAME = nameof(FakePushService);
   public static FakePushService Start();
   public void Configure(IWebHostBuilder builder);
+  public string VapidPublicKey { get; }                 // the run's
+  public string Origin { get; }                         // http://127.0.0.1:<port>
   public string AppAddress { get; }                     // the made-up Push:Subject
-  public string MessageKey { get; }
+  public string MessageKey { get; }                     // made up per test
   public TestDevice NewDevice(string name);             // a push address at this fake, new keys
   public void Gone(TestDevice device);
   public void FailsOnce(TestDevice device);
-  public IReadOnlyList<ReceivedPush> PushesFor(TestDevice device);
+  public IReadOnlyList<ReceivedPush> PushesFor(TestDevice device);   // at its push address, however answered
+  public IReadOnlyList<ReceivedPush> Pushes();                       // every request, at any address
 }
-// Drivers/TestDevice.cs — a P-256 key pair and a 16-byte secret, as a browser makes; Decrypt(body) by RFC 8291 on
-//   .NET's ECDiffieHellman, HKDF and AesGcm (never the library).
-// Drivers/PushDriver.cs — the browser (the signed-in HttpClient): GET key, PUT and DELETE subscription (with
+// Drivers/ReceivedPush(Path, Headers, Body, SignedWithServerKey, Answer): a request as it arrived and the fake's answer.
+// Drivers/TestDevice.cs — a P-256 key pair and a 16-byte secret, as a browser makes (Name, PushAddress, P256dh, Auth);
+//   Decrypt(body) by RFC 8291 on .NET's ECDiffieHellman, HKDF and AesGcm (never the library).
+// Drivers/PushDriver(HttpClient browser, HttpClient owner, FakePushService, IServiceProvider app), kept inside the DSL
+//   (not on AcceptanceTest): the browser (the signed-in HttpClient): GET key, PUT and DELETE subscription (with
 //   Sec-Fetch-Site: same-origin, as the app's page sends); the owner (an anonymous HttpClient, no fetch metadata): POST
-//   message with or without the key; the app copy's IPushDeviceStore for a device registered before its account left the
-//   allowlist and for whether a push address is still registered. Checks the exact shapes (key: exactly publicKey;
-//   counts: exactly three; a problem as BalanceDriver, plus the member its errors name).
+//   message with or without the key, and the same request to an unknown /api address; the app copy's IPushDeviceStore for
+//   a device registered before its account left the allowlist and for whether a push address is still registered. Checks
+//   the exact shapes (key: exactly publicKey; counts: exactly three; a problem as BalanceDriver, plus the member its
+//   errors name, mapped to RequestPart; a forget: 204 without content) and decrypts each received push into a PushReceived.
 // Dsl/PushDsl.cs — AcceptanceTest.Push, written in full, calling only the driver:
 public sealed class PushDsl(PushDriver driver, FakePushService pushService) {
-  public Task<string> AsksForThePushKey();
-  public Task<RegistrationAnswer> Registers(PhoneForPush device);
-  public Task<RegistrationAnswer> RegistersAt(string pushAddress);                    // outside the known services
-  public Task<RegistrationAnswer> RegistersWithSecretOfBytes(PhoneForPush device, int bytes);
-  public Task<int> Forgets(PhoneForPush device);                                       // the status
-  public Task<MessageAnswer> OwnerSends(string account, string? title, string? text = null, string? page = null);
-  public Task<MessageAnswer> SomeoneSendsWithAWrongKey(string account, string title);
-  public Task<ProblemDescription> AnUnknownApiAddressAnswers();
-  public Task DeviceRegisteredFor(PhoneForPush device, string account);                // storage, for "left the allowlist"
-  public Task<bool> IsRegistered(PhoneForPush device);
-  public PhoneForPush NewPhone(string name);
-  public void PushServiceSaysGone(PhoneForPush device);
-  public void PushServiceFailsOnce(PhoneForPush device);
-  public IReadOnlyList<PushReceived> Received(PhoneForPush device);
   public string ServerPushKey { get; }
-  public string AppAddress { get; }
+  public PhoneForPush NewPhone(string name);                                           // unique name per test
+  public void PushServiceSaysGone(PhoneForPush phone);
+  public void PushServiceFailsOnce(PhoneForPush phone);
+  public Task<string> AsksForThePushKey();
+  public Task<RegistrationAnswer> Registers(PhoneForPush phone);
+  public Task HasRegistered(PhoneForPush phone);                                       // a GIVEN: throws unless registered
+  public Task<RegistrationAnswer> RegistersAt(string pushAddress);                    // outside the known services
+  public Task<RegistrationAnswer> RegistersWithSecretOfBytes(PhoneForPush phone, int bytes);
+  public Task<ForgetAnswer> Forgets(PhoneForPush phone);
+  public Task<MessageAnswer> OwnerSends(string account, string? title, string? text = null, string? page = null);
+  public Task<WholeAnswer> SomeoneSendsWithAWrongKey(string account, string title);
+  public Task<WholeAnswer> AnUnknownApiAddressAnswers();                               // the same request, to an unknown /api address
+  public Task DeviceRegisteredFor(PhoneForPush phone, string account);                 // storage, for "left the allowlist"; checks itself
+  public Task<bool> IsRegistered(PhoneForPush phone);
+  public IReadOnlyList<PushReceived> PushServiceReceived(PhoneForPush phone);          // every push, whatever the answer
+  public IReadOnlyList<PushReceived> Received(PhoneForPush phone);                     // those that reached the phone
+  public int PushesAnyPushServiceReceived();
+  public string AppAddressOf(string page);                                             // what a tap on a push opens
 }
-// Dsl/: PhoneForPush (a test device by name), MessageAnswer(Delivered, Failed, Removed, Problem, RefusedMember),
-//   RegistrationAnswer(Problem, RefusedMember), PushReceived(Title, Text, Navigate, LifetimeSeconds, Urgency, SignedWithServerKey).
+// Dsl/: PhoneForPush(Name), a test device by name; MessageAnswer(Delivered, Failed, Removed, Problem, RefusedMember) with
+//   Counts(…) and Refused(problem, naming?); RegistrationAnswer(Problem, RefusedMember) with Registered and
+//   Refused(problem, naming); RequestPart { PushAddress, DeviceKey, Secret, Account, Title, Page, Message, Body } (the
+//   member a refusal names, mapped by the driver so the API's member names stay out of Scenarios/); ForgetAnswer
+//   { SomethingElse, Forgotten }; WholeAnswer(Problem, Text): status, content type and body without traceId, compared by
+//   value (D10); PushReceived(Title, Text, Navigate, LifetimeSeconds, Urgency, SignedWithServerKey, ReachedThePhone).
 // Dsl/Visitor.Petr ("Petr Novák", "petr@example.com"); FakeMicrosoft.ALLOWED_EMAILS gains it. ProblemDescription gains
 //   PushAccountNotAllowed ("Account not allowed", "/problems/push-account-not-allowed").
 // Drivers/AzuriteStorage.Configure also sets PushDevices:TableName (a table of the app copy's own).
