@@ -489,13 +489,13 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 `HistoryImporter` and `HistoryFile` in `tests/RevolutReader.IntegrationTests/HistoryImport/`, against Azurite with a made-up file of the M1 file's shape (design.md D9).
 
-- [ ] 83.1 The import keeps the settled transactions dated from 2026-08-09 and leaves out the pending ones and the earlier days
-- [ ] 83.2 The import keeps each day's transactions with their positions in the file's order
-- [ ] 83.3 The import never writes a day the table already holds
-- [ ] 83.4 The import never writes the export's own day
-- [ ] 83.5 Running the import twice keeps each transaction once
-- [ ] 83.6 The import reports counts only: read, settled, kept and days skipped
-- [ ] 83.7 A page the adapter cannot read fails the import, quoting nothing from it
+- [x] 83.1 The import keeps the settled transactions dated from 2026-08-09 and leaves out the pending ones and the earlier days
+- [x] 83.2 The import keeps each day's transactions with their positions in the file's order
+- [x] 83.3 The import never writes a day the table already holds
+- [x] 83.4 The import never writes the export's own day
+- [x] 83.5 Running the import twice keeps each transaction once
+- [x] 83.6 The import reports counts only: read, settled, kept and days skipped
+- [x] 83.7 A page the adapter cannot read fails the import, quoting nothing from it
 
 ## 84. [wiring] History import — the explicit check
 

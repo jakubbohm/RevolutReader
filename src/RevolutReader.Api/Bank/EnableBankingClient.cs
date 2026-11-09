@@ -119,6 +119,17 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   public Task<BankResult<EbTransactionPage>> ReadTransactionPage(DateOnly from, string? continuationKey, ReadTrigger trigger, CancellationToken cancellationToken) =>
     ReadPage(from, continuationKey, trigger, new ReadRecord(time), cancellationToken);
 
+  /// <summary>
+  /// A raw page this client did not fetch, read as a page's answer is read (<see cref="ReadJson{T}"/>, then
+  /// <see cref="HoldsTransactions"/>): for the history import, whose file holds the bank's pages unchanged (c010 design.md
+  /// D9). What it cannot read is a <see cref="BankReadException"/> quoting nothing. Logs nothing.
+  /// </summary>
+  public static async Task<EbTransactionPage> TransactionPageOf(Stream json, CancellationToken cancellationToken) {
+    ArgumentNullException.ThrowIfNull(json);
+
+    return Whole(await ReadJson<EbTransactionPage>(json, cancellationToken), HoldsTransactions);
+  }
+
   private Task<BankResult<EbTransactionPage>> ReadPage(DateOnly from, string? continuationKey, ReadTrigger trigger, ReadRecord record, CancellationToken cancellationToken) {
     string query = $"date_from={from.ToString(DATE, CultureInfo.InvariantCulture)}";
 
@@ -167,9 +178,9 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
       return FailureOf<T>(response.StatusCode, error);
     }
 
-    T? body = await ReadJson<T>(response.Content, cancellationToken);
+    await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken);
 
-    return body is not null && whole(body) ? body : throw new BankReadException($"The bank's answer lacks what a {typeof(T).Name} must hold.");
+    return Whole(await ReadJson<T>(body, cancellationToken), whole);
   }
 
   /// <summary>
@@ -200,9 +211,7 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
   /// shape, is a <see cref="BankReadException"/> without the <see cref="JsonException"/>, whose message would quote the
   /// body where the reading stopped.
   /// </summary>
-  private static async Task<T?> ReadJson<T>(HttpContent content, CancellationToken cancellationToken) where T : class {
-    await using Stream body = await content.ReadAsStreamAsync(cancellationToken);
-
+  private static async Task<T?> ReadJson<T>(Stream body, CancellationToken cancellationToken) where T : class {
     try {
       return await JsonSerializer.DeserializeAsync<T>(body, _json, cancellationToken);
     }
@@ -210,6 +219,10 @@ public sealed partial class EnableBankingClient(HttpClient http, IOptions<Enable
       throw new BankReadException($"The bank's answer is not JSON in the shape of a {typeof(T).Name}.");
     }
   }
+
+  /// <summary>The body read, when it is <paramref name="whole"/>; none, or not whole, is a <see cref="BankReadException"/> naming its type.</summary>
+  private static T Whole<T>(T? body, Func<T, bool> whole) where T : class =>
+    body is not null && whole(body) ? body : throw new BankReadException($"The bank's answer lacks what a {typeof(T).Name} must hold.");
 
   /// <summary>
   /// D4's case for an error answer, by its code, or by its status when it carried none (c006 design.md D3); one a read has
