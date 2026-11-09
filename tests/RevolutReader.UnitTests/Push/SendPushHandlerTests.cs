@@ -200,6 +200,54 @@ public sealed class SendPushHandlerTests {
       () => lines.Where(line => privateValues.Any(value => line.AllText().Contains(value, StringComparison.OrdinalIgnoreCase))).ShouldBeEmpty("no line names the account or holds the message"));
   }
 
+  /// <summary>
+  /// Eva has left the allowlist while two devices are still stored under her account: a message to her deletes both
+  /// (D3), so neither can get a push again.
+  /// </summary>
+  [Test]
+  public async Task A_message_to_an_account_not_on_the_allowlist_deletes_the_devices_still_registered_under_it() {
+    InMemoryPushDeviceStore store = await StoreWith(Device(EVA), Device(EVA));
+
+    _ = await Handler(store, new StubPushDelivery()).Send(EVA, _message, CancellationToken.None);
+
+    (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("Eva's two devices are deleted");
+  }
+
+  /// <summary>
+  /// The refused account's devices are matched as the allowlist compares accounts, whole addresses ignoring letter case
+  /// (D3), whichever side differs: both of Eva's devices go. Lucie's and Petr's devices stay, and so does the device of an
+  /// account whose address merely contains Eva's, though it is not on the allowlist either: it is another account.
+  /// </summary>
+  [Test]
+  [Arguments("Eva@Example.COM", EVA)] // the devices registered under the address as the sign-in wrote it
+  [Arguments(EVA, "EVA@EXAMPLE.COM")] // the message names the account in capitals
+  public async Task Those_devices_are_matched_ignoring_letter_case_and_other_accounts_devices_stay(string registeredUnder, string messageTo) {
+    PushDevice lucies = Device(LUCIE);
+    PushDevice petrs = Device(PETR);
+    PushDevice lookalikes = Device($"not.{EVA}");
+    InMemoryPushDeviceStore store = await StoreWith(Device(registeredUnder), lucies, Device(registeredUnder), petrs, lookalikes);
+
+    _ = await Handler(store, new StubPushDelivery()).Send(messageTo, _message, CancellationToken.None);
+
+    (await store.ReadAll(CancellationToken.None)).ShouldBe([lucies, petrs, lookalikes], ignoreOrder: true, "Eva's devices deleted in any letter case; every other account's kept");
+  }
+
+  /// <summary>
+  /// The refusal's line, <c>PushAccountNotAllowed</c> at Warning (D4), carries how many devices it deleted, read by name
+  /// (<c>removed</c>, as the sketch's <c>PushLog.PushAccountNotAllowed</c> names it), and nothing else of its own.
+  /// </summary>
+  [Test]
+  public async Task The_number_of_deleted_devices_is_logged() {
+    CapturedLog log = new();
+
+    _ = await Handler(await StoreWith(Device(EVA), Device(LUCIE), Device(EVA)), new StubPushDelivery(), log).Send(EVA, _message, CancellationToken.None);
+
+    LogEntry line = log.Entries.Where(static entry => entry.EventName == "PushAccountNotAllowed").ShouldHaveSingleItem("the refusal's line");
+    line.ShouldSatisfyAllConditions(
+      () => line.Level.ShouldBe(LogLevel.Warning),
+      () => line.OwnNamedValues().ShouldBe(["removed=2"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "the line's value: the two deleted devices, by name"));
+  }
+
   private static SendPushHandler Handler(IPushDeviceStore store, IPushDelivery delivery, ILogger<SendPushHandler>? logger = null) =>
     new(store, delivery, Allowlist.Parse($"{LUCIE}, {PETR}"), Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,
