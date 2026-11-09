@@ -131,7 +131,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 9. [close] Slice 2 — The newest transactions come live with the koruna rate
 
-- [ ] 9.1 The scenario's test passes, including the answer's exact shape. Verify: green, including account-transactions / The newest transactions come live with the koruna rate. Closes with slice 4 (group 15), not here: the scenario's transactions are card payments, and their `kind` comes from slice 4's `TransactionKinds` and JSON names (found at group 8: every other field already matches)
+- [x] 9.1 The scenario's test passes, including the answer's exact shape. Verify: green, including account-transactions / The newest transactions come live with the koruna rate. Closes with slice 4 (group 15), not here: the scenario's transactions are card payments, and their `kind` comes from slice 4's `TransactionKinds` and JSON names (found at group 8: every other field already matches)
 
 ## 10. [unit] Slice 3 — Transaction text
 
@@ -171,7 +171,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 15. [close] Slice 4 — A refund is told by the bank's type code
 
-- [ ] 15.1 The scenario's test and the guard 1.3 pass. Verify: green, including account-transactions / A refund is told by the bank's type code and `TransactionTelemetryTests`
+- [x] 15.1 The scenario's test and the guard 1.3 pass. Verify: green, including account-transactions / A refund is told by the bank's type code and `TransactionTelemetryTests`
 
 ## 16. [close] Slice 5 — The bank sees the signed-in user's address and browser
 
@@ -261,7 +261,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 34. [close] Slice 15 — A settled transaction stays in the history after the bank stops listing it
 
-- [ ] 34.1 `ScenarioCalendar.PassDays` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A settled transaction stays in the history after the bank stops listing it
+- [x] 34.1 `ScenarioCalendar.PassDays` replaces its stub; the scenario's test passes. Verify: green, including account-transactions / A settled transaction stays in the history after the bank stops listing it
 
 ## 35. [unit] Slice 16 — Pending never kept
 
@@ -270,7 +270,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 
 ## 36. [close] Slice 16 — A pending transaction is never kept
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including account-transactions / A pending transaction is never kept
+- [x] 36.1 The scenario's test passes. Verify: green, including account-transactions / A pending transaction is never kept
 
 ## 37. [unit] Slice 17 — Reading the transactions
 
