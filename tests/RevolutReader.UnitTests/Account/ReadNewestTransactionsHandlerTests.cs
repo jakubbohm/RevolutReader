@@ -10,7 +10,8 @@ namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
 /// The newest page (c010 design.md D1, D2, D10): the live transactions dated from 31 days before today, pending ones
-/// included and marked, in the bank's order, with the koruna rate and its date, and <c>olderBefore</c> naming the
+/// included and marked, newest day first and in the bank's order within a day (spec: "newest first and in the bank's order
+/// within a day"), with the koruna rate and its date, and <c>olderBefore</c> naming the
 /// window's first day only when the store keeps something older. The bank is read as the present user handed in; a bank
 /// failure comes back as it is, and nothing is kept. Today is the UTC date of the clock (D3).
 /// <para>
@@ -27,6 +28,9 @@ public sealed class ReadNewestTransactionsHandlerTests {
   /// <summary>2026-11-20 in UTC, the scenarios' today.</summary>
   private static readonly DateTimeOffset _today = new(2026, 11, 20, 10, 0, 0, TimeSpan.Zero);
 
+  /// <summary>The scenarios' today as a day.</summary>
+  private static readonly DateOnly _november20 = new(2026, 11, 20);
+
   private static readonly DateOnly _november19 = new(2026, 11, 19);
   private static readonly DateOnly _november18 = new(2026, 11, 18);
 
@@ -42,26 +46,54 @@ public sealed class ReadNewestTransactionsHandlerTests {
 
   /// <summary>
   /// Late on 2026-11-20 in UTC, on a clock whose own time zone is already at 2026-11-21: today is the UTC date (D3), so
-  /// the window's first day is 2026-10-20 and its transaction is on the page. The bank's order is not by date, and the page
-  /// keeps it.
+  /// the window's first day is 2026-10-20 and its transaction is on the page. The bank's answer is not ordered by date: the
+  /// page puts the newest day first, and keeps the bank's order within a day. The three transactions of 2026-11-18 come in
+  /// an order that is neither by amount nor by counterparty nor by reference, with other days listed between them.
   /// </summary>
   [Test]
-  public async Task The_newest_page_holds_the_live_transactions_dated_from_the_windows_start_in_the_banks_order() {
+  public async Task The_newest_page_holds_the_live_transactions_dated_from_the_windows_start_newest_day_first_in_the_banks_order_within_a_day() {
     FakeTimeProvider clock = new(new DateTimeOffset(2026, 11, 20, 23, 30, 0, TimeSpan.Zero));
     clock.SetLocalTimeZone(TimeZoneInfo.CreateCustomTimeZone("UTC+14", TimeSpan.FromHours(14), "UTC+14", "UTC+14"));
     StubBankAccount bank = new(Lists(
       Settled(_november18, -12.30m),
-      Settled(new DateOnly(2026, 11, 20), -3.80m),
+      Settled(_november20, -3.80m),
+      Settled(_november18, 50.00m),
       Settled(_windowStart, -7.20m),
-      Settled(_november19, 50.00m)));
+      Settled(_november19, 50.00m),
+      Settled(_november18, -7.20m)));
 
     TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore(), clock);
 
     page.Transactions.Select(static transaction => (transaction.Date, transaction.Amount)).ShouldBe([
-      (_november18, -12.30m),
-      (new DateOnly(2026, 11, 20), -3.80m),
-      (_windowStart, -7.20m),
+      (_november20, -3.80m),
       (_november19, 50.00m),
+      (_november18, -12.30m),
+      (_november18, 50.00m),
+      (_november18, -7.20m),
+      (_windowStart, -7.20m),
+    ]);
+  }
+
+  /// <summary>
+  /// The bank lists the booked transactions newest first and then two pending ones of today, a day it lists nothing booked
+  /// on: the page puts today first, ahead of the older days, with its two pending ones in the bank's order ("newest first"
+  /// was only ever seen on settled data; review finding 2).
+  /// </summary>
+  [Test]
+  public async Task A_day_of_pending_transactions_the_bank_lists_after_the_booked_ones_comes_first_on_the_newest_page() {
+    StubBankAccount bank = new(Lists(
+      Settled(_november19, -12.30m),
+      Settled(_november18, -7.20m),
+      Pending(_november20, -8.90m),
+      Pending(_november20, -3.80m)));
+
+    TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore());
+
+    page.Transactions.Select(static transaction => (transaction.Date, transaction.Amount, transaction.Pending)).ShouldBe([
+      (_november20, -8.90m, true),
+      (_november20, -3.80m, true),
+      (_november19, -12.30m, false),
+      (_november18, -7.20m, false),
     ]);
   }
 
