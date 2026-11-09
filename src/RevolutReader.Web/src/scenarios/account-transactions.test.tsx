@@ -4,6 +4,7 @@ import { errorBanner, warningBanner } from "../test/banners";
 import {
   ago,
   HOUR,
+  SECOND,
   startTestClock,
   timePasses,
   userOnTheTestClock,
@@ -12,6 +13,7 @@ import { scrollToEnd } from "../test/intersection";
 import { renderApp } from "../test/renderApp";
 import { scenario } from "../test/scenario";
 import {
+  after,
   balance,
   bankAccessExpired,
   bankRateLimited,
@@ -29,6 +31,9 @@ import {
 
 // Amounts are written as the spec writes them: U+2212 for a minus sign. Spaces are matched as any whitespace, the
 // no-break spaces the app writes inside amounts and dates among them, as Testing Library's text matching does.
+//
+// The list sits in C7a's account screen, which reads the balance with the transactions: every scenario's server answers
+// the balance too, and the phone keeps one where the scenario says so (c010 design.md D8).
 
 const LUCIE = signedIn("Lucie Nováková", "lucie@example.com");
 
@@ -46,6 +51,14 @@ const BOOKSHOP = transaction("card", -7.5, "2026-10-15", {
   counterparty: "Knihkupectví Luxor",
 });
 
+/** A payment of -3.80 EUR to "Trafika Můstek", settled today. */
+const NEWSAGENT_TODAY = transaction("card", -3.8, "2026-11-20", {
+  counterparty: "Trafika Můstek",
+});
+
+/** C7a's waiting screen while the server wakes. */
+const WAKING_UP = "Server se probouzí";
+
 scenario(
   "account-transactions",
   "The list shows placeholders while the transactions load",
@@ -53,6 +66,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: noAnswerYet,
     });
 
@@ -71,6 +85,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("card", -3.8, "2026-11-20", {
           counterparty: "Trafika Můstek",
@@ -102,6 +117,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2]),
     });
 
@@ -121,6 +137,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("card", -12.3, "2026-11-18", {
           counterparty: "Pekárna U Lípy",
@@ -145,6 +162,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("atm", -40, "2026-11-18", {
           details: ["Bankomat Můstek"],
@@ -169,6 +187,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([transaction("other", 20, "2026-11-18")]),
     });
 
@@ -186,6 +205,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2]),
     });
     const user = userOnTheTestClock();
@@ -218,6 +238,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("card", -12.3, "2026-11-18", {
           counterparty: "Pekárna U Lípy",
@@ -242,6 +263,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("card", -8.9, "2026-11-19", {
           counterparty: "Kavárna Na Rohu",
@@ -268,6 +290,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([
         transaction("refund", 5.95, "2026-11-18", {
           counterparty: "Lékárna Benu",
@@ -300,6 +323,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([], { olderBefore: null }),
     });
 
@@ -319,6 +343,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: bankAccessExpired,
     });
 
@@ -342,6 +367,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: bankRateLimited,
     });
 
@@ -365,6 +391,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: [bankUnavailable, transactionsPage([BAKERY_IN_PRAGUE_2])],
     });
     const user = userOnTheTestClock();
@@ -392,6 +419,7 @@ scenario(
     startTestClock(TODAY);
     const app = renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: [serverError, transactionsPage([BAKERY_IN_PRAGUE_2])],
     });
     const user = userOnTheTestClock();
@@ -444,6 +472,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2], {
         olderBefore: "2026-10-20",
       }),
@@ -471,6 +500,7 @@ scenario(
     startTestClock(TODAY);
     renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2], {
         olderBefore: "2026-10-20",
       }),
@@ -502,6 +532,7 @@ scenario(
     startTestClock(TODAY);
     const app = renderApp("iPhone Home Screen", {
       whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
       transactions: transactionsPage([BAKERY_IN_PRAGUE_2], {
         olderBefore: null,
       }),
@@ -520,6 +551,157 @@ scenario(
         .requests()
         .filter((sent) => sent.startsWith("GET /api/transactions/older")),
     ).toEqual([]);
+  },
+);
+
+scenario(
+  "account-transactions",
+  "Refreshing replaces the newest transactions and keeps the older ones",
+  async () => {
+    startTestClock(TODAY);
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
+      transactions: [
+        transactionsPage([BAKERY_IN_PRAGUE_2], { olderBefore: "2026-10-20" }),
+        transactionsPage([NEWSAGENT_TODAY, BAKERY_IN_PRAGUE_2], {
+          olderBefore: "2026-10-20",
+        }),
+      ],
+      olderTransactions: { "2026-10-20": transactionsPage([BOOKSHOP]) },
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    scrollToEnd();
+    await timePasses(0);
+    expect(
+      within(day("čtvrtek 15. října")).getByText("Knihkupectví Luxor"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Obnovit" }));
+    await timePasses(0);
+
+    expect(dayHeadings()).toEqual([
+      "Dnes",
+      "středa 18. listopadu",
+      "čtvrtek 15. října",
+    ]);
+    expect(within(day("Dnes")).getByText("Trafika Můstek")).toBeInTheDocument();
+    expect(
+      within(day("čtvrtek 15. října")).getByText("Knihkupectví Luxor"),
+    ).toBeInTheDocument();
+  },
+);
+
+scenario(
+  "account-transactions",
+  '"Obnovuji…" lasts until the transactions have come too',
+  async () => {
+    startTestClock(TODAY);
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: [balance(286.4), balance(301.9)],
+      transactions: [
+        transactionsPage([BAKERY_IN_PRAGUE_2]),
+        after(
+          3 * SECOND,
+          transactionsPage([NEWSAGENT_TODAY, BAKERY_IN_PRAGUE_2]),
+        ),
+      ],
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    expect(screen.getByText("286,40 €")).toBeInTheDocument();
+    expect(row("Pekárna U Lípy")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Obnovit" }));
+    await timePasses(0);
+
+    expect(screen.getByText("Obnovuji…")).toBeInTheDocument();
+    await timePasses(2 * SECOND);
+    expect(screen.getByText("Obnovuji…")).toBeInTheDocument();
+    await timePasses(SECOND);
+    expect(screen.queryByText("Obnovuji…")).not.toBeInTheDocument();
+  },
+);
+
+scenario(
+  "account-transactions",
+  "A bank that answers neither read shows one banner",
+  async () => {
+    startTestClock(TODAY);
+    const app = renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: bankUnavailable,
+      transactions: bankUnavailable,
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+
+    const error = errorBanner("Banka teď neodpovídá");
+    expect(screen.getAllByRole("alert"), "the errors shown").toHaveLength(1);
+    expect(
+      within(error).getByText("Zkus to prosím za chvíli."),
+    ).toBeInTheDocument();
+    const retry = within(error).getByRole("button", { name: "Zkusit znovu" });
+    expect(app.timesSent("GET /api/balance")).toBe(1);
+    expect(app.timesSent("GET /api/transactions")).toBe(1);
+    await user.click(retry);
+    await timePasses(0);
+    expect(app.timesSent("GET /api/balance")).toBe(2);
+    expect(app.timesSent("GET /api/transactions")).toBe(2);
+  },
+);
+
+scenario(
+  "account-transactions",
+  "After the server wakes, the transactions replace the waiting screen directly",
+  async () => {
+    startTestClock(TODAY);
+    await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: after(20 * SECOND, LUCIE),
+      balance: balance(286.4),
+      // The transactions come a second after the balance, so the screen between the two answers can be seen.
+      transactions: after(SECOND, transactionsPage([BAKERY_IN_PRAGUE_2])),
+    });
+
+    await timePasses(1.5 * SECOND);
+    expectInOrder(screen.getByText("286,40 €"), screen.getByText(WAKING_UP));
+    // The server is awake and the balance has come; the transactions have not.
+    await timePasses(20 * SECOND - 1.5 * SECOND);
+    expectInOrder(screen.getByText("286,40 €"), screen.getByText(WAKING_UP));
+    expectNoPlaceholders();
+
+    await timePasses(SECOND);
+
+    expect(row("Pekárna U Lípy")).toBeInTheDocument();
+    expect(screen.queryByText(WAKING_UP)).not.toBeInTheDocument();
+    expectNoPlaceholders();
+  },
+);
+
+scenario(
+  "account-transactions",
+  "The transactions stay on screen through a failed refresh",
+  async () => {
+    startTestClock(TODAY);
+    renderApp("iPhone Home Screen", {
+      whoIsSignedIn: LUCIE,
+      balance: balance(286.4),
+      transactions: [transactionsPage([BAKERY_IN_PRAGUE_2]), bankUnavailable],
+    });
+    const user = userOnTheTestClock();
+    await timePasses(0);
+    expect(row("Pekárna U Lípy")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Obnovit" }));
+    await timePasses(0);
+
+    expectInOrder(
+      errorBanner("Pohyby se nepodařilo načíst"),
+      row("Pekárna U Lípy"),
+    );
   },
 );
 
@@ -562,6 +744,14 @@ function expectInOrder(...elements: HTMLElement[]): void {
         Node.DOCUMENT_POSITION_FOLLOWING,
       `"${spaced(elements[index]!.textContent)}" comes after "${spaced(elements[index - 1]!.textContent)}"`,
     ).toBeTruthy();
+}
+
+/** The list shows no placeholders (design system Skeleton: a status named "Načítám pohyby"). */
+function expectNoPlaceholders(): void {
+  expect(
+    screen.queryByRole("status", { name: "Načítám pohyby" }),
+    "the list's placeholders",
+  ).not.toBeInTheDocument();
 }
 
 /** No transaction shows: no day of the list, no placeholders, and no "no transactions yet" either. */

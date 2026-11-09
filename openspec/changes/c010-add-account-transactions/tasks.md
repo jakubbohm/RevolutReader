@@ -536,12 +536,12 @@ Waits for C7a's merge (design.md D8).
 
 ## 88. [acceptance] Join — scenario tests
 
-- [ ] 88.1 The pre-join list tests get C7a's server setup: a balance answer, and the stored balance where the scenario says the phone keeps one (design.md D8). Verify: they still claim their scenarios; they pass where the join changes nothing
-- [ ] 88.2 Acceptance: account-transactions / Refreshing replaces the newest transactions and keeps the older ones (frontend)
-- [ ] 88.3 Acceptance: account-transactions / "Obnovuji…" lasts until the transactions have come too (frontend)
-- [ ] 88.4 Acceptance: account-transactions / A bank that answers neither read shows one banner (frontend)
-- [ ] 88.5 Acceptance: account-transactions / After the server wakes, the transactions replace the waiting screen directly (frontend)
-- [ ] 88.6 Acceptance: account-transactions / The transactions stay on screen through a failed refresh (frontend)
+- [x] 88.1 The pre-join list tests get C7a's server setup: a balance answer, and the stored balance where the scenario says the phone keeps one (design.md D8). Verify: they still claim their scenarios; they pass where the join changes nothing
+- [x] 88.2 Acceptance: account-transactions / Refreshing replaces the newest transactions and keeps the older ones (frontend)
+- [x] 88.3 Acceptance: account-transactions / "Obnovuji…" lasts until the transactions have come too (frontend)
+- [x] 88.4 Acceptance: account-transactions / A bank that answers neither read shows one banner (frontend)
+- [x] 88.5 Acceptance: account-transactions / After the server wakes, the transactions replace the waiting screen directly (frontend)
+- [x] 88.6 Acceptance: account-transactions / The transactions stay on screen through a failed refresh (frontend)
 
 ## 89. [unit] Join — The screen with the list
 
