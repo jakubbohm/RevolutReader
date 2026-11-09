@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using RevolutReader.Api.Push;
 using Shouldly;
@@ -19,6 +20,13 @@ public sealed class PushMessagesTests {
   private const string TEXT = "Zkušební zpráva s \"uvozovkami\"\na druhým řádkem";
 
   private const string PAGE = "/transakce";
+
+  /// <summary>The most bytes of JSON a push may carry (D2: RFC 8291 § 4, 4096 octets less the header, a padding octet and the tag).</summary>
+  private const int MOST_BYTES = 3993;
+
+  /// <summary>The size tests' title and page; the title has Czech letters, so the frame around the text is not ASCII only.</summary>
+  private const string SIZED_TITLE = "Zůstatek se změnil";
+  private const string SIZED_PAGE = "/transakce";
 
   private static readonly Uri _appAddress = new("https://app.example.net");
 
@@ -141,6 +149,80 @@ public sealed class PushMessagesTests {
       () => refused.Reason.ShouldNotBeNullOrWhiteSpace("a fixed reason"),
       () => refused.Reason.ShouldNotContain("example.com", Case.Insensitive, "never a value"),
       () => refused.Reason.ShouldNotContain("stranka-3c5d", Case.Insensitive, "never a value"));
+  }
+
+  /// <summary>
+  /// The most a push may carry is 3993 bytes of JSON (D2: RFC 8291 § 4), counted on the JSON the sender really sends, the
+  /// app's address and the page included: a message of exactly that size is accepted.
+  /// </summary>
+  [Test]
+  public void A_message_whose_JSON_is_exactly_3993_bytes_is_accepted() {
+    PushMessage message = AsciiMessageOfBytes(MOST_BYTES);
+
+    PushMessages.Check(message, _appAddress).ShouldBeEmpty("a push of exactly 3993 bytes fits");
+  }
+
+  /// <summary>One byte more is refused, naming <c>message</c> alone (D10), with a fixed reason that quotes nothing of it.</summary>
+  [Test]
+  public void A_message_whose_JSON_is_3994_bytes_is_refused_naming_the_message() {
+    PushMessage message = AsciiMessageOfBytes(MOST_BYTES + 1);
+
+    ShouldRefuseOnlyTheMessage(message);
+  }
+
+  /// <summary>
+  /// The size counts UTF-8 bytes, and the JSON carries Czech letters as they are, two bytes each, never as a six-byte
+  /// <c>\uXXXX</c> escape: a text of "ř"s built by that count to 3993 bytes is accepted, and one byte more is refused. A
+  /// check that counts characters passes the longer one (it has about half as many characters as bytes); a JSON that
+  /// escapes the letters refuses the shorter one.
+  /// </summary>
+  [Test]
+  public void The_size_counts_UTF_8_bytes_so_Czech_letters_count_twice() {
+    PushMessage atTheLimit = CzechMessageOfBytes(MOST_BYTES);
+    PushMessage oneByteMore = CzechMessageOfBytes(MOST_BYTES + 1);
+
+    atTheLimit.ShouldSatisfyAllConditions(
+      () => PushMessages.Check(atTheLimit, _appAddress).ShouldBeEmpty("Czech text of exactly 3993 bytes fits"),
+      () => PushMessages.Check(oneByteMore, _appAddress).ShouldHaveSingleItem("Czech text of 3994 bytes is too long").Member.ShouldBe("message"));
+  }
+
+  /// <summary>
+  /// A message to <see cref="SIZED_PAGE"/> whose JSON is exactly <paramref name="bytes"/> bytes, padded with ASCII letters
+  /// in its text, measured on <see cref="PushMessages.DeclarativeJson"/> (ASCII letters take one byte each, however
+  /// written).
+  /// </summary>
+  private static PushMessage AsciiMessageOfBytes(int bytes) {
+    int frame = JsonBytes(new PushMessage(SIZED_TITLE, string.Empty, SIZED_PAGE));
+    PushMessage message = new(SIZED_TITLE, new string('x', bytes - frame), SIZED_PAGE);
+
+    JsonBytes(message).ShouldBe(bytes, "the test's own message is the size it means to be");
+
+    return message;
+  }
+
+  /// <summary>
+  /// A message whose JSON is <paramref name="bytes"/> bytes when every "ř" takes two UTF-8 bytes: a text of "ř"s, with an
+  /// "x" when the count is odd. The size is worked out by that rule, not measured, so a JSON that escapes the letters does
+  /// not move the boundary with it.
+  /// </summary>
+  private static PushMessage CzechMessageOfBytes(int bytes) {
+    int text = bytes - JsonBytes(new PushMessage(SIZED_TITLE, string.Empty, SIZED_PAGE));
+
+    return new PushMessage(SIZED_TITLE, new string('ř', text / 2) + (text % 2 == 1 ? "x" : string.Empty), SIZED_PAGE);
+  }
+
+  /// <summary>The UTF-8 bytes of the message's JSON on the made-up app address.</summary>
+  private static int JsonBytes(PushMessage message) => Encoding.UTF8.GetByteCount(PushMessages.DeclarativeJson(message, _appAddress));
+
+  /// <summary>The rules refuse exactly one member of <paramref name="message"/>, <c>message</c>, with a reason that quotes nothing of it.</summary>
+  private static void ShouldRefuseOnlyTheMessage(PushMessage message) {
+    RefusedMember refused = PushMessages.Check(message, _appAddress).ShouldHaveSingleItem("only the size is refused; the title and the page are fine");
+
+    refused.ShouldSatisfyAllConditions(
+      () => refused.Member.ShouldBe("message"),
+      () => refused.Reason.ShouldNotBeNullOrWhiteSpace("a fixed reason"),
+      () => refused.Reason.ShouldNotContain(SIZED_TITLE, Case.Insensitive, "never a value"),
+      () => refused.Reason.ShouldNotContain("xxxx", Case.Insensitive, "never a value"));
   }
 
   /// <summary>The rules refuse exactly one member of <paramref name="message"/>, <c>title</c>, with a reason that holds none of the message's values.</summary>

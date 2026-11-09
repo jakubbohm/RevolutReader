@@ -7,14 +7,14 @@ namespace RevolutReader.IntegrationTests.Wiring.Push;
 
 /// <summary>
 /// A message a push cannot carry is refused at the message endpoint (spec push-sending, "A message a push cannot carry is
-/// refused"; c011 design.md D10; tasks 27.2, 27.3, 28.1, 30.6). With the right key: a request without an account, a
-/// message whose title is only spaces or whose page is not a page of the app, and a body that is not the request's JSON
-/// each get 400, FastEndpoints' validation problem (<c>application/problem+json</c>, titled <c>Bad Request</c>,
-/// <c>errors</c> an array of <c>{ name, reason }</c>) naming exactly the refused member, <c>account</c>, <c>title</c>,
-/// <c>page</c> or <c>body</c>, with a fixed reason and nothing the request sent. Everything else in each request is fine,
-/// so only that member can be refused. The sketch puts the account rule and the unreadable body in
-/// <c>MessageEndpoint</c> and the title and page rules in <c>PushMessages.Check</c>, which the endpoint applies before
-/// calling the sender. The app copy's storage is never reached: a refused request reads no table.
+/// refused"; c011 design.md D10; tasks 27.2, 27.3, 28.1, 30.6, 32.2). With the right key: a request without an account, a
+/// message whose title is only spaces, whose page is not a page of the app or which is too long for a push, and a body
+/// that is not the request's JSON each get 400, FastEndpoints' validation problem (<c>application/problem+json</c>, titled
+/// <c>Bad Request</c>, <c>errors</c> an array of <c>{ name, reason }</c>) naming exactly the refused member,
+/// <c>account</c>, <c>title</c>, <c>page</c>, <c>message</c> or <c>body</c>, with a fixed reason and nothing the request
+/// sent. Everything else in each request is fine, so only that member can be refused. The sketch puts the account rule and
+/// the unreadable body in <c>MessageEndpoint</c> and the title, page and size rules in <c>PushMessages.Check</c>, which the
+/// endpoint applies before calling the sender. The app copy's storage is never reached: a refused request reads no table.
 /// </summary>
 public sealed class RefusedMessageTests {
   private const string JSON = "application/json";
@@ -27,6 +27,9 @@ public sealed class RefusedMessageTests {
   private const string TITLE = "Zkušební titulek 3e7a";
   private const string TEXT = "Zkušební zpráva 8b4c";
   private const string PAGE = "/transakce-1d9f";
+
+  /// <summary>A part of a text too long for a push, repeated: 21 UTF-8 bytes, so 250 of them make 5250.</summary>
+  private const string LONG_TEXT_PART = "dlouhá zpráva 7e2b ";
 
   /// <summary>A number no problem holds by coincidence, sent where the account's text belongs.</summary>
   private const string NUMBER = "41927";
@@ -43,6 +46,20 @@ public sealed class RefusedMessageTests {
   [Test]
   public async Task A_message_whose_title_is_only_spaces_is_refused_naming_the_title() =>
     await ShouldBeRefusedNaming("title", Message(ACCOUNT, "\"   \""), [MessageEndpointApp.ALLOWED_ACCOUNT, TEXT, PAGE]);
+
+  /// <summary>
+  /// A message whose push would be longer than 3993 bytes (D2) is refused by the rules, naming <c>message</c>, and the
+  /// endpoint answers before the sender sees it. The text alone is well over the limit, whatever the app's address.
+  /// </summary>
+  [Test]
+  public async Task A_message_too_long_for_a_push_is_refused_naming_the_message() {
+    string longText = string.Concat(Enumerable.Repeat(LONG_TEXT_PART, 250));
+
+    await ShouldBeRefusedNaming(
+      "message",
+      $$"""{ "account": {{ACCOUNT}}, "title": "{{TITLE}}", "text": "{{longText}}", "page": "{{PAGE}}" }""",
+      [MessageEndpointApp.ALLOWED_ACCOUNT, TITLE, PAGE, LONG_TEXT_PART.Trim()]);
+  }
 
   /// <summary>A page that is not a page of the app (D2) is refused by the rules, and the endpoint answers before the sender sees it.</summary>
   /// <param name="page">
