@@ -15,8 +15,9 @@ namespace RevolutReader.Api.Push;
 /// wrong key answers a 404 with no body, which <c>UseStatusCodePages</c> fills in exactly as for an unknown <c>/api</c>
 /// address, whatever the body holds.</item>
 /// <item>Then the JSON body, read here: a body that is not the request's JSON (<see cref="MessageRequest"/>), a missing
-/// account or a missing title answers 400, FastEndpoints' validation problem naming <c>body</c>, <c>account</c> or
-/// <c>title</c> with a fixed reason, never a value.</item>
+/// account, or a message <see cref="PushMessages.Check"/> refuses (a title left out or blank) answers 400, FastEndpoints'
+/// validation problem naming <c>body</c>, <c>account</c> or each refused member with a fixed reason, never a value; the
+/// sender is not called.</item>
 /// <item>Then <see cref="SendPushHandler"/>, the page <c>/</c> when none is given: <see cref="PushSent"/> answers 200
 /// <see cref="MessageOutcomeResponse"/>, the three counts; <see cref="AccountNotAllowed"/> a 404 problem of its own,
 /// <c>/problems/push-account-not-allowed</c>, titled <c>Account not allowed</c>.</item>
@@ -27,7 +28,6 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
   /// <summary>The members a refusal names (D10).</summary>
   private const string BODY = "body";
   private const string ACCOUNT = "account";
-  private const string TITLE = "title";
 
   private const string NOT_THE_MESSAGE = "The body is not the message's JSON.";
   private const string MISSING = "Missing.";
@@ -64,11 +64,11 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
       return;
     }
 
-    if (request is not { Account: { } account, Title: { } title })
-      throw new UnreachableException("A message with no refused member has its account and title.");
+    if (request is not { Account: { } account })
+      throw new UnreachableException("A message with no refused member has its account.");
 
 #pragma warning disable CA1508 // Its interprocedural analysis follows the sender's returns and calls an arm always true; each case is named, so a case added to the union later is a compile error rather than a silent default.
-    IResult answer = await sender.Send(account, new PushMessage(title, request.Text, request.Page ?? START_PAGE), ct) switch {
+    IResult answer = await sender.Send(account, Message(request), ct) switch {
       PushSent sent => TypedResults.Ok(new MessageOutcomeResponse(sent.Delivered, sent.Failed, sent.Removed)),
       AccountNotAllowed => TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: ACCOUNT_NOT_ALLOWED_TITLE, type: ACCOUNT_NOT_ALLOWED_TYPE),
     };
@@ -77,8 +77,11 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
     await Send.ResultAsync(answer);
   }
 
-  /// <summary>Each member of <paramref name="request"/> that is refused, with its fixed reason; the body itself when it is none.</summary>
-  private static List<ValidationFailure> Refusals(MessageRequest? request) {
+  /// <summary>
+  /// Each member of <paramref name="request"/> that is refused, with its fixed reason: the account here, the message's
+  /// members by <see cref="PushMessages.Check"/>, a title left out read as an empty one; the body itself when it is none.
+  /// </summary>
+  private List<ValidationFailure> Refusals(MessageRequest? request) {
     if (request is null)
       return [new ValidationFailure(BODY, NOT_THE_MESSAGE)];
 
@@ -87,11 +90,15 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
     if (string.IsNullOrWhiteSpace(request.Account))
       refused.Add(new ValidationFailure(ACCOUNT, MISSING));
 
-    if (request.Title is null)
-      refused.Add(new ValidationFailure(TITLE, MISSING));
+    refused.AddRange(PushMessages.Check(Message(request), options.Value.Subject)
+      .Select(static member => new ValidationFailure(member.Member, member.Reason)));
 
     return refused;
   }
+
+  /// <summary>The message <paramref name="request"/> asks for: a title left out read as an empty one, the page <c>/</c> when none is given.</summary>
+  private static PushMessage Message(MessageRequest request) =>
+    new(request.Title ?? string.Empty, request.Text, request.Page ?? START_PAGE);
 
   /// <summary>The body as the message's JSON; <see langword="null"/> when it is not JSON, not that shape, or <c>null</c>.</summary>
   private async Task<MessageRequest?> ReadMessage(CancellationToken cancellationToken) {

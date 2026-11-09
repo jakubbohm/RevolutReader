@@ -77,6 +77,15 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   /// <summary>How each of RFC 9110's types starts, which ASP.NET gives a problem of a plain status.</summary>
   private const string RFC_9110_TYPE = "https://tools.ietf.org/html/rfc9110#section-";
+  private const string RFC_7231_TYPE = "https://www.rfc-editor.org/rfc/rfc7231#section-";
+
+  /// <summary>A validation problem's list of refused members and each one's members (FastEndpoints, D9, D10).</summary>
+  private const string ERRORS = "errors";
+  private const string NAME = "name";
+  private const string REASON = "reason";
+
+  /// <summary>The member a refusal names for a message too long for a push (D10).</summary>
+  private const string MESSAGE = "message";
 
   /// <summary>An address under <c>/api</c> no endpoint serves (D10's comparison).</summary>
   private const string UNKNOWN_API_ADDRESS = "/api/no-such-address";
@@ -129,8 +138,27 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   /// come with the wiring groups that read them.
   /// </summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
+    [ProblemDescription.BadRequest] = HttpStatusCode.BadRequest,
     [ProblemDescription.PushAccountNotAllowed] = HttpStatusCode.NotFound,
   };
+
+  /// <summary>The members a 400's <c>errors</c> name, as the request parts the DSL knows (D9, D10).</summary>
+  private static readonly Dictionary<string, RequestPart> _partByMember = new(StringComparer.Ordinal) {
+    [ENDPOINT] = RequestPart.PushAddress,
+    [$"{KEYS}.{P256DH}"] = RequestPart.DeviceKey,
+    [$"{KEYS}.{AUTH}"] = RequestPart.Secret,
+    [ACCOUNT] = RequestPart.Account,
+    [TITLE] = RequestPart.Title,
+    [PAGE] = RequestPart.Page,
+    [MESSAGE] = RequestPart.Message,
+    [BODY] = RequestPart.Body,
+  };
+
+  /// <summary>
+  /// How a plain status's type starts: RFC 9110's, which ASP.NET gives, and RFC 7231's, which FastEndpoints gives its
+  /// validation 400 (RFC 9110 replaced RFC 7231; both name the status alone).
+  /// </summary>
+  private static readonly string[] _plainStatusTypes = [RFC_9110_TYPE, RFC_7231_TYPE];
 
   /// <summary>The signed-in browser.</summary>
   private HttpClient Browser => browser;
@@ -365,8 +393,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
 
   /// <summary>
   /// The refusal, when the answer is a problem description of a case in <see cref="_statusByCase"/> with that case's status:
-  /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (RFC
-  /// 9110's read as <see langword="null"/>). Otherwise <see langword="null"/>.
+  /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (a plain
+  /// status's RFC type, <see cref="_plainStatusTypes"/>, read as <see langword="null"/>); a 400's <c>errors</c> naming
+  /// exactly one member the driver knows (<see cref="RefusedPart"/>). Otherwise <see langword="null"/>.
   /// </summary>
   private static MessageAnswer? RefusalOf(HttpStatusCode status, string mediaType, JsonElement problem) {
     if (!IsMediaType(mediaType, PROBLEM_JSON) || Int(problem, STATUS) != (int)status)
@@ -375,9 +404,30 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
     if (Text(problem, TITLE) is not string title || Text(problem, TYPE) is not string type)
       return null;
 
-    ProblemDescription description = new(title, type.StartsWith(RFC_9110_TYPE, StringComparison.Ordinal) ? null : type);
+    ProblemDescription description = new(title, _plainStatusTypes.Any(plain => type.StartsWith(plain, StringComparison.Ordinal)) ? null : type);
 
-    return _statusByCase.TryGetValue(description, out HttpStatusCode caseStatus) && caseStatus == status ? MessageAnswer.Refused(description) : null;
+    if (!_statusByCase.TryGetValue(description, out HttpStatusCode caseStatus) || caseStatus != status)
+      return null;
+
+    if (status != HttpStatusCode.BadRequest)
+      return MessageAnswer.Refused(description);
+
+    return RefusedPart(problem) is RequestPart part ? MessageAnswer.Refused(description, part) : null;
+  }
+
+  /// <summary>
+  /// The one member a 400's <c>errors</c> (FastEndpoints' validation problem, <c>[{ name, reason }]</c>) names, as a
+  /// <see cref="RequestPart"/>, when it names exactly one the driver knows and gives it a reason; otherwise <see langword="null"/>.
+  /// </summary>
+  private static RequestPart? RefusedPart(JsonElement problem) {
+    if (!problem.TryGetProperty(ERRORS, out JsonElement errors) || errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 1)
+      return null;
+
+    JsonElement refused = errors[0];
+
+    return Text(refused, NAME) is string name && !string.IsNullOrWhiteSpace(Text(refused, REASON)) && _partByMember.TryGetValue(name, out RequestPart part)
+      ? part
+      : null;
   }
 
   /// <summary>

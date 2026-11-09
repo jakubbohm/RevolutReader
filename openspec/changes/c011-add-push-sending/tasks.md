@@ -202,7 +202,7 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 28. [wiring] Slice 9 — Refusals as problem descriptions
 
-- [ ] 28.1 `MessageEndpoint` applies `PushMessages.Check` and the account rule before calling the sender and answers FastEndpoints' validation 400 naming each refused member with its fixed reason; a body that is not the request's JSON answers 400 naming `body` (design.md D10). Verify: the scenario's test reads the member; no value appears in the problem
+- [x] 28.1 `MessageEndpoint` applies `PushMessages.Check` and the account rule before calling the sender and answers FastEndpoints' validation 400 naming each refused member with its fixed reason; a body that is not the request's JSON answers 400 naming `body` (design.md D10). Verify: the scenario's test reads the member; no value appears in the problem
 
 ## 29. [close] Slice 9 — A message without a title is refused
 
