@@ -1,18 +1,21 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Text.Unicode;
 
 namespace RevolutReader.Api.Push;
 
 /// <summary>The message rules (c011 design.md D2, D10), pure.</summary>
-public static class PushMessages {
+public static partial class PushMessages {
   /// <summary>The member that marks a push as Declarative Web Push, and its one value (WebKit, iOS 18.4 and later).</summary>
   private const int DECLARATIVE_WEB_PUSH = 8030;
 
   /// <summary>The members a refusal names, as the message request names them (D10), and their fixed reasons.</summary>
   private const string TITLE = "title";
   private const string MISSING = "Missing.";
+  private const string PAGE = "page";
+  private const string NOT_A_PAGE = "Not a page of the app.";
 
   /// <summary>
   /// Letters of every script as they are, so a Czech text takes its UTF-8 bytes rather than a six-character escape per
@@ -22,7 +25,16 @@ public static class PushMessages {
   private static readonly JsonSerializerOptions _json = new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) };
 
   /// <summary>Whether <paramref name="page"/> is a page of the app (D2): a path that starts with a single <c>/</c> and lies outside <c>/api</c>.</summary>
-  public static bool IsAppPage(string page) => throw new NotImplementedException();
+  /// <remarks>
+  /// A single <c>/</c>: two slashes, or a slash and a backslash (which browsers read alike), start an address on another
+  /// host. Outside <c>/api</c> by whole first segment, ignoring case, as the app's own page route compares it
+  /// (<c>PagesExtensions</c>), with the segment also ended by a query or a fragment, since a page may carry them.
+  /// </remarks>
+  public static bool IsAppPage(string page) {
+    ArgumentNullException.ThrowIfNull(page);
+
+    return AppPage().IsMatch(page);
+  }
 
   /// <summary>The members of <paramref name="message"/> a push cannot carry, each with a fixed reason, never its value (D2, D10); none when it can.</summary>
   public static IReadOnlyList<RefusedMember> Check(PushMessage message, Uri appAddress) {
@@ -34,8 +46,15 @@ public static class PushMessages {
     if (string.IsNullOrWhiteSpace(message.Title))
       refused.Add(new RefusedMember(TITLE, MISSING));
 
+    if (!IsAppPage(message.Page))
+      refused.Add(new RefusedMember(PAGE, NOT_A_PAGE));
+
     return refused;
   }
+
+  /// <summary>A page of the app, as <see cref="IsAppPage"/> describes.</summary>
+  [GeneratedRegex(@"^/(?![/\\])(?!api(/|\?|#|$))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+  private static partial Regex AppPage();
 
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as

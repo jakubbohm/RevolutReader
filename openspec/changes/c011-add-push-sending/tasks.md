@@ -210,12 +210,12 @@ Written by the test-writer, as every fake (the owner, 2026-11-09, after a review
 
 ## 30. [unit] Slice 10 — Pages of the app
 
-- [ ] 30.1 `/` and a path under it, with or without a query, are pages of the app
-- [ ] 30.2 An absolute address is not a page of the app
-- [ ] 30.3 A path starting with two slashes or a slash and a backslash is not a page of the app
-- [ ] 30.4 A path under `/api` is not a page of the app
-- [ ] 30.5 An empty page is not a page of the app
-- [ ] 30.6 A message whose page is not a page of the app is refused, naming the page
+- [x] 30.1 `/` and a path under it, with or without a query, are pages of the app
+- [x] 30.2 An absolute address is not a page of the app
+- [x] 30.3 A path starting with two slashes or a slash and a backslash is not a page of the app
+- [x] 30.4 A path under `/api` is not a page of the app
+- [x] 30.5 An empty page is not a page of the app
+- [x] 30.6 A message whose page is not a page of the app is refused, naming the page
 
 ## 31. [close] Slice 10 — A message whose page is not a page of the app is refused
 
