@@ -113,7 +113,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 - [x] 7.1 `TransactionStoreOptions` and the `Transactions` section (`TableName` = `transactions`) plus an empty `ConnectionStrings:tables` in `appsettings.json`, each key with its provenance comment; validated on start (design.md D11). `AddTransactionStore()`: `ConnectionStrings:tables` checked at registration (design.md D11), `AddAzureTableServiceClient("tables")` with health checks off, `TableTransactionStore` as the store (D5: partition `account`, the row key (see 7.4), columns, the table created once if missing, batches of 100). The export check `OpenApiExport` gets a made-up tables connection. Verify: build passes; group 6 green on Azurite; the `service-health` scenarios stay green
 - [x] 7.2 AppHost: `AddAzureStorage("storage").RunAsEmulator()` with `AddTables("tables")`, referenced by the API, which waits for it. Start the app through the aspire skill with `--isolated`. Verify: the storage emulator and the API come up healthy
 - [x] 7.4 The row key is the reference's SHA-256 in lowercase hex, never holding `%` (added 2026-11-09, the user: design.md D5): a test in `Wiring/Storage/` keeps a transaction whose reference holds `/`, `%`, a space and an accented letter and finds its raw row under that key; `UnreadableRowTests` writes its row under the same key. Verify: the new test failed before the adapter changed; group 6 and `UnreadableRowTests` green on Azurite
-- [ ] 7.3 Docs:
+- [x] 7.3 Docs:
   - configuration.md: the `Transactions` section and `ConnectionStrings:tables` (not a secret; set by Bicep in Azure);
   - README.md § Backend code: the store port in `Account/`, its adapter in `Storage/`;
   - testing.md: Azurite in the acceptance harness (§ Decided later becomes decided), the store's contract tests with the linked fake, scenario dates relative to the clock;
@@ -167,7 +167,7 @@ Each test runs against `InMemoryTransactionStore` and `TableTransactionStore` on
 ## 14. [wiring] Slice 4 — Kinds in the answer
 
 - [x] 14.1 `TransactionKind` written as the design system's seven names, `card`, `topup`, `transfer`, `atm`, `exchange`, `refund`, `other` (`JsonStringEnumMemberName`, as C13's `BankProblemType`); `TransactionsLog`. Regenerate the TS client. Verify: the scenario and the guard 1.3 run against the app; a second regenerate leaves no diff
-- [ ] 14.2 Docs: README.md § Backend code: a bank code is logged only when it looks like a code (design.md D4c), and its `.claude/rules/` mirror. Verify: it matches `TransactionKinds.LooksLikeACode`
+- [x] 14.2 Docs: README.md § Backend code: a bank code is logged only when it looks like a code (design.md D4c), and its `.claude/rules/` mirror. Verify: it matches `TransactionKinds.LooksLikeACode`
 
 ## 15. [close] Slice 4 — A refund is told by the bank's type code
 

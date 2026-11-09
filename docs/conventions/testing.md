@@ -98,6 +98,7 @@ Broad integration (everything wired together) is what the acceptance tests do. I
 | Adapter edge cases the acceptance tests cannot reach cheaply: a migration on existing data, a tricky query, serialization quirks, the Enable Banking client's handling of each error response | after the implementation, in a `[wiring]` group, in `IntegrationTests/Wiring/` | implementer |
 
 - Contract tests exist only for ports with an in-memory fake, so most changes have no `[integration]` group. The Enable Banking client has no fake unless a unit test genuinely needs one (§ Fake bank).
+- **How a contract runs against both** (C7b, c010 design.md D12; the first is the transaction store's): an abstract class holds the tests, written only against the port (`IntegrationTests/Account/TransactionStoreContract`), and one subclass per implementation, marked `[InheritsTests]`, gives each test a new, empty store: `InMemoryTransactionStoreContract` for the fake, `TableTransactionStoreContract` for the adapter on Azurite (§ Storage). The fake lives in the unit-test project, next to the tests that use it; the integration project compiles the same file as a link (`<Compile Include="…" Link="…" />`), so the fake the unit tests trust is the one the contract checks.
 - Tests needing Docker (Testcontainers) stop with a message when Docker is not running; they are never skipped silently.
 
 ## Where tests live
@@ -107,13 +108,14 @@ tests/
 ├─ RevolutReader.AcceptanceTests/     one test per OpenSpec scenario, app inside the test process
 │  ├─ Scenarios/<capability>/         the test cases: domain language only, they are the spec
 │  ├─ Dsl/                            domain-language helpers: defaults, unique names per test
-│  ├─ Drivers/                        the only layer that knows HTTP: API calls, fake bank, sign-in tokens, clock
+│  ├─ Drivers/                        the only layer that knows HTTP: API calls, fake bank, sign-in tokens, clock,
+│  │                                  Azurite, scenario dates
 │  ├─ Traceability/                   the check that every scenario has exactly one test
 │  └─ Conventions/                    structural checks that need the running app: the anonymous-endpoint
 │                                     allowlist, the harness's environment
 ├─ RevolutReader.UnitTests/           domain rules, no I/O; paths mirror src/
 ├─ RevolutReader.IntegrationTests/    our adapters against their fakes: the Enable Banking client against the
-│                                     fake bank server; later the database (Testcontainers)
+│                                     fake bank server; the store's contract, on its fake and on Azurite (Testcontainers)
 └─ manual-scenarios.md                scenarios checked by hand at handover
 
 src/RevolutReader.Web/src/            the frontend's tests sit next to its code (below)
@@ -122,7 +124,7 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 - **One project per test layer, named after the layer** (as DoseUp). `dotnet test` runs everything; CI selects a layer by project, never by tags on tests.
 - **Mirroring is mechanical** (as DoseUp): a test file sits at its target's path with the project swapped (`src/.../Balance.cs` ↔ `tests/RevolutReader.UnitTests/.../BalanceTests.cs`). Acceptance tests mirror the specs instead: one file per capability, one test per scenario. Unit tests are named after their behaviour task.
 - **Who may edit what** (the orchestrator's diff check enforces it; a hook that blocks the implementer is the second layer, § Test-first workflow): the test-writer owns `tests/`; the implementer may edit only `RevolutReader.AcceptanceTests/Drivers/` in the wiring and close steps, and `RevolutReader.IntegrationTests/Wiring/`, where it writes adapter edge-case tests after the implementation.
-- **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front.
+- **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front. A fake the contract tests also need is compiled into the integration project as a link (§ Integration tests).
 - **Frontend tests live next to the frontend code** (Vitest with Testing Library and jsdom; decided in C3, c003 design.md D1):
   - a unit test sits next to its target as `<file>.test.ts(x)`, e.g. `src/app/device.ts` ↔ `src/app/device.test.ts`;
   - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx`, each test a `scenario("<capability>", "<exact scenario name>", …)`;
@@ -154,9 +156,10 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 
 ## Acceptance-test harness: the app runs inside the test process
 
-- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host), **in environment `Production`**, so it runs on the base `appsettings.json` (production truth) without Development-only behaviour; a test in `Conventions/` guards it. Before it starts, the test replaces only what it must control: the Enable Banking settings, Microsoft's sign-in, the cookie keys, the clock and the web root (the web root since C3, the Enable Banking settings since C5, the rest since C6). Everything else is production code.
+- Each acceptance test starts its own copy of the API inside the test process (TUnit.AspNetCore, TUnit's version of the ASP.NET Core test host), **in environment `Production`**, so it runs on the base `appsettings.json` (production truth) without Development-only behaviour; a test in `Conventions/` guards it. Before it starts, the test replaces only what it must control: the Enable Banking settings, Microsoft's sign-in, the cookie keys, the clock, the web root and the store's settings (the web root since C3, the Enable Banking settings since C5, the store's since C7b, the rest since C6). Everything else is production code.
 - **Every app copy gets the fake bank's settings** (c004 design.md D6), because the app refuses to start without them: `Drivers/FakeBank` starts a WireMock.Net server per test before the app copy and writes its address, made-up application, session and account ids, an RSA key generated once per test run, a 5 s request timeout (short enough for the slow-bank scenario, long enough for a busy full run) and a zero retry wait (§ Fake bank) into the app copy's `EnableBanking` section. Tests that never read the bank get them too. FastEndpoints runs inside this host (proven in C1).
 - **Every app copy gets the fake Microsoft's settings and three test services** (c007 design.md D6), because the app refuses to start without its sign-in settings: `Drivers/FakeMicrosoft` starts a WireMock.Net server per test before the app copy, writes `SignIn:Authority` (the fake's address), a made-up client id and secret and the allowlist `lucie@example.com`, and adds in `ConfigureTestServices`: plain-HTTP metadata allowed for the fake, ephemeral Data Protection keys, and a `FakeTimeProvider` as the app's only `TimeProvider` (§ Test sign-in, § Time and the background job). Tests that never sign in get them too.
+- **Every app copy gets the store's settings** (c010 design.md D12), because the app refuses to start without `ConnectionStrings:tables`: `Drivers/AzuriteStorage` writes the test session's Azurite connection string and a table name no other app copy uses (§ Storage). They go in as host settings (`UseSetting`), because the app checks the connection while it registers the store, before a source added with `ConfigureAppConfiguration` arrives. Tests that never read the transactions get them too.
 - **The web root is a stand-in page folder** (c003 design.md D6):
   - `Drivers/StandInPages/` holds a tiny `index.html`. It's copied to the test output and set as every test app's web root (`UseWebRoot` in `AcceptanceTest`).
   - The tests check the backend's serving rules (which addresses get the page, which never do), not the frontend build. "The app's page" in the DSL means a successful `text/html` answer whose body is the stand-in page.
@@ -183,6 +186,16 @@ Evidence: [spikes/enable-banking-mock/](../../spikes/enable-banking-mock/README.
 - **No in-memory fake of the bank client** unless a unit test genuinely needs one.
 - How this relates to the software factory: [software-factory/lessons.md R-13](../software-factory/lessons.md); what the project gives up: [divergences.md R-13](../software-factory/divergences.md).
 
+## Storage: the real adapter on Azurite
+
+Decided in C7b (c010 design.md D12), from [ADR-0005-data-storage § Decision](../adr/0005-data-storage.md#decision), item 3.
+
+- **Storage is never faked** (§ Defaults: fake only what you don't own): the acceptance tests and the integration tests run the real Table adapter against Azurite, Microsoft's storage emulator, in a container started by Testcontainers (`Testcontainers.Azurite`).
+- **One container per test session,** a TUnit shared data source (`Shared = SharedType.PerTestSession`), started before the first test that needs it and removed when the session ends: `Drivers/AzuriteStorage` in the acceptance project, `Storage/AzuriteTables` in the integration project.
+- **The image is pinned:** `mcr.microsoft.com/azure-storage/azurite:3.37.0`, in both classes (the package's default image constant is obsolete).
+- **A table of its own** for each app copy and each contract test: `t` and a new GUID's 32 hex digits, a valid `Transactions:TableName`. Tests stay apart without cleanup, and the adapter creates its table when it is missing.
+- **Docker must be running:** every acceptance test that starts an app copy needs Azurite, so `dotnet test` needs Docker ([`CLAUDE.md` § Commands](../../CLAUDE.md#commands)). Without it the tests stop with a message saying so (§ Integration tests).
+
 ## Test sign-in: fake the signature, never the security code
 
 The principle is DoseUp's (its software-factory entry F-68). The mechanics differ, because the backend runs the sign-in itself and keeps a login cookie ([ADR-0003-sign-in](../adr/0003-sign-in.md), Q2): [software-factory/lessons.md R-24](../software-factory/lessons.md).
@@ -204,6 +217,7 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 ## Time and the background job
 
 - **The clock is `FakeTimeProvider`** (Microsoft.Extensions.TimeProvider.Testing, 10.11.0, 2026-10-14), swapped in by the harness, so a test can state "it is 2026-11-10 06:00". Since C6 every app copy runs on it (`FakeMicrosoft.Clock`), started at the real current time: Microsoft's ID token is checked against the real clock, so a test moves the clock only after signing in. The app takes the time only from `TimeProvider` ([README.md § C# style beyond tooling](README.md#c-style-beyond-tooling)).
+- **Scenario dates are relative to the clock** (C7b, c010 design.md D12). The clock starts at the real time and only moves forward, so a scenario's "today is 2026-11-20" cannot be set on it. `Drivers/ScenarioCalendar` maps the scenario's dates onto the clock instead: the scenario names its today (the DSL's `TodayIs`), which becomes the clock's today (the UTC date of its time, as the app takes today), and every other date keeps its distance in days. The driver shifts the dates it writes (to the fake bank, the store and the API's query) and shifts back the dates it reads, so test cases keep the spec's dates. Moving the clock moves the scenario's today with it. This holds because the rules count days only; a rule that depends on the calendar itself (a weekday, the end of a month) would need another way.
 - **Tests start the background check directly** ("run the check now") instead of waiting for a scheduler. So the check is ordinary app code, and whatever schedules it only calls it — an input to Q4 (job hosting, F0-2), recorded in [pm/progress.md](../../pm/progress.md#q4--job-hosting-registry-and-costs).
 
 ## Test framework and assertions
@@ -221,6 +235,6 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 
 ## Decided later
 
-- **Database tests:** F0-2 chose Azure Table Storage ([ADR-0005-data-storage](../adr/0005-data-storage.md)). Database tests run against Azurite in a test container (`Testcontainers.Azurite`, with the image pinned explicitly). The change that first stores data (C7 or its first slice) sets them up.
+- **Database tests:** decided in C7b and described in § Storage (Azurite in a test container, [ADR-0005-data-storage](../adr/0005-data-storage.md)).
 - **Fake push-notification service:** C8.
 - **Test commands:** decided in C1 and listed in [`CLAUDE.md` § Commands](../../CLAUDE.md#commands) (one group's tests, one change's acceptance tests, the traceability check, the full suite).
