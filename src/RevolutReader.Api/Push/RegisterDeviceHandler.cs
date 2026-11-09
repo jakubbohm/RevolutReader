@@ -4,7 +4,8 @@ namespace RevolutReader.Api.Push;
 
 /// <summary>
 /// Registers a device (spec push-devices, c011 design.md D3, D9, D11): a subscription whose push address lies at a known
-/// push service (<see cref="KnownPushServices"/>) and that has both keys is saved under the signed-in account, replacing
+/// push service (<see cref="KnownPushServices"/>) and whose keys are well formed (the public key the 65-byte uncompressed
+/// P-256 point, the secret 16 bytes, each in base64url without padding) is saved under the signed-in account, replacing
 /// whatever was saved under its push address, so the same address registered again moves to the account signed in now.
 /// Otherwise it is refused, each refused member named with a fixed reason, never its value, and nothing is stored.
 /// Logs nothing of its own (D4).
@@ -17,6 +18,19 @@ public sealed class RegisterDeviceHandler(IPushDeviceStore store, KnownPushServi
 
   private const string NOT_AT_A_KNOWN_SERVICE = "The push address is not at a known push service.";
   private const string MISSING = "Missing.";
+
+  private const string NOT_A_PUBLIC_KEY =
+    "Not a device public key: expected the 65-byte uncompressed P-256 point (0x04, X, Y) in base64url without padding.";
+
+  private const string NOT_A_SECRET = "Not a device secret: expected 16 bytes in base64url without padding.";
+
+  /// <summary>The device's public key: the uncompressed P-256 point, 0x04 then X and Y, 32 bytes each (D9; SEC 1, § 2.3.3).</summary>
+  private const int POINT_BYTES = 65;
+
+  private const byte UNCOMPRESSED_POINT = 0x04;
+
+  /// <summary>The device's secret (D9; RFC 8291 § 3.2).</summary>
+  private const int SECRET_BYTES = 16;
 
   /// <summary>Saves the device under <paramref name="account"/>, the signed-in account's email, or refuses it, as the class describes.</summary>
   public async Task<RegistrationResult> Handle(DeviceSubscription subscription, string account, CancellationToken cancellationToken) {
@@ -45,10 +59,21 @@ public sealed class RegisterDeviceHandler(IPushDeviceStore store, KnownPushServi
 
     if (subscription.P256dh is null)
       refused.Add(new RefusedMember(P256DH, MISSING));
+    else if (!IsPublicKey(subscription.P256dh))
+      refused.Add(new RefusedMember(P256DH, NOT_A_PUBLIC_KEY));
 
     if (subscription.Auth is null)
       refused.Add(new RefusedMember(AUTH, MISSING));
+    else if (!IsSecret(subscription.Auth))
+      refused.Add(new RefusedMember(AUTH, NOT_A_SECRET));
 
     return refused;
   }
+
+  /// <summary>Whether <paramref name="text"/> is the 65-byte uncompressed P-256 point (0x04, X, Y) in base64url without padding.</summary>
+  private static bool IsPublicKey(string text) =>
+    StrictBase64Url.Decode(text) is { Length: POINT_BYTES } point && point[0] == UNCOMPRESSED_POINT;
+
+  /// <summary>Whether <paramref name="text"/> is 16 bytes in base64url without padding.</summary>
+  private static bool IsSecret(string text) => StrictBase64Url.Decode(text) is { Length: SECRET_BYTES };
 }

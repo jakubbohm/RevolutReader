@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Buffers.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
@@ -45,10 +43,6 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
     $"{nameof(PushOptions)}.{nameof(PushOptions.Subject)} is not the app's address: "
     + "expected an absolute https address with no path beyond \"/\", and no query or fragment.";
 
-  /// <summary>Base64url's alphabet, without padding (RFC 4648, § 5).</summary>
-  private static readonly SearchValues<char> _base64UrlAlphabet =
-    SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
-
   /// <summary>What the private half signs and the public half must verify.</summary>
   private static ReadOnlySpan<byte> PairCheckText => "RevolutReader push settings: one VAPID key pair"u8;
 
@@ -69,7 +63,7 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
     if (publicKey is not null && privateKey is not null && !AreOnePair(publicKey, privateKey))
       failures.Add(NOT_ONE_PAIR);
 
-    if (DecodeBase64Url(options.MessageKey) is not { Length: >= MESSAGE_KEY_MIN_BYTES })
+    if (StrictBase64Url.Decode(options.MessageKey) is not { Length: >= MESSAGE_KEY_MIN_BYTES })
       failures.Add(NOT_A_MESSAGE_KEY);
 
     if (!IsAppAddress(options.Subject))
@@ -85,7 +79,7 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
 
   /// <summary>The key <paramref name="text"/> holds when it is the 65-byte uncompressed point of P-256, else null.</summary>
   private static ECDsa? ImportPublicKey(string? text) {
-    if (DecodeBase64Url(text) is not { Length: POINT_BYTES } point || point[0] != UNCOMPRESSED_POINT)
+    if (StrictBase64Url.Decode(text) is not { Length: POINT_BYTES } point || point[0] != UNCOMPRESSED_POINT)
       return null;
 
     return Import(new ECParameters {
@@ -100,7 +94,7 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
   /// configured public half with the private half's own.
   /// </summary>
   private static ECDsa? ImportPrivateKey(string? text) =>
-    DecodeBase64Url(text) is { Length: SCALAR_BYTES } scalar
+    StrictBase64Url.Decode(text) is { Length: SCALAR_BYTES } scalar
       ? Import(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, D = scalar })
       : null;
 
@@ -131,20 +125,6 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
     catch (CryptographicException) {
       return false; // a scalar the platform took but cannot sign with (e.g. zero, on Linux)
     }
-  }
-
-  /// <summary>
-  /// The bytes <paramref name="text"/> holds in base64url without padding, or null when it holds anything else: a
-  /// character outside the alphabet (standard base64's "+" and "/", padding, white space) or a length or last character
-  /// no encoder writes.
-  /// </summary>
-  private static byte[]? DecodeBase64Url(string? text) {
-    if (string.IsNullOrEmpty(text) || text.AsSpan().ContainsAnyExcept(_base64UrlAlphabet))
-      return null;
-
-    byte[] bytes = new byte[Base64Url.GetMaxDecodedLength(text.Length)];
-
-    return Base64Url.DecodeFromChars(text, bytes, out _, out int written) == OperationStatus.Done ? bytes[..written] : null;
   }
 
   /// <summary>
