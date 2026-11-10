@@ -32,6 +32,7 @@ module features 'features.bicep' = {
     keysBlobUri: platform.outputs.keysBlobUri
     keyVaultKeyUri: platform.outputs.keyVaultKeyUri
     tableEndpoint: platform.outputs.tableEndpoint
+    environmentDefaultDomain: platform.outputs.environmentDefaultDomain
   }
 }
 

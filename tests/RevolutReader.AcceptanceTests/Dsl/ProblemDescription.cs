@@ -39,4 +39,10 @@ public sealed record ProblemDescription(string Title, string? Type = null) {
 
   /// <summary>The API failed in a way it does not expect: title <c>Internal Server Error</c>, RFC 9110's type, status 500 (spec api-errors).</summary>
   public static ProblemDescription InternalServerError { get; } = new("Internal Server Error");
+
+  /// <summary>
+  /// The owner's message names an account that is not on the allowlist: title <c>Account not allowed</c>, type
+  /// <c>/problems/push-account-not-allowed</c>, status 404 (spec push-sending, c011 design.md D10).
+  /// </summary>
+  public static ProblemDescription PushAccountNotAllowed { get; } = new("Account not allowed", "/problems/push-account-not-allowed");
 }

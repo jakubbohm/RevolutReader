@@ -153,8 +153,11 @@ jobs:
 
       # The image started once, with made-up Enable Banking values and a throwaway key, which the
       # app needs from C5 on (c005 design.md D7), made-up sign-in values, which it needs from
-      # C6 on (c007 design.md D11), and a made-up tables connection, which it needs from C7b on
-      # (c010 design.md D11; nothing connects at start). On failure the container's log is printed.
+      # C6 on (c007 design.md D11), a made-up tables connection, which it needs from C7b on
+      # (c010 design.md D11; nothing connects at start), and made-up push keys, which it needs from
+      # C8a on (c011 design.md D5): a VAPID pair, which must be a valid pair, generated per run
+      # from Node's P-256 key in JWK form, and 32 random bytes as the message key, all three in
+      # base64url and never printed. On failure the container's log is printed.
       - name: Smoke run
         run: |
           set -euo pipefail
@@ -167,6 +170,8 @@ jobs:
           }
           EnableBanking__PrivateKey="$(openssl genpkey -quiet -algorithm RSA -pkeyopt rsa_keygen_bits:2048)"
           export EnableBanking__PrivateKey
+          read -r Push__VapidPublicKey Push__VapidPrivateKey Push__MessageKey < <(node -e "const c=require('crypto');const j=c.generateKeyPairSync('ec',{namedCurve:'P-256'}).privateKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log(Buffer.concat([Buffer.from([4]),b(j.x),b(j.y)]).toString('base64url'),j.d,c.randomBytes(32).toString('base64url'))")
+          export Push__VapidPublicKey Push__VapidPrivateKey Push__MessageKey
           docker run -d --name smoke-run -p 8080:8080 \
             -e EnableBanking__ApplicationId=00000000-0000-0000-0000-000000000000 \
             -e EnableBanking__PrivateKey \
@@ -175,6 +180,9 @@ jobs:
             -e SignIn__ClientSecret=made-up \
             -e SignIn__AllowedEmails=someone@example.com \
             -e ConnectionStrings__tables=UseDevelopmentStorage=true \
+            -e Push__VapidPublicKey \
+            -e Push__VapidPrivateKey \
+            -e Push__MessageKey \
             "$IMAGE" >/dev/null
           health=""
           for _ in $(seq 1 30); do

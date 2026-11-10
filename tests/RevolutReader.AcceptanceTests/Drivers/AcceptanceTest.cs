@@ -11,7 +11,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// and its drivers are built on that copy. Swapped: the web root is the stand-in page folder (<see cref="StandInPages"/>,
 /// c003 design.md D6); Enable Banking is the test's own fake bank (<see cref="Drivers.FakeBank"/>, c004 design.md D6);
 /// Microsoft's sign-in is the test's own fake Microsoft (<see cref="Drivers.FakeMicrosoft"/>, c007 design.md D6), which
-/// also brings the ephemeral cookie keys and the app copy's clock. Every app copy gets both fakes' settings.
+/// also brings the ephemeral cookie keys and the app copy's clock; the push services are the test's own fake push service
+/// (<see cref="Drivers.FakePushService"/>, c011 design.md D7). Every app copy gets all three fakes' settings.
 /// <para>
 /// Storage is real: the test session's Azurite (<see cref="AzuriteStorage"/>, c010 design.md D12), with a table of each
 /// app copy's own. Every app copy gets its settings too.
@@ -22,6 +23,9 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private HttpClient? _browser;
   private FakeBank? _fakeBank;
   private FakeMicrosoft? _fakeMicrosoft;
+  private FakePushService? _fakePushService;
+  private PushDsl? _push;
+  private PushDriver? _pushDriver;
   private ScenarioCalendar? _calendar;
   private TransactionsDsl? _transactions;
   private TransactionsDriver? _transactionsDriver;
@@ -80,6 +84,26 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// <summary>This test's fake Microsoft; started when the app copy is configured, so before it starts; stopped after the test.</summary>
   private FakeMicrosoft FakeMicrosoft => _fakeMicrosoft ??= FakeMicrosoft.Start();
 
+  /// <summary>
+  /// This test's fake push service; started when the app copy is configured, so before it starts; stopped after the test.
+  /// Open to the guards in <c>Conventions/</c> that need what the DSL keeps from scenarios: a device's push address and
+  /// keys, the message key, the VAPID pair (<c>PushTelemetryTests</c>). Scenarios use <see cref="Push"/> only.
+  /// </summary>
+  protected FakePushService FakePushService => _fakePushService ??= FakePushService.Start();
+
+  /// <summary>
+  /// Push (specs push-devices, push-sending; c011 design.md D7): registering devices in the browser <see cref="SignIn"/>
+  /// signs in with, the owner's messages from an anonymous caller with the message key, the app copy's device store, and
+  /// what this test's fake push service received.
+  /// </summary>
+  protected PushDsl Push => _push ??= new(PushDriver, FakePushService);
+
+  /// <summary>
+  /// The driver under <see cref="Push"/>, the same browser and owner, for the guards in <c>Conventions/</c> that drive
+  /// devices the DSL keeps behind its phones (<see cref="FakePushService"/>'s). Scenarios use <see cref="Push"/> only.
+  /// </summary>
+  protected PushDriver PushDriver => _pushDriver ??= new(Browser, Http, FakePushService, Services);
+
   /// <summary>The test session's Azurite, shared by every app copy (c010 design.md D12); started before the first test, removed after the last.</summary>
   [ClassDataSource<AzuriteStorage>(Shared = SharedType.PerTestSession)]
   public required AzuriteStorage Azurite { get; init; }
@@ -111,12 +135,16 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   [After(Test)]
   public void StopFakeMicrosoft() => _fakeMicrosoft?.Dispose();
 
+  [After(Test)]
+  public void StopFakePushService() => _fakePushService?.Dispose();
+
   protected override void ConfigureWebHostBuilder(IWebHostBuilder builder) {
     ArgumentNullException.ThrowIfNull(builder);
 
     builder.UseEnvironment(Environments.Production);
     builder.UseWebRoot(StandInPages.Folder);
     FakeBank.Configure(builder);
+    FakePushService.Configure(builder);
     Azurite.Configure(builder);
     FakeMicrosoft.Configure(builder);
   }

@@ -13,6 +13,7 @@ One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, number
 | [0007](0007-offline-balance.md) | Offline scope — the phone keeps the app's files and the last balance, never transactions | Accepted | 2026-11-06 |
 | [0008](0008-phone-triggered-check.md) | The account check's trigger — a Revolut notification on the owner's iPhone, with the phone's PSU headers | Accepted | 2026-11-06 |
 | [0009](0009-application-telemetry.md) | Application telemetry — Application Insights on the log workspace, fed by the app with its own identity | Accepted | 2026-11-08 |
+| [0010](0010-web-push.md) | Web Push — Declarative Web Push from .NET with Lib.Net.Http.WebPush, allowlisted accounts only, and a hidden message endpoint | Accepted | 2026-11-10 |
 
 ## Template
 

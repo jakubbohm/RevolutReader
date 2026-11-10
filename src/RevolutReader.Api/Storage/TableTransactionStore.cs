@@ -19,12 +19,12 @@ namespace RevolutReader.Api.Storage;
 /// decimal string (tables have no decimal type, and a double would lose cents); <c>Currency</c>; <c>Counterparty</c> and
 /// <c>TypeCode</c>, left out when missing; <c>Details</c>, the lines as a JSON array, unchanged.</item>
 /// <item>The table is created when missing, once per instance, before its first read or write; a creation that failed is
-/// tried again by the next call.</item>
+/// tried again by the next call (<see cref="TableCreation"/>).</item>
 /// <item>A row it cannot read is an <see cref="InvalidOperationException"/> naming the column, never its value; the
 /// storage's own failures pass on as the client's exceptions (§ Error model). Logs nothing.</item>
 /// </list>
 /// </summary>
-public sealed class TableTransactionStore(TableServiceClient tables, IOptions<TransactionStoreOptions> options) : ITransactionStore {
+public sealed class TableTransactionStore : ITransactionStore {
   /// <summary>The one partition: the app reads one account.</summary>
   private const string PARTITION = "account";
 
@@ -43,15 +43,20 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
   private const string DETAILS = "Details";
   private const string TYPE_CODE = "TypeCode";
 
-  private readonly TableClient _table = tables.GetTableClient(options.Value.TableName);
-  private readonly Lock _lock = new();
+  private readonly TableClient _table;
+  private readonly TableCreation _creation;
 
-  /// <summary>The table's creation, shared by every caller; <see langword="null"/> before the first call.</summary>
-  private Task? _created;
+  public TableTransactionStore(TableServiceClient tables, IOptions<TransactionStoreOptions> options) {
+    ArgumentNullException.ThrowIfNull(tables);
+    ArgumentNullException.ThrowIfNull(options);
+
+    _table = tables.GetTableClient(options.Value.TableName);
+    _creation = new TableCreation(_table);
+  }
 
   /// <summary>Every row of the partition, newest day first, then by position within the day, then by reference (ordinal), so a read is always in the same order.</summary>
   public async Task<IReadOnlyList<KeptTransaction>> ReadAll(CancellationToken cancellationToken) {
-    await TableCreated(cancellationToken);
+    await _creation.Ensure(cancellationToken);
 
     List<KeptTransaction> kept = [];
 
@@ -78,7 +83,7 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
     if (transactions.Count == 0)
       return;
 
-    await TableCreated(cancellationToken);
+    await _creation.Ensure(cancellationToken);
 
     // Grouped by the reference, not the key: distinct references have distinct keys (SHA-256 has no known collision).
     IEnumerable<KeptTransaction> latest = transactions
@@ -87,20 +92,6 @@ public sealed class TableTransactionStore(TableServiceClient tables, IOptions<Tr
 
     foreach (KeptTransaction[] batch in latest.Chunk(MOST_PER_BATCH))
       await _table.SubmitTransactionAsync([.. batch.Select(static transaction => new TableTransactionAction(TableTransactionActionType.UpsertReplace, Row(transaction)))], cancellationToken);
-  }
-
-  /// <summary>
-  /// The table created if missing: every caller awaits the same creation, and only one that failed or was cancelled is
-  /// started again. It runs without the caller's token, so one caller giving up does not fail the others; each caller
-  /// stops waiting on its own token.
-  /// </summary>
-  private Task TableCreated(CancellationToken cancellationToken) {
-    lock (_lock) {
-      if (_created is null || _created.IsFaulted || _created.IsCanceled)
-        _created = _table.CreateIfNotExistsAsync(CancellationToken.None);
-
-      return _created.WaitAsync(cancellationToken);
-    }
   }
 
   private static TableEntity Row(KeptTransaction transaction) {
