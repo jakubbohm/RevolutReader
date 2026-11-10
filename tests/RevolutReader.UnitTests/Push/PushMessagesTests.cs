@@ -160,6 +160,32 @@ public sealed class PushMessagesTests {
   }
 
   /// <summary>
+  /// A page whose text does not start with <c>/api</c> but which, put on the app's address, opens an address under
+  /// <c>/api</c> is not a page of the app either (D2: <c>navigate</c> is always a page of the app itself, outside
+  /// <c>/api</c>): a backslash read as a slash, a <c>.</c> or <c>..</c> segment removed, letters written percent-encoded,
+  /// in either case. Refused like any other page that is not the app's, naming <c>page</c> alone, with a fixed reason
+  /// that quotes nothing of the page.
+  /// </summary>
+  /// <param name="page">A page that, on the app's address, lands under <c>/api</c>.</param>
+  [Test]
+  [Arguments("/api\\balance")] // a backslash, read as a slash: /api/balance
+  [Arguments("/./api/x")] // a . segment removed: /api/x
+  [Arguments("/x/../api/me")] // a .. segment removed: /api/me
+  [Arguments("/%61pi/x")] // a percent-encoded "a": /api/x
+  [Arguments("/%2e/api")] // a percent-encoded . segment: /api
+  [Arguments("/%41PI/x")] // percent-encoded, upper case: /API/x
+  [Arguments("/%2E%2E/api/x")] // a percent-encoded .. segment: /api/x
+  public void A_page_that_opens_an_address_under_api_on_the_apps_address_is_refused_naming_the_page(string page) {
+    RefusedMember refused = PushMessages.Check(new PushMessage(TITLE, TEXT, page), _appAddress)
+      .ShouldHaveSingleItem($"the page opens {new Uri(_appAddress, page).AbsolutePath} on the app's address, which is the API's, so only the page is refused");
+
+    refused.ShouldSatisfyAllConditions(
+      () => refused.Member.ShouldBe("page"),
+      () => refused.Reason.ShouldNotBeNullOrWhiteSpace("a fixed reason"),
+      () => refused.Reason.ShouldNotContain(page, Case.Insensitive, "never a value"));
+  }
+
+  /// <summary>
   /// The most a push may carry is 3993 bytes of JSON (D2: RFC 8291 § 4), counted on the JSON the sender really sends, the
   /// app's address and the page included: a message of exactly that size is accepted.
   /// </summary>
