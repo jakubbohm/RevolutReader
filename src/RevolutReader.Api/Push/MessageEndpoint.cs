@@ -1,8 +1,11 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using FastEndpoints;
 using FluentValidation.Results;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 
 namespace RevolutReader.Api.Push;
 
@@ -100,9 +103,12 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
   private static PushMessage Message(MessageRequest request) =>
     new(request.Title ?? string.Empty, request.Text, request.Page ?? START_PAGE);
 
-  /// <summary>The body as the message's JSON; <see langword="null"/> when it is not JSON, not that shape, or <c>null</c>.</summary>
+  /// <summary>
+  /// The body as the message's JSON; <see langword="null"/> when it is not JSON, declared in a charset that is no known
+  /// encoding, not that shape, or <c>null</c>.
+  /// </summary>
   private async Task<MessageRequest?> ReadMessage(CancellationToken cancellationToken) {
-    if (!HttpContext.Request.HasJsonContentType())
+    if (!HttpContext.Request.HasJsonContentType() || !DeclaresAKnownCharset(HttpContext.Request.ContentType))
       return null;
 
     try {
@@ -110,6 +116,30 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
     }
     catch (JsonException) {
       return null;
+    }
+  }
+
+  /// <summary>
+  /// Whether <paramref name="contentType"/> declares no charset or one that names a known encoding. The JSON reader decodes
+  /// the body in that encoding and throws when there is none (an <see cref="InvalidOperationException"/>, as it does for
+  /// a bug in the serializer's setup), so a body in an unknown charset is checked here, before the reader sees it.
+  /// </summary>
+  private static bool DeclaresAKnownCharset(string? contentType) {
+    if (!MediaTypeHeaderValue.TryParse(contentType, out MediaTypeHeaderValue? mediaType))
+      return false;
+
+    StringSegment charset = mediaType.Charset;
+
+    if (!charset.HasValue)
+      return true;
+
+    try {
+      _ = Encoding.GetEncoding(charset.Value);
+
+      return true;
+    }
+    catch (ArgumentException) {
+      return false;
     }
   }
 }
