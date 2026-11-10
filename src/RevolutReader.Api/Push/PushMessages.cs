@@ -20,6 +20,9 @@ public static partial class PushMessages {
   private const string MESSAGE = "message";
   private const string TOO_LONG = "Too long for a push.";
 
+  /// <summary>The API's first segment: <c>/api</c> and every path under it are the API's, not pages (D2).</summary>
+  private const string API = "/api";
+
   /// <summary>
   /// The most UTF-8 bytes a push's JSON may take (D2): the plaintext a push service must accept, RFC 8291 § 4, 4096 octets
   /// of body less the 86-octet header, one octet of padding and the 16-octet tag.
@@ -33,16 +36,29 @@ public static partial class PushMessages {
   /// </summary>
   private static readonly JsonSerializerOptions _json = new() { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) };
 
-  /// <summary>Whether <paramref name="page"/> is a page of the app (D2): a path that starts with a single <c>/</c> and lies outside <c>/api</c>.</summary>
+  /// <summary>
+  /// The address a page is put on to see the address it opens. A page is a path, and a path keeps the same path on any
+  /// address, so what it opens here it opens on the app's own; the domain is reserved, so it is never reached.
+  /// </summary>
+  private static readonly Uri _anyAppAddress = new("https://app.invalid/");
+
+  /// <summary>
+  /// Whether <paramref name="page"/> is a page of the app (D2): a path that starts with a single <c>/</c> and, put on the
+  /// app's address as <c>navigate</c> is, opens an address of the app itself, outside <c>/api</c>.
+  /// </summary>
   /// <remarks>
   /// A single <c>/</c>: two slashes, or a slash and a backslash (which browsers read alike), start an address on another
-  /// host. Outside <c>/api</c> by whole first segment, ignoring case, as the app's own page route compares it
-  /// (<c>PagesExtensions</c>), with the segment also ended by a query or a fragment, since a page may carry them.
+  /// host. The address it opens is the one <see cref="Uri"/> resolves, as <see cref="DeclarativeJson"/> builds
+  /// <c>navigate</c>, so a page is judged by what it opens, never by its text: a backslash read as a slash, <c>.</c> and
+  /// <c>..</c> segments removed, letters written percent-encoded read as letters. That address must keep the app's
+  /// scheme, host and port, and its path must lie outside <c>/api</c> by whole first segment, ignoring case, as the app's
+  /// own page route compares it (<c>PagesExtensions</c>); a query or a fragment is no part of the path. A page that
+  /// cannot be put on an address opens nothing, so it is no page either.
   /// </remarks>
   public static bool IsAppPage(string page) {
     ArgumentNullException.ThrowIfNull(page);
 
-    return AppPage().IsMatch(page);
+    return SingleSlashPath().IsMatch(page) && OpensAPageOfTheApp(page);
   }
 
   /// <summary>The members of <paramref name="message"/> a push cannot carry, each with a fixed reason, never its value (D2, D10); none when it can.</summary>
@@ -63,9 +79,23 @@ public static partial class PushMessages {
     return refused;
   }
 
-  /// <summary>A page of the app, as <see cref="IsAppPage"/> describes.</summary>
-  [GeneratedRegex(@"^/(?![/\\])(?!api(/|\?|#|$))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-  private static partial Regex AppPage();
+  /// <summary>A text that starts with a single <c>/</c>, as <see cref="IsAppPage"/> describes.</summary>
+  [GeneratedRegex(@"^/(?![/\\])", RegexOptions.CultureInvariant)]
+  private static partial Regex SingleSlashPath();
+
+  /// <summary>
+  /// Whether <paramref name="page"/>, put on an app's address, opens an address of that app outside <c>/api</c>, as
+  /// <see cref="IsAppPage"/> describes; <see langword="false"/> when it cannot be put on an address.
+  /// </summary>
+  private static bool OpensAPageOfTheApp(string page) {
+    if (!Uri.TryCreate(_anyAppAddress, page, out Uri? opened)
+        || !string.Equals(opened.GetLeftPart(UriPartial.Authority), _anyAppAddress.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+      return false;
+
+    string path = opened.AbsolutePath;
+
+    return !path.Equals(API, StringComparison.OrdinalIgnoreCase) && !path.StartsWith($"{API}/", StringComparison.OrdinalIgnoreCase);
+  }
 
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as
