@@ -63,7 +63,7 @@ public sealed class KeylessMessageTests {
   [Arguments(KeyLine.Wrong, KeyLine.Right)]
   public async Task A_request_with_the_key_header_twice_gets_the_answer_of_an_unknown_address(KeyLine first, KeyLine second) {
     await using MessageEndpointApp app = new();
-    string wrongKey = MessageEndpointApp.MadeUpMessageKey();
+    string wrongKey = MadeUpSettings.MessageKey();
 
     await ShouldAnswerAsAnUnknownAddress(app, VALID_BODY, keyLines: [KeyOf(first), KeyOf(second)]);
 

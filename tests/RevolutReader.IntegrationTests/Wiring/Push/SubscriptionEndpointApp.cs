@@ -17,8 +17,8 @@ using RevolutReader.UnitTests.Push;
 namespace RevolutReader.IntegrationTests.Wiring.Push;
 
 /// <summary>
-/// An app copy for the subscription endpoint's own tests (c011 design.md D9), on <see cref="MessageEndpointApp"/>'s
-/// made-up settings, in environment <c>Production</c>, with <see cref="MessageEndpointApp.ALLOWED_ACCOUNT"/> as the
+/// An app copy for the subscription endpoint's own tests (c011 design.md D9), on the shared <see cref="MadeUpSettings"/>,
+/// in environment <c>Production</c>, with <see cref="MessageEndpointApp.ALLOWED_ACCOUNT"/> as the
 /// allowlist and the known push services <c>appsettings.json</c> declares (no loopback service among them). Two things
 /// differ from a real run, neither of them the endpoint's:
 /// <list type="bullet">
@@ -55,7 +55,7 @@ internal sealed class SubscriptionEndpointApp : WebApplicationFactory<Program> {
     builder.UseEnvironment(Environments.Production);
     builder.UseSetting(TABLES_CONNECTION, MADE_UP_TABLES_CONNECTION);
     builder.ConfigureAppConfiguration((_, configuration) =>
-      configuration.AddInMemoryCollection(MessageEndpointApp.MadeUpSettings(MessageEndpointApp.MadeUpMessageKey())));
+      configuration.AddInMemoryCollection(MadeUpSettings.For(MessageEndpointApp.ALLOWED_ACCOUNT)));
     builder.ConfigureTestServices(services => {
       services.RemoveAll<IPushDeviceStore>();
       services.AddSingleton<IPushDeviceStore>(Devices);

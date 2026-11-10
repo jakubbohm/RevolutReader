@@ -1,6 +1,3 @@
-using System.Buffers.Text;
-using System.Diagnostics;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.OpenApi;
@@ -21,7 +18,7 @@ namespace RevolutReader.IntegrationTests.Wiring.OpenApi;
 /// would describe, and writes it. The app itself never serves it.
 /// <para>
 /// Explicit: <c>dotnet test</c> never runs it. The regenerate script and the drift step in CI do. A change that adds a
-/// setting checked at start adds a made-up value to <see cref="MadeUpSettings"/>.
+/// setting checked at start adds a made-up value to the shared <see cref="MadeUpSettings"/>.
 /// </para>
 /// </summary>
 [Explicit]
@@ -30,11 +27,8 @@ public sealed class OpenApiExport {
   /// <summary>FastEndpoints.OpenApi's default document name (<c>DocumentOptions.DocumentName</c>).</summary>
   private const string DOCUMENT_NAME = "v1";
 
-  /// <summary>An uncompressed elliptic-curve point's first byte (SEC 1, § 2.3.3).</summary>
-  private const byte UNCOMPRESSED_POINT = 0x04;
-
-  /// <summary>The message key's size (c011 design.md D5).</summary>
-  private const int MESSAGE_KEY_BYTES = 32;
+  /// <summary>The export's allowlist, made up: the app checks it at start, and the export signs no one in.</summary>
+  private const string ALLOWED_EMAILS = "export@example.com";
 
   [Test]
   public async Task Writes_the_api_description() {
@@ -48,32 +42,6 @@ public sealed class OpenApiExport {
     document.Paths.ShouldContainKey("/health", "the document describes the API's endpoints");
     // One line ending everywhere, so a document written on Windows and one written in CI compare equal.
     await File.WriteAllTextAsync(DocumentPath(), json.ReplaceLineEndings("\n") + "\n");
-  }
-
-  /// <summary>Made up, never real: each secret the app checks at start. The keys are generated per run.</summary>
-  private static Dictionary<string, string?> MadeUpSettings() {
-    using RSA key = RSA.Create(2048);
-    using ECDsa vapidKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-    ECParameters vapid = vapidKey.ExportParameters(includePrivateParameters: true);
-    byte[] x = vapid.Q.X ?? throw new UnreachableException("An exported P-256 key has its point.");
-    byte[] y = vapid.Q.Y ?? throw new UnreachableException("An exported P-256 key has its point.");
-    byte[] d = vapid.D ?? throw new UnreachableException("A key exported with its private parameters has its scalar.");
-
-    return new() {
-      ["EnableBanking:ApplicationId"] = Guid.NewGuid().ToString(),
-      ["EnableBanking:PrivateKey"] = key.ExportPkcs8PrivateKeyPem(),
-      ["EnableBanking:SessionId"] = Guid.NewGuid().ToString(),
-      ["EnableBanking:AccountId"] = Guid.NewGuid().ToString(),
-      // The sign-in's authority and client id are appsettings.json's own values, not secrets (c007 design.md D11).
-      ["SignIn:ClientSecret"] = $"made-up-client-secret-{Guid.NewGuid()}",
-      ["SignIn:AllowedEmails"] = "export@example.com",
-      // The push settings' forms (c011 design.md D5), base64url without padding: the VAPID public key the uncompressed
-      // point (0x04, X, Y), its private half the scalar, the message key 32 random bytes. Subject and the known push
-      // services are appsettings.json's own values.
-      ["Push:VapidPublicKey"] = Base64Url.EncodeToString([UNCOMPRESSED_POINT, .. x, .. y]),
-      ["Push:VapidPrivateKey"] = Base64Url.EncodeToString(d),
-      ["Push:MessageKey"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(MESSAGE_KEY_BYTES)),
-    };
   }
 
   /// <summary><c>src/RevolutReader.Api/openapi.json</c>, found from the test's output folder up to the repository root.</summary>
@@ -101,7 +69,7 @@ public sealed class OpenApiExport {
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
       builder.UseEnvironment(Environments.Production);
       builder.UseSetting(TABLES_CONNECTION, MADE_UP_TABLES_CONNECTION);
-      builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings()));
+      builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(MadeUpSettings.For(ALLOWED_EMAILS)));
     }
   }
 }
