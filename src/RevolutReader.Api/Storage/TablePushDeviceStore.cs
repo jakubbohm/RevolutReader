@@ -17,12 +17,12 @@ namespace RevolutReader.Api.Storage;
 /// <item>A save replaces the whole row with the same key, so the same push address saved again keeps one device, with the
 /// latest keys and account; a forget of an address not stored is fine.</item>
 /// <item>The table is created when missing, once per instance, before its first read or write; a creation that failed is
-/// tried again by the next call.</item>
+/// tried again by the next call (<see cref="TableCreation"/>).</item>
 /// <item>A row it cannot read is an <see cref="InvalidOperationException"/> naming the column, never its value; the
 /// storage's own failures pass on as the client's exceptions (§ Error model). Logs nothing.</item>
 /// </list>
 /// </summary>
-public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<PushDeviceStoreOptions> options) : IPushDeviceStore {
+public sealed class TablePushDeviceStore : IPushDeviceStore {
   /// <summary>The one partition: every send reads every device (D11).</summary>
   private const string PARTITION = "devices";
 
@@ -31,15 +31,20 @@ public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<Pus
   private const string AUTH = "Auth";
   private const string ACCOUNT = "Account";
 
-  private readonly TableClient _table = tables.GetTableClient(options.Value.TableName);
-  private readonly Lock _lock = new();
+  private readonly TableClient _table;
+  private readonly TableCreation _creation;
 
-  /// <summary>The table's creation, shared by every caller; <see langword="null"/> before the first call.</summary>
-  private Task? _created;
+  public TablePushDeviceStore(TableServiceClient tables, IOptions<PushDeviceStoreOptions> options) {
+    ArgumentNullException.ThrowIfNull(tables);
+    ArgumentNullException.ThrowIfNull(options);
+
+    _table = tables.GetTableClient(options.Value.TableName);
+    _creation = new TableCreation(_table);
+  }
 
   /// <summary>Every row of the partition, in the order the table gives them (by key): no order is promised.</summary>
   public async Task<IReadOnlyList<PushDevice>> ReadAll(CancellationToken cancellationToken) {
-    await TableCreated(cancellationToken);
+    await _creation.Ensure(cancellationToken);
 
     List<PushDevice> devices = [];
 
@@ -53,7 +58,7 @@ public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<Pus
   public async Task Save(PushDevice device, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(device);
 
-    await TableCreated(cancellationToken);
+    await _creation.Ensure(cancellationToken);
 
     TableEntity row = new(PARTITION, RowKey(device.Endpoint)) {
       [ENDPOINT] = device.Endpoint,
@@ -69,23 +74,9 @@ public sealed class TablePushDeviceStore(TableServiceClient tables, IOptions<Pus
   public async Task Forget(string endpoint, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(endpoint);
 
-    await TableCreated(cancellationToken);
+    await _creation.Ensure(cancellationToken);
 
     _ = await _table.DeleteEntityAsync(PARTITION, RowKey(endpoint), cancellationToken: cancellationToken);
-  }
-
-  /// <summary>
-  /// The table created if missing: every caller awaits the same creation, and only one that failed or was cancelled is
-  /// started again. It runs without the caller's token, so one caller giving up does not fail the others; each caller
-  /// stops waiting on its own token.
-  /// </summary>
-  private Task TableCreated(CancellationToken cancellationToken) {
-    lock (_lock) {
-      if (_created is null || _created.IsFaulted || _created.IsCanceled)
-        _created = _table.CreateIfNotExistsAsync(CancellationToken.None);
-
-      return _created.WaitAsync(cancellationToken);
-    }
   }
 
   /// <summary>The row key of a push address: the SHA-256 of its UTF-8 bytes, in lowercase hex (D11).</summary>
