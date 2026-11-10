@@ -2,7 +2,7 @@
 
 **Status:** Accepted (the owner's decisions in C8's explore, 2026-11-08 and 2026-11-09, and during C8a's apply, 2026-11-09) · **Date:** 2026-11-10 · **Roadmap:** C8 (applied in C8a; binds C8b, C8c and C9) · **Questions:** none
 
-> The design trail: [c011 design.md D1, D2, D3, D5 and D10](../../openspec/changes/c011-add-push-sending/design.md), which copies the explore's decisions S1–S12 and A1–A8 from [issue #51](https://github.com/jakubbohm/RevolutReader/issues/51) and is their home. Sources were read on the dates given with each one.
+> The design trail: [c011 design.md D1, D2, D3, D5 and D10](../../openspec/changes/archive/2026-11-10-c011-add-push-sending/design.md), which copies the explore's decisions S1–S12 and A1–A8 from [issue #51](https://github.com/jakubbohm/RevolutReader/issues/51) and is their home. Sources were read on the dates given with each one.
 
 ## Context
 
