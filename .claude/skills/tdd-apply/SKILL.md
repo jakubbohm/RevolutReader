@@ -50,25 +50,27 @@ Arguments: `$ARGUMENTS`
    named artboard with the Screens design's `project/sample-data.js`. The tool saves them in this session's
    scratchpad, never in the repository. Note the saved paths for the groups that build UI; after a new
    session, read them again, because the scratchpad does not carry over.
-9. Index the worktree in the code graph (codebase-memory-mcp) through Bash, in a process of its own:
-   `codebase-memory-mcp cli index_repository --repo-path <the worktree's absolute path>`. Never through the
-   server's `index_repository` tool in this session: a project indexed by a session that is still running could
-   not be indexed again from any other process (`docs/software-factory/lessons.md` R-71). The answer names the
-   project (derived from the path, e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Trust a run
-   only when all three hold:
+9. Index the worktree in the code graph (codebase-memory-mcp) through Bash, under a new project name for each
+   commit: `codebase-memory-mcp cli index_repository --repo-path <the worktree's absolute path> --name
+   <worktree>-<commit>`, where `<worktree>` is the name the server derives from the path
+   (`D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`) and `<commit>` is `git rev-parse --short HEAD`.
+   Never the same name twice: once a running session has read a project, nothing can index it again until that
+   session ends, and the run still answers "indexed" (`docs/software-factory/lessons.md` R-71). T and I read the
+   graph through this session, so every project you brief stays held until you end. Trust a run only when all
+   three hold:
    - its `nodes` equal its `expected_nodes`;
-   - the project's database, `~/.cache/codebase-memory-mcp/<project>.db`, is newer than before the run (or new);
+   - the project's database, `~/.cache/codebase-memory-mcp/<project>.db`, was written by this run;
    - `codebase-memory-mcp cli search_graph --project <project> --name-pattern <name> --limit 5` finds a class
      from a file changed since the previous index (on the first index, any class).
 
-   If one fails, index again with `--name <project>-<n>`, the next free number: a new name always builds a current
-   index. Write the project name and the commit it indexed (`git rev-parse --short HEAD`) into `.tdd-state.md`,
-   and put both in every brief to T and I: they read code they do not change through the graph, as their
-   definitions say. **The graph is a snapshot of that commit:** nothing updates it while files change. At the
-   start of each group, if HEAD has moved since the indexed commit, index again the same way and record the new
-   commit; when an agent reports a graph answer that does not match the file, index again before the next brief.
-   Read code you do not change through the graph yourself, too, by the agents' rules (in this session the
-   server's tools are deferred: load them with ToolSearch first).
+   If one fails, or the name is taken, add `-<n>`, the next free number, and index again; if that fails too, tell
+   the human, and brief T and I to read files until it is fixed. Write each project's name and the commit it
+   indexed into `.tdd-state.md`, and put the latest in every brief to T and I: they read code they do not change
+   through the graph, as their definitions say. **The graph is a snapshot of that commit:** nothing updates it
+   while files change. At the start of each group, if HEAD has moved since the indexed commit, index the new
+   commit the same way; when an agent reports a graph answer that does not match the file, index again before the
+   next brief. Read code you do not change through the graph yourself, too, by the agents' rules (in this session
+   the server's tools are deferred: load them with ToolSearch first).
 
 ## 1. Acceptance group (`[acceptance]`)
 
@@ -165,8 +167,10 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
    changed by this change and report survivors. Survivors mean weak tests; offer to send them to T.
 4. Do the close-out tasks yourself: `pm/progress.md`, and `CLAUDE.md` if build, test or run commands changed.
 5. Tick the `[close]` tasks, commit `feat(<cNNN>): [close] acceptance green`, and report to the human: groups
-   done, disputes and how they were resolved, any spec/design changes, and that the change is ready for
-   `/opsx:archive`.
+   done, disputes and how they were resolved, any spec/design changes, that the change is ready for
+   `/opsx:archive`, and the change's code-graph projects from `.tdd-state.md`, to delete with
+   `codebase-memory-mcp cli delete_project --project <name>` once this session has ended (while it runs, the
+   deletion fails without an error).
 
 ## Frontend groups
 

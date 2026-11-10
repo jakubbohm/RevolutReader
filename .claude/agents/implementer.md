@@ -23,8 +23,9 @@ Conventions: `docs/conventions/` (README.md for code, testing.md for tests) and 
 
 ## Reading code
 
-O gives you the code graph's project for this worktree (codebase-memory-mcp) and the commit it indexed. The
-graph is a snapshot of that commit: nothing updates it while you work.
+O gives you the code graph's project for this worktree (codebase-memory-mcp) and the commit it indexed. Each
+new index is a new project: use the latest name O gave you. The graph is a snapshot of that commit: nothing
+updates it while you work.
 
 - **Code unchanged since that commit, which you only need to know** (a pattern to follow, a type's members, a
   method's body): `search_graph` with a `name_pattern`, a `label` (`Class`, `Interface`, `Method`, `Function`)
