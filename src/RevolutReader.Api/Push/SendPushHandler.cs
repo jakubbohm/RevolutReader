@@ -19,10 +19,15 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
   /// <summary>How long a push waits at the push service while the device is offline (D2): 24 hours.</summary>
   public static readonly TimeSpan LIFETIME = TimeSpan.FromHours(24);
 
-  /// <summary>Sends <paramref name="message"/> to every device of <paramref name="account"/>, as the class describes.</summary>
+  /// <summary>
+  /// Sends <paramref name="message"/> to every device of <paramref name="account"/>, as the class describes; the account
+  /// is compared trimmed, as the allowlist's entries are.
+  /// </summary>
   public async Task<SendResult> Send(string account, PushMessage message, CancellationToken cancellationToken) {
     ArgumentException.ThrowIfNullOrWhiteSpace(account);
     ArgumentNullException.ThrowIfNull(message);
+
+    account = account.Trim();
 
     IReadOnlyList<RefusedMember> refused = PushMessages.Check(message, options.Value.Subject);
 
