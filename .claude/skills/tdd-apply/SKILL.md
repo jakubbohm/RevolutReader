@@ -51,11 +51,14 @@ Arguments: `$ARGUMENTS`
    scratchpad, never in the repository. Note the saved paths for the groups that build UI; after a new
    session, read them again, because the scratchpad does not carry over.
 9. Index the worktree in the code graph (codebase-memory-mcp; in this session its tools are deferred, so load
-   them with ToolSearch first): `index_repository` with the worktree's absolute path. Write the project name it
-   answers (derived from the path, e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`) into
-   `.tdd-state.md`, and put it in every brief to T and I: they read code they do not change through the graph,
-   as their definitions say. The server's file watcher keeps the index current; after a new session, check it
-   with `index_status`. Read code you do not change through the graph yourself, too.
+   them with ToolSearch first): `index_repository` with the worktree's absolute path. Its project is named after
+   the path (e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Write the name into
+   `.tdd-state.md` and put it in every brief to T and I: they read code they do not change through the graph, as
+   their definitions say. **Index it again after every commit you make** (Rules for you, below), so the graph
+   always holds the last commit: the server refreshes by itself only the folder this session started in, and a
+   project that was behind when the session started stays behind until something changes there (`CLAUDE.md`
+   § Code navigation). An index in place takes seconds, and it works the same whether this session started in
+   the worktree or entered it. Read code you do not change through the graph yourself, too.
 
 ## 1. Acceptance group (`[acceptance]`)
 
@@ -170,6 +173,7 @@ assertion, or a stub that throws.
   while T or I is still working: they share one working tree.
 - Commit only on the change branch, at the handoffs above, with the step tags from `workflow.md` § 3.
   Never push, never commit on `main`, never open a PR.
+- After every commit, run `index_repository` on the worktree (§ 0 step 9) before you brief T or I again.
 - Keep T and I alive for the whole change and resume them via SendMessage. If an agent can no longer
   be resumed, or SendMessage is not available, spawn a fresh one and give it: the change name, the current
   group, the code graph's project (§ 0 step 9), and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
