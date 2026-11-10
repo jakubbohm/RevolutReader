@@ -84,9 +84,9 @@ Secrets that only a human can produce are put into Key Vault by hand, guided by 
 | Enable Banking account ID | `EnableBanking__AccountId`: the account the reads address | `EnableBanking--AccountId` | C4, same task | 2026-11-06 |
 | Entra client secret (`RevolutReader C6`, 12 months, expires 2027-11-08: [expiring-approvals.md](../operations/expiring-approvals.md)) | `SignIn__ClientSecret`: the app's proof to Microsoft when it redeems the sign-in code | `SignIn--ClientSecret` | C6, [entra-id.md § The client secret and the allowlist](../operations/entra-id.md#the-client-secret-and-the-allowlist-c6) | 2026-11-08 |
 | The allowlist (not a credential, but personal data in a public repository, so handled like a secret) | `SignIn__AllowedEmails`: the comma-separated accounts allowed in | `SignIn--AllowedEmails` | C6, same block | 2026-11-08 |
-| The VAPID public key (not confidential: every browser gets it; kept next to its private half, c011 design.md D5) | `Push__VapidPublicKey`: the key the app subscribes with and the push services check the token against | `Push--VapidPublicKey` | C8a, [deployment.md § Guided task: the push keys](../operations/deployment.md#guided-task-the-push-keys) (c011 task 54.2) | pending, before C8a's merge |
-| The VAPID private key | `Push__VapidPrivateKey`: signs the token of every push | `Push--VapidPrivateKey` | C8a, same block | pending, before C8a's merge |
-| The message key | `Push__MessageKey`: lets a request through the owner's message endpoint (c011 design.md D10) | `Push--MessageKey` | C8a, same block | pending, before C8a's merge |
+| The VAPID public key (not confidential: every browser gets it; kept next to its private half, c011 design.md D5) | `Push__VapidPublicKey`: the key the app subscribes with and the push services check the token against | `Push--VapidPublicKey` | C8a, [deployment.md § Guided task: the push keys](../operations/deployment.md#guided-task-the-push-keys) (c011 task 54.2) | 2026-11-10 |
+| The VAPID private key | `Push__VapidPrivateKey`: signs the token of every push | `Push--VapidPrivateKey` | C8a, same block | 2026-11-10 |
+| The message key | `Push__MessageKey`: lets a request through the owner's message endpoint (c011 design.md D10) | `Push--MessageKey` | C8a, same block | 2026-11-10 |
 
 ## Not adopted
 
