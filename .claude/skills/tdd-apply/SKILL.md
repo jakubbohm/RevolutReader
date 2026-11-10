@@ -50,12 +50,25 @@ Arguments: `$ARGUMENTS`
    named artboard with the Screens design's `project/sample-data.js`. The tool saves them in this session's
    scratchpad, never in the repository. Note the saved paths for the groups that build UI; after a new
    session, read them again, because the scratchpad does not carry over.
-9. Index the worktree in the code graph (codebase-memory-mcp; in this session its tools are deferred, so load
-   them with ToolSearch first): `index_repository` with the worktree's absolute path. Write the project name it
-   answers (derived from the path, e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`) into
-   `.tdd-state.md`, and put it in every brief to T and I: they read code they do not change through the graph,
-   as their definitions say. The server's file watcher keeps the index current; after a new session, check it
-   with `index_status`. Read code you do not change through the graph yourself, too.
+9. Index the worktree in the code graph (codebase-memory-mcp) through Bash, in a process of its own:
+   `codebase-memory-mcp cli index_repository --repo-path <the worktree's absolute path>`. Never through the
+   server's `index_repository` tool in this session: a project indexed by a session that is still running could
+   not be indexed again from any other process (`docs/software-factory/lessons.md` R-71). The answer names the
+   project (derived from the path, e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Trust a run
+   only when all three hold:
+   - its `nodes` equal its `expected_nodes`;
+   - the project's database, `~/.cache/codebase-memory-mcp/<project>.db`, is newer than before the run (or new);
+   - `codebase-memory-mcp cli search_graph --project <project> --name-pattern <name> --limit 5` finds a class
+     from a file changed since the previous index (on the first index, any class).
+
+   If one fails, index again with `--name <project>-<n>`, the next free number: a new name always builds a current
+   index. Write the project name and the commit it indexed (`git rev-parse --short HEAD`) into `.tdd-state.md`,
+   and put both in every brief to T and I: they read code they do not change through the graph, as their
+   definitions say. **The graph is a snapshot of that commit:** nothing updates it while files change. At the
+   start of each group, if HEAD has moved since the indexed commit, index again the same way and record the new
+   commit; when an agent reports a graph answer that does not match the file, index again before the next brief.
+   Read code you do not change through the graph yourself, too, by the agents' rules (in this session the
+   server's tools are deferred: load them with ToolSearch first).
 
 ## 1. Acceptance group (`[acceptance]`)
 
@@ -172,7 +185,7 @@ assertion, or a stub that throws.
   Never push, never commit on `main`, never open a PR.
 - Keep T and I alive for the whole change and resume them via SendMessage. If an agent can no longer
   be resumed, or SendMessage is not available, spawn a fresh one and give it: the change name, the current
-  group, the code graph's project (§ 0 step 9), and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
+  group, the code graph's project and its indexed commit (§ 0 step 9), and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
 - Do not use `isolation: "worktree"` for T or I. They must share one working tree.
 - Never put real bank data or secrets into anything you send, commit or record.
 - Whenever you send I a group that builds or changes UI, include the saved paths of the design files that group

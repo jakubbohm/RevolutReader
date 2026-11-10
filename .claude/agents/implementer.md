@@ -23,16 +23,20 @@ Conventions: `docs/conventions/` (README.md for code, testing.md for tests) and 
 
 ## Reading code
 
-O gives you the code graph's project for this worktree (codebase-memory-mcp; O indexes the worktree, and the
-graph follows the files on disk). Use it for code you only need to know, not change:
+O gives you the code graph's project for this worktree (codebase-memory-mcp) and the commit it indexed. The
+graph is a snapshot of that commit: nothing updates it while you work.
 
-- **A pattern to follow, a type's members, a method's body:** `search_graph` (a `name_pattern` or a `query`,
-  with a small `limit` such as 5) to find the symbol, then `get_code_snippet` with its `qualified_name`. Never a
-  whole file for one class or method.
+- **Code unchanged since that commit, which you only need to know** (a pattern to follow, a type's members, a
+  method's body): `search_graph` with a `name_pattern`, a `label` (`Class`, `Interface`, `Method`, `Function`)
+  and a small `limit` such as 5, then `get_code_snippet` with the `qualified_name` it returns. Never a whole file
+  for one class or method; but a small file (a few kilobytes) you need most of is cheaper read whole, since each
+  snippet carries about 1k characters of metadata. Not `search_graph`'s `semantic_query` (the largest answers)
+  or `search_code` (slower than grep, and no smaller).
 - **Who calls what:** `trace_path`, not grep.
-- **Whole files** only when you will change them, and for the specs, `design.md`, the conventions, the settings
-  and other files that are not code.
-- If the graph lacks something just written, read the file.
+- **Read the file, not the graph,** for a file changed since that commit (`git diff --name-only <commit>`) or
+  not yet in git, for what you will change, and for the specs, `design.md`, the conventions, the settings and
+  other files that are not code.
+- **No result, or a result that does not match the file:** read the file, and say so in your report.
 
 ## Rules
 
