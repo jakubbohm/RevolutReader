@@ -143,6 +143,27 @@ public sealed class SendPushHandlerTests {
   }
 
   /// <summary>
+  /// The account a message names is trimmed before it is matched (the owner's decision 2026-11-10, review finding 3), as
+  /// the allowlist's own entries are: an allowed account sent with white space around it is that account, so its devices
+  /// get the message exactly as when it is sent without, and another account's device still gets nothing.
+  /// </summary>
+  /// <param name="messageTo">Lucie's account with white space on both sides.</param>
+  [Test]
+  [Arguments($"  {LUCIE}  ")] // spaces
+  [Arguments($"\t{LUCIE}\n")] // a tab and a line break
+  public async Task An_allowed_account_sent_with_white_space_around_it_gets_the_message_on_its_devices(string messageTo) {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new();
+
+    SendResult result = await Handler(await StoreWith(phone, Device(PETR), tablet), delivery).Send(messageTo, _message, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(new PushSent(Delivered: 2, Failed: 0, Removed: 0), "Lucie is allowed, whatever white space surrounds her address"),
+      () => delivery.HandedOver.Select(static handedOver => handedOver.Device).ShouldBe([phone, tablet], ignoreOrder: true, "both of Lucie's devices, and not Petr's"));
+  }
+
+  /// <summary>
   /// A send that reaches both devices writes one line, <c>PushSent</c> at Information, whose values are the three counts
   /// (reached, failed, removed) and nothing else: no title, text or page, no account, no push address or key (D4). The
   /// counts are read by name, as the sketch's <c>PushLog.PushSent</c> names them (<c>delivered</c>, <c>failed</c>,
