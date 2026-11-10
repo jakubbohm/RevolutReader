@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Shouldly;
@@ -33,6 +34,9 @@ public sealed class RefusedMessageTests {
 
   /// <summary>A number no problem holds by coincidence, sent where the account's text belongs.</summary>
   private const string NUMBER = "41927";
+
+  /// <summary>A charset no encoding answers to, distinctive so no problem holds it by coincidence.</summary>
+  private const string UNKNOWN_CHARSET = "zadna-znakova-sada-5f1c";
 
   /// <param name="account">The request's <c>account</c> member as JSON, or <see langword="null"/> to leave it out.</param>
   [Test]
@@ -106,6 +110,19 @@ public sealed class RefusedMessageTests {
   public async Task A_body_that_is_not_the_requests_JSON_is_refused_naming_the_body(string body, string[] sent) =>
     await ShouldBeRefusedNaming("body", body, sent);
 
+  /// <summary>
+  /// A body in a charset that is no known encoding cannot be read as the request's JSON, so it is refused naming
+  /// <c>body</c> like any other unreadable body: a 400, never a 500. The body itself is a fine message in UTF-8; only the
+  /// charset the request declares for it is unknown.
+  /// </summary>
+  [Test]
+  public async Task A_body_in_an_unknown_charset_is_refused_naming_the_body() =>
+    await ShouldBeRefusedNaming(
+      "body",
+      Message(ACCOUNT, $"\"{TITLE}\""),
+      [MessageEndpointApp.ALLOWED_ACCOUNT, TITLE, TEXT, PAGE, UNKNOWN_CHARSET],
+      $"{JSON}; charset={UNKNOWN_CHARSET}");
+
   /// <summary>The request's body: <paramref name="account"/> (left out when <see langword="null"/>) and <paramref name="title"/> as JSON, with the text and the page.</summary>
   private static string Message(string? account, string title) {
     string accountMember = account is null ? string.Empty : $"\"account\": {account}, ";
@@ -116,13 +133,17 @@ public sealed class RefusedMessageTests {
   /// <summary>
   /// Sends <paramref name="body"/> with the right key and expects FastEndpoints' validation problem naming exactly
   /// <paramref name="member"/> with a reason that is not blank, and none of <paramref name="sent"/> anywhere in it.
+  /// The body goes in UTF-8, declared as <c>application/json; charset=utf-8</c> unless <paramref name="contentType"/>
+  /// names another <c>Content-Type</c>.
   /// </summary>
-  private static async Task ShouldBeRefusedNaming(string member, string body, string[] sent) {
+  private static async Task ShouldBeRefusedNaming(string member, string body, string[] sent, string? contentType = null) {
     await using MessageEndpointApp app = new();
     using HttpClient owner = app.CreateClient();
     using HttpRequestMessage request = new(HttpMethod.Post, new Uri(MessageEndpointApp.MESSAGES, UriKind.Relative)) {
       Content = new StringContent(body, Encoding.UTF8, JSON),
     };
+    if (contentType is not null)
+      request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
     request.Headers.Add(MessageEndpointApp.MESSAGE_KEY_HEADER, app.MessageKey);
 
     using HttpResponseMessage response = await owner.SendAsync(request);
