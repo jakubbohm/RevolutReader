@@ -1,4 +1,4 @@
-import { api, askTheApi } from "../api/client";
+import { api, askTheApi, type ApiAnswer } from "../api/client";
 
 /**
  * The shared push pieces (c011 design.md D8): reading the server's push key, sending and forgetting this device's
@@ -81,9 +81,7 @@ export async function forgetSubscription(
 }
 
 /** What a write of a subscription came to: 204 done, 400 refused; any other answer unexpected. */
-function subscriptionSentOf(
-  answer: Awaited<ReturnType<typeof askTheApi>>,
-): SubscriptionSent {
+function subscriptionSentOf(answer: ApiAnswer): SubscriptionSent {
   if (answer.kind !== "answer") return answer;
   if (answer.status === 204) return { kind: "done" };
   if (answer.status === 400) return { kind: "refused subscription" };
