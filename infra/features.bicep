@@ -29,11 +29,17 @@ param keyVaultKeyUri string
 @description('The storage account\'s table endpoint, where the settled transactions are kept (platform.bicep).')
 param tableEndpoint string
 
-// The app: one container serving the API and the pages (ADR-0002-frontend-hosting). Its name is
-// the first part of its public address, on the daughter's Home Screen and, from C6, in Entra ID:
-// renaming it makes a new app with a new address.
+@description('The Container Apps environment\'s default domain (platform.bicep), the rest of the app\'s public address.')
+param environmentDefaultDomain string
+
+// The app's name: the first part of its public address, on the daughter's Home Screen and, from C6,
+// in Entra ID: renaming it makes a new app with a new address. One variable, because the push
+// section below builds that address from it (c011 design.md D12).
+var appName = 'tarjeta-papa'
+
+// The app: one container serving the API and the pages (ADR-0002-frontend-hosting).
 resource app 'Microsoft.App/containerApps@2026-07-01' = {
-  name: 'tarjeta-papa'
+  name: appName
   location: location
   identity: {
     type: 'UserAssigned'
@@ -58,6 +64,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
       secrets: [
         ...bankSecrets
         ...signInSecrets
+        ...pushSecrets
       ]
     }
     template: {
@@ -75,6 +82,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
             ...telemetrySettings
             ...signInSettings
             ...transactionsSettings
+            ...pushSettings
           ]
           // GET /health touches neither the bank nor storage (spec service-health), and probe
           // requests are not billed. Short periods, because a wake from zero waits for both
@@ -220,6 +228,39 @@ var transactionsSettings = [
 ]
 
 // ---- Push (C8) ----
+// The three push secrets, as Key Vault references in the same way as the bank's (c011 design.md D5,
+// D12): the Key Vault secret Push--<setting> becomes the Container Apps secret
+// push-<setting in lower case> and reaches the app as Push__<setting>, overriding appsettings.json's
+// "<secret>": the VAPID key pair and the message endpoint's key. All three must exist in the vault
+// before the deploy: a reference to a missing secret stops the new revision.
+var pushSecretSettings = [
+  'VapidPublicKey'
+  'VapidPrivateKey'
+  'MessageKey'
+]
+
+var pushSecrets = [
+  for setting in pushSecretSettings: {
+    name: 'push-${toLower(setting)}'
+    keyVaultUrl: '${keyVaultUri}secrets/Push--${setting}'
+    identity: appIdentityId
+  }
+]
+
+// The secrets above, and the push token's contact, which is also the base of the page a tap opens
+// (c011 design.md D2, D5): the app's own address, overriding appsettings.json's https://localhost.
+// Built from the app's name and the environment's default domain, the address Container Apps gives
+// an external app; the app's own fqdn would make the app refer to itself. Not secret: an address.
+var pushSettings = [
+  ...map(pushSecretSettings, setting => {
+    name: 'Push__${setting}'
+    secretRef: 'push-${toLower(setting)}'
+  })
+  {
+    name: 'Push__Subject'
+    value: 'https://${appName}.${environmentDefaultDomain}'
+  }
+]
 
 @description('The container app\'s name.')
 output appName string = app.name

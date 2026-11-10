@@ -14,6 +14,12 @@ IResourceBuilder<ParameterResource> accountId = builder.AddParameter("enablebank
 IResourceBuilder<ParameterResource> signInClientSecret = builder.AddParameter("signin-client-secret", secret: true);
 IResourceBuilder<ParameterResource> signInAllowedEmails = builder.AddParameter("signin-allowed-emails", secret: true);
 
+// Web Push's three secrets (c011 design.md D5), in the same way (Parameters:push-*): the VAPID key pair and the message
+// endpoint's key, each base64url without padding.
+IResourceBuilder<ParameterResource> pushVapidPublicKey = builder.AddParameter("push-vapid-public-key", secret: true);
+IResourceBuilder<ParameterResource> pushVapidPrivateKey = builder.AddParameter("push-vapid-private-key", secret: true);
+IResourceBuilder<ParameterResource> pushMessageKey = builder.AddParameter("push-message-key", secret: true);
+
 // The transaction store's tables (c010 design.md D11): Azurite in Docker, handed to the API as ConnectionStrings__tables.
 IResourceBuilder<AzureTableStorageResource> tables = builder.AddAzureStorage("storage")
   .RunAsEmulator()
@@ -28,7 +34,10 @@ IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.RevolutReade
   .WithEnvironment("EnableBanking__SessionId", sessionId)
   .WithEnvironment("EnableBanking__AccountId", accountId)
   .WithEnvironment("SignIn__ClientSecret", signInClientSecret)
-  .WithEnvironment("SignIn__AllowedEmails", signInAllowedEmails);
+  .WithEnvironment("SignIn__AllowedEmails", signInAllowedEmails)
+  .WithEnvironment("Push__VapidPublicKey", pushVapidPublicKey)
+  .WithEnvironment("Push__VapidPrivateKey", pushVapidPrivateKey)
+  .WithEnvironment("Push__MessageKey", pushMessageKey);
 
 // The frontend's Vite dev server: locally the app opens at its address, and it forwards /api to the API (c003 design.md D11).
 // Over HTTPS with the ASP.NET Core development certificate (c007 design.md D2): the sign-in's temporary cookies need

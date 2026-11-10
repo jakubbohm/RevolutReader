@@ -19,7 +19,7 @@ paths:
 - Local secrets live in the **AppHost's** user-secrets as Aspire parameters — never a per-service or per-test-project secrets file.
 - Production app settings are **authored in Bicep** (from `.bicepparam` or a resource reference), never read off a resource by a workflow step and passed along. Secrets reach the app as Container Apps secrets that reference Key Vault, resolved by its managed identity and exposed as environment variables. The repository is public, so a value that must not be public (e.g. the account allowlist) is handled exactly like a secret.
 - **Never put a secret or environment-specific value in a `VITE_` variable** — Vite inlines them into the shipped bundle at build time.
-- **The frontend gets a runtime value from an ordinary API endpoint** behind sign-in, added by the first change that needs one; never written into `index.html` or a settings file loaded before start.
+- **The frontend gets a runtime value from an ordinary API endpoint** behind sign-in, added by the first change that needs one (the first: the public push key, `GET /api/push/key`, C8a); never written into `index.html` or a settings file loaded before start.
 - A change that adds a setting declares it in `appsettings.json` in the same change; a hand-provisioned secret is also listed in `docs/conventions/configuration.md § Hand-provisioned secrets`.
 
 Source of truth: [docs/conventions/configuration.md](../../docs/conventions/configuration.md).

@@ -1,8 +1,8 @@
 # Deployment
 
-> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
+> How the app gets to Azure (roadmap step C4): the deployed resources and their identifiers, what the deploy does, the first deployment, the guided task that puts the Enable Banking values into Key Vault, the transactions table and its one-time history import (C7b), push (C8a: the keys, the devices' table and settings, the checks after its first deploy, sending a test message), read-only checks, rolling back and removing everything. The rules behind it are in [workflow.md § 4](../conventions/workflow.md#4-cicd) and [§ 5](../conventions/workflow.md#5-infrastructure); the hand-made setup it builds on is in [azure-prerequisites.md](azure-prerequisites.md). The reinstatement guide (D1) and decommissioning (M8) build on this file.
 >
-> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-09 (C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table; after its deploy, the checks' results and the import's).
+> Commands are PowerShell 7, run from the repository root with the owner's logins. **Every Azure command names the subscription explicitly** (the CLI's default subscription is an employer one). Nothing here prints a secret's value. Last updated: 2026-11-10 (C8a: the table `pushdevices`, the push settings, the checks after its first deploy, sending a test message, the rollback; the day before, the guided task for the push keys. Before it, C7b: the table `transactions`, the app's role on the storage account, the history import, the rollback that keeps the table; after its deploy, the checks' results and the import's).
 
 ## Identifiers (non-secret)
 
@@ -15,7 +15,7 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | Application Insights | `appi-revolutreader` (C12), workspace-based on `log-revolutreader`, local authentication off: only an identity with Monitoring Metrics Publisher on it can write. The deployed app sends its logs and traces there, not its metrics; the resource keeps its own default cap. Its connection string reaches the app as `APPLICATIONINSIGHTS_CONNECTION_STRING` ([configuration.md § Telemetry settings](../conventions/configuration.md#telemetry-settings)) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
 | The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; since C12 Monitoring Metrics Publisher on Application Insights; from C6 also Storage Blob Data Contributor on the container `dataprotection` and Key Vault Crypto User on the key `dataprotection`; from C7b Storage Table Data Contributor on the storage account ([The transactions table](#the-transactions-table-c7b)); client ID `f24d2909-ecb2-45d2-a230-d9551f472ded` (reaches the app as `AZURE_CLIENT_ID`, for telemetry and, from C6, the cookie keys, from C7b the table), principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
-| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start. Since C7b also the table `transactions`, which keeps the settled transactions, the days older than the bank's 90 among them once the history is imported. Its endpoint, `platform.bicep`'s output `tableEndpoint` (not a stack output), reaches the app as `ConnectionStrings__tables`. Removing the table from the Bicep deletes it with its rows ([Rolling back](#rolling-back)) |
+| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start. Since C7b also the table `transactions`, which keeps the settled transactions, the days older than the bank's 90 among them once the history is imported. Its endpoint, `platform.bicep`'s output `tableEndpoint` (not a stack output), reaches the app as `ConnectionStrings__tables`. Removing the table from the Bicep deletes it with its rows ([Rolling back](#rolling-back)). Since C8a also the table `pushdevices`: one row per device that receives pushes, its push address and keys and the account it registered under (c011 design.md D11); only subscriptions, which the devices make again ([Push (C8a)](#push-c8a)) |
 | The cookie keys' key (C6) | the RSA key `dataprotection` in `kv-revolutreader` (wrap and unwrap only); the stack's output `keyVaultKeyUri` is its versionless address, so a rotated key version is picked up. The app reaches the blob and the key as its identity (the setting `AZURE_CLIENT_ID`, c007 design.md D7) |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
@@ -230,6 +230,174 @@ Once, after the first open (c010 design.md D9). The explicit check `HistoryImpor
 
 5. **The file and its backup,** once the counts are right: planned to be deleted here, with `Remove-Item spikes/enable-banking/secrets/transactions-2026-11-04.json` in the main checkout and the backup of it (suggested on 2026-11-08). **On 2026-11-09 the owner kept both** for now; the file stays gitignored and is never published. While they exist they are a second copy of the oldest days. Once they are deleted, the days older than the bank's 90 exist only in the table, so a rollback must keep it ([Rolling back](#rolling-back)).
 
+## Push (C8a)
+
+Since C8a the app sends Web Push messages (c011 design.md). It needs three values: the VAPID key pair, which signs every push's token and which every browser subscribes with, and the message key, which lets a request through the owner's message endpoint (c011 design.md D10). The container app reads them as Key Vault references (`Push--VapidPublicKey`, `Push--VapidPrivateKey`, `Push--MessageKey`, appearing to the app as `Push__VapidPublicKey`, `Push__VapidPrivateKey`, `Push__MessageKey`), so **they must be in the vault before C8a's merge**: Container Apps refuses to update the app while a reference points at a missing secret ([The first deployment](#the-first-deployment), step 5). The owner wrote them on 2026-11-10 (c011 task 54.2).
+
+**What the deploy adds** (c011 design.md D12):
+- **The table `pushdevices`** in `strevolutreader`, beside `transactions`. C7b's Storage Table Data Contributor on the storage account covers it, so there is no new role and nothing to do by hand.
+- **On the container app:** the three Key Vault references above, and `Push__Subject`. That setting is the app's own address, `https://` + the app's name + `.` + the environment's default domain (`platform.bicep`'s output `environmentDefaultDomain`). Push services require such a contact in every push's token, and it is also the base of the page a tap opens (D2, D5).
+- **The preview before the PR** (2026-11-10) showed exactly that: the table created, three secrets and four settings added to `tarjeta-papa`, and nothing else beyond the what-if's usual noise. The noise is the same before and after the change: unresolved `reference()` values, defaulted properties and the probes' array order.
+
+### Guided task: the push keys
+
+One PowerShell 7 block makes the keys, with .NET's own `ECDsa` on P-256 and 32 random bytes, and writes them where they belong without printing them (c011 design.md D5). The laptop and production get **separate values**. The production ones live only in Key Vault: a lost or replaced key heals itself, because every device replaces its subscription at its next opening (D5). The laptop's go to the AppHost's user-secrets and, like every other local secret, to the backup vault ([local-secrets.md](local-secrets.md)).
+
+**Formats** (D5): base64url without padding; the public key the 65-byte uncompressed point (`0x04`, X, Y), the private key the 32-byte scalar, the message key 32 random bytes. The app checks them at start and refuses to start, naming the setting and never a value, when a key does not decode to its form or the two halves are not one pair.
+
+**The owner runs it**, in the owner's own PowerShell 7 window, from any folder: it writes to Key Vault, which CLAUDE.md leaves to the owner's go and Claude Code's permission check blocks for Claude anyway. First the shared part, which writes nothing, then one variant in the same window. Each value reaches Key Vault through a temporary file deleted at once and the user-secrets as JSON on the standard input, so none appears on a command line; nothing prints a value, and the read-back lists names only.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+
+function ConvertTo-Base64Url([byte[]] $bytes) {
+    [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+# A new VAPID pair and message key; nothing printed
+function New-PushKeys {
+    $ec = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+    try {
+        $p = $ec.ExportParameters($true)
+        @{
+            Public  = ConvertTo-Base64Url ([byte[]] (@(4) + $p.Q.X + $p.Q.Y))
+            Private = ConvertTo-Base64Url $p.D
+            Message = ConvertTo-Base64Url ([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        }
+    } finally { $ec.Dispose() }
+}
+
+function Set-VaultSecret([string] $vault, [string] $name, [string] $value) {
+    $file = New-TemporaryFile
+    try {
+        Set-Content -LiteralPath $file -Value $value -NoNewline -Encoding utf8NoBOM
+        az keyvault secret set --subscription $sub --vault-name $vault --name $name --file $file --encoding utf-8 --output none
+        if ($LASTEXITCODE -ne 0) { throw "Writing $name to $vault failed." }
+    } finally { Remove-Item -LiteralPath $file }
+}
+```
+
+**Production** (c011 task 54.2, before C8a's merge): into `kv-revolutreader` only. Needs the owner's Key Vault Secrets Officer role ([azure-prerequisites.md](azure-prerequisites.md), item 7).
+
+```powershell
+$keys = New-PushKeys
+Set-VaultSecret 'kv-revolutreader' 'Push--VapidPublicKey'  $keys.Public
+Set-VaultSecret 'kv-revolutreader' 'Push--VapidPrivateKey' $keys.Private
+Set-VaultSecret 'kv-revolutreader' 'Push--MessageKey'      $keys.Message
+$keys = $null
+
+# Names only
+az keyvault secret list --subscription $sub --vault-name kv-revolutreader --query "[?starts_with(name, 'Push--')].name" --output tsv
+```
+
+**The laptop** (c011 task 54.1): into the AppHost's user-secrets and the backup vault, which the block opens for this address only and closes again ([local-secrets.md § Opening and closing the backup vault](local-secrets.md#opening-and-closing-the-backup-vault)).
+
+```powershell
+$id     = '683c44fb-149f-4c9d-8503-0d836e0a1639'      # the AppHost's UserSecretsId
+$backup = 'jb-localdev-secrets-copy'
+$keys   = New-PushKeys
+$local  = [ordered]@{
+    'Parameters:push-vapid-public-key'  = $keys.Public
+    'Parameters:push-vapid-private-key' = $keys.Private
+    'Parameters:push-message-key'       = $keys.Message
+}
+$local | ConvertTo-Json -Compress | dotnet user-secrets set --id $id | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Writing the user-secrets failed.' }
+
+# The backup vault: open for this address, write (retrying while the rule takes effect), close
+$ip = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 15)).Trim()
+az keyvault network-rule add --subscription $sub --name $backup --ip-address $ip --output none
+az keyvault update --subscription $sub --name $backup --public-network-access Enabled --output none
+try {
+    foreach ($attempt in 1..4) {
+        try {
+            foreach ($key in $local.Keys) { Set-VaultSecret $backup ('RevolutReader--AppHost--' + ($key -replace ':', '--')) $local[$key] }
+            break
+        } catch { if ($attempt -eq 4) { throw }; Start-Sleep -Seconds 30 }
+    }
+    az keyvault secret list --subscription $sub --vault-name $backup --query "[?starts_with(name, 'RevolutReader--AppHost--Parameters--push')].name" --output tsv
+} finally {
+    az keyvault update --subscription $sub --name $backup --public-network-access Disabled --output none
+    az keyvault network-rule remove --subscription $sub --name $backup --ip-address $ip --output none
+}
+
+# Names only
+(Get-Content -Raw (Join-Path $env:APPDATA "Microsoft/UserSecrets/$id/secrets.json") | ConvertFrom-Json).PSObject.Properties.Name | Where-Object { $_ -like 'Parameters:push-*' }
+$keys = $null; $local = $null
+```
+
+**Running a variant again** replaces its three values together; a pair is only ever written whole. If a write fails partway, run the whole variant again at once, because the app refuses to start on the halves of two pairs. In production Azure picks up the new values within 30 minutes and restarts the app ([Guided task: the Enable Banking values](#guided-task-the-enable-banking-values-into-key-vault)); every device then replaces its subscription at its next opening, and whoever sends messages reads the new message key.
+
+### After the first deploy with C8a
+
+These are c011 design.md § Migration plan, step 4, in order. Findings go into `pm/progress.md`, through a small docs PR if they come after the archive.
+
+1. **The deploy:** it runs, and the new revision starts. There is no missing secret, which would stop it.
+2. **Read-only:** the table exists, and the container app has the three push secrets and `Push__Subject` at its own address (`subject` equals `https://` + `fqdn`):
+
+   ```powershell
+   $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+   $rg  = 'rg-revolutreader'
+
+   az stack group show --subscription $sub --resource-group $rg --name revolutreader `
+       --query "resources[?ends_with(id, '/tables/pushdevices')].id" --output tsv
+   az containerapp show --subscription $sub --resource-group $rg --name tarjeta-papa `
+       --query "{secrets: properties.configuration.secrets[].name, subject: properties.template.containers[0].env[?name=='Push__Subject'].value | [0], fqdn: properties.configuration.ingress.fqdn}" --output json
+   ```
+
+3. **With the owner's go:** two test messages, both from [Sending a test message](#sending-a-test-message) below.
+   - A message to the owner's account answers three zeros, because no device can register before C8b.
+   - A wrong key answers as an unknown address does.
+
+### Sending a test message
+
+This goes through the owner's message endpoint (c011 design.md D6, D10). **A push reaches a real device, so Claude sends one only on the owner's go, each time.**
+- **The message key** is read into a variable inside the same block and never printed: in production from Key Vault, locally from the AppHost's user-secrets.
+- **The account** is one on the allowlist, given by the owner when sending. It is never written into the repository, which is public.
+- **The answer** counts the account's devices: `delivered`, `failed`, `removed`. With no device registered, all three are 0.
+
+```powershell
+# Production (needs the owner's Key Vault role, or Claude with the owner's login)
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$app = az stack group show --subscription $sub --resource-group rg-revolutreader --name revolutreader --query outputs.appUrl.value --output tsv
+$key = az keyvault secret show --subscription $sub --vault-name kv-revolutreader --name Push--MessageKey --query value --output tsv
+
+# Locally instead (the app under `aspire start`): the api resource's HTTPS address, as `aspire describe` lists it
+# $app = 'https://localhost:<port>'
+# $key = (Get-Content -Raw (Join-Path $env:APPDATA 'Microsoft/UserSecrets/683c44fb-149f-4c9d-8503-0d836e0a1639/secrets.json') | ConvertFrom-Json).'Parameters:push-message-key'
+
+$account = '<an account on the allowlist, given by the owner>'
+$body = @{ account = $account; title = 'Zkušební zpráva'; text = 'Tohle je jen zkouška.' } | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "$app/api/push/messages" -Headers @{ 'X-Message-Key' = $key } `
+    -ContentType 'application/json; charset=utf-8' -Body $body
+$key = $null
+```
+
+**A wrong key answers as an unknown address does** (D10). The endpoint stays hidden, so the two answers below are the same: status, content type, and body apart from `traceId`. Nothing is sent to a device.
+
+```powershell
+# PowerShell hands an application/problem+json body over as bytes, so it is decoded first
+function Get-Answer($response) {
+    $text = if ($response.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($response.Content) } else { $response.Content }
+    [pscustomobject]@{
+        Status      = [int] $response.StatusCode
+        ContentType = $response.Headers['Content-Type'] -join ''
+        Body        = $text | ConvertFrom-Json | Select-Object * -ExcludeProperty traceId | ConvertTo-Json -Compress
+    }
+}
+$wrong   = Invoke-WebRequest -Method Post -Uri "$app/api/push/messages" -Headers @{ 'X-Message-Key' = 'not-the-key' } `
+    -ContentType 'application/json; charset=utf-8' -Body $body -SkipHttpErrorCheck
+$unknown = Invoke-WebRequest -Method Post -Uri "$app/api/no-such-address" `
+    -ContentType 'application/json; charset=utf-8' -Body $body -SkipHttpErrorCheck
+Get-Answer $wrong; Get-Answer $unknown
+```
+
+**Run locally on 2026-11-10** (c011 task 55.2, with `aspire start --isolated` from the change's worktree, on the owner's go):
+- The message to the owner's account answered `{"delivered":0,"failed":0,"removed":0}`.
+- The wrong key and the unknown address both answered 404, `application/problem+json`, with the same body apart from `traceId`.
+- As a control, the right key with a message without a title answered 400 naming `title`, so the comparison can tell answers apart.
+
 ## Checks
 
 Read-only:
@@ -328,6 +496,7 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 
 - **A version that does not start or misbehaves:** revert its PR (the merged PR's page has a Revert button, which opens a new PR). Its merge deploys the previous code through the same pipeline; nothing is changed in Azure by hand.
 - **Since C7b, a rollback keeps the table** (c010 design.md § Migration plan, step 7). A plain revert of C7b's PR would remove the table `transactions` from the stack, which deletes it with its rows; once the history file is deleted (the owner keeps it for now, [The history import](#the-history-import-c7b), step 5), the days older than the bank's 90 are gone for good. So the revert PR reverts the app's code but keeps, in `infra/platform.bicep`, the table service, the table and the app's Storage Table Data Contributor on the account. The transactions' endpoints and the list disappear, and the kept history waits for the fix.
+- **C8a needs no such care** (c011 design.md § Migration plan, step 5). A plain revert removes the push endpoints, and the stack deletes the table `pushdevices`. That table holds only subscriptions, which C8b's card and C8c's upkeep make again. The three `Push--` secrets stay in the vault, because they are hand-provisioned and not in the stack, and they are reused when the change returns.
 - **A mistake in the Bicep:** fix it forward in a PR; the stack converges on what the Bicep declares. A resource deleted by mistake is created again empty. A deleted vault comes back with its secrets with `az keyvault recover --subscription $sub --name kv-revolutreader` within 90 days; recover it before the next deploy, which would otherwise fail on the name.
 
 ## Removing everything (M8)

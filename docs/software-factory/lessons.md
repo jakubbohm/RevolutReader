@@ -829,3 +829,76 @@ RevolutReader ([#67](https://github.com/jakubbohm/RevolutReader/issues/67), [tes
   So the orchestrator indexes the worktree before the first group and after every commit it makes, the one rule that keeps the graph current whether its session started in the worktree or entered it. Rejected on the way, as workarounds for the old version's defect: a new project name per commit, and agents searching only from the command line.
 *Setup produces:* codebase-memory-mcp 0.12.1 or later with `auto_index` and `auto_watch` on, the code-navigation rules in `CLAUDE.md`, both agents' `tools` and `disallowedTools` lines and their "Reading code" rule, the orchestrator's indexing in the tdd-apply skill (§ 0 step 9: before the first group and after every commit), and the paragraph in the testing conventions (inventory: Test-first workflow).
 *Generalizes:* before trimming an agent's context, measure what fills it from the transcripts; give agents that write code a symbol-level way to read the code they only model on, and keep whole-file reads for what they change — **reverses** if the next apply's measurement shows the graph's answers costing as much as the files they replace. Before designing around a tool's behaviour, check its current release and its issue tracker: here the behaviour first worked around was a defect of an outdated version. Where the tool's own refresh does not reach, refresh at the points where the code changes, here the orchestrator's commits — **reverses** once the tool follows a session into a worktree by itself (announced: worktrees as children of the main repository's graph).
+
+**R-72 · How does a .NET backend send Web Push, and how do the tests know it is right?** *(New)* · *Topic:* PWA
+Options: a library · **its own code on the platform's cryptography** · a cloud notification hub.
+RevolutReader ([ADR-0010-web-push](../adr/0010-web-push.md), c011 design.md D1; 2026-11-08): **[Lib.Net.Http.WebPush](https://www.nuget.org/packages/Lib.Net.Http.WebPush) 3.3.1 (MIT)**, chosen for speed. It encrypts with `aes128gcm` (RFC 8291) and signs the RFC 8292 `vapid` token, on the app's own `HttpClient`. On .NET 6 and later it uses .NET's own cryptography, with no BouncyCastle.
+- **Not chosen:**
+  - [WebPush](https://www.nuget.org/packages/WebPush) 1.0.13 sends only the older draft encryption `aesgcm`, and its README marks Safari unsupported (read 2026-11-08).
+  - Azure Notification Hubs leaves out Safari and iOS (Microsoft Learn, updated 2026-03-04).
+  - Our own code (ECDH P-256, HKDF, AES-GCM, ES256, about 150–200 lines) costs about half a day more.
+- **Switch off the library's retries:** by default it retries a 429 after its `Retry-After` with no limit, and the client's timeout does not end the loop (`AutoRetryAfter = false`).
+- **Facts a test fake must allow** (probed 2026-11-09):
+  - the token's `aud` leaves out the port;
+  - a new token is signed for every request;
+  - the library checks no size: RFC 8291's 4096-octet record holds at most 3993 bytes of message, so the app checks that itself.
+- **The tests decrypt with their own code,** an RFC 8291 decryption on .NET's cryptography that reproduces the RFC's Appendix A, never the library's decoder, so the library never checks itself. A local fake push service checks the token, the headers and the decrypted message (R-78).
+*Setup produces:* the push adapter on the library with its retries off, the fake push service and test device with their self-tests (inventory: Test-first workflow), and the key-generation block (inventory: Operations guides).
+*Generalizes:* send Web Push through a maintained library that speaks `aes128gcm` and `vapid`, on your own HTTP client with its retries off, and prove it with your own decryption in the tests — **reverses** toward your own implementation when the library falls behind, gets a vulnerability, or third-party cryptography is not allowed: the same tests then judge your code.
+
+**R-73 · What does a push to an iOS Home Screen web app carry?** *(New — relates to R-72)* · *Topic:* PWA
+Options: a classic push the service worker turns into a notification · **a Declarative Web Push message, which the browser shows itself**.
+RevolutReader (ADR-0010-web-push, c011 design.md D2; 2026-11-09): **every push is a Declarative Web Push message**, `{"web_push":8030,"notification":{"title","body","navigate"}}`. Safari shows it itself, from iOS 18.4, even when the service worker does not run ([WebKit](https://webkit.org/blog/16535/meet-declarative-web-push/), re-read 2026-11-09). A declarative push always shows something, so Safari's revocation of sites whose pushes show nothing cannot hit the app.
+- **`navigate` is always a page of the app itself,** built by the server from the app's own address and a path outside the API. It is never another site.
+- **The service worker gets the push event only with `"mutable": true`,** which defaults to false. A feature that needs the worker on the phone (e.g. to store data from the push) must add it, and the worker must not trust a message that lacks the data. Browsers that do not read the format fire the push event as for any push, so the worker shows the same JSON there.
+- **Size:** at most 3993 bytes of JSON. Refuse a longer message rather than cut it, because a cut text reads as complete.
+- **Lifetime and urgency travel with each push** (here 24 hours and high), so later features choose their own.
+*Setup produces:* the message builder and its size and page checks, and the service worker's fallback for browsers without the format.
+*Generalizes:* for a web app on iPhones, send declarative pushes so the browser shows them whatever the worker does — **reverses** when the notification must be built on the device from data it alone holds; then `mutable` with a fallback text.
+
+**R-74 · How does an owner reach a private operator action in a public app without it being discoverable?** *(New — relates to R-32)* · *Topic:* D. API & contract
+Options: an admin UI behind the sign-in · a feature switch · a separate admin app · **a key-protected endpoint that answers exactly like a missing address**.
+RevolutReader (ADR-0010-web-push, c011 design.md D10; 2026-11-09): **`POST` to a hidden address with a key in a header**, the owner's way to send a test message (and later each feature's own) without a UI.
+- **The key is checked first, in constant time:** SHA-256 of both values compared with a fixed-time comparison, before the body is read. A malformed body without the key cannot reveal the endpoint through a validation error.
+- **A missing or wrong key gets the unknown address's answer byte for byte**, apart from the trace id: same status, content type and problem body. A test compares the two.
+- **Kept out of the API description**, with a convention test reading the committed description.
+- **Anonymous, so it is on the checked list of anonymous endpoints** (R-32). A 256-bit key needs no rate limit.
+- **In a public repository** the request names its target, so no personal address is configured, and the address appears only in code, specs and operations guides, never in issues or comments.
+*Setup produces:* the endpoint pattern, the comparison test, the description guard, and the guide's commands that read the key into a variable and never print it.
+*Generalizes:* an operator-only action with no UI gets a hidden, key-protected endpoint indistinguishable from a missing address — **reverses** when more than one operator needs it or actions must be audited per person: then a signed-in admin role.
+
+**R-75 · A user registers an address the server will call later: how is server-side request forgery prevented?** *(New)* · *Topic:* E. Data & auth
+RevolutReader (c011 design.md D9; 2026-11-09): **only addresses at known services, matched by origin, are accepted.** A Web Push subscription's address is where the server later sends, so an unchecked one lets a signed-in user make the server call any address, e.g. inside the cloud's network.
+- **The list is in settings, as named entries** (Apple, Google, Mozilla and Microsoft, from [a maintained list](https://github.com/pushpad/known-push-services/blob/master/whitelist), read 2026-11-09). A test adds one entry without rewriting the others.
+- **An entry is an origin:** `https`, a host or `*.` and a host suffix, no path. An address matches on scheme, port and host, and `*.` needs a dot before the suffix, so `evil.push.apple.com.example.com` does not match. No user information, at most 2048 characters.
+- **Plain `http` only on a loopback host,** for the tests' fake service.
+- **The device's keys are checked too:** sizes, form, and that the public key is a point on the curve. A bad key would otherwise fail every later send.
+*Setup produces:* the matcher, its settings validation at start, and the registration's refusals naming the member, never the value.
+*Generalizes:* whenever users hand the server an address it will call, accept only an allowlist of origins, held in settings — **reverses** never; the list only grows.
+
+**R-76 · Should a third-party client's own request logging keep a capability URL?** *(Divergence — relates to R-51)* · *Topic:* Operations & observability
+Options: **silence that client as R-51 does, and guard the exported traces as well as the log lines** · keep the framework's lines in private telemetry.
+RevolutReader (c011 design.md D4; [divergences.md R-76](divergences.md); 2026-11-09): **the push client keeps its request lines and traces, so a device's push address reaches the private telemetry.** The app's own lines never name it, and a guard test checks that no key, email or message text appears anywhere and no push address outside the push client's own category. The owner chose speed: the telemetry is private, and an address alone cannot deliver a push, which also takes the app's private key and the device's own keys.
+*Setup produces:* the log guard over every captured line, with the client's category exempt (inventory: Test-first workflow, the telemetry guards); the full version adds the client's silencing and a guard over exported traces.
+*Generalizes:* treat a capability URL like an identifier: keep it out of logs and traces, R-51's way — **the cut-down is acceptable only while the telemetry is private and the URL alone grants nothing.**
+
+**R-77 · How long does one pair of test-first agents live in an apply of many slices?** *(Reversal — relates to R-61, R-71)* · *Topic:* I. AI-assisted workflow
+Options: one pair for the whole change (the orchestrator skill's rule) · a fresh pair per slice · **a fresh pair per chapter of slices, with the orchestrator compacting at each chapter's end**.
+RevolutReader (c011 design.md D17; 2026-11-09): **five chapters, each with a fresh test writer and implementer:** the foundation, the API slices in two parts, the frontend pieces, the guards with deployment and the close.
+- **Why one pair outgrew its context:** the test writer spent about 320k tokens on the acceptance group alone, and an agent's context keeps all its reads and thinking.
+- **Why not a pair per slice:** that rereads the design and conventions, about 50k tokens, for many small slices.
+- **Measured per chapter:** 360k–430k tokens in the first chapter, falling to 60k–240k in later ones. The files are the source of truth, so a fresh agent loses nothing that matters.
+- **Each chapter's end is also the orchestrator's checkpoint:** the state file current and committed, a ready prompt for compacting and resuming, and the owner woken with a question.
+- It realises R-61's named reversal, splitting the apply among fresh agents, without parallel worktrees.
+*Setup produces:* TBD (a candidate change to the orchestrator skill: chapters named before the apply, fresh agents per chapter, the checkpoint at each chapter's end).
+*Generalizes:* size an agent's life by a chapter of related task groups, not by the change or the slice, and checkpoint the orchestrator at the same boundary — **reverses** toward one pair when the change is small (a chapter or two), and toward a pair per slice when slices share little.
+
+**R-78 · Who writes a test fake that checks conformance to a standard?** *(New — relates to R-16, R-66)* · *Topic:* F. Testing
+RevolutReader ([testing.md § Fake push service](../conventions/testing.md#fake-push-service-a-local-fake-in-front-of-our-real-push-sending), c011 design.md D7; 2026-11-09): **the test writer, with self-tests; never the implementer, whose output it judges.** The fake push service checks the token, the headers and the encryption, and its test device decrypts. Those checks are the only test that the pushes follow RFC 8291 and RFC 8292.
+- **Self-tests prove the checks bite:**
+  - the decryption reproduces the RFC's worked example;
+  - the fake refuses each way to break a push (another key, a wrong `exp` or `aud`, no `TTL`, an unknown `Urgency`, another encoding);
+  - it accepts a correct push the test builds with its own code.
+- **The testing convention's exception that lets the implementer fill in driver glue** covers glue, never checks. The fake's files are named in the orchestrator's rules as the test writer's.
+*Setup produces:* the rule in the testing conventions and the orchestrator's brief; the fake and its self-tests (inventory: Test-first workflow).
+*Generalizes:* code that decides whether production code is correct is a test, whatever folder it lives in, so the test writer writes it and proves it on the standard's own examples.

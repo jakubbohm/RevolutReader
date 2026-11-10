@@ -26,7 +26,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <para>
 /// Every app copy gets the sign-in settings (<see cref="Configure"/>), so the app starts whether or not the test signs in:
 /// the authority is this server, the client id and secret are made up per test, and the allowlist is
-/// <see cref="ALLOWED_EMAILS"/>, the only allowed test user. In test code, never as a setting: the handler may read this
+/// <see cref="ALLOWED_EMAILS"/>, the allowed test users. In test code, never as a setting: the handler may read this
 /// server's plain-HTTP metadata, the cookies are protected by ephemeral keys, and the app's <see cref="TimeProvider"/> is
 /// <see cref="Clock"/>.
 /// </para>
@@ -42,8 +42,12 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// </para>
 /// </summary>
 public sealed class FakeMicrosoft : IDisposable {
-  /// <summary>The allowlist every app copy gets (D6): Lucie's address, made up.</summary>
-  public const string ALLOWED_EMAILS = "lucie@example.com";
+  /// <summary>
+  /// The allowlist every app copy gets (D6): Lucie's address, and since C8a Petr's, for the push scenarios that need two
+  /// allowed accounts (c011 design.md D7); both made up (<see cref="Dsl.Visitor"/>). The DSL's allowlist steps check this
+  /// list, so no scenario rests on it holding one address only.
+  /// </summary>
+  public const string ALLOWED_EMAILS = "lucie@example.com,petr@example.com";
 
   /// <summary>The tenant of Microsoft's service for personal Microsoft accounts (D3): fixed and public.</summary>
   public const string PERSONAL_ACCOUNTS_TENANT = "9188040d-6c67-4c5b-b112-36a304b66dad";

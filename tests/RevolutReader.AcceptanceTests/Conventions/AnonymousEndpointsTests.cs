@@ -28,6 +28,9 @@ public sealed class AnonymousEndpointsTests : AcceptanceTest {
     // ApiNotFound, for every method (c007 design.md D3): an address under /api that nothing else serves answers 404 to
     // everyone, a write as well as a read; it can never answer anything else.
     "* /api/{**path}",
+    // The owner's message endpoint (c011 design.md D10): anonymous, its message key checked in the endpoint itself before
+    // anything else; without the right key it answers exactly as an unknown /api address does.
+    "POST /api/push/messages",
   ];
 
   [Test]

@@ -2,7 +2,7 @@
 
 > What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
-> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-08 (C6: the Entra client secret).
+> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-10 (C8a: the push keys. Before it, 2026-11-08, C6: the Entra client secret).
 
 ## Overview
 
@@ -13,11 +13,10 @@
 | 3 | [Enable Banking application key](#3-enable-banking-application-and-key) | no expiry found (checked 2026-11-04) | only if lost or leaked | the Control Panel account |
 | 4 | [Mock ASPSP session](#4-mock-aspsp-session-local-development) (local development and Check 1 only) | **2027-05-05T19:44Z** (180 days, the mock's maximum) | when it ends; nothing in production depends on it | the Control Panel login, ~5 min |
 | 5 | [Entra client secret](#5-entra-client-secret-sign-in) (`RevolutReader C6`: the app's proof to Microsoft at sign-in) | **2027-11-08T11:00Z** (12 months) | by 2027-10-25: a new secret first, then remove the old one | the owner's Azure login, ~10 min |
+| 6 | [Push keys](#6-push-keys) (C8a: the VAPID key pair every push is signed with, and the message key of the owner's message endpoint) | no expiry | only if lost or leaked; a replaced key heals itself | the owner's Key Vault role, ~5 min |
 | — | API token (JWT) | 1 hour | nothing to do: signed for every request | — |
 
 Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them. The account allowlist in Key Vault and the user-secrets (C6) has no expiry; changing it: [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6). The login cookie's encryption keys (C6) renew themselves: ASP.NET Data Protection adds a new key every 90 days to the blob and keeps the old ones for reading.
-
-**To be added by their steps** (do not guess them here): the VAPID keys and the message key for push (C8a).
 
 ## 1. Enable Banking account link
 
@@ -95,3 +94,20 @@ Not expiring, but required: the Enable Banking Control Panel account (registered
      ```
 
   4. Record the new expiry here, in entra-id.md's identifiers table and in [configuration.md § Hand-provisioned secrets](../conventions/configuration.md#hand-provisioned-secrets).
+
+## 6. Push keys
+
+- **What it is** (c011 design.md D5, D10): three values the app's Web Push needs.
+  - **The VAPID key pair.** The private half signs every push's token. Every browser subscribes with the public half, which the app serves.
+  - **The message key.** It lets a request through the owner's message endpoint; without it the endpoint answers like a missing address.
+- **Where they are:**
+  - **Production:** in Key Vault `kv-revolutreader` only (`Push--VapidPublicKey`, `Push--VapidPrivateKey`, `Push--MessageKey`).
+  - **The laptop:** separate values, in the AppHost's user-secrets (`Parameters:push-vapid-public-key`, `-vapid-private-key`, `-message-key`) and the backup vault ([local-secrets.md](local-secrets.md)).
+- **Current state:** both sets were made by the owner on 2026-11-10 with the guided task in [deployment.md § Push (C8a)](deployment.md#guided-task-the-push-keys).
+- **Expiry:** none. The keys themselves do not expire. The token signed with the private half is made new for every push request.
+- **How you notice a problem:** they do not lapse. A missing or malformed key, or two halves that are not one pair, stops the app at start, with a message naming the setting, never a value.
+- **Replace, if one is lost or leaked:** run that guided task's variant again. It replaces all three values together, so a pair is only ever written whole.
+  - **A leaked private half:** with it and a device's push address and its two keys, someone could push to that device.
+  - **A leaked message key:** with it, someone could send messages to the allowed accounts.
+  - **After the run:** in production Azure picks up the new values within 30 minutes and restarts the app.
+- **A replaced key heals itself** (D5). Subscriptions made with the old public key stop receiving pushes. Every device then replaces its subscription at its next opening, because the app finds it was made with another key; that upkeep is C8c's. The production values therefore need no backup.
