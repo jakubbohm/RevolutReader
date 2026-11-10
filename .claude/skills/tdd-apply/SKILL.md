@@ -50,27 +50,15 @@ Arguments: `$ARGUMENTS`
    named artboard with the Screens design's `project/sample-data.js`. The tool saves them in this session's
    scratchpad, never in the repository. Note the saved paths for the groups that build UI; after a new
    session, read them again, because the scratchpad does not carry over.
-9. Index the worktree in the code graph (codebase-memory-mcp) through Bash, under a new project name for each
-   commit: `codebase-memory-mcp cli index_repository --repo-path <the worktree's absolute path> --name
-   <worktree>-<commit>`, where `<worktree>` is the name the server derives from the path
-   (`D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`) and `<commit>` is `git rev-parse --short HEAD`.
-   Never the same name twice: once a running session has read a project, nothing can index it again until that
-   session ends, and the run still answers "indexed" (`docs/software-factory/lessons.md` R-71). T and I read the
-   graph through this session, so every project you brief stays held until you end. Trust a run only when all
-   three hold:
-   - its `nodes` equal its `expected_nodes`;
-   - the project's database, `~/.cache/codebase-memory-mcp/<project>.db`, was written by this run;
-   - `codebase-memory-mcp cli search_graph --project <project> --name-pattern <name> --limit 5` finds a class
-     from a file changed since the previous index (on the first index, any class).
-
-   If one fails, or the name is taken, add `-<n>`, the next free number, and index again; if that fails too, tell
-   the human, and brief T and I to read files until it is fixed. Write each project's name and the commit it
-   indexed into `.tdd-state.md`, and put the latest in every brief to T and I: they read code they do not change
-   through the graph, as their definitions say. **The graph is a snapshot of that commit:** nothing updates it
-   while files change. At the start of each group, if HEAD has moved since the indexed commit, index the new
-   commit the same way; when an agent reports a graph answer that does not match the file, index again before the
-   next brief. Read code you do not change through the graph yourself, too, by the agents' rules (in this session
-   the server's tools are deferred: load them with ToolSearch first).
+9. Index the worktree in the code graph (codebase-memory-mcp; in this session its tools are deferred, so load
+   them with ToolSearch first): `index_repository` with the worktree's absolute path. Its project is named after
+   the path (e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Write the name into
+   `.tdd-state.md` and put it in every brief to T and I: they read code they do not change through the graph, as
+   their definitions say. **Index it again after every commit you make** (Rules for you, below), so the graph
+   always holds the last commit: the server refreshes by itself only the folder this session started in, and a
+   project that was behind when the session started stays behind until something changes there (`CLAUDE.md`
+   § Code navigation). An index in place takes seconds, and it works the same whether this session started in
+   the worktree or entered it. Read code you do not change through the graph yourself, too.
 
 ## 1. Acceptance group (`[acceptance]`)
 
@@ -167,10 +155,8 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
    changed by this change and report survivors. Survivors mean weak tests; offer to send them to T.
 4. Do the close-out tasks yourself: `pm/progress.md`, and `CLAUDE.md` if build, test or run commands changed.
 5. Tick the `[close]` tasks, commit `feat(<cNNN>): [close] acceptance green`, and report to the human: groups
-   done, disputes and how they were resolved, any spec/design changes, that the change is ready for
-   `/opsx:archive`, and the change's code-graph projects from `.tdd-state.md`, to delete with
-   `codebase-memory-mcp cli delete_project --project <name>` once this session has ended (while it runs, the
-   deletion fails without an error).
+   done, disputes and how they were resolved, any spec/design changes, and that the change is ready for
+   `/opsx:archive`.
 
 ## Frontend groups
 
@@ -187,9 +173,10 @@ assertion, or a stub that throws.
   while T or I is still working: they share one working tree.
 - Commit only on the change branch, at the handoffs above, with the step tags from `workflow.md` § 3.
   Never push, never commit on `main`, never open a PR.
+- After every commit, run `index_repository` on the worktree (§ 0 step 9) before you brief T or I again.
 - Keep T and I alive for the whole change and resume them via SendMessage. If an agent can no longer
   be resumed, or SendMessage is not available, spawn a fresh one and give it: the change name, the current
-  group, the code graph's project and its indexed commit (§ 0 step 9), and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
+  group, the code graph's project (§ 0 step 9), and a short summary from `.tdd-state.md`. Artifacts are the source of truth, not agent memory.
 - Do not use `isolation: "worktree"` for T or I. They must share one working tree.
 - Never put real bank data or secrets into anything you send, commit or record.
 - Whenever you send I a group that builds or changes UI, include the saved paths of the design files that group

@@ -19,21 +19,19 @@ Conventions: `docs/conventions/testing.md` (source of truth) and `.claude/rules/
 
 ## Reading code
 
-O gives you the code graph's project for this worktree (codebase-memory-mcp) and the commit it indexed. Each
-new index is a new project: use the latest name O gave you. The graph is a snapshot of that commit: nothing
-updates it while you work.
+O gives you the code graph's project for this worktree (codebase-memory-mcp). O indexes it after every commit,
+so it holds at least the last commit. Use it for code you only need to know, not change:
 
-- **Code unchanged since that commit, which you only need to know** (a pattern to follow such as an existing
-  driver, fake or test, a type's members, a method's body): `search_graph` with a `name_pattern`, a `label`
-  (`Class`, `Interface`, `Method`, `Function`) and a small `limit` such as 5, then `get_code_snippet` with the
-  `qualified_name` it returns. Never a whole file for one class or method; but a small file (a few kilobytes) you
-  need most of is cheaper read whole, since each snippet carries about 1k characters of metadata. Not
-  `search_graph`'s `semantic_query` (the largest answers) or `search_code` (slower than grep, and no smaller).
+- **A pattern to follow (an existing driver, fake or test), a type's members, a method's body:** `search_graph`
+  with a `name_pattern`, a `label` (`Class`, `Interface`, `Method`, `Function`) and a small `limit` such as 5,
+  then `get_code_snippet` with the `qualified_name` it returns. Never a whole file for one class or method; but a
+  small file you need most of is read whole.
 - **Who calls what:** `trace_path`, not grep.
-- **Read the file, not the graph,** for a file changed since that commit (`git diff --name-only <commit>`) or
-  not yet in git, for what you will change, and for the specs, `design.md`, the conventions, the settings and
-  other files that are not code.
-- **No result, or a result that does not match the file:** read the file, and say so in your report.
+- **Read the file, not the graph,** for a file changed since the last commit (`git status --porcelain`), for what
+  you will change, and for the specs, `design.md`, the conventions, the settings and other files that are not
+  code.
+- **No result, or a snippet that does not show the symbol you asked for:** read the file, and say so in your
+  report.
 
 ## What you write
 
