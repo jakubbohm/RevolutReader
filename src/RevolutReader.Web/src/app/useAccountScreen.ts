@@ -56,6 +56,22 @@ async function withRefreshLimit<T>(
   }
 }
 
+/**
+ * Waits for `work` until it settles, or at most `REFRESH_LIMIT_MS`, then goes on without it (c013 design.md D4: an
+ * unsubscribe the browser leaves hanging). A timer of the page's own, cleared once `work` settles.
+ */
+async function atMostTheRefreshLimit(work: Promise<void>): Promise<void> {
+  let limitTimer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<void>((resolve) => {
+    limitTimer = setTimeout(resolve, REFRESH_LIMIT_MS);
+  });
+  try {
+    await Promise.race([work, limit]);
+  } finally {
+    clearTimeout(limitTimer);
+  }
+}
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
@@ -106,7 +122,8 @@ interface Wake {
  * moment the screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an
  * upkeep runs beside the balance read, which never waits for it. A return: every return to the screen while a user is
  * signed in (`watchReturns`). One at a time, so an opening while one runs is ignored, with the refresh's limit; what it
- * comes to is never shown. "Obnovit" and coming back online are no openings, so they run none.
+ * comes to is never shown, but a 401 or 403 to one of its requests ends the login, once, as the list's does. "Obnovit"
+ * and coming back online are no openings, so they run none.
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -142,11 +159,15 @@ export function useAccountScreen(): AccountScreenModel {
    * The device has no allowed login any more (D4, D5 c): a sign-out the server confirmed, or a 401 or 403 to who is
    * signed in or to a balance read. The balance the phone keeps is forgotten and the phone's push subscription
    * unsubscribed, together, before `next`, the sign-in or no-access screen, shows (c013 design.md D4); a failure of
-   * either is ignored. What the screen held goes with them, and a read still under way is dropped when it lands.
+   * either is ignored, and an unsubscribe the browser leaves hanging holds the next screen at most the refresh's limit.
+   * What the screen held goes with them, and a read still under way is dropped when it lands.
    */
   const endLogin = useCallback(async (next: Session): Promise<void> => {
     loginsEnded.current += 1;
-    await Promise.all([forgetStoredBalance(), unsubscribeThisDevice()]);
+    await Promise.all([
+      forgetStoredBalance(),
+      atMostTheRefreshLimit(unsubscribeThisDevice()),
+    ]);
     if (!onPage.current) return;
 
     setSession(next);
@@ -169,10 +190,11 @@ export function useAccountScreen(): AccountScreenModel {
   }, []);
 
   /**
-   * The list's newest page found the login ended (c010 design.md D8): the same as a balance read that does (D5 c), once;
-   * the login ends only once on this screen, so a list's read that lands after that is dropped.
+   * The list's newest page, or one of the upkeep's own requests, found the login ended (c010 design.md D8; c013 design.md
+   * D1, D4): the same as a balance read that does (D5 c), once; the login ends only once on this screen, so an answer
+   * that lands after that is dropped.
    */
-  const endLoginFromTheList = useCallback(
+  const endLoginOnce = useCallback(
     (ended: LoginEnded): void => {
       if (loginsEnded.current > 0) return;
       void endLogin(
@@ -261,7 +283,8 @@ export function useAccountScreen(): AccountScreenModel {
    * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way: then nothing is asked. It
    * has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its request is aborted, so a request left unanswered
    * cannot block the next opening's upkeep. It runs under the login it started with, while the screen is on the page
-   * (D6). What it comes to is never shown.
+   * (D6). What it comes to is never shown; only a 401 or 403 to one of its requests ends the login, as the list's does
+   * (D1, D4).
    */
   const runUpkeep = useCallback(async (): Promise<void> => {
     if (upkeepUnderWay.current) return;
@@ -269,16 +292,17 @@ export function useAccountScreen(): AccountScreenModel {
     const login = loginsEnded.current;
 
     try {
-      await withRefreshLimit((signal) =>
+      const outcome = await withRefreshLimit((signal) =>
         keepSubscriptionUp({
           stillSignedIn: () => onPage.current && login === loginsEnded.current,
           signal,
         }),
       );
+      if (outcome.kind === "login ended") endLoginOnce(outcome.ended);
     } finally {
       upkeepUnderWay.current = false;
     }
-  }, []);
+  }, [endLoginOnce]);
 
   /**
    * Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. `anew`
@@ -438,7 +462,7 @@ export function useAccountScreen(): AccountScreenModel {
   // The list reads its newest page once the server has named a signed-in user, never for a visitor (c010 design.md D8).
   const list = useTransactionList({
     enabled: signedIn,
-    onLoginEnded: endLoginFromTheList,
+    onLoginEnded: endLoginOnce,
     onNewestLanded: listLanded,
   });
   const { refresh: refreshTheList } = list;

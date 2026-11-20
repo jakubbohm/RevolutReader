@@ -138,9 +138,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 22. [unit] Slice 9 — The login's end (`useAccountScreen`)
 
-- [ ] 22.1 A 401 or 403 to who is signed in, to a balance read or to the list's newest page unsubscribes the phone before the next screen shows
-- [ ] 22.2 A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does
-- [ ] 22.3 A failure to unsubscribe does not hold up the next screen
+- [x] 22.1 A 401 or 403 to who is signed in, to a balance read or to the list's newest page unsubscribes the phone before the next screen shows
+- [x] 22.2 A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does
+- [x] 22.3 A failure to unsubscribe does not hold up the next screen
 
 ## 23. [unit] Slice 9 — The upkeep and the login's end (`keepSubscriptionUp`, design.md D6)
 
