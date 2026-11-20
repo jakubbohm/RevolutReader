@@ -151,7 +151,8 @@ public static class SignInRegistration {
 
   /// <summary>
   /// After <c>UseAppPages</c>, so the pages and their files need no sign-in, and before <c>UseFastEndpoints</c>:
-  /// authentication, then authorization, then the rule against writes from other sites (D4). A refusal by authorization
+  /// authentication, then authorization, then the allowed user's account on the request telemetry
+  /// (<see cref="RequestAccount"/>, roadmap C14), then the rule against writes from other sites (D4). A refusal by authorization
   /// counts only for a request that matched an endpoint (<see cref="UnmatchedRequestsPass"/>, D3), so an address nothing
   /// serves answers 404 to everyone.
   /// </summary>
@@ -160,6 +161,7 @@ public static class SignInRegistration {
 
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRequestAccount();
     app.UseCrossSiteWriteProtection();
 
     return app;

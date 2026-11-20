@@ -492,6 +492,33 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 - **The read behind a retry:** a retry and the read's own line share the request's `OperationId`, so `AppTraces | where OperationId == '<OperationId from the first query>'` shows how that read ended.
 - Neither query shows an identifier or bank data: the library logs the pipeline's name, the status or the failure's message, never a request's address (checked by the telemetry guard, c008 design.md D9).
 
+### Requests per account (C14)
+
+Since C14 every API request of an allowed, signed-in user carries the account's email address in `UserAuthenticatedId` ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7). These two read-only queries show how each account uses the app in a period: the balance reads per day (each open of the app, each refresh and each return to it reads the balance once; "Zkusit znovu" after a failed read and coming back online read it again, so the count can be higher than the opens, refreshes and returns), and every API request counted by route. Set the period as above.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg  = 'rg-revolutreader'
+$workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+    --workspace-name log-revolutreader --query customerId --output tsv
+
+$from = '2026-11-20'; $to = '2026-11-28'
+$requests = "AppRequests | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where UserAuthenticatedId != ''"
+
+# Balance reads per account and day, the newest day first
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$requests | where Name == 'GET /api/balance' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Reads = count(), First = min(PragueTime), Last = max(PragueTime) by Day = startofday(PragueTime), Account = UserAuthenticatedId | order by Day desc, Account asc"
+
+# Every API request per account, counted by route
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$requests | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Requests = count(), Last = max(PragueTime) by Account = UserAuthenticatedId, Name | order by Account asc, Requests desc"
+```
+
+- **Which requests carry an account:** the API requests of an allowed, signed-in user; the pages and files, and other visitors' requests, carry none (the exact list: [ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7). To place a device's page loads, match them to its API requests by time and browser (`ClientBrowser`, `ClientOS`); their raw rows' `TimeGenerated` is UTC, while the queries above show Prague time.
+- **The days and times are Prague's.** Both queries turn `TimeGenerated`, which is UTC, into Prague time, summer time included, so a read just after midnight in Prague counts on that day. Only `$from` and `$to` stay UTC, because they filter `TimeGenerated` itself: midnight UTC is 01:00 in Prague in winter, 02:00 in summer.
+- **To be confirmed after C14's deploy:** the query was written from the exporter's code ([`TelemetryItem.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Customizations/Models/TelemetryItem.cs), read 2026-11-20) before any request carried an account. If it comes back empty although an allowed user has opened the app since, look at a raw row: `AppRequests | where Name == 'GET /api/me' | project TimeGenerated, UserAuthenticatedId, Properties | take 5`.
+- **The rows name people:** the email addresses are personal data, allowed in the private telemetry (ADR-0009, Decision item 6). Never copy them into an issue, a PR or any other public place.
+
 ## Rolling back
 
 - **A version that does not start or misbehaves:** revert its PR (the merged PR's page has a Revert button, which opens a new PR). Its merge deploys the previous code through the same pipeline; nothing is changed in Azure by hand.
