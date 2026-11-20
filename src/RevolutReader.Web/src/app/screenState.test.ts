@@ -588,6 +588,42 @@ test.each(listOnScreen)(
   },
 );
 
+// ---- c012: a failure to turn notifications on (c012 design.md D8) ----
+// Set like a failed sign-out: the screen's one problem, its banner in place of any other, offline included, offline or
+// not itself. The screen's own problem it replaced is gone; the reads' other problems stay below it.
+
+const otherProblems: { label: string; changes: Partial<Facts> }[] = [
+  ...listProblems.map((listProblem) => ({
+    label: `the list's ${listProblem.kind}`,
+    changes: { list: listReport({ problem: listProblem, onScreen: true }) },
+  })),
+  {
+    label: "who is signed in found the phone offline",
+    changes: { session: { kind: "offline" } as const },
+  },
+];
+
+test.each(
+  otherProblems.flatMap((other) =>
+    [true, false].map((offline) => ({ ...other, offline })),
+  ),
+)(
+  "A failure to turn notifications on is the screen's one banner, in place of any other, offline included: $label, offline $offline",
+  ({ changes, offline }) => {
+    const failed: Problem = { kind: "notifications failed", offline };
+
+    expect(
+      shown(
+        facts({ session: LUCIE, balance: READ, problem: failed, ...changes }),
+      ),
+    ).toMatchObject({
+      screen: "account",
+      header: { balance: READ },
+      banner: failed,
+    });
+  },
+);
+
 /** The account screen's banner; `undefined` for any other screen. */
 function bannerOf(screen: Shown): Problem | null | undefined {
   return screen.screen === "account" ? screen.banner : undefined;

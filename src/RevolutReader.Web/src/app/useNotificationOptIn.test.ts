@@ -11,6 +11,7 @@ import {
   phoneRemembersNotNow,
   requests,
   returnToApp,
+  serverError,
   stored,
 } from "../test/server";
 import { notNowRemembered } from "./notNow";
@@ -245,4 +246,117 @@ test("On a blocked phone, the menu's item asks nothing and gives the Denied card
     "gone at the next opening after it showed",
   ).toBeNull();
   expect(result.current.menuItem, "the menu item again").toBe(true);
+});
+
+// ---- group 34: a failure to turn on (D8) ----
+// The hook tells the screen of a failure (`onFailed(offline)`), for its one banner, and of a new turn-on
+// (`onRetried()`), which clears that failure. The card returns to its default state for the rest of this opening, a
+// result of this opening as the others: it goes at the first opening after the app was left while it showed (D4).
+
+/** The hook as `theOptIn`, with what it told the screen: the failures (offline or not) and the new turn-ons. */
+function theOptInTellingTheScreen() {
+  const failures: boolean[] = [];
+  let retries = 0;
+  const hook = renderHook(() =>
+    useNotificationOptIn({
+      signedIn: true,
+      underBalance: true,
+      onFailed: (offline) => {
+        failures.push(offline);
+      },
+      onRetried: () => {
+        retries += 1;
+      },
+    }),
+  );
+  return { ...hook, failures, retries: () => retries };
+}
+
+test.each([
+  { label: "offline", offline: true },
+  { label: "the server fails", offline: false },
+])(
+  "A failed turn-on tells the screen, for its one banner, offline or not: $label",
+  async ({ offline }) => {
+    startTestClock();
+    installPushStandIns({ permission: "default", permissionAnswer: "granted" });
+    answerWith({ subscription: serverError });
+    if (offline) goOffline();
+    const { result, failures } = theOptInTellingTheScreen();
+
+    act(() => {
+      result.current.turnOn();
+    });
+    await timePasses(0);
+
+    expect(failures).toEqual([offline]);
+  },
+);
+
+// The iOS prompt may hide the page and show it again (D4): that return, while turning on, reads the permission the
+// phone now has, so the hook knows the phone allows notifications when the failure comes.
+test("After a failure, the default card for the rest of this opening, even when the phone now allows notifications", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+  });
+  answerWith({ subscription: after(KEEP_TIME, serverError) });
+  const { result } = theOptIn();
+  act(() => {
+    result.current.turnOn();
+  });
+  await timePasses(0);
+  leaveApp();
+  await timePasses(0);
+  returnToApp();
+  await timePasses(0);
+  expect(phone.permission(), "the phone now allows them").toBe("granted");
+
+  await timePasses(KEEP_TIME);
+
+  expect(result.current.card, "the default card").toBe("default");
+  expect(result.current.menuItem, "and no menu item").toBe(false);
+
+  // Losing and regaining the network is not an opening (D4).
+  goOffline();
+  await timePasses(0);
+  goOnline();
+  await timePasses(0);
+  expect(result.current.card, "still the default card").toBe("default");
+
+  leaveApp();
+  await timePasses(0);
+  returnToApp();
+  await timePasses(0);
+
+  expect(
+    result.current.card,
+    "gone at the next opening after it showed",
+  ).toBeNull();
+  expect(result.current.menuItem, "on now: nothing offered").toBe(false);
+});
+
+test("A new turn-on tells the screen, so its earlier failure clears", async () => {
+  startTestClock();
+  installPushStandIns({ permission: "default", permissionAnswer: "granted" });
+  answerWith({ subscription: [serverError, after(KEEP_TIME, stored)] });
+  const { result, failures, retries } = theOptInTellingTheScreen();
+  act(() => {
+    result.current.turnOn();
+  });
+  await timePasses(0);
+  expect(failures, "the first turn-on failed").toEqual([false]);
+  const retriesBefore = retries();
+
+  act(() => {
+    result.current.turnOn();
+  });
+
+  expect(retries(), "the new turn-on told the screen").toBeGreaterThan(
+    retriesBefore,
+  );
+  await timePasses(KEEP_TIME);
+  expect(result.current.card, "and turned them on").toBe("enabled");
+  expect(failures, "no new failure").toEqual([false]);
 });

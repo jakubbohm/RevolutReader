@@ -82,8 +82,8 @@ test("Once on in this opening, the enabled card and no menu item", () => {
   ).toEqual({ card: "enabled", menuItem: false });
 });
 
-// Once on (D8, "On": the phone allows notifications), at an opening with no result of its own; that a failure in this
-// opening still shows the default card is task 34.3's.
+// Once on (D8, "On": the phone allows notifications), at an opening with no result of its own; a failure in this
+// opening still shows the default card (below).
 
 test("A phone that allows notifications is offered nothing, card or menu item, when no result of this opening shows", () => {
   for (const changes of WOULD_OFFER) {
@@ -92,6 +92,24 @@ test("A phone that allows notifications is offered nothing, card or menu item, w
         facts({ ...changes, permission: "granted", step: "idle" }),
       ),
     ).toEqual(NOTHING);
+  }
+});
+
+// A failure while turning on (D8): the card returns to its default state for the rest of this opening, whatever the
+// phone's permission now is, so the user can try again; as every result of this opening, wherever the screen is (D2).
+
+test("After a failure, the default card for the rest of this opening, even when the phone now allows notifications", () => {
+  for (const permission of ["default", "granted", "denied"] as const) {
+    for (const underBalance of [true, false]) {
+      for (const notNow of [false, true]) {
+        expect(
+          notificationOffer(
+            facts({ step: "failed", permission, underBalance, notNow }),
+          ),
+          `the permission ${permission}, the balance header ${underBalance ? "on screen" : "not on screen"}, "Teď ne" ${notNow ? "remembered" : "not remembered"}`,
+        ).toEqual({ card: "default", menuItem: false });
+      }
+    }
   }
 });
 

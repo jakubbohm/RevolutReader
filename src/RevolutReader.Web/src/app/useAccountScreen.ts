@@ -43,6 +43,10 @@ export interface AccountScreenModel {
   retry: () => void;
   /** "Odhlásit se" in the account menu; settles when the sign-out has ended, whatever its outcome (it never rejects). */
   signOut: () => Promise<void>;
+  /** Turning notifications on failed (c012 design.md D8): the screen's one problem becomes the failure, replacing any other. */
+  notificationsFailed: (offline: boolean) => void;
+  /** A new turn-on (c012 design.md D8): clears that failure only; any read still clears every problem. */
+  notificationsRetried: () => void;
 }
 
 /** A wake under way (D2): which of the first reads have landed since the woken server answered (c010 design.md D8). */
@@ -461,5 +465,12 @@ export function useAccountScreen(): AccountScreenModel {
     refresh: repeat,
     retry,
     signOut: signOutFromMenu,
+    notificationsFailed: notImplemented,
+    notificationsRetried: notImplemented,
   };
+}
+
+/** Stub (c012, group 34): not built yet. */
+function notImplemented(): void {
+  throw new Error("Not implemented");
 }

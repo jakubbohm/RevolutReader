@@ -12,7 +12,9 @@ export type Problem =
   | { kind: "bank access expired" }
   | { kind: "unexpected"; of?: "list" }
   | { kind: "offline" }
-  | { kind: "sign-out failed"; offline: boolean };
+  | { kind: "sign-out failed"; offline: boolean }
+  /** Turning notifications on failed (c012 design.md D8): offline, or "later". */
+  | { kind: "notifications failed"; offline: boolean };
 
 /** What the list reports to the screen at the join (c010 design.md D8). */
 export interface ListReport {

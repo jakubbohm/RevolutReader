@@ -203,6 +203,9 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
             : "Zkus to prosím za chvíli."}
         </Banner>
       );
+    case "notifications failed":
+      // c012 design.md D8: the banner is group 35's wiring.
+      throw new Error("Not implemented");
   }
 }
 
