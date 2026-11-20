@@ -143,22 +143,41 @@ async function replaced(
 
 /**
  * Subscribes with the server's key, then sends the new subscription as `outcome` (steps 4 and 5). A failed subscribe, or
- * one the limit gave up on, stops the upkeep with nothing sent; a subscription that settles after the limit is kept, and
- * the next opening sends it again.
+ * one the limit gave up on, stops the upkeep with nothing sent. A subscription the browser makes after the limit is still
+ * the upkeep's own: kept while the login is on, and the next opening sends it again; unsubscribed if the login has ended
+ * by then (D6).
  */
 async function subscribedAndSent(
   run: Run,
   outcome: UpkeepOutcome,
 ): Promise<UpkeepOutcome> {
-  const made = await attempt(
-    () => subscribe(run.registration, run.key),
-    run.signal,
-  );
+  // Never started once the limit has fired, as no browser call is (`beforeTheLimit`); watched apart from the waiting for
+  // it, which the limit ends, so that a subscription made later is still unsubscribed if the login has ended (D6).
+  const subscribing: Promise<PushSubscription | typeof FAILED> =
+    run.signal?.aborted === true
+      ? Promise.resolve(FAILED)
+      : attempt(() => subscribe(run.registration, run.key), undefined);
+  const made = await attempt(() => subscribing, run.signal);
+  if (made === FAILED) void unsubscribedIfMadeLate(subscribing, run);
   if (!run.stillSignedIn())
     return dropped(made === FAILED ? null : made, run.signal);
   if (made === FAILED) return STOPPED;
 
   return sentAs(run, made, outcome, made);
+}
+
+/**
+ * A subscribe the limit gave up on (D6): a subscription the browser makes later is unsubscribed if the login the upkeep
+ * started under has ended by then, so a signed-out phone never keeps one, whatever the timing; one made while it is still
+ * on is kept. A subscribe the browser failed comes to nothing here, and a failed unsubscribe is ignored. Never rejects.
+ */
+async function unsubscribedIfMadeLate(
+  subscribing: Promise<PushSubscription | typeof FAILED>,
+  run: Run,
+): Promise<void> {
+  const late = await subscribing;
+  if (late === FAILED || run.stillSignedIn()) return;
+  await attempt(() => unsubscribe(late), undefined);
 }
 
 /**
