@@ -89,6 +89,30 @@ export function listenForPushes(worker: PushWorker): void {
       ),
     );
   });
+
+  worker.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    event.waitUntil(
+      worker.clients.openWindow(
+        pageOnOrigin(event.notification.data, worker.location.origin),
+      ),
+    );
+  });
+}
+
+/**
+ * The page a notification's data names, as its path, query and fragment on `origin`, so it is always a page of the app
+ * (D9); the start page when the data is not a string or no address.
+ */
+function pageOnOrigin(data: unknown, origin: string): string {
+  const startPage = `${origin}/`;
+  if (typeof data !== "string") return startPage;
+  try {
+    const page = new URL(data, startPage);
+    return `${origin}${page.pathname}${page.search}${page.hash}`;
+  } catch {
+    return startPage;
+  }
 }
 
 /** The push's data as JSON; undefined when it has none or it is not JSON. */

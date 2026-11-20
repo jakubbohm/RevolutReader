@@ -255,10 +255,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 46. [unit] Slice 18 — A tap opening the app
 
-- [ ] 46.1 A tap closes the notification
-- [ ] 46.2 With no window of the app open, a tap opens the message's page on the service worker's own origin
-- [ ] 46.3 A page on another origin opens as its path on the service worker's own origin
-- [ ] 46.4 A page that cannot be read opens the start page
+- [x] 46.1 A tap closes the notification
+- [x] 46.2 With no window of the app open, a tap opens the message's page on the service worker's own origin
+- [x] 46.3 A page on another origin opens as its path on the service worker's own origin
+- [x] 46.4 A page that cannot be read opens the start page
 
 ## 47. [close] Slice 18 — A tap on a notification opens the app at its page
 
