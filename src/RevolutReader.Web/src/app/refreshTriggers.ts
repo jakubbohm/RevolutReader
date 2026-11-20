@@ -29,9 +29,15 @@ export function watchRefreshTriggers(
 /** A return to the screen alone (`visibilitychange` to `visible`), every time (c013 design.md D1); returns the stop function. */
 export function watchReturns(
   onReturn: () => void,
-  page?: Document,
+  page: Document = document,
 ): () => void {
-  void onReturn;
-  void page;
-  throw new Error("Not implemented yet: watchReturns (c013 design.md D1).");
+  function onVisibilityChange(): void {
+    if (page.visibilityState === "visible") onReturn();
+  }
+
+  page.addEventListener("visibilitychange", onVisibilityChange);
+
+  return () => {
+    page.removeEventListener("visibilitychange", onVisibilityChange);
+  };
 }

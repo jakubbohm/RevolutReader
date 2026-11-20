@@ -67,9 +67,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 8. [unit] Slice 3 — Returns (`watchReturns`)
 
-- [ ] 8.1 A return to the screen calls back, every time
-- [ ] 8.2 Leaving the screen and coming back online call nothing
-- [ ] 8.3 The stop function ends the watch
+- [x] 8.1 A return to the screen calls back, every time
+- [x] 8.2 Leaving the screen and coming back online call nothing
+- [x] 8.3 The stop function ends the watch
 
 ## 9. [unit] Slice 3 — The upkeep at a return (`useAccountScreen`)
 
