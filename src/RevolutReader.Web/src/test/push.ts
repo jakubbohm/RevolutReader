@@ -10,6 +10,7 @@
  * - The service worker (c013 design.md D1): `navigator.serviceWorker.getRegistration()` settles with the registration,
  *   and `navigator.serviceWorker.ready` resolves to it. Under `registered: false` the browser has a service worker but
  *   none is registered, as on Vite's dev server: `getRegistration()` settles with `undefined`, and `ready` never settles.
+ *   Under `registrationFails`, `getRegistration()` fails with the test's error instead, and `ready` is as without it.
  * - `PushManager`, on that registration:
  *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: fails with the test's
  *     `subscribeFails`; asks for permission first while it is `default`; fails with `NotAllowedError` unless the
@@ -64,6 +65,11 @@ export interface PushStandInOptions {
    * never settles.
    */
   registered?: boolean;
+  /**
+   * `navigator.serviceWorker.getRegistration()` fails with this error, as when the browser refuses to answer (c013
+   * design.md D1); `ready` is as without it.
+   */
+  registrationFails?: Error;
 }
 
 /** What `subscribe` was asked: `userVisibleOnly` as given, the key as bytes when given as bytes, as text when text. */
@@ -76,7 +82,8 @@ export interface SubscribeRequest {
 export interface PushStandIns {
   /**
    * The service worker registration, as `navigator.serviceWorker.getRegistration()` settles with it and
-   * `navigator.serviceWorker.ready` resolves to it (unless `registered: false`).
+   * `navigator.serviceWorker.ready` resolves to it (unless `registered: false`; `getRegistration()` neither under
+   * `registrationFails`).
    */
   registration: ServiceWorkerRegistration;
   /** What each `subscribe` was asked, in order. */
@@ -206,7 +213,9 @@ export function installPushStandIns(
         ? Promise.resolve(registration)
         : new Promise<ServiceWorkerRegistration>(() => {}),
       getRegistration: (): Promise<ServiceWorkerRegistration | undefined> =>
-        Promise.resolve(registered ? registration : undefined),
+        options.registrationFails !== undefined
+          ? Promise.reject(options.registrationFails)
+          : Promise.resolve(registered ? registration : undefined),
       controller: null,
     });
 
