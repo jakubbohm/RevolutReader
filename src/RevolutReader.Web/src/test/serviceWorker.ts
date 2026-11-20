@@ -23,7 +23,8 @@ import type {
  *   nothing there. A push with no data (`deliverPushWithoutData()`) carries `data` `null`; a push of text
  *   (`deliverPushOfText(text)`) carries data whose `json()` parses the text and throws a `SyntaxError` when it is not
  *   JSON, as the browser's `PushMessageData.json()` does. A browser that reads Declarative Web Push proposes `null` for
- *   either unless the text is a declarative message.
+ *   either unless the text is a declarative message. A browser that has the member but proposes nothing
+ *   (`proposesNull: true`) puts `null` there on every push.
  * - A tap (`tapNotification(index)`) on a notification the service worker showed: the event carries it, with its data
  *   and `close()`, recorded in `closedNotifications()`.
  * Each event's handlers run, and the helper waits for the work they passed to `waitUntil`, so a failure there fails
@@ -37,6 +38,11 @@ export const ORIGIN = "https://tarjeta-papa.example";
 export interface ServiceWorkerStandInOptions {
   /** Whether the browser reads Declarative Web Push and proposes its own notification on the push event; by default not. */
   declarative?: boolean;
+  /**
+   * Whether the browser has the push event's `notification` member but leaves it `null` on every push, a declarative
+   * message too (it proposes no notification of its own); by default not. Not combined with `declarative`, which it overrides.
+   */
+  proposesNull?: boolean;
   /** The addresses of the app's windows open now; by default none. */
   openWindows?: readonly string[];
   /** The service worker's own origin; by default `ORIGIN`. */
@@ -128,7 +134,7 @@ export function installServiceWorkerStandIn(
     },
   };
 
-  /** A push with this data arrives; a browser that reads Declarative Web Push puts `proposed()` on the event. */
+  /** A push with this data arrives; a browser that reads Declarative Web Push puts `proposed()` on the event (see `proposesNull`). */
   const firePush = async (
     data: PushLike["data"],
     proposed: () => unknown,
@@ -140,7 +146,8 @@ export function installServiceWorkerStandIn(
         work.push(promise);
       },
     };
-    if (options.declarative === true) event.notification = proposed();
+    if (options.proposesNull === true) event.notification = null;
+    else if (options.declarative === true) event.notification = proposed();
     for (const listener of pushListeners) listener(event);
     await Promise.all(work);
   };

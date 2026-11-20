@@ -133,3 +133,35 @@ test("A push that is not a Declarative Web Push message shows nothing", async ()
     expect(serviceWorker.shownNotifications(), name).toEqual([]);
   }
 });
+
+// ---- The browser's own notification: listenForPushes (group 44) ----
+
+/** A Declarative Web Push message as the server sends it, opening the start page. */
+const DECLARATIVE_PUSH = {
+  web_push: 8030,
+  notification: { title: "Ahoj", body: "Zkušební zpráva", navigate: APP_PAGE },
+};
+
+test("A push that carries the browser's own notification shows nothing of the service worker's", async () => {
+  // A browser that reads Declarative Web Push (as Safari) proposes its own notification on the event and shows it.
+  const serviceWorker = installServiceWorkerStandIn({ declarative: true });
+  listenForPushes(serviceWorker.worker);
+
+  await serviceWorker.deliverPush(DECLARATIVE_PUSH);
+
+  expect(serviceWorker.shownNotifications()).toEqual([]);
+});
+
+test("A push whose browser's own notification is null carries none: the service worker shows the message", async () => {
+  // The boundary of "carries" (design.md D9): `null` is missing, as `undefined` is (41.1); the browser shows nothing itself.
+  const serviceWorker = installServiceWorkerStandIn({ proposesNull: true });
+  listenForPushes(serviceWorker.worker);
+
+  await serviceWorker.deliverPush(DECLARATIVE_PUSH);
+
+  expect(
+    serviceWorker
+      .shownNotifications()
+      .map(({ title, body }) => ({ title, body })),
+  ).toEqual([{ title: "Ahoj", body: "Zkušební zpráva" }]);
+});
