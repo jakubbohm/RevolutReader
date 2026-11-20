@@ -24,13 +24,22 @@ export function App({ device }: AppProps): JSX.Element {
  * not meet a sleeping server.
  */
 function Screens(): JSX.Element {
-  const { shown, list, refresh, retry, signOut } = useAccountScreen();
+  const {
+    shown,
+    list,
+    refresh,
+    retry,
+    signOut,
+    notificationsFailed,
+    notificationsRetried,
+  } = useAccountScreen();
   // The notification opt-in (c012 design.md D2): for the user the menu names, under the balance header or its placeholder.
   const optIn = useNotificationOptIn({
     signedIn: shown.screen === "account" && shown.account !== null,
     underBalance: shown.screen === "account" && shown.header !== null,
-    onFailed: () => {},
-    onRetried: () => {},
+    // A failed turn-on is the screen's one banner; a new one clears it (D8).
+    onFailed: notificationsFailed,
+    onRetried: notificationsRetried,
   });
 
   useEffect(() => keepServerAwake(pingServer), []);

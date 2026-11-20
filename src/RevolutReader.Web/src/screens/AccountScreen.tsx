@@ -204,8 +204,14 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
         </Banner>
       );
     case "notifications failed":
-      // c012 design.md D8: the banner is group 35's wiring.
-      throw new Error("Not implemented");
+      // No action: the card's "Zapnout upozornění" is right there (c012 design.md D8).
+      return (
+        <Banner tone="error" title="Upozornění se nepodařilo zapnout">
+          {problem.offline
+            ? "Zkus to znovu, až budeš online."
+            : "Zkus to prosím za chvíli."}
+        </Banner>
+      );
   }
 }
 

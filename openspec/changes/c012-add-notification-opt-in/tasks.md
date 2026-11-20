@@ -204,7 +204,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 35. [wiring] Slice 13 — The failure banner
 
-- [ ] 35.1 `Problem`'s `notifications failed`, ranked with the failed sign-out in `bannerOf`; `useAccountScreen.notificationsFailed` and `notificationsRetried`; `AccountScreen`'s banner "Upozornění se nepodařilo zapnout" with its two sentences and no action; the hook reports failures and retries (D8). Verify: groups 33–34 pass; the scenario runs against the app
+- [x] 35.1 `Problem`'s `notifications failed`, ranked with the failed sign-out in `bannerOf`; `useAccountScreen.notificationsFailed` and `notificationsRetried`; `AccountScreen`'s banner "Upozornění se nepodařilo zapnout" with its two sentences and no action; the hook reports failures and retries (D8). Verify: groups 33–34 pass; the scenario runs against the app
 
 ## 36. [close] Slice 13 — Turning notifications on offline says to try again online
 
