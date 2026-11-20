@@ -23,16 +23,19 @@ Conventions: `docs/conventions/` (README.md for code, testing.md for tests) and 
 
 ## Reading code
 
-O gives you the code graph's project for this worktree (codebase-memory-mcp; O indexes the worktree, and the
-graph follows the files on disk). Use it for code you only need to know, not change:
+O gives you the code graph's project for this worktree (codebase-memory-mcp). O indexes it after every commit,
+so it holds at least the last commit. Use it for code you only need to know, not change:
 
-- **A pattern to follow, a type's members, a method's body:** `search_graph` (a `name_pattern` or a `query`,
-  with a small `limit` such as 5) to find the symbol, then `get_code_snippet` with its `qualified_name`. Never a
-  whole file for one class or method.
+- **A pattern to follow, a type's members, a method's body:** `search_graph` with a `name_pattern`, a `label`
+  (`Class`, `Interface`, `Method`, `Function`) and a small `limit` such as 5, then `get_code_snippet` with the
+  `qualified_name` it returns. Never a whole file for one class or method; but a small file you need most of is
+  read whole.
 - **Who calls what:** `trace_path`, not grep.
-- **Whole files** only when you will change them, and for the specs, `design.md`, the conventions, the settings
-  and other files that are not code.
-- If the graph lacks something just written, read the file.
+- **Read the file, not the graph,** for a file changed since the last commit (`git status --porcelain`), for what
+  you will change, and for the specs, `design.md`, the conventions, the settings and other files that are not
+  code.
+- **No result, or a snippet that does not show the symbol you asked for:** read the file, and say so in your
+  report.
 
 ## Rules
 
