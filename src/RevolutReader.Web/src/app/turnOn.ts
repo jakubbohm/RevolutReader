@@ -51,8 +51,8 @@ export async function turnNotificationsOn(
 }
 
 /**
- * Once allowed (D3): the service worker's registration, the server's key, the subscription, then sending it; every
- * request on `signal`, so the limit (D8) ends whichever is under way.
+ * Once allowed (D3): the service worker's registration, the server's key, the subscription, then sending it; the wait
+ * for the registration, the subscription and every request on `signal`, so the limit (D8) ends whichever is under way.
  */
 async function subscribeAndSend(
   browser: Window,
@@ -67,12 +67,14 @@ async function subscribeAndSend(
   const key = await readPushKey({ signal });
   if (key.kind !== "key") return failed(key.kind === "offline");
 
-  let subscription: PushSubscription;
+  let subscription: PushSubscription | null;
   try {
-    subscription = await subscribe(registration, key.key);
+    subscription = await untilAborted(subscribe(registration, key.key), signal);
   } catch {
     return failed(!browser.navigator.onLine);
   }
+  // The limit ended the subscribing: the same failure as a subscription that failed, and nothing is sent.
+  if (subscription === null) return failed(!browser.navigator.onLine);
 
   const sent = await sendSubscription(subscription, { signal });
   return sent.kind === "done"
