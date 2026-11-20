@@ -95,7 +95,8 @@ export function useNotificationOptIn({
     // A new turn-on clears the screen's earlier failure (D8).
     tellScreen.current.onRetried();
     void turning.then((outcome) => {
-      // A sign-out or a closed app ended the screen meanwhile: nothing left to show it on.
+      // React unmounted the screens meanwhile (today only a test's cleanup): nothing left to show it on. A sign-out keeps
+      // them mounted; its late outcome shows nowhere (no banner signed out, no offer, signing in reloads the page).
       if (!mounted.current) return;
       setStep(stepAfter(outcome));
       // Declined: the phone now blocks notifications, so once the Denied card goes, the menu item stays (D6, D7).
