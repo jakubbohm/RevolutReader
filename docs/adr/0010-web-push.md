@@ -69,7 +69,7 @@ Decided by the owner in C8's explore (S2–S4, S6, S7, S12, A2; 2026-11-08 and 2
 
 ## Notes
 
-- **2026-11-20, C8b: the service worker showing a push** ([c012 design.md D9](../../openspec/changes/c012-add-notification-opt-in/design.md#d9--the-service-worker-showing-a-push-b9)):
+- **2026-11-20, C8b: the service worker showing a push** ([c012 design.md D9](../../openspec/changes/archive/2026-11-20-c012-add-notification-opt-in/design.md#d9--the-service-worker-showing-a-push-b9)):
   - **A push that carries the browser's proposed notification is left as it is.** A browser that reads Declarative Web Push puts the notification it proposes on the push event (its `notification` member, W3C Push API draft) and shows it unless the handler shows a replacement, so the service worker shows nothing and the message shows once.
   - **Elsewhere** (the member missing or `null`, as in Chrome on a computer) **the service worker shows the message itself:** its `title`, its `body` when there is one, and its `navigate` address kept in the notification's data. A push that is not a declarative message with a title and a `navigate` shows nothing.
   - **A tap** closes the notification and brings an open window of the app to the front. With none open, it opens `navigate`'s path, query and fragment **on the service worker's own origin**, so it never opens another site (item 2: always a page of the app).
