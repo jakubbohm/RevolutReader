@@ -34,9 +34,9 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 2. [unit] Slice 1 — The check's settings
 
-- [ ] 2.1 A check key of at least 32 bytes in base64url passes validation
-- [ ] 2.2 A check key still holding the placeholder fails validation, and the message names the setting only
-- [ ] 2.3 A check key shorter than 32 bytes, or not strict base64url, fails validation, naming the setting only
+- [x] 2.1 A check key of at least 32 bytes in base64url passes validation
+- [x] 2.2 A check key still holding the placeholder fails validation, and the message names the setting only
+- [x] 2.3 A check key shorter than 32 bytes, or not strict base64url, fails validation, naming the setting only
 
 ## 3. [wiring] Slice 1 — Settings, AppHost and the endpoint's key
 
