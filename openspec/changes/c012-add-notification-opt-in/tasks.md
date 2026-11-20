@@ -212,10 +212,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 37. [unit] Slice 14 — Failing later
 
-- [ ] 37.1 A server error, a refused subscription or an unreadable answer makes turning on fail, not as offline
-- [ ] 37.2 A 401 or 403 while turning on fails, not as offline (D8)
-- [ ] 37.3 A subscription the browser refuses while online fails, not as offline
-- [ ] 37.4 A subscription made with another key makes turning on fail, not as offline
+- [x] 37.1 A server error, a refused subscription or an unreadable answer makes turning on fail, not as offline
+- [x] 37.2 A 401 or 403 while turning on fails, not as offline (D8)
+- [x] 37.3 A subscription the browser refuses while online fails, not as offline
+- [x] 37.4 A subscription made with another key makes turning on fail, not as offline
 
 ## 38. [close] Slice 14 — Turning notifications on when the server fails says to try again later
 

@@ -6,12 +6,19 @@ import {
   answerWith,
   bodiesSent,
   goOffline,
+  hostingErrorPage,
+  navigations,
   noAnswerYet,
   noConnection,
+  nobodySignedIn,
   pushKey,
+  refused,
   requests,
+  serverError,
   stored,
+  subscriptionRefused,
   timeline,
+  unreadable,
 } from "../test/server";
 import { serviceWorkerNeverReady } from "../test/serviceWorkerReady";
 import { turnNotificationsOn, type TurnOnOutcome } from "./turnOn";
@@ -19,7 +26,7 @@ import { turnNotificationsOn, type TurnOnOutcome } from "./turnOn";
 // Turning notifications on (c012 design.md D3): the phone is asked right from the tap, and once it allows them the app
 // subscribes with the server's key and sends the subscription. The phone's notifications and push are the test kit's
 // stand-ins (src/test/push.ts), the server the fake server (src/test/server.ts). Every key here is made up. The
-// offline failures and the 60 s limit are below (group 33); the "later" failures are group 37's.
+// offline failures and the 60 s limit (group 33) and the "later" failures (group 37) are below.
 
 /** The server's push key: made up, 65 bytes starting 0x04 (c011 D5's form), then 1, 2, …, 64. */
 const SERVER_KEY_BYTES = Uint8Array.from({ length: 65 }, (_, i) =>
@@ -236,4 +243,109 @@ test("A subscription the browser refuses while the phone is offline fails as off
   expect(requests(), "the key read, nothing sent after it").toEqual([
     "GET /api/push/key",
   ]);
+});
+
+// ---- group 37: failing later (D8) ----
+// Every failure that is not offline is "later" ("Zkus to prosím za chvíli."): a 400, a 5xx, an unreadable answer, a
+// 401 or 403 (a failure here, not an ended login: the next read on return routes it), a `subscribe` the browser refused
+// while online, and a subscription made with another key (C8c replaces it).
+
+const LATER = { kind: "failed", offline: false } as const;
+
+test.each([
+  { label: "the key read, a server error", answers: { pushKey: serverError } },
+  {
+    label: "the key read, the hosting's error page",
+    answers: { pushKey: hostingErrorPage },
+  },
+  {
+    label: "the key read, an unreadable answer",
+    answers: { pushKey: unreadable },
+  },
+  {
+    label: "the subscription sent, a server error",
+    answers: { pushKey: pushKey(SERVER_KEY), subscription: serverError },
+  },
+  {
+    label: "the subscription sent, refused by the server",
+    answers: {
+      pushKey: pushKey(SERVER_KEY),
+      subscription: subscriptionRefused("keys.p256dh"),
+    },
+  },
+  {
+    label: "the subscription sent, an unreadable answer",
+    answers: { pushKey: pushKey(SERVER_KEY), subscription: unreadable },
+  },
+])(
+  "A server error, a refused subscription or an unreadable answer makes turning on fail, not as offline: $label",
+  async ({ answers }) => {
+    installPushStandIns({ permission: "default", permissionAnswer: "granted" });
+    answerWith(answers);
+
+    expect(await turnNotificationsOn()).toEqual(LATER);
+  },
+);
+
+test.each([
+  { label: "the key read, 401", answers: { pushKey: nobodySignedIn } },
+  {
+    label: "the key read, 403",
+    answers: { pushKey: refused("lucie@example.com") },
+  },
+  {
+    label: "the subscription sent, 401",
+    answers: { pushKey: pushKey(SERVER_KEY), subscription: nobodySignedIn },
+  },
+  {
+    label: "the subscription sent, 403",
+    answers: {
+      pushKey: pushKey(SERVER_KEY),
+      subscription: refused("lucie@example.com"),
+    },
+  },
+])(
+  "A 401 or 403 while turning on fails, not as offline: $label",
+  async ({ answers }) => {
+    installPushStandIns({ permission: "default", permissionAnswer: "granted" });
+    answerWith(answers);
+
+    expect(await turnNotificationsOn()).toEqual(LATER);
+    expect(navigations(), "not sent to sign in").toEqual([]);
+  },
+);
+
+test("A subscription the browser refuses while online fails, not as offline", async () => {
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+    subscribeFails: true,
+  });
+  answerWith({ pushKey: pushKey(SERVER_KEY) });
+
+  expect(await turnNotificationsOn()).toEqual(LATER);
+  expect(phone.subscribeRequests(), "the browser was asked").toHaveLength(1);
+  expect(requests(), "the key read, nothing sent after it").toEqual([
+    "GET /api/push/key",
+  ]);
+});
+
+test("A subscription made with another key makes turning on fail, not as offline", async () => {
+  // Another made-up key: 65 bytes starting 0x04, then 0x07 each.
+  const anotherKey = Uint8Array.from({ length: 65 }, (_, i) =>
+    i === 0 ? 4 : 7,
+  );
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+    subscription: { applicationServerKey: anotherKey },
+  });
+  const old = phone.subscription();
+  answerWith({ pushKey: pushKey(SERVER_KEY) });
+
+  expect(await turnNotificationsOn()).toEqual(LATER);
+  expect(requests(), "the key read, nothing sent after it").toEqual([
+    "GET /api/push/key",
+  ]);
+  expect(phone.subscription(), "the old subscription left to C8c").toBe(old);
 });
