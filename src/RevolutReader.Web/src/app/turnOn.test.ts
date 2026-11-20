@@ -213,6 +213,66 @@ test("A service worker not ready within 60 seconds makes turning on fail, not as
   expect(turning.outcome()).toEqual({ kind: "failed", offline: false });
 });
 
+// Review finding (PR #78): the browser's `subscribe` is one of the steps after the phone's answer, so the 60 s limit
+// covers it too (D8: "The card spins for ever → the 60 s limit ends it"). Ended by the limit, it is a subscription that
+// failed: offline only when `navigator.onLine` is false, here online.
+test("A subscription the browser has not made within 60 seconds makes turning on fail, not as offline, and sends nothing", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+  });
+  Object.defineProperty(phone.registration.pushManager, "subscribe", {
+    configurable: true,
+    value: () => new Promise<PushSubscription>(() => {}),
+  });
+  answerWith({ pushKey: pushKey(SERVER_KEY), subscription: stored });
+
+  const turning = turningOn();
+  await timePasses(LIMIT - 1);
+
+  expect(turning.outcome(), "still turning on just before 60 s").toBe(
+    undefined,
+  );
+
+  await timePasses(1);
+
+  expect(turning.outcome()).toEqual({ kind: "failed", offline: false });
+  expect(requests(), "the key read, nothing sent after it").toEqual([
+    "GET /api/push/key",
+  ]);
+});
+
+test("A subscription the browser makes only after the 60 seconds is not sent", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+  });
+  const pushManager = phone.registration.pushManager;
+  const subscribe = pushManager.subscribe.bind(pushManager);
+  let subscribeNow: (() => void) | undefined;
+  Object.defineProperty(pushManager, "subscribe", {
+    configurable: true,
+    value: (options?: PushSubscriptionOptionsInit) =>
+      new Promise<PushSubscription>((resolve) => {
+        subscribeNow = () => resolve(subscribe(options));
+      }),
+  });
+  answerWith({ pushKey: pushKey(SERVER_KEY), subscription: stored });
+
+  const turning = turningOn();
+  await timePasses(LIMIT);
+  subscribeNow?.();
+  await timePasses(SECOND);
+
+  expect(subscribeNow, "the browser was asked").toBeDefined();
+  expect(turning.outcome()).toEqual({ kind: "failed", offline: false });
+  expect(requests(), "the key read, nothing sent after it").toEqual([
+    "GET /api/push/key",
+  ]);
+});
+
 // The phone loses its network as the app subscribes, after the key was read, and the browser cannot reach its push
 // service. The error is Chrome's when it cannot reach its push service (an `AbortError`, "push service error"); no
 // specification names one for this case.
