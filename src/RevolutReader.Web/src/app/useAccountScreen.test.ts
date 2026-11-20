@@ -5,6 +5,7 @@ import {
   installPushStandIns,
   type PushStandInOptions,
   type PushStandIns,
+  type SubscriptionInit,
 } from "../test/push";
 import {
   after,
@@ -1352,4 +1353,361 @@ test("A sign-out that fails offline sends nothing and leaves the phone's subscri
   expect(await keptBalance(), "and the balance").toMatchObject({
     amount: 286.4,
   });
+});
+
+// ---- c013: the login's end (design.md D1, D4, D6) ----
+// Wherever the server answers 401 or 403, the stored balance is forgotten and the phone unsubscribed, together, before
+// the sign-in or no-access screen shows; no request to forget. A 401 or 403 to the upkeep's own requests ends the login
+// the same way, through the list's path: the login ends once on a screen. A hanging unsubscribe holds the next screen
+// at most the 60 s limit; a failed one not at all.
+
+/** The sign-in screen after a 401: without the note that a sign-out happened. */
+const SIGN_IN_AFTER_A_401 = { screen: "sign-in", justSignedOut: false };
+/** The no-access screen after a 403 naming Lucie's account. */
+const NO_ACCESS_FOR_LUCIE = { screen: "no access", email: "lucie@example.com" };
+
+/** Lucie's phone subscribed with the server's key, its subscription's `unsubscribe()` as the test says. */
+function phoneSubscribedWhoseUnsubscribe(
+  unsubscribe: Pick<
+    SubscriptionInit,
+    "unsubscribeWaits" | "unsubscribeFails" | "unsubscribeAnswers"
+  >,
+): PushStandIns {
+  return installPushStandIns({
+    permission: "granted",
+    subscription: {
+      endpoint: LUCIES_PHONE,
+      applicationServerKey: SERVER_KEY,
+      ...unsubscribe,
+    },
+  });
+}
+
+// ---- 22.1 ----
+
+const loginEndsOnTheScreen: {
+  label: string;
+  answers: ServerAnswers;
+  next: object;
+}[] = [
+  {
+    label: "401 to who is signed in",
+    answers: { whoIsSignedIn: nobodySignedIn },
+    next: SIGN_IN_AFTER_A_401,
+  },
+  {
+    label: "403 to who is signed in",
+    answers: { whoIsSignedIn: refused("lucie@example.com") },
+    next: NO_ACCESS_FOR_LUCIE,
+  },
+  {
+    label: "401 to the balance read",
+    answers: { balance: nobodySignedIn },
+    next: SIGN_IN_AFTER_A_401,
+  },
+  {
+    label: "403 to the balance read",
+    answers: { balance: refused("lucie@example.com") },
+    next: NO_ACCESS_FOR_LUCIE,
+  },
+  {
+    label: "401 to the list's newest page",
+    answers: { transactions: nobodySignedIn },
+    next: SIGN_IN_AFTER_A_401,
+  },
+  {
+    label: "403 to the list's newest page",
+    answers: { transactions: refused("lucie@example.com") },
+    next: NO_ACCESS_FOR_LUCIE,
+  },
+];
+
+test.each(loginEndsOnTheScreen)(
+  "A 401 or 403 to who is signed in, to a balance read or to the list's newest page unsubscribes the phone before the next screen shows: $label",
+  async ({ answers, next }) => {
+    startTestClock();
+    const phone = phoneSubscribedWhoseUnsubscribe({ unsubscribeWaits: true });
+    answerWith({ ...LUCIES_SERVER, ...answers });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    expect(
+      result.current.shown,
+      "the phone still unsubscribing: not the next screen yet",
+    ).toMatchObject({ screen: "account" });
+    expect(phone.subscription(), "still held").not.toBeNull();
+
+    // The phone's unsubscribe settles, with no time passing.
+    phone.letWaitingCallsSettle();
+    await timePasses(0);
+
+    expect(result.current.shown, "the next screen").toMatchObject(next);
+    expect(phone.subscription(), "the phone holds none").toBeNull();
+    expect(forgetsSent(), "no request to forget").toEqual([]);
+  },
+);
+
+// ---- 22.2 ----
+
+const upkeepRequestsThatEndTheLogin: {
+  label: string;
+  answers: ServerAnswers;
+  next: object;
+}[] = [
+  {
+    label: "401 to the key",
+    answers: { pushKey: after(READ_TIME, nobodySignedIn) },
+    next: SIGN_IN_AFTER_A_401,
+  },
+  {
+    label: "403 to the key",
+    answers: { pushKey: after(READ_TIME, refused("lucie@example.com")) },
+    next: NO_ACCESS_FOR_LUCIE,
+  },
+  {
+    label: "401 to the subscription sent",
+    answers: { subscription: after(READ_TIME, nobodySignedIn) },
+    next: SIGN_IN_AFTER_A_401,
+  },
+  {
+    label: "403 to the subscription sent",
+    answers: { subscription: after(READ_TIME, refused("lucie@example.com")) },
+    next: NO_ACCESS_FOR_LUCIE,
+  },
+];
+
+test.each(upkeepRequestsThatEndTheLogin)(
+  "A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does: $label",
+  async ({ answers, next }) => {
+    startTestClock();
+    const phone = phoneSubscribed();
+    answerWith({ ...LUCIES_SERVER, ...answers });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(result.current.shown, "her balance read").toMatchObject({
+      screen: "account",
+      header: { balance: { amount: 286.4 } },
+    });
+    expect(await keptBalance(), "and kept").toMatchObject({ amount: 286.4 });
+
+    await timePasses(READ_TIME);
+
+    expect(result.current.shown, "the login ended").toMatchObject(next);
+    expect(await keptBalance(), "no balance kept").toBeNull();
+    expect(phone.subscription(), "the phone holds none").toBeNull();
+    expect(forgetsSent(), "no request to forget").toEqual([]);
+  },
+);
+
+/** A read of the screen's that lands after the upkeep ended the login, and finds it ended too. */
+const laterReadsThatFindItEnded: { label: string; answers: ServerAnswers }[] = [
+  {
+    label: "a balance read",
+    answers: { balance: after(3 * SECOND, nobodySignedIn) },
+  },
+  {
+    label: "the list's newest page",
+    answers: { transactions: after(3 * SECOND, nobodySignedIn) },
+  },
+];
+
+test.each(laterReadsThatFindItEnded)(
+  "A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does: the upkeep's 403 first, then a 401 to $label changes nothing",
+  async ({ answers }) => {
+    startTestClock();
+    phoneSubscribed();
+    answerWith({
+      ...LUCIES_SERVER,
+      pushKey: after(2 * SECOND, refused("lucie@example.com")),
+      ...answers,
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    await timePasses(2 * SECOND);
+    expect(result.current.shown, "the upkeep's 403 ended it").toMatchObject(
+      NO_ACCESS_FOR_LUCIE,
+    );
+
+    await timePasses(SECOND);
+    expect(result.current.shown, "ended once: unchanged").toMatchObject(
+      NO_ACCESS_FOR_LUCIE,
+    );
+  },
+);
+
+const keyAnswersAfterTheEnd: {
+  label: string;
+  answer: ServerAnswers["pushKey"];
+}[] = [
+  { label: "a 403", answer: after(3 * SECOND, refused("lucie@example.com")) },
+  { label: "the key", answer: after(3 * SECOND, pushKey(SERVER_KEY)) },
+];
+
+test.each(keyAnswersAfterTheEnd)(
+  "A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does: a balance read's 401 first, then the upkeep's key read landing with $label changes nothing and sends nothing more",
+  async ({ answer }) => {
+    startTestClock();
+    const phone = phoneSubscribed();
+    answerWith({
+      ...LUCIES_SERVER,
+      balance: after(2 * SECOND, nobodySignedIn),
+      pushKey: answer,
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    await timePasses(2 * SECOND);
+    expect(result.current.shown, "the balance's 401 ended it").toMatchObject(
+      SIGN_IN_AFTER_A_401,
+    );
+
+    await timePasses(SECOND);
+    expect(result.current.shown, "ended once: unchanged").toMatchObject(
+      SIGN_IN_AFTER_A_401,
+    );
+    expect(pushRequestsSent(), "nothing more for push").toEqual([KEY_READ]);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  },
+);
+
+test("A 401 or 403 to one of the upkeep's own requests ends the login once, as the list's does: an upkeep dropped by a sign-out changes nothing on the screen", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  answerWith({
+    ...LUCIES_SERVER,
+    pushKey: after(5 * SECOND, pushKey(SERVER_KEY)),
+    signOut: signedOut,
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(pushRequestsSent(), "the upkeep waits for the key").toEqual([
+    KEY_READ,
+  ]);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(phone.subscription(), "the phone holds none").toBeNull();
+
+  await timePasses(5 * SECOND);
+
+  expect(result.current.shown, "unchanged").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(phone.subscribeRequests(), "not subscribed again").toEqual([]);
+  expect(phone.subscription(), "the phone holds none still").toBeNull();
+  expect(pushRequestsSent(), "nothing more for push").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+});
+
+// ---- 22.3 ----
+
+const unsubscribesThatFail: {
+  label: string;
+  unsubscribe: Pick<
+    SubscriptionInit,
+    "unsubscribeFails" | "unsubscribeAnswers"
+  >;
+}[] = [
+  {
+    label: "the browser fails to unsubscribe",
+    unsubscribe: {
+      unsubscribeFails: new DOMException("Unsubscribing failed.", "AbortError"),
+    },
+  },
+  {
+    label: "the browser answers that it did not unsubscribe",
+    unsubscribe: { unsubscribeAnswers: false },
+  },
+];
+
+test.each(unsubscribesThatFail)(
+  "A failure to unsubscribe does not hold up the next screen: a confirmed sign-out, $label",
+  async ({ unsubscribe }) => {
+    startTestClock();
+    phoneSubscribedWhoseUnsubscribe(unsubscribe);
+    answerWith({ ...LUCIES_SERVER, signOut: signedOut });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    act(() => {
+      result.current.signOut();
+    });
+    await timePasses(0);
+
+    expect(result.current.shown, "signed out at once").toMatchObject({
+      screen: "sign-in",
+      justSignedOut: true,
+    });
+    expect(await keptBalance(), "no balance kept").toBeNull();
+  },
+);
+
+test.each(unsubscribesThatFail)(
+  "A failure to unsubscribe does not hold up the next screen: a 401 to the balance read, $label",
+  async ({ unsubscribe }) => {
+    startTestClock();
+    phoneSubscribedWhoseUnsubscribe(unsubscribe);
+    answerWith({ ...LUCIES_SERVER, balance: nobodySignedIn });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    expect(result.current.shown, "the sign-in screen at once").toMatchObject(
+      SIGN_IN_AFTER_A_401,
+    );
+  },
+);
+
+test("A failure to unsubscribe does not hold up the next screen: a confirmed sign-out, the phone's unsubscribe hanging, the signed-out screen at 60 s", async () => {
+  startTestClock();
+  phoneSubscribedWhoseUnsubscribe({ unsubscribeWaits: true });
+  answerWith({ ...LUCIES_SERVER, signOut: signedOut });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(timeline(), "the server confirmed it").toContain(`answer ${SIGN_OUT}`);
+
+  await timePasses(59 * SECOND);
+  expect(result.current.shown, "at 59 s, still busy").toMatchObject({
+    screen: "account",
+    signingOut: true,
+  });
+
+  await timePasses(SECOND);
+  expect(result.current.shown, "at 60 s, signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(await keptBalance(), "no balance kept").toBeNull();
+});
+
+test("A failure to unsubscribe does not hold up the next screen: a 401 to the balance read, the phone's unsubscribe hanging, the sign-in screen at 60 s", async () => {
+  startTestClock();
+  phoneSubscribedWhoseUnsubscribe({ unsubscribeWaits: true });
+  answerWith({ ...LUCIES_SERVER, balance: nobodySignedIn });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  await timePasses(59 * SECOND);
+  expect(result.current.shown, "at 59 s, not yet").toMatchObject({
+    screen: "account",
+  });
+
+  await timePasses(SECOND);
+  expect(result.current.shown, "at 60 s, the sign-in screen").toMatchObject(
+    SIGN_IN_AFTER_A_401,
+  );
 });
