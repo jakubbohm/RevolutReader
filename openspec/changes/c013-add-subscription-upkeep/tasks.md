@@ -158,10 +158,10 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 26. [close] Acceptance green
 
-- [ ] 26.1 All 10 frontend scenarios of this change pass, and the full suite is green; the traceability check passes (the manual row included); the frontend checks and `dotnet format whitespace --verify-no-changes` are clean
-- [ ] 26.2 Docs: the dated note in ADR-0010-web-push, item 4 (design.md D9). Verify: it matches design.md D1, D2 and D4
-- [ ] 26.3 Docs: the software-factory lesson, and the push module's inventory row (design.md D9). Verify: each names the decision it records
-- [ ] 26.4 `pm/progress.md`: C8c's row (status, the change link, notes). `CLAUDE.md` needs no change: no command changed. Verify: the row links the change
+- [x] 26.1 All 10 frontend scenarios of this change pass, and the full suite is green; the traceability check passes (the manual row included); the frontend checks and `dotnet format whitespace --verify-no-changes` are clean
+- [x] 26.2 Docs: the dated note in ADR-0010-web-push, item 4 (design.md D9). Verify: it matches design.md D1, D2 and D4
+- [x] 26.3 Docs: the software-factory lesson, and the push module's inventory row (design.md D9). Verify: each names the decision it records
+- [x] 26.4 `pm/progress.md`: C8c's row (status, the change link, notes). `CLAUDE.md` needs no change: no command changed. Verify: the row links the change
 
 ## 27. [close] Acceptance green after C8b's merge — the join
 
