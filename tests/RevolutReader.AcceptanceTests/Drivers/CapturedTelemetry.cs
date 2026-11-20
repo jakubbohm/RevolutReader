@@ -7,7 +7,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// Every log entry of an app copy, whatever its category, as text: the message, each structured value, each scope and its
 /// values, the exception. A test registers <see cref="Provider"/> in its app copy's container, so what reaches it has passed
 /// the app copy's log level settings (<c>Logging:LogLevel</c>), and only this app copy's loggers write into it. Moved here
-/// from <c>Conventions/BankTelemetryTests</c> when a second telemetry guard needed it (roadmap C14).
+/// from <c>Conventions/BankTelemetryTests</c> when <c>Conventions/RequestAccountTelemetryTests</c> needed it too (roadmap
+/// C14); those two guards share it. The sign-in, push and transaction telemetry guards keep captures of their own, which
+/// also read each entry's level and event name.
 /// </summary>
 public sealed class CapturedLogTexts {
   private readonly Lock _lock = new();
