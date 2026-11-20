@@ -17,6 +17,11 @@ export interface AccountMenuProps {
   onSignOut?: () => void | Promise<void>;
   /** A sign-out is under way: "Odhlásit se" is busy and ignores taps, and the menu stays open (c009 design.md D6). */
   signingOut?: boolean;
+  /**
+   * "Zapnout upozornění": while passed, the menu holds the item above "Odhlásit se" (c012 design.md D1, D7). Without
+   * it, "Odhlásit se" is the one item.
+   */
+  onEnableNotifications?: () => void;
 }
 
 /**
