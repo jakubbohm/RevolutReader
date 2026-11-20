@@ -20,7 +20,10 @@ import type {
  * - A push (`deliverPush(json)`): the event carries the push's data as JSON. A browser that reads Declarative Web Push
  *   (`declarative: true`, as Safari) also puts its proposed notification on the event (`notification`) when the JSON is
  *   a declarative message, and `null` when it is not; a browser that does not (by default, as Chrome on a computer) puts
- *   nothing there.
+ *   nothing there. A push with no data (`deliverPushWithoutData()`) carries `data` `null`; a push of text
+ *   (`deliverPushOfText(text)`) carries data whose `json()` parses the text and throws a `SyntaxError` when it is not
+ *   JSON, as the browser's `PushMessageData.json()` does. A browser that reads Declarative Web Push proposes `null` for
+ *   either unless the text is a declarative message.
  * - A tap (`tapNotification(index)`) on a notification the service worker showed: the event carries it, with its data
  *   and `close()`, recorded in `closedNotifications()`.
  * Each event's handlers run, and the helper waits for the work they passed to `waitUntil`, so a failure there fails
@@ -53,6 +56,10 @@ export interface ServiceWorkerStandIn {
   worker: PushWorker;
   /** A push with this JSON arrives; resolves once the handlers' `waitUntil` work is done. */
   deliverPush(json: unknown): Promise<void>;
+  /** A push with no data at all arrives (`data` is `null`); resolves once the handlers' `waitUntil` work is done. */
+  deliverPushWithoutData(): Promise<void>;
+  /** A push whose data is this text arrives: its `json()` parses it, throwing a `SyntaxError` when it is not JSON; resolves once the handlers' `waitUntil` work is done. */
+  deliverPushOfText(text: string): Promise<void>;
   /** The notification the service worker showed at `index` (by default the first) is tapped; resolves once the handlers' work is done. */
   tapNotification(index?: number): Promise<void>;
   /** The notifications the service worker showed, in order. */
@@ -121,21 +128,38 @@ export function installServiceWorkerStandIn(
     },
   };
 
+  /** A push with this data arrives; a browser that reads Declarative Web Push puts `proposed()` on the event. */
+  const firePush = async (
+    data: PushLike["data"],
+    proposed: () => unknown,
+  ): Promise<void> => {
+    const work: Promise<unknown>[] = [];
+    const event: PushLike = {
+      data,
+      waitUntil: (promise) => {
+        work.push(promise);
+      },
+    };
+    if (options.declarative === true) event.notification = proposed();
+    for (const listener of pushListeners) listener(event);
+    await Promise.all(work);
+  };
+
   return {
     worker,
-    deliverPush: async (json) => {
-      const work: Promise<unknown>[] = [];
-      const event: PushLike = {
-        data: { json: () => structuredClone(json) },
-        waitUntil: (promise) => {
-          work.push(promise);
-        },
-      };
-      if (options.declarative === true)
-        event.notification = proposedNotification(json);
-      for (const listener of pushListeners) listener(event);
-      await Promise.all(work);
-    },
+    deliverPush: (json) =>
+      firePush({ json: () => structuredClone(json) }, () =>
+        proposedNotification(json),
+      ),
+    deliverPushWithoutData: () => firePush(null, () => null),
+    deliverPushOfText: (text) =>
+      firePush({ json: () => JSON.parse(text) as unknown }, () => {
+        try {
+          return proposedNotification(JSON.parse(text));
+        } catch {
+          return null;
+        }
+      }),
     tapNotification: async (index = 0) => {
       const notification = shown[index];
       if (notification === undefined)

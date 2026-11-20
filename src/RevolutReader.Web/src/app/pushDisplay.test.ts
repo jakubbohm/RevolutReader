@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { declarativeMessage } from "./pushDisplay";
+import {
+  installServiceWorkerStandIn,
+  ORIGIN,
+  type ServiceWorkerStandIn,
+} from "../test/serviceWorker";
+import { declarativeMessage, listenForPushes } from "./pushDisplay";
 
 // What the service worker does with a push (c012 design.md D9). Every value here is made up.
 
@@ -57,3 +62,74 @@ test("Anything else is no message: not an object, web_push other than 8030, no o
 });
 
 // ---- Showing a push: listenForPushes (group 41) ----
+
+/** The page a pushed message opens: the start page on the stand-in service worker's own (made-up) origin. */
+const APP_PAGE = `${ORIGIN}/`;
+
+test("A push without the browser's own notification shows the message's title and text, keeping the page it opens", async () => {
+  // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): no proposed notification.
+  const serviceWorker = installServiceWorkerStandIn();
+  listenForPushes(serviceWorker.worker);
+
+  await serviceWorker.deliverPush({
+    web_push: 8030,
+    notification: {
+      title: "Ahoj",
+      body: "Zkušební zpráva",
+      navigate: APP_PAGE,
+    },
+  });
+
+  // The page it opens is kept in the notification's data, for the tap (design.md D9).
+  expect(serviceWorker.shownNotifications()).toEqual([
+    { title: "Ahoj", body: "Zkušební zpráva", data: APP_PAGE },
+  ]);
+});
+
+test("A push that is not a Declarative Web Push message shows nothing", async () => {
+  const json =
+    (value: unknown) =>
+    (serviceWorker: ServiceWorkerStandIn): Promise<void> =>
+      serviceWorker.deliverPush(value);
+  const cases: [
+    string,
+    (serviceWorker: ServiceWorkerStandIn) => Promise<void>,
+  ][] = [
+    [
+      "no data at all",
+      (serviceWorker) => serviceWorker.deliverPushWithoutData(),
+    ],
+    [
+      "data that is not JSON",
+      (serviceWorker) => serviceWorker.deliverPushOfText("Ahoj"),
+    ],
+    ["not an object", json("Ahoj")],
+    [
+      "no web_push",
+      json({ notification: { title: "Ahoj", navigate: APP_PAGE } }),
+    ],
+    [
+      "web_push other than 8030",
+      json({
+        web_push: 8031,
+        notification: { title: "Ahoj", navigate: APP_PAGE },
+      }),
+    ],
+    ["no notification", json({ web_push: 8030 })],
+    [
+      "an empty title",
+      json({ web_push: 8030, notification: { title: "", navigate: APP_PAGE } }),
+    ],
+    ["no navigate", json({ web_push: 8030, notification: { title: "Ahoj" } })],
+  ];
+
+  for (const [name, deliver] of cases) {
+    const serviceWorker = installServiceWorkerStandIn();
+    listenForPushes(serviceWorker.worker);
+
+    // The handler does not throw out of the event, nor fail the work it passes to waitUntil.
+    await expect(deliver(serviceWorker), name).resolves.toBeUndefined();
+
+    expect(serviceWorker.shownNotifications(), name).toEqual([]);
+  }
+});
