@@ -209,3 +209,40 @@ test('With "Teď ne" remembered, the result of a turn-on from the menu shows in 
   expect(result.current.menuItem, "and no menu item").toBe(false);
   expect(notNowRemembered(), '"Teď ne" stays remembered').toBe(true);
 });
+
+// ---- group 31: the menu on a blocked phone (D7) ----
+
+// The web cannot ask again once the phone blocks notifications, so the menu's item asks nothing and brings back the
+// Denied card, which says where to turn them on (D6, D7); it goes at the first opening after it showed, as after a
+// decline (D4), and the menu item offers again.
+test("On a blocked phone, the menu's item asks nothing and gives the Denied card", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "denied",
+    permissionAnswer: "denied",
+  });
+  const { result } = theOptIn();
+  expect(result.current.card, "blocked: no card").toBeNull();
+  expect(result.current.menuItem, "the menu offers notifications").toBe(true);
+
+  act(() => {
+    result.current.fromMenu();
+  });
+  await timePasses(0);
+
+  expect(phone.permissionRequests(), "the phone was not asked").toBe(0);
+  expect(result.current.card, "the Denied card").toBe("denied");
+  expect(result.current.menuItem, "and no menu item").toBe(false);
+  expect(requests(), "nothing sent to the server").toEqual([]);
+
+  leaveApp();
+  await timePasses(0);
+  returnToApp();
+  await timePasses(0);
+
+  expect(
+    result.current.card,
+    "gone at the next opening after it showed",
+  ).toBeNull();
+  expect(result.current.menuItem, "the menu item again").toBe(true);
+});
