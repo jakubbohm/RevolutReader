@@ -1919,6 +1919,70 @@ test("An upkeep whose login ended while it ran stops at its next step, and unsub
   ]);
 });
 
+// Review finding 2 (PR 81): a quiet subscribe the limit gave up on is still the upkeep's own, and the browser may make
+// it later. A signed-out phone never keeps a subscription, whatever the timing (D6), so one the browser makes once the
+// login has ended is unsubscribed, though the upkeep has already ended. The screen's own unsubscribe at the login's end
+// (D4) cannot reach it: it looks before the browser has made it. While the login is still on, a late one is kept, and
+// the next opening sends it (D1; "A failed subscribe stops the upkeep quietly …: one with no answer, ended by the
+// limit"). What the upkeep answers here is not pinned.
+
+/** When the login ends, around the limit that gives up on the subscribe; the browser makes it after both. */
+const loginsEndedAroundTheLimit: {
+  label: string;
+  endsBeforeTheLimit: boolean;
+}[] = [
+  {
+    label: "the login ended after the limit fired",
+    endsBeforeTheLimit: false,
+  },
+  {
+    label: "the login ended before the limit fired",
+    endsBeforeTheLimit: true,
+  },
+];
+
+test.each(loginsEndedAroundTheLimit)(
+  "A subscription the browser makes only after the limit is unsubscribed once the login has ended: $label",
+  async ({ endsBeforeTheLimit }) => {
+    startTestClock();
+    const phone = phoneHoldingNone({ subscribeWaits: true });
+    answerWith(THE_SERVER);
+    const login = aLogin();
+    const limit = new AbortController();
+    /** The login ends as the screen ends it: then the screen unsubscribes what the phone holds, here none yet (D4). */
+    const theLoginEnds = async (): Promise<void> => {
+      login.ends();
+      await unsubscribeThisDevice();
+    };
+
+    const upkeep = keepSubscriptionUp({
+      stillSignedIn: login.stillSignedIn,
+      signal: limit.signal,
+    }).then(() => "ended" as const);
+    expect(await whereItStands(upkeep), "the phone subscribing").toBe(
+      "still running",
+    );
+    expect(subscribedWith(phone), "asked, with the server's key").toEqual(
+      WITH_THE_SERVERS_KEY,
+    );
+
+    if (endsBeforeTheLimit) await theLoginEnds();
+    limit.abort();
+    expect(await whereItStands(upkeep), "ended by the limit").toBe("ended");
+    if (!endsBeforeTheLimit) await theLoginEnds();
+    expect(phone.subscription(), "none made yet").toBeNull();
+
+    phone.letWaitingCallsSettle();
+    await timePasses(0);
+
+    expect(
+      phone.subscription(),
+      "the one the browser made late unsubscribed",
+    ).toBeNull();
+    expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+  },
+);
+
 // ---- 23.3 ----
 
 /** What the phone may hold when an upkeep starts: each leads to another request once the key is read. */
