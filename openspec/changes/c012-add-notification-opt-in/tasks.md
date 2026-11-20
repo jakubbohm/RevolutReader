@@ -158,7 +158,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 26. [wiring] Slice 10 — The item in the menu
 
-- [ ] 26.1 `AccountMenu` and `AppShell` gain `onEnableNotifications` (D1, D7); `AccountScreen` passes the hook's `fromMenu` while `menuItem`. Verify: group 25 passes; the scenario runs against the app
+- [x] 26.1 `AccountMenu` and `AppShell` gain `onEnableNotifications` (D1, D7); `AccountScreen` passes the hook's `fromMenu` while `menuItem`. Verify: group 25 passes; the scenario runs against the app
 
 ## 27. [close] Slice 10 — The account menu offers notifications after "Teď ne"
 

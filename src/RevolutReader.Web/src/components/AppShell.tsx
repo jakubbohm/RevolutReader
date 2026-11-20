@@ -8,6 +8,8 @@ export interface AppShellProps {
   onSignOut?: () => void | Promise<void>;
   /** A sign-out is under way: the account menu's "Odhlásit se" is busy (c009 design.md D6). */
   signingOut?: boolean;
+  /** "Zapnout upozornění" in the account menu: while passed, the menu holds the item (c012 design.md D1, D7). */
+  onEnableNotifications?: () => void;
   /** The screen's content, stacked with the design's section gaps. */
   children?: ReactNode;
 }
@@ -21,6 +23,7 @@ export function AppShell({
   account,
   onSignOut,
   signingOut = false,
+  onEnableNotifications,
   children,
 }: AppShellProps): JSX.Element {
   return (
@@ -36,6 +39,7 @@ export function AppShell({
               account={account}
               onSignOut={onSignOut}
               signingOut={signingOut}
+              onEnableNotifications={onEnableNotifications}
             />
           ) : null}
         </div>

@@ -62,6 +62,7 @@ export function AccountScreen({
       account={shown.account ?? undefined}
       onSignOut={onSignOut}
       signingOut={shown.signingOut}
+      onEnableNotifications={optIn.menuItem ? optIn.fromMenu : undefined}
     >
       {header === "placeholder" ? (
         <Skeleton variant="balance" />
