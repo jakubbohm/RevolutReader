@@ -11,4 +11,4 @@ metadata:
 
 **How to apply:** at the end of `/tdd-apply`'s close, the next step offered is `/opsx:archive` on the same branch, before "ready for review"; progress notes and PR descriptions never put the archive under "after the merge". Written in [docs/conventions/workflow.md § 6](../../docs/conventions/workflow.md#6-openspec).
 
-Related: [[continue-announced-steps]], [[ask-done-before-commit]].
+Related: [[continue-announced-steps]], [[step-pr-carries-status]].

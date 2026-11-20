@@ -5,7 +5,7 @@
 ## How to update
 
 - **Status:** `todo`, `in progress`, `done`, `blocked`. For `blocked`, write in Notes what the step is waiting for.
-  - **A step's own PR leaves its row final for the merge** ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)): `done`, once the owner says the step is done.
+  - **A step's own PR leaves its row final for the merge** ([workflow.md § 6](../docs/conventions/workflow.md#6-openspec)): `done`, once the owner says the step is done. Preferably this is a commit of its own, pushed with the PR's other commits.
   - **The one exception is real work that can only happen after the merge and the deploy,** such as a manual scenario on a real phone. The row then stays `in progress` and names that work, and the PR recording its results marks the step `done`.
   - **No PR only changes a status** or records routine after-deploy checks.
 - **Date:** the date of the last status change (YYYY-MM-DD).
