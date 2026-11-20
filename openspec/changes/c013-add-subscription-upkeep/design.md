@@ -93,6 +93,7 @@
 - No request to forget: the server would refuse it, since the device has no allowed login. The server's record goes when a push to it is reported gone (S4). For an account taken off the allowlist, it goes at the next message to that account (c011 D3).
 - *(propose)* `endLogin` unsubscribes and forgets the balance together, and both finish before the sign-in or no-access screen shows. A failure to unsubscribe is ignored.
 - **A hanging unsubscribe** (the owner's choice, 2026-11-20, found in `/tdd-apply`): the browser's `unsubscribe` takes no signal, so `endLogin` waits for it at most the screen's 60 s limit (`REFRESH_LIMIT_MS`), then shows the next screen anyway, as for a failure. `unsubscribeThisDevice`'s signature stays as sketched; the limit is `endLogin`'s.
+- **The login ends once on a screen** (the code review, PR 81, finding 3): from the moment it ends, the screen reads nothing again and runs no upkeep, also while the next screen waits for the unsubscribe. Otherwise a return in that wait reads the balance, gets a 401 and ends the login a second time, and a confirmed sign-out could lose its "Odhlášení proběhlo" note. Signing in again opens the page afresh (c007 D2).
 
 ### D5 — Back after signing in again (C5)
 
