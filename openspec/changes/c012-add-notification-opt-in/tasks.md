@@ -67,7 +67,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 7. [close] Slice 3 — Nothing offers notifications where the browser cannot have them
 
-- [ ] 7.1 The scenario's test passes. Verify: green, including notification-opt-in / Nothing offers notifications where the browser cannot have them
+- [x] 7.1 The scenario's test passes. Verify: green, including notification-opt-in / Nothing offers notifications where the browser cannot have them
 
 ## 8. [unit] Slice 4 — Turning on
 
