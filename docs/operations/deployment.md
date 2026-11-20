@@ -494,7 +494,7 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 
 ### Requests per account (C14)
 
-Since C14 every API request of an allowed, signed-in user carries the account's email address in `UserAuthenticatedId` ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7). These two read-only queries show how each account uses the app in a period: the balance reads per day (each open of the app, each refresh and each return to it reads the balance once), and every API request counted by route. Set the period as above.
+Since C14 every API request of an allowed, signed-in user carries the account's email address in `UserAuthenticatedId` ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7). These two read-only queries show how each account uses the app in a period: the balance reads per day (each open of the app, each refresh and each return to it reads the balance once; "Zkusit znovu" after a failed read and coming back online read it again, so the count can be higher than the opens, refreshes and returns), and every API request counted by route. Set the period as above.
 
 ```powershell
 $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
