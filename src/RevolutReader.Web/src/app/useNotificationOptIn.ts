@@ -120,6 +120,8 @@ export function useNotificationOptIn({
   const dismiss = useCallback((): void => {
     rememberNotNow();
     setNotNow(true);
+    // A failure keeps the default card only to try again (D8); "Teď ne" hides it, so the step's own card goes too.
+    setStep("idle");
   }, []);
 
   const supported = pushSupported(window);
