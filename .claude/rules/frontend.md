@@ -12,6 +12,6 @@ paths:
 - **UI text is Czech,** written in the components (no i18n library); code, comments and identifiers are English.
 - **Nothing secret or environment-specific in `VITE_` variables.**
 - **Formatting is Prettier's, as is; oxlint (`--deny-warnings`) and `tsc -b` must pass.** Not ESLint. Line endings are LF.
-- **Tests sit next to their code** as `*.test.ts(x)`; scenario tests use `scenario(...)` in `src/scenarios/<capability>.test.tsx`.
+- **Tests sit next to their code** as `*.test.ts(x)`; scenario tests use `scenario(...)` in `src/scenarios/<capability>.test.ts(x)`.
 
 Source of truth: [docs/conventions/README.md § Frontend](../../docs/conventions/README.md#frontend), [§ Formatting](../../docs/conventions/README.md#formatting), [§ API contract](../../docs/conventions/README.md#api-contract).

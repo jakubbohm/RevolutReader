@@ -277,9 +277,9 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 ## 50. [close] Acceptance green
 
 - [x] 50.1 All scenario tests of this change pass, and the full suite is green, including `npm run build`, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check (every scenario claimed exactly once). Verify: the commands' output
-- [ ] 50.2 The local check of design.md § Migration plan, step 2, with `aspire start --isolated` in Chrome, with the owner: everything before subscribing (D12, the owner's choice, 2026-11-20); subscribing, the first push and its tap wait for the deployed app (§ Migration plan, step 4). Verify: each step seen, recorded in `.tdd-state.md`
+- [x] 50.2 The local check of design.md § Migration plan, step 2, with `aspire start --isolated` in Chrome, with the owner: everything before subscribing (D12, the owner's choice, 2026-11-20); subscribing, the first push and its tap wait for the deployed app (§ Migration plan, step 4). Verify: each step seen, recorded in `.tdd-state.md`
 - [x] 50.3 Docs: the software-factory lessons and inventory lines of design.md D14, at the next free numbers. Verify: a divergence names its full version
-- [ ] 50.4 `pm/progress.md`: the C8b row, with Q9 marked as applied. `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
+- [x] 50.4 `pm/progress.md`: the C8b row, with Q9 marked as applied. `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 
