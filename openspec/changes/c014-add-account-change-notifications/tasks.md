@@ -9,28 +9,28 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), as design.md § Public API sketch and D16:
+- [x] 1.1 Foundation (API), as design.md § Public API sketch and D16:
   - `Drivers/AccountCheckDriver` (its `Configure` writes `AccountCheck:Key`, a random key per test, for every app copy next to `FakeBank.Configure` and `FakePushService.Configure`), `Dsl/CheckDsl`, `Dsl/CheckAnswer` and `AcceptanceTest.Check`, as signatures whose methods throw `NotImplementedException`;
   - `Drivers/AzuriteStorage.Configure` also sets `CheckedBalances:TableName` to a table of the app copy's own;
   - the fake bank can hold a balance answer until released; the fake push service, the test device and `PushReceived` read `mutable` and `notification.data.balance` (the test-writer's, c011 D7), and `PushDsl` waits, bounded, for a push to reach a phone.
 
   Verify: build passes; every acceptance test that was green stays green (the app copies start with the made-up key once task 3.1 declares the setting; until then the extra setting is ignored); `push-sending / Every push lives 24 hours and is urgent` keeps its test unchanged
-- [ ] 1.2 Acceptance: account-check / A check without the right key gets the answer of an unknown address
-- [ ] 1.3 Acceptance: account-check / A check that names no browser reads nothing at the bank
-- [ ] 1.4 Acceptance: account-check / The first check sends nothing
-- [ ] 1.5 Acceptance: account-check / The bank sees the phone's address and browser name
-- [ ] 1.6 Acceptance: account-check / Money out is notified with the new balance
-- [ ] 1.7 Acceptance: account-check / Money in is notified with the new balance
-- [ ] 1.8 Acceptance: account-check / An unchanged balance sends nothing
-- [ ] 1.9 Acceptance: account-check / Every allowed account with a registered device gets the notification
-- [ ] 1.10 Acceptance: account-check / The notification carries the new balance for the phone to keep
-- [ ] 1.11 Acceptance: push-sending / The owner's message carries no balance
-- [ ] 1.12 Acceptance: account-check / A failed bank read sends nothing and answers as the balance does
-- [ ] 1.13 Acceptance: account-check / A change is not notified again after a device's push failed
-- [ ] 1.14 Acceptance: account-check / A check whose bank read fails still sends what an earlier check found
-- [ ] 1.15 Acceptance: account-check / A burst of checks sends one notification and reads the bank at most twice
-- [ ] 1.16 Acceptance: account-check / A check goes on when its caller stops waiting
-- [ ] 1.17 Acceptance: account-check / A real payment brings the notification on the iPhone (manual): the row in `tests/manual-scenarios.md` (why manual: only a real Revolut notification fires the Shortcut, and only Apple's push service and the lock screen show the result; first chance after C9a's deploy, on the owner's iPhone; again at M7), its date left empty
+- [x] 1.2 Acceptance: account-check / A check without the right key gets the answer of an unknown address
+- [x] 1.3 Acceptance: account-check / A check that names no browser reads nothing at the bank
+- [x] 1.4 Acceptance: account-check / The first check sends nothing
+- [x] 1.5 Acceptance: account-check / The bank sees the phone's address and browser name
+- [x] 1.6 Acceptance: account-check / Money out is notified with the new balance
+- [x] 1.7 Acceptance: account-check / Money in is notified with the new balance
+- [x] 1.8 Acceptance: account-check / An unchanged balance sends nothing
+- [x] 1.9 Acceptance: account-check / Every allowed account with a registered device gets the notification
+- [x] 1.10 Acceptance: account-check / The notification carries the new balance for the phone to keep
+- [x] 1.11 Acceptance: push-sending / The owner's message carries no balance
+- [x] 1.12 Acceptance: account-check / A failed bank read sends nothing and answers as the balance does
+- [x] 1.13 Acceptance: account-check / A change is not notified again after a device's push failed
+- [x] 1.14 Acceptance: account-check / A check whose bank read fails still sends what an earlier check found
+- [x] 1.15 Acceptance: account-check / A burst of checks sends one notification and reads the bank at most twice
+- [x] 1.16 Acceptance: account-check / A check goes on when its caller stops waiting
+- [x] 1.17 Acceptance: account-check / A real payment brings the notification on the iPhone (manual): the row in `tests/manual-scenarios.md` (why manual: only a real Revolut notification fires the Shortcut, and only Apple's push service and the lock screen show the result; first chance after C9a's deploy, on the owner's iPhone; again at M7), its date left empty
 
 ## 2. [unit] Slice 1 — The check's settings
 

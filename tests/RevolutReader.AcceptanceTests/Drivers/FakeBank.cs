@@ -33,6 +33,10 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <c>date_from</c> and <c>continuation_key</c>; for the transactions through the API, where the app chooses the day, a
 /// first page answers for any <c>date_from</c> (c010).
 /// </para>
+/// <para>
+/// A balance answer can be held until the test releases it (<see cref="HoldTheNextBalanceAnswer"/>, c014 design.md D16),
+/// so a test can line up calls that arrive while the app is still reading the bank, without waiting real time for it.
+/// </para>
 /// </summary>
 public sealed class FakeBank : IDisposable {
   /// <summary>The settings section the app's Enable Banking client is bound to (D6).</summary>
@@ -81,8 +85,15 @@ public sealed class FakeBank : IDisposable {
   /// </summary>
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
+  /// <summary>
+  /// How long <see cref="WaitUntilTheHeldRequestArrives"/> waits, on the real clock, for the held request before the step
+  /// fails: far longer than an app copy takes to send a request, even on a busy machine running the full suite.
+  /// </summary>
+  private static readonly TimeSpan _heldRequestWithin = TimeSpan.FromSeconds(10);
+
   private readonly WireMockServer _server;
   private readonly ArrivalLog _arrivals;
+  private readonly AnswerHolder _holder;
   private readonly AnswerBreaker _breaker;
 
   /// <summary>The ids of the two answers for any day (c010), so setting one up again replaces it (WireMock.Net keeps one mapping per id).</summary>
@@ -124,27 +135,30 @@ public sealed class FakeBank : IDisposable {
   /// <summary>The path of this account's transactions, as the server receives it.</summary>
   private string TransactionsPath => $"/accounts/{AccountId}/transactions";
 
-  private FakeBank(WireMockServer server, ArrivalLog arrivals, AnswerBreaker breaker) {
+  private FakeBank(WireMockServer server, ArrivalLog arrivals, AnswerHolder holder, AnswerBreaker breaker) {
     _server = server;
     _arrivals = arrivals;
+    _holder = holder;
     _breaker = breaker;
     Address = new Uri(server.Url ?? throw new InvalidOperationException("The fake bank started without an address."));
   }
 
   /// <summary>
   /// Starts a fake bank on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server kept out
-  /// of every trace (<see cref="SilenceHostingTelemetry"/>), with two middlewares in front of WireMock.Net's own handling:
-  /// <see cref="ArrivalLog"/>, then <see cref="AnswerBreaker"/>. Call it before the app copy starts, so its address is known.
+  /// of every trace (<see cref="SilenceHostingTelemetry"/>), with three middlewares in front of WireMock.Net's own
+  /// handling: <see cref="ArrivalLog"/>, then <see cref="AnswerHolder"/>, then <see cref="AnswerBreaker"/>. Call it before
+  /// the app copy starts, so its address is known.
   /// </summary>
   public static FakeBank Start() {
     ArrivalLog arrivals = new();
+    AnswerHolder holder = new();
     AnswerBreaker breaker = new();
     WireMockServer server = LoopbackWireMock.Start(new WireMockServerSettings {
       AdditionalServiceRegistration = SilenceHostingTelemetry,
-      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record).Use(breaker.Answer),
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record).Use(holder.Answer).Use(breaker.Answer),
     });
 
-    return new(server, arrivals, breaker);
+    return new(server, arrivals, holder, breaker);
   }
 
   /// <summary>
@@ -245,6 +259,31 @@ public sealed class FakeBank : IDisposable {
   /// test set up for that request, and the request counts as received; later requests are answered whole.
   /// </summary>
   public void BreakTheNextAnswer() => _breaker.BreakTheNextAnswer();
+
+  /// <summary>
+  /// The next request for this account's balances is held (<see cref="AnswerHolder"/>): it counts as received at once, and
+  /// gets its answer, whatever the test set up for it, only once the test calls <see cref="ReleaseTheHeldAnswer"/>. Every
+  /// other request, and every later balance request, is answered as before, also while one is held. One held answer at a
+  /// time: arming a second before the first was released fails the step. Not captured: the Mock ASPSP cannot be held.
+  /// </summary>
+  public void HoldTheNextBalanceAnswer() => _holder.HoldNext(BalancesPath);
+
+  /// <summary>
+  /// Waits until the request <see cref="HoldTheNextBalanceAnswer"/> holds has arrived, on the real clock, bounded: the step
+  /// fails with <see cref="TimeoutException"/> when it has not arrived within 10 s.
+  /// </summary>
+  public Task WaitUntilTheHeldRequestArrives() => _holder.Arrived(_heldRequestWithin);
+
+  /// <summary>Lets the held request go on to its answer; with none held, or one already released, nothing happens.</summary>
+  public void ReleaseTheHeldAnswer() => _holder.Release();
+
+  /// <summary>
+  /// The headers of every request for this account's balances the bank received, answered or not, in the order received
+  /// (<see cref="ArrivalLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s; requests for anything else are left out.
+  /// </summary>
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> BalanceRequestHeadersReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == BalancesPath).Select(static request => request.Headers),
+  ];
 
   /// <summary>
   /// Every request is answered with this status and this HTML page (<c>text/html</c>), as a gateway in front of Enable
@@ -362,6 +401,78 @@ public sealed class FakeBank : IDisposable {
   private sealed record RequestArrived(string Path, string? ContinuationKey, IReadOnlyDictionary<string, string> Headers, string? DateFrom);
 
   /// <summary>
+  /// Holds one request's answer until the test releases it, once armed (<see cref="HoldTheNextBalanceAnswer"/>): a
+  /// middleware in front of WireMock.Net's own handling, in the fake bank's server, after <see cref="ArrivalLog"/>, so the
+  /// held request counts as received while it waits. The first request on the armed path waits for the release, then goes
+  /// on to WireMock.Net as any other, so it gets the answer the test set up for it; requests on other paths, and later ones
+  /// on that path, pass at once. A held request whose caller gives up stops waiting and is answered nothing. Disposing the
+  /// fake bank releases it, so a test that fails before the release leaves nothing waiting.
+  /// </summary>
+  private sealed class AnswerHolder {
+    private readonly Lock _lock = new();
+
+    /// <summary>The path whose next request is held; <see langword="null"/> while none is armed.</summary>
+    private string? _armedPath;
+
+    /// <summary>Set once the armed request has arrived.</summary>
+    private TaskCompletionSource _arrived = NewSignal();
+
+    /// <summary>Set once the test releases the held request.</summary>
+    private TaskCompletionSource _released = NewSignal();
+
+    public void HoldNext(string path) {
+      lock (_lock) {
+        if (_armedPath is not null || (_arrived.Task.IsCompleted && !_released.Task.IsCompleted))
+          throw new InvalidOperationException("The fake bank already holds an answer: release it before holding the next.");
+
+        _armedPath = path;
+        _arrived = NewSignal();
+        _released = NewSignal();
+      }
+    }
+
+    public Task Arrived(TimeSpan within) {
+      Task arrived;
+
+      lock (_lock)
+        arrived = _arrived.Task;
+
+      return arrived.WaitAsync(within);
+    }
+
+    public void Release() {
+      lock (_lock)
+        _ = _released.TrySetResult();
+    }
+
+    /// <summary>The middleware: holds the armed request until the release, then passes it on; passes every other request at once.</summary>
+    public async Task Answer(HttpContext context, RequestDelegate next) {
+      Task? release = null;
+
+      lock (_lock) {
+        if (_armedPath is not null && string.Equals(context.Request.Path.Value, _armedPath, StringComparison.Ordinal)) {
+          _armedPath = null;
+          release = _released.Task;
+          _ = _arrived.TrySetResult();
+        }
+      }
+
+      if (release is not null) {
+        try {
+          await release.WaitAsync(context.RequestAborted);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) {
+          return; // the caller gave up while its request was held
+        }
+      }
+
+      await next(context);
+    }
+
+    private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+  }
+
+  /// <summary>
   /// Breaks the connection while an answer comes in, once armed (<see cref="BreakTheNextAnswer"/>): a middleware in front
   /// of WireMock.Net's own handling, in the fake bank's server. Not captured: the Mock ASPSP cannot break a connection on
   /// demand, and WireMock.Net's faults cannot break it mid-answer (its "malformed chunk" still ends the answer properly).
@@ -426,7 +537,10 @@ public sealed class FakeBank : IDisposable {
 
   #region IDisposable
 
-  public void Dispose() => _server.Dispose();
+  public void Dispose() {
+    _holder.Release();
+    _server.Dispose();
+  }
 
   #endregion
 }

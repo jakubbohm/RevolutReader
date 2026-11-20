@@ -12,7 +12,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// c003 design.md D6); Enable Banking is the test's own fake bank (<see cref="Drivers.FakeBank"/>, c004 design.md D6);
 /// Microsoft's sign-in is the test's own fake Microsoft (<see cref="Drivers.FakeMicrosoft"/>, c007 design.md D6), which
 /// also brings the ephemeral cookie keys and the app copy's clock; the push services are the test's own fake push service
-/// (<see cref="Drivers.FakePushService"/>, c011 design.md D7). Every app copy gets all three fakes' settings.
+/// (<see cref="Drivers.FakePushService"/>, c011 design.md D7). Every app copy gets all three fakes' settings, and a made-up
+/// check key of its own (<see cref="AccountCheckDriver.Configure"/>, c014 design.md D16).
 /// <para>
 /// Storage is real: the test session's Azurite (<see cref="AzuriteStorage"/>, c010 design.md D12), with a table of each
 /// app copy's own. Every app copy gets its settings too.
@@ -38,6 +39,8 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private SignInDriver? _signInDriver;
   private SignInDsl? _signIn;
   private BalanceDsl? _balance;
+  private string? _checkKey;
+  private CheckDsl? _check;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
 
@@ -71,6 +74,16 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// and on the app copy's clock (spec account-balance, c009 design.md D1).
   /// </summary>
   protected BalanceDsl Balance => _balance ??= new(new BalanceDriver(Browser, FakeBank, FakeMicrosoft.Clock));
+
+  /// <summary>
+  /// The account check (spec account-check, c014 design.md D16): the owner's phone asking for a check with this test's check
+  /// key, from an anonymous caller, against this test's fake bank and on the app copy's clock; the check's kept balances in
+  /// the app copy's own store.
+  /// </summary>
+  protected CheckDsl Check => _check ??= new(new AccountCheckDriver(Http, FakeBank, FakeMicrosoft.Clock, Services, CheckKey));
+
+  /// <summary>This test's made-up check key (<see cref="AccountCheckDriver.NewKey"/>), written into the app copy before it starts.</summary>
+  private string CheckKey => _checkKey ??= AccountCheckDriver.NewKey();
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();
@@ -145,6 +158,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
     builder.UseWebRoot(StandInPages.Folder);
     FakeBank.Configure(builder);
     FakePushService.Configure(builder);
+    AccountCheckDriver.Configure(builder, CheckKey);
     Azurite.Configure(builder);
     FakeMicrosoft.Configure(builder);
   }
