@@ -197,10 +197,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 34. [unit] Slice 13 — The failure on the screen
 
-- [ ] 34.1 A failure to turn notifications on is the screen's one banner, in place of any other, offline included
-- [ ] 34.2 A read that starts clears it
-- [ ] 34.3 After a failure, the default card for the rest of this opening, even when the phone now allows notifications
-- [ ] 34.4 A new turn-on clears its earlier failure, and only that
+- [x] 34.1 A failure to turn notifications on is the screen's one banner, in place of any other, offline included
+- [x] 34.2 A read that starts clears it
+- [x] 34.3 After a failure, the default card for the rest of this opening, even when the phone now allows notifications
+- [x] 34.4 A new turn-on clears its earlier failure, and only that
 
 ## 35. [wiring] Slice 13 — The failure banner
 

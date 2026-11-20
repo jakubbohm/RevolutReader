@@ -60,6 +60,9 @@ function cardOfStep(step: Step): CardState | null {
     case "enabled":
     case "denied":
       return step;
+    case "failed":
+      // The default card for the rest of this opening, to try again, whatever the phone now allows (D8).
+      return "default";
     default:
       return null;
   }

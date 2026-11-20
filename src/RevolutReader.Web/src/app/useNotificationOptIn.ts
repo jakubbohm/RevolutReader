@@ -45,6 +45,8 @@ export interface NotificationOptInOptions {
 export function useNotificationOptIn({
   signedIn,
   underBalance,
+  onFailed,
+  onRetried,
 }: NotificationOptInOptions): NotificationOptInModel {
   const [step, setStep] = useState<Step>("idle");
   const [permission, setPermission] = useState(readPermission);
@@ -80,16 +82,28 @@ export function useNotificationOptIn({
     return () => document.removeEventListener("visibilitychange", opening);
   }, []);
 
+  // The screen's latest callbacks, so a turn-on under way tells the screen as it is when the outcome comes.
+  const tellScreen = useRef({ onFailed, onRetried });
+  useLayoutEffect(() => {
+    tellScreen.current = { onFailed, onRetried };
+  }, [onFailed, onRetried]);
+
   const turnOn = useCallback((): void => {
     // First, synchronously in the tap: iOS asks for permission only from a gesture (D3).
     const turning = turnNotificationsOn();
     setStep("enabling");
+    // A new turn-on clears the screen's earlier failure (D8).
+    tellScreen.current.onRetried();
     void turning.then((outcome) => {
       // A sign-out or a closed app ended the screen meanwhile: nothing left to show it on.
       if (!mounted.current) return;
       setStep(stepAfter(outcome));
       // Declined: the phone now blocks notifications, so once the Denied card goes, the menu item stays (D6, D7).
       if (outcome.kind === "declined") setPermission(readPermission());
+      // Failed: the screen's one banner says so, offline or "later" (D8).
+      if (outcome.kind === "failed") {
+        tellScreen.current.onFailed(outcome.offline);
+      }
     });
   }, []);
 
@@ -123,7 +137,7 @@ export function useNotificationOptIn({
 
 /**
  * The step a turn-on ends in (D3, D6): on → enabled; declined → the Denied card; undecided → back as it was, with no
- * banner. Failed (D8) is, for now, back as it was too.
+ * banner; failed → the default card for the rest of this opening, its banner told to the screen (D8).
  */
 function stepAfter(outcome: TurnOnOutcome): Step {
   switch (outcome.kind) {
@@ -131,6 +145,8 @@ function stepAfter(outcome: TurnOnOutcome): Step {
       return "enabled";
     case "declined":
       return "denied";
+    case "failed":
+      return "failed";
     default:
       return "idle";
   }

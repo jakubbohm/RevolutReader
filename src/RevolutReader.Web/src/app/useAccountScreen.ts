@@ -444,6 +444,18 @@ export function useAccountScreen(): AccountScreenModel {
     signOutUnderWay.current = false;
   }
 
+  /** Turning notifications on failed (c012 design.md D8): set like a failed sign-out, replacing any other problem. */
+  const notificationsFailed = useCallback((offline: boolean): void => {
+    setProblem({ kind: "notifications failed", offline });
+  }, []);
+
+  /** A new turn-on (c012 design.md D8): clears its earlier failure, and only that. */
+  const notificationsRetried = useCallback((): void => {
+    setProblem((current) =>
+      current?.kind === "notifications failed" ? null : current,
+    );
+  }, []);
+
   const facts: Facts = {
     session,
     balance: balance ?? stored,
@@ -465,12 +477,7 @@ export function useAccountScreen(): AccountScreenModel {
     refresh: repeat,
     retry,
     signOut: signOutFromMenu,
-    notificationsFailed: notImplemented,
-    notificationsRetried: notImplemented,
+    notificationsFailed,
+    notificationsRetried,
   };
-}
-
-/** Stub (c012, group 34): not built yet. */
-function notImplemented(): void {
-  throw new Error("Not implemented");
 }

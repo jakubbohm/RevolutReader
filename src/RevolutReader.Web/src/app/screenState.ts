@@ -158,15 +158,20 @@ const PRECEDENCE = [
 ] as const;
 
 /**
- * The screen's one banner (c009 design.md D5, D6, D7 c; c010 D8). A failed sign-out replaces any other until the next
- * action clears it. Then offline, whichever read found it so. Then the most important problem of the two reads
+ * The screen's one banner (c009 design.md D5, D6, D7 c; c010 D8). A failed sign-out, or a failure to turn notifications
+ * on (c012 D8), replaces any other until the next action clears it. Then offline, whichever read found it so. Then the most important problem of the two reads
  * (`PRECEDENCE`), the balance's before the list's of the same kind: an answer to who is signed in that the app cannot
  * read counts as the balance's unexpected answer, whether or not it is on record. A problem of the list's read alone is
  * in the list's words (`ofTheList`).
  */
 function bannerOf(facts: Facts, offline: boolean): Problem | null {
   const { session, problem } = facts;
-  if (problem?.kind === "sign-out failed") return problem;
+  if (
+    problem?.kind === "sign-out failed" ||
+    problem?.kind === "notifications failed"
+  ) {
+    return problem;
+  }
   if (offline) return OFFLINE;
 
   const own =
