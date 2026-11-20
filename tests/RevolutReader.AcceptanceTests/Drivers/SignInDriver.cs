@@ -359,6 +359,20 @@ public sealed class SignInDriver(HttpClient browser, FakeMicrosoft microsoft, IS
   }
 
   /// <summary>
+  /// <c>GET </c><paramref name="path"/> as the app's page asks the API, with the browser's cookies and
+  /// <c>Accept: application/json</c>: the problem description the API answered, read as <see cref="ApiDriver.GetProblem"/>
+  /// reads one; otherwise <see langword="null"/>.
+  /// </summary>
+  public async Task<ProblemDescription?> AskApiAddress(string path) {
+    using HttpRequestMessage request = new(HttpMethod.Get, new Uri(path, UriKind.Relative));
+    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(JSON));
+
+    using HttpResponseMessage response = await Browser.SendAsync(request);
+
+    return await ApiDriver.ProblemOf(response);
+  }
+
+  /// <summary>
   /// <c>GET </c><paramref name="path"/> as the browser opens a page address, without following a redirect, read as
   /// <see cref="PagesDriver.ReadPage"/> reads a page: a redirect is not the app's page.
   /// </summary>

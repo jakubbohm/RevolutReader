@@ -23,14 +23,22 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// logs are this app copy's alone (<see cref="CapturedLogTexts"/>).
 /// </para>
 /// <para>
-/// A request's server activity is exported only after the client has the response, so the first test waits for one
-/// carrying Lucie's email (<see cref="ExportedActivityCollection.WaitForServerActivity"/>) before it asserts: run alone,
-/// the only one is its own last request, <c>GET /api/me</c>, which may still be ending when the sign-in returns.
+/// A request's server activity is exported only after the client has the response, so each trace test waits for the
+/// activity it asserts on. The first waits for one carrying Lucie's email
+/// (<see cref="ExportedActivityCollection.WaitForServerActivity"/>): run alone, the only one is its own last request,
+/// <c>GET /api/me</c>, which may still be ending when the sign-in returns. The second has the signed-in stranger ask an
+/// API address no endpoint has, made up for this test: the catch-all that answers it is open to anyone, so authorization
+/// lets the request through to the step that records the account (the refused <c>GET /api/me</c> never gets there). It
+/// waits for that request's server activity (<see cref="ExportedActivityCollection.RequestsTo"/>) and fails when the
+/// activity never arrives, so it cannot pass by looking too early.
 /// </para>
 /// </summary>
 public sealed class RequestAccountTelemetryTests : AcceptanceTest {
   /// <summary>OpenTelemetry's attribute the Azure Monitor exporter (1.10.0) reads for a request's authenticated user.</summary>
   private const string SIGNED_IN_USER = "enduser.id";
+
+  /// <summary>The start of an API address no endpoint has; a test adds a made-up segment, so the address is its own.</summary>
+  private const string UNKNOWN_API_ADDRESS = "/api/no-such-address/";
 
   private readonly CapturedLogTexts _logs = new();
   private readonly ExportedActivityCollection _traces = new();
@@ -47,11 +55,14 @@ public sealed class RequestAccountTelemetryTests : AcceptanceTest {
 
   [Test]
   public async Task A_strangers_requests_export_no_email() {
+    string unknownAddress = $"{UNKNOWN_API_ADDRESS}{Guid.NewGuid():N}";
     SignIn.IsNotOnTheAllowlist(Visitor.Stranger.Email);
 
     await SignIn.SignsIn(Visitor.Stranger);
     (await SignIn.AsksWhoIsSignedIn()).Refused.ShouldBeTrue("the stranger is signed in and refused");
+    (await SignInDriver.AskApiAddress(unknownAddress)).ShouldBe(ProblemDescription.NotFound, "the signed-in stranger asks an address no endpoint has");
 
+    (await _traces.RequestsTo(unknownAddress)).ShouldHaveSingleItem("the exported requests to the address only this test asks");
     _traces.Texts().Where(static text => text.Contains(Visitor.Stranger.Email, StringComparison.OrdinalIgnoreCase))
       .ShouldBeEmpty("Exported trace names, tags, events or statuses naming the stranger's email");
   }

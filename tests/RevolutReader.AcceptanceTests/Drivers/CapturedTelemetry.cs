@@ -85,17 +85,21 @@ public sealed class CapturedLogTexts {
 /// <summary>
 /// The in-memory exporter's collection, safe for concurrent adds: an app copy's tracer listens process-wide, so the
 /// activities of other tests' app copies, running in parallel, arrive here too (with their own made-up values). A test
-/// looks for values only it uses, or for a value no app copy may export at all. Moved here from
-/// <c>Conventions/BankTelemetryTests</c> when a second telemetry guard needed it (roadmap C14).
+/// looks for values only it uses, for its own requests by an address only it uses (<see cref="RequestsTo"/>), or for a
+/// value no app copy may export at all. Moved here from <c>Conventions/BankTelemetryTests</c> when a second telemetry guard
+/// needed it (roadmap C14).
 /// <para>
 /// An activity arrives when it stops (the in-memory exporter runs on OpenTelemetry's simple processor), and the test
 /// server stops a request's server activity only after the client has the response (Microsoft.AspNetCore.TestHost 11.0.0
 /// completes the response, then ends the request, on another thread). So the server activity of a test's last request
 /// may not be here yet when the test's call returns: a test that asserts on a server activity first waits for it with
-/// <see cref="WaitForServerActivity"/>.
+/// <see cref="WaitForServerActivity"/> or <see cref="RequestsTo"/>.
 /// </para>
 /// </summary>
 public sealed class ExportedActivityCollection : ICollection<Activity> {
+  /// <summary>OpenTelemetry's attribute for a request's path, which the app's ASP.NET Core instrumentation puts on every server activity.</summary>
+  private const string URL_PATH = "url.path";
+
   /// <summary>How long <see cref="WaitForServerActivity"/> waits at most, far longer than a request takes to end.</summary>
   private static readonly TimeSpan _waitAtMost = TimeSpan.FromSeconds(5);
 
@@ -120,6 +124,20 @@ public sealed class ExportedActivityCollection : ICollection<Activity> {
   /// <summary>The value of <paramref name="tag"/> on every exported server activity (a request an app copy answered) that carries it.</summary>
   public IReadOnlyList<string> ServerTagValues(string tag) =>
     [.. Snapshot().Where(static activity => activity.Kind == ActivityKind.Server).Select(activity => activity.GetTagItem(tag)?.ToString()).OfType<string>()];
+
+  /// <summary>
+  /// The exported server activities of the requests to <paramref name="path"/>, once at least one has been exported (as
+  /// <see cref="WaitForServerActivity"/> waits), or none after 5 s, in the order exported. With an address only the test
+  /// uses (a made-up segment in it), they are the test's own requests: a test then asserts on them, whether a request
+  /// carries a tag or not, and a request whose activity never arrives leaves the list empty instead of passing unseen.
+  /// </summary>
+  public async Task<IReadOnlyList<Activity>> RequestsTo(string path) {
+    ArgumentException.ThrowIfNullOrEmpty(path);
+
+    await WaitForServerActivity(activity => IsRequestTo(activity, path));
+
+    return [.. Snapshot().Where(activity => activity.Kind == ActivityKind.Server && IsRequestTo(activity, path))];
+  }
 
   /// <summary>
   /// Returns once an exported server activity matches <paramref name="match"/>, or after 5 s when none has: it looks again
@@ -194,6 +212,9 @@ public sealed class ExportedActivityCollection : ICollection<Activity> {
 
   /// <summary>A waiter resumes on the thread pool, not inside the exporter's add, which runs as the request ends.</summary>
   private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+  /// <summary>Whether <paramref name="activity"/>'s request path is <paramref name="path"/>.</summary>
+  private static bool IsRequestTo(Activity activity, string path) => activity.GetTagItem(URL_PATH)?.ToString() == path;
 
   private static IEnumerable<string> TextsOf(Activity activity) {
     yield return activity.DisplayName;
