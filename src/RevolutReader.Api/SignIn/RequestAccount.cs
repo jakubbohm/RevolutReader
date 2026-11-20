@@ -37,10 +37,8 @@ public static class RequestAccount {
   /// <summary>
   /// Puts the account (<see cref="Of"/>) of an API request, one under <c>/api</c> (by segment, ignoring case), on its
   /// server activity as <see cref="TAG"/>. It runs right after the authorization step (<c>UseSignIn</c>), so the login is
-  /// known and only the requests authorization lets through get here. Carrying no account: the pages and files the app
-  /// serves, both those served before this step and those that pass it (a page address the page fallback answers, a file
-  /// the app does not have); a request authorization refuses; a request without a login; and an account that is not on the
-  /// allowlist.
+  /// known and only the requests authorization lets through get here. Which requests carry an account and which carry none:
+  /// ADR-0009-application-telemetry, Decision item 7.
   /// </summary>
   public static IApplicationBuilder UseRequestAccount(this IApplicationBuilder app) {
     ArgumentNullException.ThrowIfNull(app);
