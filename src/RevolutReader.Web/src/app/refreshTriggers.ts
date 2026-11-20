@@ -25,3 +25,19 @@ export function watchRefreshTriggers(
     browser.removeEventListener("online", onOnline);
   };
 }
+
+/** A return to the screen alone (`visibilitychange` to `visible`), every time (c013 design.md D1); returns the stop function. */
+export function watchReturns(
+  onReturn: () => void,
+  page: Document = document,
+): () => void {
+  function onVisibilityChange(): void {
+    if (page.visibilityState === "visible") onReturn();
+  }
+
+  page.addEventListener("visibilitychange", onVisibilityChange);
+
+  return () => {
+    page.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}

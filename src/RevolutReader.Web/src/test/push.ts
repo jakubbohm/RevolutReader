@@ -7,19 +7,30 @@
  * What they stand in for, as the browsers behave:
  * - `Notification`: its `permission` (`default`, `granted`, `denied`) and `requestPermission()`, which answers the
  *   test's `permissionAnswer` and keeps it as the permission from then on.
- * - `PushManager`, on a service worker registration (`navigator.serviceWorker.ready` resolves to it):
- *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: fails with the test's
- *     `subscribeFails`; asks for permission first while it is `default`; fails with `NotAllowedError` unless the
- *     permission is `granted` and `userVisibleOnly` is true; fails with `AbortError` without an `applicationServerKey`;
- *     answers the subscription it already holds when that one was made with the same key, and fails with
- *     `InvalidStateError` when it was made with another; otherwise makes a new subscription and holds it.
- *   - `getSubscription()` answers the subscription it holds, or `null`.
+ * - The service worker (c013 design.md D1): `navigator.serviceWorker.getRegistration()` settles with the registration,
+ *   and `navigator.serviceWorker.ready` resolves to it. Under `registered: false` the browser has a service worker but
+ *   none is registered, as on Vite's dev server: `getRegistration()` settles with `undefined`, and `ready` never settles.
+ *   Under `registrationFails`, `getRegistration()` fails with the test's error instead, and `ready` is as without it.
+ * - `PushManager`, on that registration:
+ *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: under `subscribeWaits`, waits until
+ *     the test lets it go (`letWaitingCallsSettle`); fails with the test's `subscribeFails` (only the first
+ *     `subscribeFailures` times, when the test gives that number); asks for permission first
+ *     while it is `default`; fails with `NotAllowedError` unless the permission is `granted` and `userVisibleOnly` is
+ *     true; fails with `AbortError` without an `applicationServerKey`; answers the subscription it already holds when
+ *     that one was made with the same key, and fails with `InvalidStateError` when it was made with another; otherwise
+ *     makes a new subscription and holds it.
+ *   - `getSubscription()` answers the subscription it holds, or `null`; it fails with the test's `getSubscriptionFails`.
+ *     Under `getSubscriptionWaits` it waits until the test lets it go, then answers as without it.
  *   - `permissionState()` answers the notification permission as push names it (`default` is `prompt`).
  * - A `PushSubscription` (`madeUpSubscription`, or one `subscribe` made): its `endpoint`, `expirationTime` (`null`),
  *   `options` (`userVisibleOnly`, and `applicationServerKey` as an `ArrayBuffer`, or `null`), `getKey`, `toJSON()`
  *   (`{ endpoint, expirationTime, keys: { p256dh, auth } }`, the keys in base64url without padding) and
  *   `unsubscribe()`, which answers the test's `unsubscribeAnswers` (true by default; the registration then holds none)
- *   or fails with its `unsubscribeFails`.
+ *   or fails with its `unsubscribeFails`; under `unsubscribeWaits` it first waits until the test lets it go
+ *   (`letWaitingCallsSettle` of the phone holding it; a made-up subscription no phone holds waits for good). Under
+ *   `leavesOut`, a browser that does not say which key made it (c013):
+ *   `options` without `applicationServerKey`, or no `options` at all; `subscribe` still knows the key, as the browser
+ *   does.
  *
  * Keys given as text are base64url, as browsers take them; every key and push address here is made up.
  */
@@ -41,6 +52,16 @@ export interface SubscriptionInit {
   unsubscribeAnswers?: boolean;
   /** `unsubscribe()` fails with this error instead. */
   unsubscribeFails?: Error;
+  /**
+   * `unsubscribe()` waits, as a browser that leaves it hanging (c013 design.md D1, the limit), until the test lets it go
+   * (`letWaitingCallsSettle` of the phone holding it); then it goes on as without it. By default it does not wait.
+   */
+  unsubscribeWaits?: boolean;
+  /**
+   * What the browser leaves out, though the subscription was made with `applicationServerKey` (c013): the key from its
+   * `options` (`undefined` there), or `options` itself. By default nothing.
+   */
+  leavesOut?: "applicationServerKey" | "options";
 }
 
 /** How the phone's push and notifications stand for this test. */
@@ -53,8 +74,36 @@ export interface PushStandInOptions {
   subscription?: SubscriptionInit;
   /** `subscribe` fails with this error; `true`: a `NotAllowedError`, as when the browser refuses. */
   subscribeFails?: Error | true;
+  /**
+   * Under `subscribeFails`, only the first this many subscribes fail, and the later ones go on as without it; by default
+   * every one fails.
+   */
+  subscribeFailures?: number;
+  /** `getSubscription()` fails with this error, as when the browser cannot say which subscription it holds. */
+  getSubscriptionFails?: Error;
+  /**
+   * `subscribe` waits, as a browser that leaves it hanging (c013 design.md D1, the limit), until the test lets it go
+   * (`letWaitingCallsSettle`); then it goes on as without it. By default it does not wait.
+   */
+  subscribeWaits?: boolean;
+  /**
+   * `getSubscription()` waits, as a browser that leaves it hanging (c013 design.md D1, the limit), until the test lets
+   * it go (`letWaitingCallsSettle`); then it answers as without it. By default it does not wait.
+   */
+  getSubscriptionWaits?: boolean;
   /** Features this browser does not have. */
   without?: readonly PushFeature[];
+  /**
+   * Whether a service worker is registered; by default true. `false`: the browser has a service worker but none is
+   * registered, as on Vite's dev server (c013 design.md D1): `getRegistration()` settles with `undefined`, and `ready`
+   * never settles.
+   */
+  registered?: boolean;
+  /**
+   * `navigator.serviceWorker.getRegistration()` fails with this error, as when the browser refuses to answer (c013
+   * design.md D1); `ready` is as without it.
+   */
+  registrationFails?: Error;
 }
 
 /** What `subscribe` was asked: `userVisibleOnly` as given, the key as bytes when given as bytes, as text when text. */
@@ -65,7 +114,11 @@ export interface SubscribeRequest {
 
 /** The installed stand-ins, and what was asked of them. */
 export interface PushStandIns {
-  /** The service worker registration, as `navigator.serviceWorker.ready` resolves to it. */
+  /**
+   * The service worker registration, as `navigator.serviceWorker.getRegistration()` settles with it and
+   * `navigator.serviceWorker.ready` resolves to it (unless `registered: false`; `getRegistration()` neither under
+   * `registrationFails`).
+   */
   registration: ServiceWorkerRegistration;
   /** What each `subscribe` was asked, in order. */
   subscribeRequests(): SubscribeRequest[];
@@ -75,6 +128,11 @@ export interface PushStandIns {
   permission(): NotificationPermission;
   /** The subscription the registration holds now, or `null`. */
   subscription(): PushSubscription | null;
+  /**
+   * Lets every call left waiting (`subscribeWaits`, `getSubscriptionWaits`, a held subscription's `unsubscribeWaits`) go
+   * on, each as it would have without waiting.
+   */
+  letWaitingCallsSettle(): void;
 }
 
 /** What `installPushStandIns` put in place, to remove it after the test. */
@@ -101,10 +159,26 @@ export function installPushStandIns(
     permission = options.permissionAnswer ?? "granted";
     return permission;
   };
-  const hold = (init: SubscriptionInit): StandInPushSubscription => {
-    const subscription = new StandInPushSubscription(init, () => {
-      if (held === subscription) held = null;
+  /**
+   * The calls left waiting (`subscribeWaits`, `getSubscriptionWaits`, a held subscription's `unsubscribeWaits`), each
+   * settling once the test lets it go.
+   */
+  let waiting: (() => void)[] = [];
+  const untilLetGo = (): Promise<void> =>
+    new Promise((letGo) => {
+      waiting.push(letGo);
     });
+  /** How many more subscribes fail under `subscribeFails`. */
+  let subscribeFailuresLeft = options.subscribeFailures ?? Infinity;
+
+  const hold = (init: SubscriptionInit): StandInPushSubscription => {
+    const subscription = new StandInPushSubscription(
+      init,
+      () => {
+        if (held === subscription) held = null;
+      },
+      untilLetGo,
+    );
     held = subscription;
     return subscription;
   };
@@ -139,13 +213,16 @@ export function installPushStandIns(
             : bytesOf(key),
       });
 
-      if (options.subscribeFails !== undefined)
+      if (options.subscribeWaits === true) await untilLetGo();
+      if (options.subscribeFails !== undefined && subscribeFailuresLeft > 0) {
+        subscribeFailuresLeft -= 1;
         throw options.subscribeFails === true
           ? new DOMException(
               "Registration failed - permission denied",
               "NotAllowedError",
             )
           : options.subscribeFails;
+      }
       if (permission === "default") askPermission();
       if (permission !== "granted" || subscribeOptions.userVisibleOnly !== true)
         throw new DOMException(
@@ -169,7 +246,14 @@ export function installPushStandIns(
     }
 
     getSubscription(): Promise<PushSubscription | null> {
-      return Promise.resolve(held);
+      // What it holds when it answers, so a call left waiting answers what it holds once let go.
+      const answer = (): Promise<PushSubscription | null> =>
+        options.getSubscriptionFails !== undefined
+          ? Promise.reject(options.getSubscriptionFails)
+          : Promise.resolve(held);
+      return options.getSubscriptionWaits === true
+        ? untilLetGo().then(answer)
+        : answer();
     }
 
     permissionState(): Promise<PermissionState> {
@@ -186,9 +270,17 @@ export function installPushStandIns(
     put(globalThis, "Notification", StandInNotification);
   if (!without.has("PushManager"))
     put(globalThis, "PushManager", StandInPushManager);
+  const registered = options.registered ?? true;
   if (!without.has("service worker"))
     put(navigator, "serviceWorker", {
-      ready: Promise.resolve(registration),
+      // Without a registered worker, `ready` waits for one for good, as browsers do (c013 design.md D1).
+      ready: registered
+        ? Promise.resolve(registration)
+        : new Promise<ServiceWorkerRegistration>(() => {}),
+      getRegistration: (): Promise<ServiceWorkerRegistration | undefined> =>
+        options.registrationFails !== undefined
+          ? Promise.reject(options.registrationFails)
+          : Promise.resolve(registered ? registration : undefined),
       controller: null,
     });
 
@@ -198,6 +290,11 @@ export function installPushStandIns(
     permissionRequests: () => permissionRequests,
     permission: () => permission,
     subscription: () => held,
+    letWaitingCallsSettle: () => {
+      const letGo = waiting;
+      waiting = [];
+      for (const go of letGo) go();
+    },
   };
 }
 
@@ -212,37 +309,55 @@ export function removePushStandIns(): void {
 export function madeUpSubscription(
   init: SubscriptionInit = {},
 ): PushSubscription {
-  return new StandInPushSubscription(init, () => {});
+  // No phone holds it, so nothing lets a waiting `unsubscribe()` go.
+  return new StandInPushSubscription(
+    init,
+    () => {},
+    () => new Promise<void>(() => {}),
+  );
 }
 
 class StandInPushSubscription {
   readonly endpoint: string;
   readonly expirationTime = null;
-  readonly options: PushSubscriptionOptions;
+  /** Declared only: under `leavesOut: "options"` the subscription has no `options` at all, as such a browser. */
+  declare readonly options: PushSubscriptionOptions;
+  /** The key it was made with, as the browser knows it, whatever `options` says. */
+  private readonly madeWithKey: Uint8Array | null;
   private readonly p256dh: string;
   private readonly auth: string;
   private readonly init: SubscriptionInit;
   private readonly onUnsubscribed: () => void;
+  /** Settles once the test lets a waiting `unsubscribe()` go (`unsubscribeWaits`). */
+  private readonly untilLetGo: () => Promise<void>;
 
-  constructor(init: SubscriptionInit, onUnsubscribed: () => void) {
+  constructor(
+    init: SubscriptionInit,
+    onUnsubscribed: () => void,
+    untilLetGo: () => Promise<void>,
+  ) {
     madeUp += 1;
     this.init = init;
     this.onUnsubscribed = onUnsubscribed;
+    this.untilLetGo = untilLetGo;
     this.endpoint =
       init.endpoint ?? `https://web.push.apple.com/made-up-device-${madeUp}`;
     const key = init.applicationServerKey ?? null;
-    this.options = {
-      userVisibleOnly: true,
-      applicationServerKey:
-        key === null ? null : keyBytesOf(key).slice().buffer,
-    };
+    this.madeWithKey = key === null ? null : keyBytesOf(key);
+    if (init.leavesOut === "applicationServerKey")
+      this.options = { userVisibleOnly: true } as PushSubscriptionOptions;
+    else if (init.leavesOut !== "options")
+      this.options = {
+        userVisibleOnly: true,
+        applicationServerKey:
+          this.madeWithKey === null ? null : this.madeWithKey.slice().buffer,
+      };
     this.p256dh = init.p256dh ?? MADE_UP_DEVICE_KEY;
     this.auth = init.auth ?? MADE_UP_SECRET;
   }
 
   keyBytes(): Uint8Array | null {
-    const key = this.options.applicationServerKey;
-    return key === null ? null : new Uint8Array(key);
+    return this.madeWithKey;
   }
 
   getKey(name: PushEncryptionKeyName): ArrayBuffer | null {
@@ -258,11 +373,16 @@ class StandInPushSubscription {
   }
 
   unsubscribe(): Promise<boolean> {
-    if (this.init.unsubscribeFails !== undefined)
-      return Promise.reject(this.init.unsubscribeFails);
-    const answer = this.init.unsubscribeAnswers ?? true;
-    if (answer) this.onUnsubscribed();
-    return Promise.resolve(answer);
+    const settle = (): Promise<boolean> => {
+      if (this.init.unsubscribeFails !== undefined)
+        return Promise.reject(this.init.unsubscribeFails);
+      const answer = this.init.unsubscribeAnswers ?? true;
+      if (answer) this.onUnsubscribed();
+      return Promise.resolve(answer);
+    };
+    return this.init.unsubscribeWaits === true
+      ? this.untilLetGo().then(settle)
+      : settle();
   }
 }
 

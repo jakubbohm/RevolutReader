@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
-import { watchRefreshTriggers } from "./refreshTriggers";
+import { watchRefreshTriggers, watchReturns } from "./refreshTriggers";
 import {
   OFFLINE,
   shown,
@@ -15,6 +15,11 @@ import {
   storeBalance,
 } from "./storedBalance";
 import {
+  forgetThisDevice,
+  keepSubscriptionUp,
+  unsubscribeThisDevice,
+} from "./subscriptionUpkeep";
+import {
   useTransactionList,
   type LoginEnded,
   type TransactionListModel,
@@ -28,9 +33,44 @@ const SLOW_AFTER_MS = 30_000;
 
 /**
  * How long a refresh may go unanswered before it counts as offline (D3): every balance read but the first load's own,
- * whether or not a read has succeeded yet, and asking again who is signed in.
+ * whether or not a read has succeeded yet, and asking again who is signed in. The same limit holds for an upkeep of the
+ * push subscription and for the request to forget this device at a sign-out (c013 design.md D1, D2).
  */
 const REFRESH_LIMIT_MS = 60_000;
+
+/**
+ * Runs `work` with the refresh's limit: its signal aborts after `REFRESH_LIMIT_MS`, and the timer goes once it ends. A
+ * timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
+ */
+async function withRefreshLimit<T>(
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const limit = new AbortController();
+  const limitTimer = setTimeout(() => {
+    limit.abort();
+  }, REFRESH_LIMIT_MS);
+  try {
+    return await work(limit.signal);
+  } finally {
+    clearTimeout(limitTimer);
+  }
+}
+
+/**
+ * Waits for `work` until it settles, or at most `REFRESH_LIMIT_MS`, then goes on without it (c013 design.md D4: an
+ * unsubscribe the browser leaves hanging). A timer of the page's own, cleared once `work` settles.
+ */
+async function atMostTheRefreshLimit(work: Promise<void>): Promise<void> {
+  let limitTimer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<void>((resolve) => {
+    limitTimer = setTimeout(resolve, REFRESH_LIMIT_MS);
+  });
+  try {
+    await Promise.race([work, limit]);
+  } finally {
+    clearTimeout(limitTimer);
+  }
+}
 
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
@@ -74,11 +114,22 @@ interface Wake {
  * It reports whether it reads, its problem and whether a list is on screen, and `shown` makes one screen of both. After
  * a wake, the waking-up screen stays until both first reads have landed, whatever they brought.
  *
- * "Odhlásit se" signs out; once the server has confirmed it, the balance the phone keeps is forgotten and the sign-in
+ * "Odhlásit se" signs out, after asking the server to forget this device (c013 design.md D2); once the server has
+ * confirmed it, the balance the phone keeps is forgotten, the phone's push subscription unsubscribed, and the sign-in
  * screen shows with its note that the sign-out happened. A sign-out that failed (a server error, offline) leaves the
  * visitor on the account screen, still signed in, so the note never claims a sign-out that did not happen (c007
  * design.md D2). A 401 or 403 to who is signed in, to a balance read or to the list's newest page forgets the balance
- * too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c; c010 D8).
+ * and unsubscribes the phone too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c;
+ * c010 D8; c013 D4). The login ends only once on the screen: from then on nothing is read again and no upkeep runs, also
+ * while the next screen waits for the phone's unsubscribe.
+ *
+ * The phone's push subscription is kept right at every opening (c013 design.md D1; `keepSubscriptionUp`). A launch: the
+ * moment the screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an
+ * upkeep runs beside the balance read, which never waits for it. A return: every return to the screen while a user is
+ * signed in (`watchReturns`). One at a time, so an opening while one runs is ignored, with the refresh's limit; what it
+ * comes to is never shown, but a 401 or 403 to one of its requests ends the login, once, as the list's does. "Obnovit"
+ * and coming back online are no openings, so they run none. No upkeep starts while a sign-out is under way, from the
+ * tap until it has ended, confirmed or failed (c013 design.md D2).
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -105,17 +156,27 @@ export function useAccountScreen(): AccountScreenModel {
   const latestQuestion = useRef(0);
   /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
-  /** How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped. */
+  /**
+   * How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped;
+   * once one has ended, nothing is read again nor any upkeep run (`repeat`, `runUpkeep`).
+   */
   const loginsEnded = useRef(0);
+  /** As `readUnderWay`, for an upkeep of the push subscription: an opening while one runs is ignored, not queued. */
+  const upkeepUnderWay = useRef(false);
 
   /**
    * The device has no allowed login any more (D4, D5 c): a sign-out the server confirmed, or a 401 or 403 to who is
-   * signed in or to a balance read. The balance the phone keeps is forgotten before `next`, the sign-in or no-access
-   * screen, shows; what the screen held goes with it, and a read still under way is dropped when it lands.
+   * signed in or to a balance read. The balance the phone keeps is forgotten and the phone's push subscription
+   * unsubscribed, together, before `next`, the sign-in or no-access screen, shows (c013 design.md D4); a failure of
+   * either is ignored, and an unsubscribe the browser leaves hanging holds the next screen at most the refresh's limit.
+   * What the screen held goes with them, and a read still under way is dropped when it lands.
    */
   const endLogin = useCallback(async (next: Session): Promise<void> => {
     loginsEnded.current += 1;
-    await forgetStoredBalance();
+    await Promise.all([
+      forgetStoredBalance(),
+      atMostTheRefreshLimit(unsubscribeThisDevice()),
+    ]);
     if (!onPage.current) return;
 
     setSession(next);
@@ -138,10 +199,11 @@ export function useAccountScreen(): AccountScreenModel {
   }, []);
 
   /**
-   * The list's newest page found the login ended (c010 design.md D8): the same as a balance read that does (D5 c), once;
-   * the login ends only once on this screen, so a list's read that lands after that is dropped.
+   * The list's newest page, or one of the upkeep's own requests, found the login ended (c010 design.md D8; c013 design.md
+   * D1, D4): the same as a balance read that does (D5 c), once; the login ends only once on this screen, so an answer
+   * that lands after that is dropped.
    */
-  const endLoginFromTheList = useCallback(
+  const endLoginOnce = useCallback(
     (ended: LoginEnded): void => {
       if (loginsEnded.current > 0) return;
       void endLogin(
@@ -227,6 +289,38 @@ export function useAccountScreen(): AccountScreenModel {
   );
 
   /**
+   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way, a sign-out is under way
+   * (from the tap until it has ended, confirmed or failed; D2), or a login has ended on this screen (`repeat`): then
+   * nothing is asked. An upkeep already running at the tap goes on as it is (D2); after a failed sign-out, the next
+   * opening runs one again (D3). It has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its request is
+   * aborted, so a request left unanswered cannot block the next opening's upkeep. It runs under the login it started
+   * with, while the screen is on the page (D6). What it comes to is never shown; only a 401 or 403 to one of its requests
+   * ends the login, as the list's does (D1, D4).
+   */
+  const runUpkeep = useCallback(async (): Promise<void> => {
+    if (
+      upkeepUnderWay.current ||
+      signOutUnderWay.current ||
+      loginsEnded.current > 0
+    )
+      return;
+    upkeepUnderWay.current = true;
+    const login = loginsEnded.current;
+
+    try {
+      const outcome = await withRefreshLimit((signal) =>
+        keepSubscriptionUp({
+          stillSignedIn: () => onPage.current && login === loginsEnded.current,
+          signal,
+        }),
+      );
+      if (outcome.kind === "login ended") endLoginOnce(outcome.ended);
+    } finally {
+      upkeepUnderWay.current = false;
+    }
+  }, [endLoginOnce]);
+
+  /**
    * Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. `anew`
    * asks again all the same and gives the question under way up: its answer, whenever it comes, is `null` too. `signal`
    * aborts the request, which then reads as offline.
@@ -292,18 +386,7 @@ export function useAccountScreen(): AccountScreenModel {
     setWait("short");
     setProblem(null);
 
-    // A timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
-    const limit = new AbortController();
-    const limitTimer = setTimeout(() => {
-      limit.abort();
-    }, REFRESH_LIMIT_MS);
-
-    let answer: Session | null;
-    try {
-      answer = await askOnce({ signal: limit.signal });
-    } finally {
-      clearTimeout(limitTimer);
-    }
+    const answer = await withRefreshLimit((signal) => askOnce({ signal }));
     if (answer !== null) await takeInAnswer(answer, false);
   }, [askOnce, takeInAnswer]);
 
@@ -381,10 +464,21 @@ export function useAccountScreen(): AccountScreenModel {
     session.kind === "unexpected";
   const hasRead = balance !== null;
 
+  // The openings (c013 design.md D1). A launch: the moment the server names a signed-in user, by the first answer or a
+  // repeated one, the upkeep runs beside the balance read, which has already gone out. A return: every return to the
+  // screen while the user stays signed in; the watch stops when the login ends.
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    void runUpkeep();
+    return watchReturns(() => {
+      void runUpkeep();
+    });
+  }, [signedIn, runUpkeep]);
+
   // The list reads its newest page once the server has named a signed-in user, never for a visitor (c010 design.md D8).
   const list = useTransactionList({
     enabled: signedIn,
-    onLoginEnded: endLoginFromTheList,
+    onLoginEnded: endLoginOnce,
     onNewestLanded: listLanded,
   });
   const { refresh: refreshTheList } = list;
@@ -392,9 +486,12 @@ export function useAccountScreen(): AccountScreenModel {
   /**
    * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; for a signed-in user, the
    * balance read, shown as the first read until one succeeded, and always with the refresh's limit, and the list's newest
-   * page with it (c010 design.md D8). Nothing for a visitor on the sign-in or no-access screen.
+   * page with it (c010 design.md D8). Nothing for a visitor on the sign-in or no-access screen, and nothing once a login
+   * has ended on this screen, though its next screen may still wait for the phone's unsubscribe: the login ends only
+   * once on a screen (c013 design.md D4), and signing in again opens the page afresh (c007 design.md D2).
    */
   const repeat = useCallback((): void => {
+    if (loginsEnded.current > 0) return;
     if (signedIn) {
       void readTheBalance(hasRead ? "refresh" : "first", false);
       refreshTheList();
@@ -418,14 +515,18 @@ export function useAccountScreen(): AccountScreenModel {
   }, [session, wait, askAgainAfterASlowWake, repeat]);
 
   /**
-   * "Odhlásit se" (D6): one sign-out at a time, busy while it runs. Confirmed: the balance the phone keeps is forgotten
-   * before the signed-out screen shows (D4). Failed: the visitor stays signed in on the account screen, the balance
-   * shown and kept, and its banner, offline or not, replaces any other.
+   * "Odhlásit se" (D6): one sign-out at a time, busy while it runs. First the server is asked to forget this device,
+   * while the login still allows it, with the refresh's limit; whatever it answers, the sign-out request follows (c013
+   * design.md D2). Confirmed: the balance the phone keeps is forgotten and the phone unsubscribed before the signed-out
+   * screen shows (D4; c013 D4). Failed: the visitor stays signed in on the account screen, the balance shown and kept,
+   * the phone's subscription with it, and its banner, offline or not, replaces any other.
    */
   async function signOutFromMenu(): Promise<void> {
     if (signOutUnderWay.current) return;
     signOutUnderWay.current = true;
     setSigningOut(true);
+
+    await withRefreshLimit((signal) => forgetThisDevice({ signal }));
 
     try {
       await signOut();
