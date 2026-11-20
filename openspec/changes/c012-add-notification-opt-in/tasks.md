@@ -177,7 +177,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 30. [close] Slice 11 — Turning notifications on from the account menu shows the result in the card
 
-- [ ] 30.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on from the account menu shows the result in the card
+- [x] 30.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on from the account menu shows the result in the card
 
 ## 31. [unit] Slice 12 — The menu on a blocked phone
 
