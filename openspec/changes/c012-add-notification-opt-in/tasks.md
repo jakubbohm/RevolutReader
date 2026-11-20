@@ -112,7 +112,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 16. [wiring] Slice 6 — The opening watch
 
-- [ ] 16.1 `useNotificationOptIn` watches the page's `visibilitychange`, clears a result at the first return after the app was left while it showed, and reads the permission again (D4). Verify: group 15 passes; the scenario runs against the app
+- [x] 16.1 `useNotificationOptIn` watches the page's `visibilitychange`, clears a result at the first return after the app was left while it showed, and reads the permission again (D4). Verify: group 15 passes; the scenario runs against the app
 
 ## 17. [close] Slice 6 — "Upozornění jsou zapnutá" is gone at the next opening
 
