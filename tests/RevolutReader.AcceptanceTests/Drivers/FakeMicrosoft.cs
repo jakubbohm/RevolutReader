@@ -108,10 +108,10 @@ public sealed class FakeMicrosoft : IDisposable {
   }
 
   /// <summary>
-  /// Starts a fake Microsoft on a free local port, its own server kept out of every trace, as <see cref="FakeBank"/>'s is.
-  /// Call it before the app copy starts, so its address is known.
+  /// Starts a fake Microsoft on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server kept
+  /// out of every trace, as <see cref="FakeBank"/>'s is. Call it before the app copy starts, so its address is known.
   /// </summary>
-  public static FakeMicrosoft Start() => new(WireMockServer.Start(new WireMockServerSettings { AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry }));
+  public static FakeMicrosoft Start() => new(LoopbackWireMock.Start(new WireMockServerSettings { AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry }));
 
   /// <summary>
   /// Writes the sign-in settings into the app copy's <c>SignIn</c> section, as the last configuration source, so they win

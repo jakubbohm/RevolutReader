@@ -1,4 +1,5 @@
 using System.Net;
+using RevolutReader.AcceptanceTests.Drivers;
 using RevolutReader.Api.Push;
 using Shouldly;
 using WireMock.RequestBuilders;
@@ -35,7 +36,7 @@ public sealed class GoneDeviceTests {
 
   /// <summary>One push to a device at a WireMock.Net push service that answers <paramref name="status"/>.</summary>
   private static async Task<DeliveryOutcome> DeliverTo(HttpStatusCode status) {
-    using WireMockServer pushService = WireMockServer.Start();
+    using WireMockServer pushService = LoopbackWireMock.Start();
     pushService.Given(Request.Create().WithPath(PUSH_PATH).UsingPost()).RespondWith(Response.Create().WithStatusCode(status));
     await using PushAdapter adapter = new();
 

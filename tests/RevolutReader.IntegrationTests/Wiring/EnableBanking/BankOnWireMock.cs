@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using RevolutReader.AcceptanceTests.Drivers;
 using RevolutReader.Api.Bank;
 using WireMock.Matchers;
 using WireMock.RequestBuilders;
@@ -89,7 +90,7 @@ public sealed class BankOnWireMock : IDisposable {
   /// <param name="requestTimeout">The client's request timeout; <see cref="DefaultRequestTimeout"/> unless given.</param>
   /// <param name="retryDelay">The client's wait before a first retry; <see cref="DefaultRetryDelay"/> unless given.</param>
   public BankOnWireMock(Uri? apiBaseUrl = null, TimeSpan? requestTimeout = null, TimeSpan? retryDelay = null) {
-    _server = WireMockServer.Start(new WireMockServerSettings {
+    _server = LoopbackWireMock.Start(new WireMockServerSettings {
       PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(NoteArrival),
     });
 
