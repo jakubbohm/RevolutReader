@@ -208,7 +208,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 36. [close] Slice 13 — Turning notifications on offline says to try again online
 
-- [ ] 36.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on offline says to try again online
+- [x] 36.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on offline says to try again online
 
 ## 37. [unit] Slice 14 — Failing later
 
