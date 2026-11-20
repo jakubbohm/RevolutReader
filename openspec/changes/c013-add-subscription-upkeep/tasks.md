@@ -150,11 +150,11 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 24. [close] Slice 9 — A login that has ended unsubscribes the phone
 
-- [ ] 24.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 24.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 25. [close] Slice 10 — After signing in again, the phone subscribes without a tap
 
-- [ ] 25.1 Its acceptance test passes. Slices 4 and 6 should already make it green; a missing behaviour goes to the test-writer as a new unit test. Verify: it, and the full suite, are green
+- [x] 25.1 Its acceptance test passes. Slices 4 and 6 should already make it green; a missing behaviour goes to the test-writer as a new unit test. Verify: it, and the full suite, are green
 
 ## 26. [close] Acceptance green
 
