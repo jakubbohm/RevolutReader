@@ -123,7 +123,7 @@ Given up:
 Full version: CodeQL and dependency review as blocking PR checks ([lessons.md R-35](lessons.md), DoseUp F-30).
 Here ([workflow.md § 4](../conventions/workflow.md#4-cicd), 2026-11-05): **neither runs.** The app lives about two months, with one developer and few packages. GitHub's dependency graph sees no package file of this repository, so dependency review would pass without checking anything.
 Given up:
-- a known-vulnerable package is not flagged automatically;
+- a known-vulnerable package is flagged only by the build's own package audit, so only when a PR runs, and then it blocks every PR until fixed (corrected 2026-11-20: [lessons.md R-79](lessons.md); the first version said it was not flagged at all);
 - neither is a typical security bug in the code (e.g. an injection). Only secret scanning and push protection run.
 
 *Switch back when:* the app runs well beyond its planned period, or gets more packages or contributors. Before turning on dependency review, make sure the dependency graph lists the packages.
