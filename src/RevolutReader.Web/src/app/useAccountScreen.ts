@@ -128,7 +128,8 @@ interface Wake {
  * upkeep runs beside the balance read, which never waits for it. A return: every return to the screen while a user is
  * signed in (`watchReturns`). One at a time, so an opening while one runs is ignored, with the refresh's limit; what it
  * comes to is never shown, but a 401 or 403 to one of its requests ends the login, once, as the list's does. "Obnovit"
- * and coming back online are no openings, so they run none.
+ * and coming back online are no openings, so they run none. No upkeep starts while a sign-out is under way, from the
+ * tap until it has ended, confirmed or failed (c013 design.md D2).
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -288,14 +289,21 @@ export function useAccountScreen(): AccountScreenModel {
   );
 
   /**
-   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way or a login has ended on this
-   * screen (`repeat`): then nothing is asked. It has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its
-   * request is aborted, so a request left unanswered cannot block the next opening's upkeep. It runs under the login it
-   * started with, while the screen is on the page (D6). What it comes to is never shown; only a 401 or 403 to one of its
-   * requests ends the login, as the list's does (D1, D4).
+   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way, a sign-out is under way
+   * (from the tap until it has ended, confirmed or failed; D2), or a login has ended on this screen (`repeat`): then
+   * nothing is asked. An upkeep already running at the tap goes on as it is (D2); after a failed sign-out, the next
+   * opening runs one again (D3). It has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its request is
+   * aborted, so a request left unanswered cannot block the next opening's upkeep. It runs under the login it started
+   * with, while the screen is on the page (D6). What it comes to is never shown; only a 401 or 403 to one of its requests
+   * ends the login, as the list's does (D1, D4).
    */
   const runUpkeep = useCallback(async (): Promise<void> => {
-    if (upkeepUnderWay.current || loginsEnded.current > 0) return;
+    if (
+      upkeepUnderWay.current ||
+      signOutUnderWay.current ||
+      loginsEnded.current > 0
+    )
+      return;
     upkeepUnderWay.current = true;
     const login = loginsEnded.current;
 
