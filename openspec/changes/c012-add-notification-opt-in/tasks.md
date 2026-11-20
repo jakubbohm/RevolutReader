@@ -51,7 +51,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 3. [unit] Slice 1 — The card
 
-- [ ] 3.1 The default card shows the bell, "Chceš vědět o každé platbě?", its sentence, "Zapnout upozornění" and "Teď ne"
+- [x] 3.1 The default card shows the bell, "Chceš vědět o každé platbě?", its sentence, "Zapnout upozornění" and "Teď ne"
 
 ## 4. [wiring] Slice 1 — The card under the balance
 
