@@ -108,7 +108,8 @@ export function useNotificationOptIn({
     step,
   });
 
-  return { ...offer, turnOn, notNow: dismiss, fromMenu: ignore };
+  // From the menu, as the card's button (D7): the result shows in the card, and a remembered "Teď ne" stays.
+  return { ...offer, turnOn, notNow: dismiss, fromMenu: turnOn };
 }
 
 /**
@@ -135,6 +136,3 @@ function readPermission(): NotificationPermission {
 function isResult(step: Step): boolean {
   return step === "enabled" || step === "denied" || step === "failed";
 }
-
-/** What a tap does until its own slice builds it. */
-function ignore(): void {}

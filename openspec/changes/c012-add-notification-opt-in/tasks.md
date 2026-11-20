@@ -166,10 +166,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 28. [unit] Slice 11 — Turning on from the menu
 
-- [ ] 28.1 Choosing "Zapnout upozornění" calls its handler within the selection and closes the menu
-- [ ] 28.2 Turning on from the menu asks the phone before anything is awaited
-- [ ] 28.3 With "Teď ne" remembered, the result of a turn-on from the menu shows in the card, and "Teď ne" stays remembered
-- [ ] 28.4 A result of this opening shows whether or not the balance header is on screen
+- [x] 28.1 Choosing "Zapnout upozornění" calls its handler within the selection and closes the menu
+- [x] 28.2 Turning on from the menu asks the phone before anything is awaited
+- [x] 28.3 With "Teď ne" remembered, the result of a turn-on from the menu shows in the card, and "Teď ne" stays remembered
+- [x] 28.4 A result of this opening shows whether or not the balance header is on screen
 
 ## 29. [wiring] Slice 11 — The menu's turn-on
 

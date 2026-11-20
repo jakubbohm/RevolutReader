@@ -90,7 +90,11 @@ export function AccountMenu({
           </DropdownMenu.Label>
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
           {onEnableNotifications !== undefined ? (
-            <DropdownMenu.Item className={ITEM}>
+            // Called synchronously in the selection, so the phone asks within the tap (D3); the menu closes as usual.
+            <DropdownMenu.Item
+              onSelect={onEnableNotifications}
+              className={ITEM}
+            >
               <Bell size={20} aria-hidden="true" />
               Zapnout upozornění
             </DropdownMenu.Item>

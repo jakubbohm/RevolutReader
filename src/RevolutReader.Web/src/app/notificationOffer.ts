@@ -41,7 +41,7 @@ export function notificationOffer(facts: OfferFacts): Offer {
     return NOTHING;
   }
   const result = cardOfStep(facts.step);
-  if (result !== null && facts.underBalance) {
+  if (result !== null) {
     return { card: result, menuItem: false };
   }
   if (facts.permission === "granted") {
