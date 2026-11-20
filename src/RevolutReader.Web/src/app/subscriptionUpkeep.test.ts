@@ -496,6 +496,35 @@ test("The upkeep never asks for the notification permission and never throws: th
   expect(phone.permissionRequests(), "nothing asked").toBe(0);
 });
 
+test("The upkeep never asks for the notification permission and never throws: the browser does not say which subscription it holds before the limit", async () => {
+  startTestClock();
+  // The browser's own call takes no signal: the upkeep stops waiting for it when the limit fires (D1).
+  const phone = phoneSubscribedWith(SERVER_KEY, { getSubscriptionWaits: true });
+  const held = phone.subscription()!;
+  answerWith(THE_SERVER);
+  const limit = new AbortController();
+
+  const upkeep = anUpkeep(limit.signal);
+  expect(await whereItStands(upkeep), "waiting for the browser").toBe(
+    "still running",
+  );
+
+  limit.abort();
+
+  expect(await whereItStands(upkeep)).toEqual({ kind: "stopped" });
+  expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(requests(), "nothing sent once the browser answers late").toEqual([
+    KEY_READ,
+  ]);
+  expect(phone.subscription(), "the phone keeps it").toBe(held);
+  expect(phone.subscribeRequests(), "no subscribing again").toEqual([]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
 // ---- Only while notifications are allowed (D1, "When") ----
 
 /** Lucie's phone with this permission, holding a subscription made with the server's key, or none. */
@@ -624,4 +653,209 @@ test("Nothing is done where the browser cannot push, or no worker is registered:
     await keepSubscriptionUp({ stillSignedIn: () => true, browser }),
   ).toEqual({ kind: "not allowed" });
   expectNothingDone(phone, held);
+});
+
+// ---- Subscribing again (D1, step 4): the phone holds none ----
+
+/**
+ * Lucie's phone with notifications allowed, holding no subscription: the browser dropped it, or she signed out and in
+ * again.
+ */
+function phoneHoldingNone(more: PushStandInOptions = {}): PushStandIns {
+  return installPushStandIns({ permission: "granted", ...more });
+}
+
+/**
+ * What the phone was asked to subscribe with, in order: `userVisibleOnly` as given, and the key as base64url text,
+ * whether the app gave it as bytes or as text.
+ */
+function subscribedWith(
+  phone: PushStandIns,
+): { userVisibleOnly: boolean | undefined; key: string | null | undefined }[] {
+  return phone
+    .subscribeRequests()
+    .map(({ userVisibleOnly, applicationServerKey: key }) => ({
+      userVisibleOnly,
+      key: key instanceof Uint8Array ? base64url(key) : key,
+    }));
+}
+
+/** Bytes as base64url text without padding: the test's own, independent of the app's. */
+function base64url(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/** Once, with the server's key, for visible pushes only, as C8a's `subscribe` asks. */
+const WITH_THE_SERVERS_KEY = [{ userVisibleOnly: true, key: SERVER_KEY }];
+
+// ---- 11.1 ----
+
+test("A phone with no subscription subscribes with the server's key, visible pushes only, and sends the new one", async () => {
+  const phone = phoneHoldingNone();
+  answerWith(THE_SERVER);
+
+  expect(await anUpkeep()).toEqual({ kind: "subscribed again" });
+  expect(
+    subscribedWith(phone),
+    "with the server's key, visible pushes only",
+  ).toEqual(WITH_THE_SERVERS_KEY);
+  const made = phone.subscription();
+  expect(made, "the phone holds the new subscription").not.toBeNull();
+  expect(subscriptionsSent(), "the new one sent").toEqual([made?.toJSON()]);
+  expect(
+    requests(),
+    "the key first, then the new subscription; nothing forgotten",
+  ).toEqual([KEY_READ, SUBSCRIPTION_SENT]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+// ---- 11.2 ----
+
+const subscribesThatFail: { label: string; fails: Error | true }[] = [
+  { label: "the browser refuses it without a tap", fails: true },
+  {
+    label: "the push service cannot be reached",
+    fails: new DOMException(
+      "Registration failed - push service error",
+      "AbortError",
+    ),
+  },
+  {
+    label: "the browser fails in a way of its own",
+    fails: new TypeError("Something went wrong."),
+  },
+];
+
+test.each(subscribesThatFail)(
+  "A failed subscribe stops the upkeep quietly, and nothing is sent: $label",
+  async ({ fails }) => {
+    const phone = phoneHoldingNone({ subscribeFails: fails });
+    answerWith(THE_SERVER);
+
+    await expect(anUpkeep()).resolves.toEqual({ kind: "stopped" });
+    expect(subscribedWith(phone), "it tried, with the server's key").toEqual(
+      WITH_THE_SERVERS_KEY,
+    );
+    expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+    expect(phone.subscription(), "the phone holds none").toBeNull();
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test("A failed subscribe stops the upkeep quietly, and nothing is sent: one with no answer, ended by the limit", async () => {
+  startTestClock();
+  // The browser's own call takes no signal: the upkeep stops waiting for it when the limit fires (D1).
+  const phone = phoneHoldingNone({ subscribeWaits: true });
+  answerWith(THE_SERVER);
+  const limit = new AbortController();
+
+  const upkeep = anUpkeep(limit.signal);
+  expect(await whereItStands(upkeep), "waiting for the browser").toBe(
+    "still running",
+  );
+  expect(subscribedWith(phone), "asked, with the server's key").toEqual(
+    WITH_THE_SERVERS_KEY,
+  );
+
+  limit.abort();
+
+  expect(await whereItStands(upkeep)).toEqual({ kind: "stopped" });
+  expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  const made = phone.subscription();
+  expect(made, "the phone keeps the one that settled late").not.toBeNull();
+  expect(requests(), "nothing sent once it settles").toEqual([KEY_READ]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+
+  expect(await whereItStands(anUpkeep()), "the next opening").toEqual({
+    kind: "sent again",
+  });
+  expect(subscriptionsSent(), "the next opening sends it").toEqual([
+    made?.toJSON(),
+  ]);
+  expect(subscribedWith(phone), "subscribed only the once").toEqual(
+    WITH_THE_SERVERS_KEY,
+  );
+});
+
+// ---- 11.3 ----
+
+const sendsNotStored: { label: string; answer: SubscriptionAnswer }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "a hosting error page", answer: hostingErrorPage },
+  { label: "no answer, offline", answer: noConnection },
+];
+
+test.each(sendsNotStored)(
+  "A new subscription the server did not get is sent again at the next opening: $label",
+  async ({ answer }) => {
+    const phone = phoneHoldingNone();
+    answerWith({
+      pushKey: pushKey(SERVER_KEY),
+      subscription: [answer, stored],
+    });
+
+    expect(await anUpkeep(), "the first opening").toEqual({ kind: "stopped" });
+    const made = phone.subscription();
+    expect(made, "the phone keeps the new subscription").not.toBeNull();
+    expect(subscriptionsSent(), "sent, but not stored").toEqual([
+      made?.toJSON(),
+    ]);
+
+    expect(await anUpkeep(), "the next opening").toEqual({
+      kind: "sent again",
+    });
+    expect(subscriptionsSent(), "sent again, as it is").toEqual([
+      made?.toJSON(),
+      made?.toJSON(),
+    ]);
+    expect(phone.subscription(), "the phone keeps it").toBe(made);
+    expect(
+      subscribedWith(phone),
+      "subscribed at the first opening only",
+    ).toEqual(WITH_THE_SERVERS_KEY);
+  },
+);
+
+test("A new subscription the server did not get is sent again at the next opening: the send with no answer, ended by the limit", async () => {
+  startTestClock();
+  const phone = phoneHoldingNone();
+  answerWith({
+    pushKey: pushKey(SERVER_KEY),
+    subscription: [noAnswerYet, stored],
+  });
+  const limit = new AbortController();
+
+  const first = anUpkeep(limit.signal);
+  expect(await whereItStands(first), "waiting for the server").toBe(
+    "still running",
+  );
+  const made = phone.subscription();
+  expect(made, "the phone holds the new subscription").not.toBeNull();
+
+  limit.abort();
+
+  expect(await whereItStands(first), "the first opening").toEqual({
+    kind: "stopped",
+  });
+  expect(timeline()).toContain(`aborted ${SUBSCRIPTION_SENT}`);
+  expect(phone.subscription(), "the phone keeps it").toBe(made);
+
+  expect(await whereItStands(anUpkeep()), "the next opening").toEqual({
+    kind: "sent again",
+  });
+  expect(subscriptionsSent(), "sent again, as it is").toEqual([
+    made?.toJSON(),
+    made?.toJSON(),
+  ]);
+  expect(phone.subscription(), "the phone keeps it").toBe(made);
+  expect(subscribedWith(phone), "subscribed at the first opening only").toEqual(
+    WITH_THE_SERVERS_KEY,
+  );
 });

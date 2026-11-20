@@ -12,12 +12,14 @@
  *   none is registered, as on Vite's dev server: `getRegistration()` settles with `undefined`, and `ready` never settles.
  *   Under `registrationFails`, `getRegistration()` fails with the test's error instead, and `ready` is as without it.
  * - `PushManager`, on that registration:
- *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: fails with the test's
- *     `subscribeFails`; asks for permission first while it is `default`; fails with `NotAllowedError` unless the
- *     permission is `granted` and `userVisibleOnly` is true; fails with `AbortError` without an `applicationServerKey`;
- *     answers the subscription it already holds when that one was made with the same key, and fails with
- *     `InvalidStateError` when it was made with another; otherwise makes a new subscription and holds it.
+ *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: under `subscribeWaits`, waits until
+ *     the test lets it go (`letWaitingCallsSettle`); fails with the test's `subscribeFails`; asks for permission first
+ *     while it is `default`; fails with `NotAllowedError` unless the permission is `granted` and `userVisibleOnly` is
+ *     true; fails with `AbortError` without an `applicationServerKey`; answers the subscription it already holds when
+ *     that one was made with the same key, and fails with `InvalidStateError` when it was made with another; otherwise
+ *     makes a new subscription and holds it.
  *   - `getSubscription()` answers the subscription it holds, or `null`; it fails with the test's `getSubscriptionFails`.
+ *     Under `getSubscriptionWaits` it waits until the test lets it go, then answers as without it.
  *   - `permissionState()` answers the notification permission as push names it (`default` is `prompt`).
  * - A `PushSubscription` (`madeUpSubscription`, or one `subscribe` made): its `endpoint`, `expirationTime` (`null`),
  *   `options` (`userVisibleOnly`, and `applicationServerKey` as an `ArrayBuffer`, or `null`), `getKey`, `toJSON()`
@@ -66,6 +68,16 @@ export interface PushStandInOptions {
   subscribeFails?: Error | true;
   /** `getSubscription()` fails with this error, as when the browser cannot say which subscription it holds. */
   getSubscriptionFails?: Error;
+  /**
+   * `subscribe` waits, as a browser that leaves it hanging (c013 design.md D1, the limit), until the test lets it go
+   * (`letWaitingCallsSettle`); then it goes on as without it. By default it does not wait.
+   */
+  subscribeWaits?: boolean;
+  /**
+   * `getSubscription()` waits, as a browser that leaves it hanging (c013 design.md D1, the limit), until the test lets
+   * it go (`letWaitingCallsSettle`); then it answers as without it. By default it does not wait.
+   */
+  getSubscriptionWaits?: boolean;
   /** Features this browser does not have. */
   without?: readonly PushFeature[];
   /**
@@ -103,6 +115,11 @@ export interface PushStandIns {
   permission(): NotificationPermission;
   /** The subscription the registration holds now, or `null`. */
   subscription(): PushSubscription | null;
+  /**
+   * Lets every call left waiting (`subscribeWaits`, `getSubscriptionWaits`) go on, each as it would have without
+   * waiting.
+   */
+  letWaitingCallsSettle(): void;
 }
 
 /** What `installPushStandIns` put in place, to remove it after the test. */
@@ -138,6 +155,13 @@ export function installPushStandIns(
   };
   if (options.subscription !== undefined) hold(options.subscription);
 
+  /** The calls left waiting (`subscribeWaits`, `getSubscriptionWaits`), each settling once the test lets it go. */
+  let waiting: (() => void)[] = [];
+  const untilLetGo = (): Promise<void> =>
+    new Promise((letGo) => {
+      waiting.push(letGo);
+    });
+
   class StandInNotification {
     static get permission(): NotificationPermission {
       return permission;
@@ -167,6 +191,7 @@ export function installPushStandIns(
             : bytesOf(key),
       });
 
+      if (options.subscribeWaits === true) await untilLetGo();
       if (options.subscribeFails !== undefined)
         throw options.subscribeFails === true
           ? new DOMException(
@@ -197,9 +222,14 @@ export function installPushStandIns(
     }
 
     getSubscription(): Promise<PushSubscription | null> {
-      if (options.getSubscriptionFails !== undefined)
-        return Promise.reject(options.getSubscriptionFails);
-      return Promise.resolve(held);
+      // What it holds when it answers, so a call left waiting answers what it holds once let go.
+      const answer = (): Promise<PushSubscription | null> =>
+        options.getSubscriptionFails !== undefined
+          ? Promise.reject(options.getSubscriptionFails)
+          : Promise.resolve(held);
+      return options.getSubscriptionWaits === true
+        ? untilLetGo().then(answer)
+        : answer();
     }
 
     permissionState(): Promise<PermissionState> {
@@ -236,6 +266,11 @@ export function installPushStandIns(
     permissionRequests: () => permissionRequests,
     permission: () => permission,
     subscription: () => held,
+    letWaitingCallsSettle: () => {
+      const letGo = waiting;
+      waiting = [];
+      for (const go of letGo) go();
+    },
   };
 }
 
