@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace RevolutReader.Api.SignIn;
 
@@ -19,5 +21,32 @@ public static class RequestAccount {
   /// as the login gives it; <see langword="null"/> for a request without a login, a login without an email address, and an
   /// account that is not on the allowlist.
   /// </summary>
-  public static string? Of(ClaimsPrincipal user, Allowlist allowlist) => throw new NotImplementedException();
+  public static string? Of(ClaimsPrincipal user, Allowlist allowlist) {
+    ArgumentNullException.ThrowIfNull(user);
+    ArgumentNullException.ThrowIfNull(allowlist);
+
+    string? email = user.FindFirstValue(JwtRegisteredClaimNames.Email);
+
+    return allowlist.Allows(email) ? email : null;
+  }
+
+  /// <summary>
+  /// Puts the request's account (<see cref="Of"/>) on its server activity as <see cref="TAG"/>. It runs right after the
+  /// authorization step (<c>UseSignIn</c>), so the login is known; the pages and files the app serves before it, and the
+  /// requests authorization refuses, carry no account.
+  /// </summary>
+  public static IApplicationBuilder UseRequestAccount(this IApplicationBuilder app) {
+    ArgumentNullException.ThrowIfNull(app);
+
+    Allowlist allowlist = app.ApplicationServices.GetRequiredService<Allowlist>();
+
+    return app.Use((context, next) => {
+      string? account = Of(context.User, allowlist);
+
+      if (account is not null)
+        context.Features.Get<IHttpActivityFeature>()?.Activity.SetTag(TAG, account);
+
+      return next(context);
+    });
+  }
 }
