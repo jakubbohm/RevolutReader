@@ -80,7 +80,10 @@ export function useNotificationOptIn({
     setStep("enabling");
     void turning.then((outcome) => {
       // A sign-out or a closed app ended the screen meanwhile: nothing left to show it on.
-      if (mounted.current) setStep(stepAfter(outcome));
+      if (!mounted.current) return;
+      setStep(stepAfter(outcome));
+      // Declined: the phone now blocks notifications, so once the Denied card goes, the menu item stays (D6, D7).
+      if (outcome.kind === "declined") setPermission(readPermission());
     });
   }, []);
 
@@ -98,11 +101,18 @@ export function useNotificationOptIn({
 }
 
 /**
- * The step a turn-on ends in (D3): on → enabled; undecided → back as it was, with no banner. Declined (D6) and failed
- * (D8) are, for now, back as it was too.
+ * The step a turn-on ends in (D3, D6): on → enabled; declined → the Denied card; undecided → back as it was, with no
+ * banner. Failed (D8) is, for now, back as it was too.
  */
 function stepAfter(outcome: TurnOnOutcome): Step {
-  return outcome.kind === "on" ? "enabled" : "idle";
+  switch (outcome.kind) {
+    case "on":
+      return "enabled";
+    case "declined":
+      return "denied";
+    default:
+      return "idle";
+  }
 }
 
 /** The phone's notification permission; "default" in a browser without `Notification`. */

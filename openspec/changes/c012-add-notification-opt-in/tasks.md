@@ -126,7 +126,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 19. [wiring] Slice 7 — The Denied card
 
-- [ ] 19.1 The declined outcome gives the Denied card; `NotificationOptIn`'s denied state (D6). Verify: group 18 passes; the scenario runs against the app
+- [x] 19.1 The declined outcome gives the Denied card; `NotificationOptIn`'s denied state (D6). Verify: group 18 passes; the scenario runs against the app
 
 ## 20. [close] Slice 7 — Declining the phone's question says where to turn notifications on
 
