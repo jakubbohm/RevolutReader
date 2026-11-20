@@ -17,19 +17,21 @@ import {
 
 /**
  * The service worker registration push needs (D1): `null` when the browser cannot push (`pushSupported`), when no
- * worker is registered (Vite's dev server), or when asking fails. Asks `navigator.serviceWorker.getRegistration()`,
- * never `ready`, which never settles without a worker. Never throws.
+ * worker is registered (Vite's dev server), when asking fails, or when the limit gave up on it. Asks
+ * `navigator.serviceWorker.getRegistration()`, never `ready`, which never settles without a worker. `signal` is the
+ * 60 s limit: asking is one of the browser's own calls (`attempt`), which take none. Never throws.
  */
 export async function pushRegistration(
   browser: Window = window,
+  signal?: AbortSignal,
 ): Promise<ServiceWorkerRegistration | null> {
   if (!pushSupported(browser)) return null;
-  try {
-    return (await browser.navigator.serviceWorker.getRegistration()) ?? null;
-  } catch {
-    // Whether it rejects or throws at once: no registration this time, and the next opening asks again.
-    return null;
-  }
+  // Whether it rejects, throws at once or meets the limit: no registration this time, and the next opening asks again.
+  const registration = await attempt(
+    () => browser.navigator.serviceWorker.getRegistration(),
+    signal,
+  );
+  return registration === FAILED ? null : (registration ?? null);
 }
 
 /** What one upkeep came to (D1, D6). Only "login ended" changes the screen. */
@@ -40,7 +42,7 @@ export type UpkeepOutcome =
   | { kind: "subscribed again" }
   /** Step 5: made with another key. */
   | { kind: "replaced" }
-  /** No push, no worker, or the permission not granted: nothing done. */
+  /** No push, no registration (`pushRegistration`), or the permission not granted: nothing done. */
   | { kind: "not allowed" }
   /** A 401 or 403 (D4). */
   | {
@@ -76,7 +78,8 @@ interface Run {
 /**
  * One upkeep (D1): the key, the phone's subscription, then send it again, subscribe again or replace it. Never asks for
  * the permission, never throws. `stillSignedIn` is checked after every step (D6); `signal` is the 60 s limit, passed to
- * every request; the browser's own calls take none, so the upkeep stops waiting for one when it fires.
+ * every request; the browser's own calls take none, asking for the registration among them, so the upkeep stops
+ * waiting for one when it fires.
  */
 export async function keepSubscriptionUp(options: {
   stillSignedIn: () => boolean;
@@ -87,7 +90,7 @@ export async function keepSubscriptionUp(options: {
 
   // When (D1): the browser can push, a worker is registered, and notifications are allowed; otherwise nothing is asked,
   // subscribed or sent. The registration first: only a browser that can push is sure to have `Notification`.
-  const registration = await pushRegistration(browser);
+  const registration = await pushRegistration(browser, signal);
   if (registration === null || !notificationsAllowed(browser))
     return NOT_ALLOWED;
   if (!stillSignedIn()) return DROPPED;
@@ -306,7 +309,7 @@ async function subscriptionHeld(
   browser: Window | undefined,
   signal: AbortSignal | undefined,
 ): Promise<PushSubscription | null> {
-  const registration = await pushRegistration(browser);
+  const registration = await pushRegistration(browser, signal);
   if (registration === null) return null;
 
   const held = await attempt(() => currentSubscription(registration), signal);
