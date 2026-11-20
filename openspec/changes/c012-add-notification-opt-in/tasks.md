@@ -162,7 +162,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 27. [close] Slice 10 — The account menu offers notifications after "Teď ne"
 
-- [ ] 27.1 The scenario's test passes. Verify: green, including notification-opt-in / The account menu offers notifications after "Teď ne"
+- [x] 27.1 The scenario's test passes. Verify: green, including notification-opt-in / The account menu offers notifications after "Teď ne"
 
 ## 28. [unit] Slice 11 — Turning on from the menu
 
