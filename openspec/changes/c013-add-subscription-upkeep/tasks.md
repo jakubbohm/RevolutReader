@@ -89,7 +89,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 12. [close] Slice 4 — A subscription the phone has lost is replaced quietly
 
-- [ ] 12.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 12.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 13. [unit] Slice 5 — Replacing a subscription made with another key (`keepSubscriptionUp`)
 
