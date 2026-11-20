@@ -2,11 +2,13 @@ import { Inbox, WifiOff } from "lucide-react";
 import type { JSX } from "react";
 import type { Problem, ShownAccount } from "../app/screenState";
 import type { AccountScreenModel } from "../app/useAccountScreen";
+import type { NotificationOptInModel } from "../app/useNotificationOptIn";
 import { useNow } from "../app/useNow";
 import { AppShell } from "../components/AppShell";
 import { BalanceHeader } from "../components/BalanceHeader";
 import { Banner } from "../components/Banner";
 import { EmptyState } from "../components/EmptyState";
+import { NotificationOptIn } from "../components/NotificationOptIn";
 import { Skeleton } from "../components/Skeleton";
 import { TransactionList } from "../components/TransactionList";
 import { WakingUp } from "../components/WakingUp";
@@ -25,13 +27,17 @@ export interface AccountScreenProps {
   onRetry: () => void;
   /** "Odhlásit se" in the account menu. */
   onSignOut: () => void | Promise<void>;
+  /** What the notification opt-in offers (c012 design.md D2, D7). */
+  optIn: NotificationOptInModel;
 }
 
 /**
  * The app's own screen (c007 design.md D5, D12; c009 D2, D7, D10; c010 D8), as `shown` says: the frame, with the
  * account menu once the server named the user; under the top bar the balance header, or its placeholder while the
  * first read runs; then the screen's one banner; then the list slot, or the offline note or the waking-up screen in its
- * place. Without a header and a list it is the empty frame, so the top bar stays in place while the answers come; with
+ * place. The notification opt-in card, when offered, sits after the banner, under the header, or first in the content
+ * when there is no header (c012 design.md D2).
+ * Without a header and a list it is the empty frame, so the top bar stays in place while the answers come; with
  * nothing to show, offline or the waking-up screen is the whole screen. The freshness line counts again every minute.
  *
  * In the list slot, the transaction list (c010 design.md D7, D8) shows its placeholders while its newest page is read,
@@ -44,19 +50,31 @@ export function AccountScreen({
   onRefresh,
   onRetry,
   onSignOut,
+  optIn,
 }: AccountScreenProps): JSX.Element {
   const now = useNow(MINUTE_MS);
   const { header } = shown;
   // One banner (design system Banner), for the most important problem of both reads (c010 design.md D8).
   const banner =
     shown.banner !== null ? bannerFor(shown.banner, onRetry) : null;
+  const optInCard =
+    optIn.card !== null ? (
+      <NotificationOptIn
+        state={optIn.card}
+        onEnable={optIn.turnOn}
+        onDismiss={optIn.notNow}
+      />
+    ) : null;
 
   return (
     <AppShell
       account={shown.account ?? undefined}
       onSignOut={onSignOut}
       signingOut={shown.signingOut}
+      onEnableNotifications={optIn.menuItem ? optIn.fromMenu : undefined}
     >
+      {/* Without a header, a result the user asked for from the menu shows first, so it is always seen (c012 D2). */}
+      {header === null ? optInCard : null}
       {header === "placeholder" ? (
         <Skeleton variant="balance" />
       ) : header !== null ? (
@@ -75,6 +93,7 @@ export function AccountScreen({
           {banner}
         </div>
       ) : null}
+      {header !== null ? optInCard : null}
       {shown.body === "list" && list.shown.body === "placeholder" ? (
         <Skeleton variant="list" />
       ) : null}
@@ -179,6 +198,15 @@ function bannerFor(problem: Problem, onRetry: () => void): JSX.Element | null {
     case "sign-out failed":
       return (
         <Banner tone="error" title="Odhlášení se nepovedlo">
+          {problem.offline
+            ? "Zkus to znovu, až budeš online."
+            : "Zkus to prosím za chvíli."}
+        </Banner>
+      );
+    case "notifications failed":
+      // No action: the card's "Zapnout upozornění" is right there (c012 design.md D8).
+      return (
+        <Banner tone="error" title="Upozornění se nepodařilo zapnout">
           {problem.offline
             ? "Zkus to znovu, až budeš online."
             : "Zkus to prosím za chvíli."}

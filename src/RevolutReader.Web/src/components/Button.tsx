@@ -19,15 +19,16 @@ export interface ButtonProps {
   disabled?: boolean;
 }
 
-/** What every variant shares: 48 pt tall, `radius-control`, the press scale, the focus ring and the disabled look. */
+/** What every variant shares: 48 pt tall, `radius-control`, the press scale, the focus ring and the disabled text. */
 const BASE =
-  "inline-flex h-12 items-center justify-center gap-2 rounded-control px-gutter text-body-strong transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-muted aria-busy:cursor-progress motion-reduce:active:scale-100";
+  "inline-flex h-12 items-center justify-center gap-2 rounded-control px-gutter text-body-strong transition-[transform,background-color] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-[0.98] disabled:cursor-not-allowed disabled:text-ink-muted aria-busy:cursor-progress motion-reduce:active:scale-100";
 
-/** Each variant's fill and text, at rest and pressed. */
+/** Each variant's fill and text, at rest, pressed and disabled; a disabled ghost keeps its transparent fill. */
 const VARIANTS = {
-  primary: "bg-accent text-on-accent active:bg-accent-pressed",
+  primary:
+    "bg-accent text-on-accent active:bg-accent-pressed disabled:bg-surface-muted",
   secondary:
-    "border border-border-strong bg-surface text-ink active:bg-surface-muted",
+    "border border-border-strong bg-surface text-ink active:bg-surface-muted disabled:bg-surface-muted",
   ghost: "bg-transparent text-accent active:bg-accent-soft",
 } as const;
 
@@ -37,7 +38,8 @@ const VARIANTS = {
  * Secondary: `color-surface` with a `color-border-strong` outline and ink text, pressed `color-surface-muted`. Ghost:
  * transparent with `color-accent` text, pressed `color-accent-soft`. Pressed fades in over `duration-fast` with a 0.98
  * scale; under reduced motion the fill still fades, but nothing scales. Disabled is `color-surface-muted` with
- * `color-ink-muted` text; the focus ring is 2 px `color-focus`, offset 2 px.
+ * `color-ink-muted` text, except that a ghost keeps its transparent fill (c012 design.md D1); the focus ring is 2 px
+ * `color-focus`, offset 2 px.
  */
 export function Button({
   children,

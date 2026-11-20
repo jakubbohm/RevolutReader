@@ -128,7 +128,7 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 - **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front. A fake the contract tests also need is compiled into the integration project as a link (§ Integration tests).
 - **Frontend tests live next to the frontend code** (Vitest with Testing Library and jsdom; decided in C3, c003 design.md D1):
   - a unit test sits next to its target as `<file>.test.ts(x)`, e.g. `src/app/device.ts` ↔ `src/app/device.test.ts`;
-  - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx`, each test a `scenario("<capability>", "<exact scenario name>", …)`;
+  - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx` (`.test.ts` when it renders nothing, as `push-display`'s since C8b), each test a `scenario("<capability>", "<exact scenario name>", …)`;
   - the helpers live in `src/test/`: `setup.ts`, `scenario.ts`, `renderApp.tsx`, `server.ts` (the fake server), `clock.ts` (the test clock) and `banners.ts` (a banner found by its tone and title).
 
   The implementer may not edit `*.test.ts(x)`, as with every test file; `src/test/` belongs to the test-writer.
@@ -222,7 +222,10 @@ Decided in C8's explore (#51, S9) and built in C8a (c011 design.md D7), with [AD
   - the decryption reproduces RFC 8291 Appendix A;
   - the fake refuses another signing key, a wrong `exp` or `aud`, no `TTL`, an unknown `Urgency` and another encoding;
   - the fake accepts a correct push built by the test's own code.
-- **The frontend's stand-ins:** jsdom has no notifications and no push. `src/test/push.ts` stands in for `Notification`, `PushManager` with the service worker registration, and a `PushSubscription`, and it records what was asked of it. Every test's cleanup removes it, and `src/test/server.ts` answers the three push addresses.
+- **The frontend's stand-ins:** jsdom has no notifications, no push and no service worker.
+  - **The page's side:** `src/test/push.ts` stands in for `Notification`, `PushManager` with the service worker registration, and a `PushSubscription`, and it records what was asked of it. Every test's cleanup removes it. `src/test/server.ts` answers the three push addresses; a failing answer is set like any other (e.g. `subscription: serverError`). Since C8b, two helpers build on the stand-ins: `src/test/taps.ts` tells whether the permission question was asked while a tap's event was being dispatched (iOS asks only then), and `src/test/serviceWorkerReady.ts` plays a registration that never becomes ready.
+  - **The service worker's side** (since C8b, c012 design.md D9, D10): `src/test/serviceWorker.ts` stands in for the members of the worker's scope that `listenForPushes` uses (its origin, `showNotification`, the app's open windows), so the push handling is tested as plain functions. Its helpers fire a push, as a browser that shows Declarative Web Push messages itself or as one that does not, and a tap on a shown notification; it records what was shown, closed, focused and opened.
+  - **The remembered "Teď ne"** (C8b) lives in `localStorage`: `emptyThePhone()` clears it with the phone's IndexedDB before every test, a reopened app finds it as the phone kept it, and `phoneRemembersNotNow()` sets it before a launch.
 - **What tests cannot show:** that Apple accepts our token and encryption. That is the manual check on the iPhone (C8b, [tests/manual-scenarios.md](../../tests/manual-scenarios.md)).
 
 ## Test sign-in: fake the signature, never the security code

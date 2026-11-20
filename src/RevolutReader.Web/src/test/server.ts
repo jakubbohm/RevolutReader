@@ -30,6 +30,11 @@ import { realTurn } from "./clock";
  *
  * The answers to the push key and the device's subscription (c011 design.md D8, D9) sit in blocks marked "c011", in the
  * same vocabulary. They are the first requests with a body: `bodiesSent()` gives what the app sent in each.
+ *
+ * The phone's storage holds, besides the balance in IndexedDB, the remembered "Teď ne" in `localStorage` (c012
+ * design.md D5, D10, in blocks marked "c012"): `emptyThePhone()` clears it with the rest, a reopened app finds it as the
+ * phone kept it, and `phoneRemembersNotNow()` sets it before a launch. A failing `PUT /api/push/subscription` needs
+ * nothing new: a test sets it as `subscription: serverError` (or any other `Trouble`).
  */
 
 /** What any request can meet besides its own answers. */
@@ -569,14 +574,29 @@ export async function keptBalance(): Promise<KeptBalance | null> {
   return (kept as KeptBalance | undefined) ?? null;
 }
 
+// ---- c012: the remembered "Teď ne" (design.md D5) ----
+
+/** Where the app remembers "Teď ne" on the device, and the value it writes (c012 design.md D5). */
+const NOT_NOW_KEY = "tarjeta-papa.notifications.not-now";
+const NOT_NOW_VALUE = "1";
+
 /**
- * The phone keeps nothing: every store of its database is emptied, and the database is created if it is missing, with
- * the store as the app's storage creates it. Called by `setup.ts` before every test. The database is emptied in place
- * rather than replaced: the app may keep its storage's connection open from an earlier test in the same file (idb-keyval
- * opens it once per store and keeps it), so a new IndexedDB would leave the app reading the old one, and deleting the
- * database would wait forever for that connection to close.
+ * The phone remembers that "Teď ne" was tapped on it earlier, as the app stores it (c012 design.md D5: `localStorage`,
+ * key `tarjeta-papa.notifications.not-now`, value `"1"`). Call it before `renderApp`.
+ */
+export function phoneRemembersNotNow(): void {
+  globalThis.localStorage.setItem(NOT_NOW_KEY, NOT_NOW_VALUE);
+}
+
+/**
+ * The phone keeps nothing: `localStorage` is cleared (c012: the remembered "Teď ne"), and every store of its database is
+ * emptied, the database created if it is missing, with the store as the app's storage creates it. Called by `setup.ts`
+ * before every test. The database is emptied in place rather than replaced: the app may keep its storage's connection
+ * open from an earlier test in the same file (idb-keyval opens it once per store and keeps it), so a new IndexedDB would
+ * leave the app reading the old one, and deleting the database would wait forever for that connection to close.
  */
 export async function emptyThePhone(): Promise<void> {
+  globalThis.localStorage.clear();
   const database = await openPhoneDatabase();
   try {
     const names = [...database.objectStoreNames];
