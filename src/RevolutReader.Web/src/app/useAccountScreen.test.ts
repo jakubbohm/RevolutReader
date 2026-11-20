@@ -16,6 +16,7 @@ import {
   bodiesSent,
   closeApp,
   emptyThePhone,
+  forgotten,
   goOffline,
   goOnline,
   kept,
@@ -992,3 +993,205 @@ test.each(upkeepsWithNoAnswer)(
     ).toHaveLength(1);
   },
 );
+
+// ---- c013: the sign-out (design.md D2, D4) ----
+// "Odhlásit se" is busy from the tap. It first asks the server to forget this device, while the login still allows it,
+// with the 60 s limit; then C7a's sign-out request goes out. Once the server has confirmed the sign-out, the phone is
+// unsubscribed together with the stored balance being forgotten, both before the signed-out screen shows.
+
+const FORGET_ASKED = "DELETE /api/push/subscription";
+const SIGN_OUT = "POST /api/auth/logout";
+
+/** The sign-out's requests so far, in order: the forget and the sign-out request. */
+function signOutRequestsSent(): string[] {
+  return requests().filter(
+    (sent) => sent === FORGET_ASKED || sent === SIGN_OUT,
+  );
+}
+
+/** What the screen asked the server to forget, in order, as the bodies it sent. */
+function forgetsSent(): unknown[] {
+  return bodiesSent()
+    .filter((sent) => sent.request === FORGET_ASKED)
+    .map((sent) => sent.body);
+}
+
+/** Where this entry first is on the server's timeline; it must be there. */
+function whenOnTheTimeline(entry: string): number {
+  const at = timeline().indexOf(entry);
+  expect(at, `${entry} on the timeline`).not.toBe(-1);
+  return at;
+}
+
+// ---- 16.1 ----
+
+test("The sign-out asks the server to forget this device before its sign-out request, with the menu item busy from the tap", async () => {
+  startTestClock();
+  phoneSubscribed();
+  answerWith({
+    ...LUCIES_SERVER,
+    forgetSubscription: after(READ_TIME, forgotten),
+    signOut: after(READ_TIME, signedOut),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  act(() => {
+    result.current.signOut();
+  });
+  expect(result.current.shown, "busy from the tap").toMatchObject({
+    screen: "account",
+    signingOut: true,
+  });
+
+  await timePasses(0);
+  expect(signOutRequestsSent(), "the forget first, alone").toEqual([
+    FORGET_ASKED,
+  ]);
+  expect(forgetsSent(), "this device's push address").toEqual([
+    { endpoint: LUCIES_PHONE },
+  ]);
+  expect(result.current.shown, "busy while it is forgotten").toMatchObject({
+    screen: "account",
+    signingOut: true,
+  });
+
+  await timePasses(READ_TIME);
+  expect(signOutRequestsSent(), "then the sign-out request").toEqual([
+    FORGET_ASKED,
+    SIGN_OUT,
+  ]);
+  expect(
+    whenOnTheTimeline(`answer ${FORGET_ASKED}`),
+    "the forget answered before the sign-out request",
+  ).toBeLessThan(whenOnTheTimeline(`request ${SIGN_OUT}`));
+  expect(result.current.shown, "busy while it signs out").toMatchObject({
+    screen: "account",
+    signingOut: true,
+  });
+
+  await timePasses(READ_TIME);
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+});
+
+// ---- 16.2 ----
+
+test("A confirmed sign-out unsubscribes the phone, together with forgetting the stored balance, before the signed-out screen shows", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith({ ...LUCIES_SERVER, signOut: after(READ_TIME, signedOut) });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(await keptBalance(), "the balance kept").toMatchObject({
+    amount: 286.4,
+  });
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(signOutRequestsSent(), "the sign-out request waits").toEqual([
+    FORGET_ASKED,
+    SIGN_OUT,
+  ]);
+  expect(phone.subscription(), "the phone keeps its subscription").toBe(held);
+  expect(await keptBalance(), "and the balance").toMatchObject({
+    amount: 286.4,
+  });
+
+  await timePasses(READ_TIME);
+
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(phone.subscription(), "the phone holds none").toBeNull();
+  expect(await keptBalance(), "no balance kept").toBeNull();
+  expect(signOutRequestsSent(), "nothing more asked of the server").toEqual([
+    FORGET_ASKED,
+    SIGN_OUT,
+  ]);
+});
+
+test("A confirmed sign-out unsubscribes the phone, together with forgetting the stored balance, before the signed-out screen shows: the signed-out screen waits for the phone's unsubscribe", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "granted",
+    subscription: {
+      endpoint: LUCIES_PHONE,
+      applicationServerKey: SERVER_KEY,
+      unsubscribeWaits: true,
+    },
+  });
+  answerWith({ ...LUCIES_SERVER, signOut: signedOut });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  whenOnTheTimeline(`answer ${SIGN_OUT}`);
+  expect(
+    result.current.shown,
+    "the sign-out confirmed, the phone still unsubscribing: not signed out yet",
+  ).toMatchObject({ screen: "account", signingOut: true });
+
+  // The phone's unsubscribe settles, with no time passing.
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(phone.subscription(), "the phone holds none").toBeNull();
+  expect(await keptBalance(), "no balance kept").toBeNull();
+});
+
+// ---- 16.3 ----
+
+test("A forget with no answer after 60 s is given up, and the sign-out goes on", async () => {
+  startTestClock();
+  phoneSubscribed();
+  answerWith({
+    ...LUCIES_SERVER,
+    forgetSubscription: noAnswerYet,
+    signOut: signedOut,
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(signOutRequestsSent(), "the forget waits").toEqual([FORGET_ASKED]);
+
+  await timePasses(59 * SECOND);
+  expect(timeline(), "at 59 s, still waiting").not.toContain(
+    `aborted ${FORGET_ASKED}`,
+  );
+  expect(signOutRequestsSent(), "no sign-out request yet").toEqual([
+    FORGET_ASKED,
+  ]);
+  expect(result.current.shown, "busy all the while").toMatchObject({
+    screen: "account",
+    signingOut: true,
+  });
+
+  await timePasses(SECOND);
+  expect(timeline(), "at 60 s, given up").toContain(`aborted ${FORGET_ASKED}`);
+  expect(signOutRequestsSent(), "the sign-out goes on").toEqual([
+    FORGET_ASKED,
+    SIGN_OUT,
+  ]);
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+});
