@@ -110,9 +110,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 16. [unit] Slice 6 — The sign-out (`useAccountScreen`)
 
-- [ ] 16.1 The sign-out asks the server to forget this device before its sign-out request, with the menu item busy from the tap
-- [ ] 16.2 A confirmed sign-out unsubscribes the phone, together with forgetting the stored balance, before the signed-out screen shows
-- [ ] 16.3 A forget with no answer after 60 s is given up, and the sign-out goes on
+- [x] 16.1 The sign-out asks the server to forget this device before its sign-out request, with the menu item busy from the tap
+- [x] 16.2 A confirmed sign-out unsubscribes the phone, together with forgetting the stored balance, before the signed-out screen shows
+- [x] 16.3 A forget with no answer after 60 s is given up, and the sign-out goes on
 
 ## 17. [close] Slice 6 — Signing out asks the server to forget the phone and unsubscribes it
 
