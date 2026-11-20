@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { CircleUserRound, LoaderCircle, LogOut } from "lucide-react";
+import { Bell, CircleUserRound, LoaderCircle, LogOut } from "lucide-react";
 import { useState, type JSX } from "react";
 
 /** Who is signed in, as the server names them (c007 design.md D3). */
@@ -24,12 +24,17 @@ export interface AccountMenuProps {
   onEnableNotifications?: () => void;
 }
 
+/** A menu item: a 44 pt row with its icon and label, highlighted on hover and focus. */
+const ITEM =
+  "flex min-h-touch cursor-pointer items-center gap-3 rounded-control px-3 text-body outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus data-[highlighted]:bg-surface-muted";
+
 /**
  * The top bar's account menu (design system AppShell, c007 design.md D12), a Radix `DropdownMenu` that leaves the page
  * unlocked (`modal={false}`): the trigger is a ghost icon button, 44 × 44 and round, with `circle-user-round` at 24 px,
  * labelled "Účet a odhlášení"; the menu holds the label "Přihlášený účet", the name in full (a word too long for the
- * line breaks inside it) and the email, cut with an ellipsis when long, a separator, and one item, "Odhlásit se" with
- * `log-out`, 44 pt tall. Nothing else goes in this menu. It fades in over `duration-fast`, also under reduced motion (a
+ * line breaks inside it) and the email, cut with an ellipsis when long, a separator, and the items, 44 pt tall: while a
+ * handler for it is passed, "Zapnout upozornění" with `bell` (c012 design.md D7), then "Odhlásit se" with `log-out`.
+ * Nothing else goes in this menu. It fades in over `duration-fast`, also under reduced motion (a
  * fade, not a movement). Keyboard, VoiceOver, Escape and a tap outside work through Radix.
  *
  * While the sign-out runs (c009 design.md D6), the menu stays open and "Odhlásit se" is busy: the spinner in place of
@@ -40,6 +45,7 @@ export function AccountMenu({
   account,
   onSignOut,
   signingOut = false,
+  onEnableNotifications,
 }: AccountMenuProps): JSX.Element {
   const [open, setOpen] = useState(false);
 
@@ -83,10 +89,16 @@ export function AccountMenu({
             </span>
           </DropdownMenu.Label>
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          {onEnableNotifications !== undefined ? (
+            <DropdownMenu.Item className={ITEM}>
+              <Bell size={20} aria-hidden="true" />
+              Zapnout upozornění
+            </DropdownMenu.Item>
+          ) : null}
           <DropdownMenu.Item
             onSelect={selectSignOut}
             aria-busy={signingOut || undefined}
-            className="flex min-h-touch cursor-pointer items-center gap-3 rounded-control px-3 text-body outline-none select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus data-[highlighted]:bg-surface-muted aria-busy:cursor-progress"
+            className={`${ITEM} aria-busy:cursor-progress`}
           >
             {signingOut ? (
               <LoaderCircle

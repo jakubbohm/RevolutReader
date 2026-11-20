@@ -153,8 +153,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 25. [unit] Slice 10 — The menu's item
 
-- [ ] 25.1 With a handler for it, the account menu holds "Zapnout upozornění" with the bell above "Odhlásit se", in the same style
-- [ ] 25.2 Without one, the menu holds the one item "Odhlásit se"
+- [x] 25.1 With a handler for it, the account menu holds "Zapnout upozornění" with the bell above "Odhlásit se", in the same style
+- [x] 25.2 Without one, the menu holds the one item "Odhlásit se"
 
 ## 26. [wiring] Slice 10 — The item in the menu
 
