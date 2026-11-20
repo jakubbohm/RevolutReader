@@ -53,7 +53,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 5. [close] Slice 1 — The subscription is sent to the server again when the app opens
 
-- [ ] 5.1 Its acceptance test passes. Verify: it, and the full suite apart from this change's later scenarios, are green
+- [x] 5.1 Its acceptance test passes. Verify: it, and the full suite apart from this change's later scenarios, are green
 
 ## 6. [unit] Slice 2 — Only while notifications are allowed (`keepSubscriptionUp`)
 
