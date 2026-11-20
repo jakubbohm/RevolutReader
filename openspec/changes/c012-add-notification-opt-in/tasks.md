@@ -84,8 +84,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 10. [unit] Slice 4 — The card turning on
 
-- [ ] 10.1 Enabling: "Zapnout upozornění" spins beside its label, is busy and ignores taps; "Teď ne" is disabled
-- [ ] 10.2 Enabled: the ringing bell, "Upozornění jsou zapnutá", its sentence, no button, announced as a status
+- [x] 10.1 Enabling: "Zapnout upozornění" spins beside its label, is busy and ignores taps; "Teď ne" is disabled
+- [x] 10.2 Enabled: the ringing bell, "Upozornění jsou zapnutá", its sentence, no button, announced as a status
 
 ## 11. [wiring] Slice 4 — Turning on from the card
 
