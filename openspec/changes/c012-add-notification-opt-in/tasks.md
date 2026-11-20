@@ -185,7 +185,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 32. [close] Slice 12 — The account menu, with notifications blocked, says where to turn them on
 
-- [ ] 32.1 The scenario's test passes. Verify: green, including notification-opt-in / The account menu, with notifications blocked, says where to turn them on
+- [x] 32.1 The scenario's test passes. Verify: green, including notification-opt-in / The account menu, with notifications blocked, says where to turn them on
 
 ## 33. [unit] Slice 13 — Failing offline
 
