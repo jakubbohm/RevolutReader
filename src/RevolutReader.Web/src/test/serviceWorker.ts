@@ -14,7 +14,9 @@ import type {
  * - `location.origin`: the service worker's own origin, by default `ORIGIN`.
  * - `registration.showNotification(title, options)`: shows a notification of the service worker's own, recorded in
  *   `shownNotifications()` with its title, body and data.
- * - `clients`: the windows of the app open now (`openWindows`, by default none). `matchAll` answers them;
+ * - `clients`: the windows open now (`openWindows`, by default none; and `uncontrolledWindows`, which `matchAll` answers
+ *   only with `includeUncontrolled: true`). `matchAll` answers them, whatever their origin, so a test can check that
+ *   the handler counts only its own origin's as the app;
  *   `focus()` on one brings it to the front (`focusedWindows()`); `openWindow(url)` opens a new one
  *   (`openedWindows()`), which then counts as open.
  * - A push (`deliverPush(json)`): the event carries the push's data as JSON. A browser that reads Declarative Web Push
@@ -43,8 +45,13 @@ export interface ServiceWorkerStandInOptions {
    * message too (it proposes no notification of its own); by default not. Not combined with `declarative`, which it overrides.
    */
   proposesNull?: boolean;
-  /** The addresses of the app's windows open now; by default none. */
+  /** The addresses of the windows open now, controlled by the service worker; by default none. */
   openWindows?: readonly string[];
+  /**
+   * The addresses of windows open now that the service worker does not control (e.g. opened before it took over);
+   * `matchAll` answers them only with `includeUncontrolled: true`, as the browser does; by default none.
+   */
+  uncontrolledWindows?: readonly string[];
   /** The service worker's own origin; by default `ORIGIN`. */
   origin?: string;
 }
@@ -98,6 +105,9 @@ export function installServiceWorkerStandIn(
     },
   });
   const windows: WindowLike[] = (options.openWindows ?? []).map(windowAt);
+  const uncontrolled: WindowLike[] = (options.uncontrolledWindows ?? []).map(
+    windowAt,
+  );
 
   const worker: PushWorker = {
     location: { origin },
@@ -114,7 +124,11 @@ export function installServiceWorkerStandIn(
       },
     },
     clients: {
-      matchAll: () => Promise.resolve([...windows]),
+      matchAll: (matchOptions) =>
+        Promise.resolve([
+          ...windows,
+          ...(matchOptions.includeUncontrolled ? uncontrolled : []),
+        ]),
       openWindow: (url) => {
         opened.push(url);
         const newWindow = windowAt(url);

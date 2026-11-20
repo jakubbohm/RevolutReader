@@ -265,3 +265,79 @@ test("A page that cannot be read opens the start page", async () => {
 
   expect(emptyPage.openedWindows(), "an empty page").toEqual([`${ORIGIN}/`]);
 });
+
+// ---- A tap with the app open: listenForPushes (group 48) ----
+
+test("With a window of the app open, a tap focuses it and opens no other", async () => {
+  const cases: [
+    string,
+    { openWindows?: string[]; uncontrolledWindows?: string[]; focused: string },
+  ][] = [
+    ["at the start page", { openWindows: [APP_PAGE], focused: APP_PAGE }],
+    [
+      // Focused as it is, not taken to the message's page: the app has one page (design.md D9).
+      "at another address of the app",
+      {
+        openWindows: [`${ORIGIN}/?z=jinde#nahore`],
+        focused: `${ORIGIN}/?z=jinde#nahore`,
+      },
+    ],
+    [
+      "not yet controlled by the service worker",
+      { uncontrolledWindows: [APP_PAGE], focused: APP_PAGE },
+    ],
+    [
+      "next to a window on another site",
+      {
+        openWindows: ["https://jinde.example/", APP_PAGE],
+        focused: APP_PAGE,
+      },
+    ],
+  ];
+
+  for (const [name, { focused, ...windows }] of cases) {
+    const serviceWorker = installServiceWorkerStandIn(windows);
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.deliverPush(pushOpening(APP_PAGE));
+
+    await serviceWorker.tapNotification();
+
+    expect(serviceWorker.focusedWindows(), name).toEqual([focused]);
+    expect(serviceWorker.openedWindows(), name).toEqual([]);
+  }
+
+  // With two windows of the app open, one of them comes to the front (D9 does not say which).
+  const twoWindows = [APP_PAGE, `${ORIGIN}/?z=druhe`];
+  const withTwo = installServiceWorkerStandIn({ openWindows: twoWindows });
+  listenForPushes(withTwo.worker);
+  await withTwo.deliverPush(pushOpening(APP_PAGE));
+
+  await withTwo.tapNotification();
+
+  const focusedOfTwo = withTwo.focusedWindows();
+  expect(focusedOfTwo, "two windows").toHaveLength(1);
+  expect(twoWindows, "two windows").toContain(focusedOfTwo[0]);
+  expect(withTwo.openedWindows(), "two windows").toEqual([]);
+});
+
+test("A window on another origin does not count as the app", async () => {
+  const cases: [string, string][] = [
+    ["another site", "https://jinde.example/"],
+    ["another port of the same host", "https://tarjeta-papa.example:8443/"],
+    ["a host that begins with the app's", `${ORIGIN}.jinde.example/`],
+    ["the same host over http", "http://tarjeta-papa.example/"],
+  ];
+
+  for (const [name, otherWindow] of cases) {
+    const serviceWorker = installServiceWorkerStandIn({
+      openWindows: [otherWindow],
+    });
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.deliverPush(pushOpening(APP_PAGE));
+
+    await serviceWorker.tapNotification();
+
+    expect(serviceWorker.focusedWindows(), name).toEqual([]);
+    expect(serviceWorker.openedWindows(), name).toEqual([APP_PAGE]);
+  }
+});
