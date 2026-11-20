@@ -243,6 +243,15 @@ The principle is DoseUp's (its software-factory entry F-68). The mechanics diffe
 
   Microsoft's own pages are not under automated test: C6 checks them locally and after deployment, and the iPhone Home Screen app by hand ([tests/manual-scenarios.md](../../tests/manual-scenarios.md)).
 
+## Fake servers listen on loopback only
+
+Decided 2026-11-20, after the tests kept bringing up Windows Defender Firewall's prompt ([lessons.md R-80](../software-factory/lessons.md)).
+
+- **Every WireMock.Net server a test starts listens on `127.0.0.1`, at a free port,** never on every network interface. Started without an address, WireMock.Net listens on all of them (Kestrel's `ListenAnyIP`; 2.21.0, its source read 2026-11-20). On Windows a program that does brings up Windows Defender Firewall's prompt, which needs an administrator, once for every path the test executables run from: the main checkout, every worktree and every throwaway copy. While the tests ran, the fakes could also be reached from the network.
+- **One way to start one:** `LoopbackWireMock.Start(settings)`, in the acceptance project's `Drivers/` and compiled into the integration project as a link, as the stores' in-memory fakes are (§ Integration tests). The address is the helper's own; settings that name one are a bug. It has to be the IP address: WireMock.Net listens on every interface for `localhost` with port 0. A fake's address is therefore `http://127.0.0.1:<port>`.
+- **The build enforces it:** `BannedSymbols.txt` bans WireMock.Net's own start methods, all seven overloads, so a new fake that skips the helper does not compile. The self-test `HarnessSelfTests/LoopbackWireMockSelfTests` reads the system's list of listening TCP sockets and checks that the helper's server is on the loopback address and nowhere else, so a WireMock.Net update that changes how it listens is caught, on Windows and on CI's Linux alike.
+- **The other servers the tests start already listen on loopback:** `ConnectionBreakingServer` and the held port in `FailedPushTests`. The app copies run on the in-memory test server and open no port, and Azurite's port is opened by Docker, not by the test process. Checked 2026-11-20 by sampling the test processes' listening sockets through a whole `dotnet test`: `127.0.0.1` only.
+
 ## Time and the background job
 
 - **The clock is `FakeTimeProvider`** (Microsoft.Extensions.TimeProvider.Testing, 10.11.0, 2026-10-14), swapped in by the harness, so a test can state "it is 2026-11-10 06:00". Since C6 every app copy runs on it (`FakeMicrosoft.Clock`), started at the real current time: Microsoft's ID token is checked against the real clock, so a test moves the clock only after signing in. The app takes the time only from `TimeProvider` ([README.md § C# style beyond tooling](README.md#c-style-beyond-tooling)).

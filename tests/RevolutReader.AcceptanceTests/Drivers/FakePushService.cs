@@ -111,13 +111,14 @@ public sealed class FakePushService : IDisposable {
   }
 
   /// <summary>
-  /// Starts a fake push service on a free local port, its own server kept out of every trace, as <see cref="FakeBank"/>'s
-  /// is (a push address in a trace would read as the app's), with <see cref="PushChecks"/> answering every request before
-  /// WireMock.Net's own handling. Call it before the app copy starts, so its origin is known.
+  /// Starts a fake push service on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server
+  /// kept out of every trace, as <see cref="FakeBank"/>'s is (a push address in a trace would read as the app's), with
+  /// <see cref="PushChecks"/> answering every request before WireMock.Net's own handling. Call it before the app copy
+  /// starts, so its origin is known.
   /// </summary>
   public static FakePushService Start() {
     PushChecks checks = new(Base64Url.DecodeFromChars(_vapidPair.Value.PublicKey));
-    WireMockServer server = WireMockServer.Start(new WireMockServerSettings {
+    WireMockServer server = LoopbackWireMock.Start(new WireMockServerSettings {
       AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry,
       PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(checks.Answer),
     });
