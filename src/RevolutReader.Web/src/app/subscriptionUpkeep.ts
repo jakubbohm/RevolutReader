@@ -6,11 +6,13 @@
 
 import {
   currentSubscription,
+  forgetSubscription,
   madeWith,
   pushSupported,
   readPushKey,
   sendSubscription,
   subscribe,
+  unsubscribe,
 } from "./push";
 
 /**
@@ -52,6 +54,7 @@ export type UpkeepOutcome =
 
 const SENT_AGAIN = { kind: "sent again" } as const;
 const SUBSCRIBED_AGAIN = { kind: "subscribed again" } as const;
+const REPLACED = { kind: "replaced" } as const;
 const STOPPED = { kind: "stopped" } as const;
 const NOT_ALLOWED = { kind: "not allowed" } as const;
 
@@ -88,26 +91,62 @@ export async function keepSubscriptionUp(options: {
     return STOPPED;
   }
 
-  // Step 4: none held: subscribe with the server's key, then send the new one. A failed subscribe, or one the limit
-  // gave up on, waits for the next opening; a subscription that settles after the limit is kept, and sent again then.
-  if (held === null) {
-    let made: PushSubscription;
-    try {
-      made = await beforeTheLimit(
-        () => subscribe(registration, read.key),
-        signal,
-      );
-    } catch {
-      return STOPPED;
-    }
-    return sentAs(made, SUBSCRIBED_AGAIN, signal);
-  }
+  // Step 4: none held: subscribe with the server's key, then send the new one.
+  if (held === null)
+    return subscribedAndSent(registration, read.key, SUBSCRIBED_AGAIN, signal);
 
-  // Step 5, one made with another key, is not built yet: the upkeep stops.
-  if (namesItsKey(held) && !madeWith(held, read.key)) return STOPPED;
+  // Step 5: made with a key the browser names, not the server's: replaced.
+  if (namesItsKey(held) && !madeWith(held, read.key))
+    return replaced(registration, held, read.key, signal);
 
   // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
   return sentAs(held, SENT_AGAIN, signal);
+}
+
+/**
+ * Step 5 (D1): the server forgets the old push address first. Only once it has answered that it forgot it, the phone
+ * unsubscribes the old subscription, then subscribes with the server's key and sends the new one. A forget that does not
+ * answer so leaves the phone untouched, and the next opening tries the whole replacement again; an unsubscribe that
+ * fails, answers that it did not unsubscribe, or that the limit gave up on, stops before subscribing.
+ */
+async function replaced(
+  registration: ServiceWorkerRegistration,
+  old: PushSubscription,
+  key: string,
+  signal: AbortSignal | undefined,
+): Promise<UpkeepOutcome> {
+  const forgot = await forgetSubscription(old.endpoint, { signal });
+  if (forgot.kind !== "done") return STOPPED;
+
+  let unsubscribed: boolean;
+  try {
+    unsubscribed = await beforeTheLimit(() => unsubscribe(old), signal);
+  } catch {
+    return STOPPED;
+  }
+  if (!unsubscribed) return STOPPED;
+
+  return subscribedAndSent(registration, key, REPLACED, signal);
+}
+
+/**
+ * Subscribes with the server's key, then sends the new subscription as `outcome` (steps 4 and 5). A failed subscribe, or
+ * one the limit gave up on, stops the upkeep with nothing sent; a subscription that settles after the limit is kept, and
+ * the next opening sends it again.
+ */
+async function subscribedAndSent(
+  registration: ServiceWorkerRegistration,
+  key: string,
+  outcome: UpkeepOutcome,
+  signal: AbortSignal | undefined,
+): Promise<UpkeepOutcome> {
+  let made: PushSubscription;
+  try {
+    made = await beforeTheLimit(() => subscribe(registration, key), signal);
+  } catch {
+    return STOPPED;
+  }
+  return sentAs(made, outcome, signal);
 }
 
 /** Sends the subscription to the server: `outcome` once it is stored; anything else stops the upkeep. */

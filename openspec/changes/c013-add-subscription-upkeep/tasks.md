@@ -93,9 +93,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 13. [unit] Slice 5 — Replacing a subscription made with another key (`keepSubscriptionUp`)
 
-- [ ] 13.1 A subscription made with another key: the server forgets its push address first, then the phone unsubscribes it, subscribes with the server's key and sends the new one
-- [ ] 13.2 A forget that does not answer "forgotten" leaves the phone's subscription untouched and sends nothing more
-- [ ] 13.3 A failed unsubscribe stops the upkeep before it subscribes
+- [x] 13.1 A subscription made with another key: the server forgets its push address first, then the phone unsubscribes it, subscribes with the server's key and sends the new one
+- [x] 13.2 A forget that does not answer "forgotten" leaves the phone's subscription untouched and sends nothing more
+- [x] 13.3 A failed unsubscribe stops the upkeep before it subscribes
 
 ## 14. [close] Slice 5 — A subscription made with another key is replaced quietly
 
