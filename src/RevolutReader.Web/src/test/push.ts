@@ -7,7 +7,10 @@
  * What they stand in for, as the browsers behave:
  * - `Notification`: its `permission` (`default`, `granted`, `denied`) and `requestPermission()`, which answers the
  *   test's `permissionAnswer` and keeps it as the permission from then on.
- * - `PushManager`, on a service worker registration (`navigator.serviceWorker.ready` resolves to it):
+ * - The service worker (c013 design.md D1): `navigator.serviceWorker.getRegistration()` settles with the registration,
+ *   and `navigator.serviceWorker.ready` resolves to it. Under `registered: false` the browser has a service worker but
+ *   none is registered, as on Vite's dev server: `getRegistration()` settles with `undefined`, and `ready` never settles.
+ * - `PushManager`, on that registration:
  *   - `subscribe(options)` records what it was asked (`subscribeRequests`), then: fails with the test's
  *     `subscribeFails`; asks for permission first while it is `default`; fails with `NotAllowedError` unless the
  *     permission is `granted` and `userVisibleOnly` is true; fails with `AbortError` without an `applicationServerKey`;
@@ -55,6 +58,12 @@ export interface PushStandInOptions {
   subscribeFails?: Error | true;
   /** Features this browser does not have. */
   without?: readonly PushFeature[];
+  /**
+   * Whether a service worker is registered; by default true. `false`: the browser has a service worker but none is
+   * registered, as on Vite's dev server (c013 design.md D1): `getRegistration()` settles with `undefined`, and `ready`
+   * never settles.
+   */
+  registered?: boolean;
 }
 
 /** What `subscribe` was asked: `userVisibleOnly` as given, the key as bytes when given as bytes, as text when text. */
@@ -65,7 +74,10 @@ export interface SubscribeRequest {
 
 /** The installed stand-ins, and what was asked of them. */
 export interface PushStandIns {
-  /** The service worker registration, as `navigator.serviceWorker.ready` resolves to it. */
+  /**
+   * The service worker registration, as `navigator.serviceWorker.getRegistration()` settles with it and
+   * `navigator.serviceWorker.ready` resolves to it (unless `registered: false`).
+   */
   registration: ServiceWorkerRegistration;
   /** What each `subscribe` was asked, in order. */
   subscribeRequests(): SubscribeRequest[];
@@ -186,9 +198,15 @@ export function installPushStandIns(
     put(globalThis, "Notification", StandInNotification);
   if (!without.has("PushManager"))
     put(globalThis, "PushManager", StandInPushManager);
+  const registered = options.registered ?? true;
   if (!without.has("service worker"))
     put(navigator, "serviceWorker", {
-      ready: Promise.resolve(registration),
+      // Without a registered worker, `ready` waits for one for good, as browsers do (c013 design.md D1).
+      ready: registered
+        ? Promise.resolve(registration)
+        : new Promise<ServiceWorkerRegistration>(() => {}),
+      getRegistration: (): Promise<ServiceWorkerRegistration | undefined> =>
+        Promise.resolve(registered ? registration : undefined),
       controller: null,
     });
 

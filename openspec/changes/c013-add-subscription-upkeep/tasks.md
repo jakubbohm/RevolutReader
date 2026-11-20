@@ -10,23 +10,23 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (the test-writer's, design.md § Public API sketch):
+- [x] 1.1 Foundation (the test-writer's, design.md § Public API sketch):
   - `src/test/push.ts`: the stand-in's `navigator.serviceWorker` gains `getRegistration()`, which settles with the registration, and with `undefined` under a new option `registered: false`, a browser with a service worker but none registered (Vite's dev server). `ready` stays as it is;
   - `src/scenarios/push-devices.test.tsx` with its helpers; anything the scenarios need from `src/test/server.ts`, e.g. a `signsInAgain(…)` helper over `answerWith(…)`;
   - `src/app/subscriptionUpkeep.ts` as signatures whose functions throw, and `watchReturns` in `src/app/refreshTriggers.ts`, likewise.
 
   Verify: the frontend checks pass, and every frontend test that was green stays green
-- [ ] 1.2 Acceptance: push-devices / The subscription is sent to the server again when the app opens (frontend)
-- [ ] 1.3 Acceptance: push-devices / The subscription is sent to the server again on every return to the app (frontend)
-- [ ] 1.4 Acceptance: push-devices / A subscription the phone has lost is replaced quietly (frontend)
-- [ ] 1.5 Acceptance: push-devices / A subscription made with another key is replaced quietly (frontend)
-- [ ] 1.6 Acceptance: push-devices / Nothing is subscribed while notifications are not allowed (frontend; green from the start)
-- [ ] 1.7 Acceptance: push-devices / Signing out asks the server to forget the phone and unsubscribes it (frontend)
-- [ ] 1.8 Acceptance: push-devices / A failed request to forget the phone does not fail the sign-out (frontend)
-- [ ] 1.9 Acceptance: push-devices / A failed sign-out keeps the subscription (frontend; green from the start)
-- [ ] 1.10 Acceptance: push-devices / A login that has ended unsubscribes the phone (frontend)
-- [ ] 1.11 Acceptance: push-devices / After signing in again, the phone subscribes without a tap (frontend)
-- [ ] 1.12 Acceptance: push-devices / After signing out and in again on the iPhone, a message arrives without a tap (manual): its row in `tests/manual-scenarios.md`. It is manual because only Apple's push service and the iPhone's Home Screen app can show it. First chance: after C8c's merge deploys, with a phone subscribed through C8b's card. Handover step M7; the date is left empty
+- [x] 1.2 Acceptance: push-devices / The subscription is sent to the server again when the app opens (frontend)
+- [x] 1.3 Acceptance: push-devices / The subscription is sent to the server again on every return to the app (frontend)
+- [x] 1.4 Acceptance: push-devices / A subscription the phone has lost is replaced quietly (frontend)
+- [x] 1.5 Acceptance: push-devices / A subscription made with another key is replaced quietly (frontend)
+- [x] 1.6 Acceptance: push-devices / Nothing is subscribed while notifications are not allowed (frontend; green from the start)
+- [x] 1.7 Acceptance: push-devices / Signing out asks the server to forget the phone and unsubscribes it (frontend)
+- [x] 1.8 Acceptance: push-devices / A failed request to forget the phone does not fail the sign-out (frontend)
+- [x] 1.9 Acceptance: push-devices / A failed sign-out keeps the subscription (frontend; green from the start)
+- [x] 1.10 Acceptance: push-devices / A login that has ended unsubscribes the phone (frontend)
+- [x] 1.11 Acceptance: push-devices / After signing in again, the phone subscribes without a tap (frontend)
+- [x] 1.12 Acceptance: push-devices / After signing out and in again on the iPhone, a message arrives without a tap (manual): its row in `tests/manual-scenarios.md`. It is manual because only Apple's push service and the iPhone's Home Screen app can show it. First chance: after C8c's merge deploys, with a phone subscribed through C8b's card. Handover step M7; the date is left empty
 
 ## 2. [unit] Slice 1 — Finding the registration (`pushRegistration`)
 
