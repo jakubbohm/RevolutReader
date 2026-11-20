@@ -330,7 +330,7 @@ $keys = $null; $local = $null
 
 ### After the first deploy with C8a
 
-These are c011 design.md § Migration plan, step 4, in order. Findings go into `pm/progress.md`, through a small docs PR if they come after the archive.
+These are c011 design.md § Migration plan, step 4, in order. They are routine checks after the deploy: their results are reported to the owner, and a check that fails gets its own fix PR. No docs PR only records them ([workflow.md § 6](../conventions/workflow.md#6-openspec), the owner, 2026-11-20).
 
 1. **The deploy:** it runs, and the new revision starts. There is no missing secret, which would stop it.
 2. **Read-only:** the table exists, and the container app has the three push secrets and `Push__Subject` at its own address (`subject` equals `https://` + `fqdn`):
