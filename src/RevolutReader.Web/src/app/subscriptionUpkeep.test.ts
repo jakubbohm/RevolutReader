@@ -1307,6 +1307,70 @@ test("Forgetting this device sends the push address of the phone's subscription,
   expect(requests(), "nothing sent once the browser answers late").toEqual([]);
 });
 
+// Review finding 1 (PR 81): asking the browser for its registration is one of the browser's own calls too, and takes no
+// signal, so an upkeep and the forget before a sign-out stop waiting for it when the limit fires (D1; D2: the forget
+// "has the 60 s limit"). Left waiting for good, an upkeep would never end, so no later opening would start one, and a
+// sign-out would never reach its sign-out request. What the upkeep answers then is not pinned: nothing is done either
+// way, and an upkeep's outcome is never shown (D1, "Quietly").
+
+/** What asks the browser for its registration first: an upkeep, or the forget before a sign-out (D1, D2). */
+const askersOfTheRegistration: {
+  label: string;
+  start: (signal: AbortSignal, browser: Window) => Promise<unknown>;
+}[] = [
+  {
+    label: "an upkeep",
+    start: (signal, browser) =>
+      keepSubscriptionUp({ stillSignedIn: () => true, signal, browser }),
+  },
+  {
+    label: "the forget before a sign-out",
+    start: (signal, browser) => forgetThisDevice({ signal, browser }),
+  },
+];
+
+test.each(askersOfTheRegistration)(
+  "Asking the browser for its registration with no answer ends with the limit, and nothing is sent: $label",
+  async ({ start }) => {
+    startTestClock();
+    // Lucie's phone, with notifications allowed and a subscription made with the server's key: had the browser
+    // answered, the upkeep would send it again and the forget would send its push address.
+    const phone = phoneSubscribedWith(SERVER_KEY);
+    const held = phone.subscription()!;
+    let answerLate: (() => void) | undefined;
+    const browser = aBrowserOfItsOwn({
+      getRegistration: () =>
+        new Promise<ServiceWorkerRegistration | undefined>((resolve) => {
+          answerLate = () => {
+            resolve(phone.registration);
+          };
+        }),
+      permission: "granted",
+    });
+    answerWith(THE_SERVER);
+    const limit = new AbortController();
+
+    const running = start(limit.signal, browser).then(() => "ended" as const);
+    expect(await whereItStands(running), "waiting for the browser").toBe(
+      "still running",
+    );
+    expect(answerLate, "the browser was asked").toBeDefined();
+
+    limit.abort();
+
+    expect(await whereItStands(running), "ended by the limit").toBe("ended");
+    expect(requests(), "nothing sent").toEqual([]);
+
+    answerLate?.();
+    await timePasses(0);
+
+    expect(requests(), "nothing sent once the browser answers late").toEqual(
+      [],
+    );
+    expect(phone.subscription(), "the phone keeps it").toBe(held);
+  },
+);
+
 // ---- 15.2 ----
 
 test("Forgetting sends nothing without a registration or a subscription: none of push's features (jsdom as it is)", async () => {
