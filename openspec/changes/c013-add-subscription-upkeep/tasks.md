@@ -116,7 +116,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 17. [close] Slice 6 — Signing out asks the server to forget the phone and unsubscribes it
 
-- [ ] 17.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 17.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 18. [unit] Slice 7 — A failed forget (`useAccountScreen`, `forgetThisDevice`)
 
