@@ -266,6 +266,27 @@ test("A page that cannot be read opens the start page", async () => {
   expect(emptyPage.openedWindows(), "an empty page").toEqual([`${ORIGIN}/`]);
 });
 
+// Review finding (PR #78): a scheme other than http or https has a path that does not start with "/", so joined after
+// the origin it ran on into the host or the port. The tap opens a page on the app's own address only (D9).
+test("A page whose address has no path of the app's opens the start page, never another host or port", async () => {
+  const cases: [string, string][] = [
+    ["a user name ending the origin", "a:@evil.example/x"],
+    ["a longer host", "javascript:.evil.example/"],
+    ["letters run on into the host", "mailto:x"],
+    ["another port", "a::8080/x"],
+  ];
+
+  for (const [name, navigate] of cases) {
+    const serviceWorker = installServiceWorkerStandIn({ openWindows: [] });
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.deliverPush(pushOpening(navigate));
+
+    await serviceWorker.tapNotification();
+
+    expect(serviceWorker.openedWindows(), name).toEqual([`${ORIGIN}/`]);
+  }
+});
+
 // ---- A tap with the app open: listenForPushes (group 48) ----
 
 test("With a window of the app open, a tap focuses it and opens no other", async () => {
