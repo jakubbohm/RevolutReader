@@ -55,7 +55,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 4. [wiring] Slice 1 — The card under the balance
 
-- [ ] 4.1 `NotificationOptIn` (default state) as design.md D1 describes; `notificationOffer` as sketched; `useNotificationOptIn`, first part: the offer from `pushSupported`, `Notification.permission`, the signed-in user and the header; `AccountScreen` shows the card after the banner, under the header (D2); `App` composes the two hooks. Verify: groups 2–3 pass; the scenario runs against the app
+- [x] 4.1 `NotificationOptIn` (default state) as design.md D1 describes; `notificationOffer` as sketched; `useNotificationOptIn`, first part: the offer from `pushSupported`, `Notification.permission`, the signed-in user and the header; `AccountScreen` shows the card after the banner, under the header (D2); `App` composes the two hooks. Verify: groups 2–3 pass; the scenario runs against the app
 
 ## 5. [close] Slice 1 — The card offers notifications under the balance
 

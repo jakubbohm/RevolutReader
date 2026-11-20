@@ -2,6 +2,7 @@ import { useEffect, type JSX } from "react";
 import { needsInstallHint, type Device } from "./app/device";
 import { keepServerAwake, pingServer } from "./app/keepAwake";
 import { useAccountScreen } from "./app/useAccountScreen";
+import { useNotificationOptIn } from "./app/useNotificationOptIn";
 import { InstallHint } from "./components/InstallHint";
 import { AccountScreen } from "./screens/AccountScreen";
 import { NoAccessScreen } from "./screens/NoAccessScreen";
@@ -24,6 +25,13 @@ export function App({ device }: AppProps): JSX.Element {
  */
 function Screens(): JSX.Element {
   const { shown, list, refresh, retry, signOut } = useAccountScreen();
+  // The notification opt-in (c012 design.md D2): for the user the menu names, under the balance header or its placeholder.
+  const optIn = useNotificationOptIn({
+    signedIn: shown.screen === "account" && shown.account !== null,
+    underBalance: shown.screen === "account" && shown.header !== null,
+    onFailed: () => {},
+    onRetried: () => {},
+  });
 
   useEffect(() => keepServerAwake(pingServer), []);
 
@@ -40,6 +48,7 @@ function Screens(): JSX.Element {
           onRefresh={refresh}
           onRetry={retry}
           onSignOut={signOut}
+          optIn={optIn}
         />
       );
   }
