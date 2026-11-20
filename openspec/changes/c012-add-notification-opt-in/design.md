@@ -304,7 +304,7 @@ export interface PushWorker {
 export interface WindowLike { url: string; focus(): Promise<unknown> }
 export interface PushLike {
   data: { json(): unknown } | null;
-  notification?: unknown | null;        // the browser's proposed notification (Declarative Web Push), when it reads the format
+  notification?: unknown;               // the browser's proposed notification (Declarative Web Push), when it reads the format; undefined or null otherwise
   waitUntil(work: Promise<unknown>): void;
 }
 export interface NotificationClickLike {
@@ -319,7 +319,13 @@ export interface NotificationClickLike {
  */
 export function listenForPushes(worker: PushWorker): void;
 
-// sw.ts gains: listenForPushes(self) (its exact typing settled by the bootstrap's probe).
+// sw.ts gains: import { listenForPushes } from "./app/pushDisplay"; … listenForPushes(self);
+// Settled by the bootstrap's probe (2026-11-20): with sw.ts's `declare let self: ServiceWorkerGlobalScope`, `self` is
+// passed as it is, no cast and no wrapper: WebWorker's ServiceWorkerGlobalScope satisfies PushWorker exactly as typed
+// above (its generic addEventListener covers both overloads, its generic clients.matchAll the window-only signature,
+// WorkerLocation the origin). The module compiles under tsconfig.app.json (DOM) on its own and under tsconfig.sw.json
+// (WebWorker) through sw.ts; a member the scope lacks fails `tsc -b` in sw.ts (checked); `npm run build` bundles it
+// into dist/sw.js, and oxlint passes.
 
 // ---- src/RevolutReader.Web/src/components (D1) ----
 // NotificationOptIn({ state: CardState, onEnable, onDismiss })   — the card, as D1 describes
