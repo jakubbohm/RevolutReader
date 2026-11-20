@@ -92,6 +92,7 @@
 - Wherever the server answers 401 or 403, C7a forgets the stored balance (`endLogin`, c009 D4; the list's newest page, c010 D8). The app also unsubscribes the phone there (`unsubscribeThisDevice`). *(propose)* The same applies to a 401 or 403 to the upkeep's own requests (D1), through the same path as the list's: the login ends once on a screen.
 - No request to forget: the server would refuse it, since the device has no allowed login. The server's record goes when a push to it is reported gone (S4). For an account taken off the allowlist, it goes at the next message to that account (c011 D3).
 - *(propose)* `endLogin` unsubscribes and forgets the balance together, and both finish before the sign-in or no-access screen shows. A failure to unsubscribe is ignored.
+- **A hanging unsubscribe** (the owner's choice, 2026-11-20, found in `/tdd-apply`): the browser's `unsubscribe` takes no signal, so `endLogin` waits for it at most the screen's 60 s limit (`REFRESH_LIMIT_MS`), then shows the next screen anyway, as for a failure. `unsubscribeThisDevice`'s signature stays as sketched; the limit is `endLogin`'s.
 
 ### D5 — Back after signing in again (C5)
 
