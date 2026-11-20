@@ -1,0 +1,68 @@
+/**
+ * What the service worker does with a push and a tap on its notification (c012 design.md D9). Imported by `sw.ts` and by
+ * the tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
+ * members of the service worker's scope it uses as its own small interfaces.
+ */
+
+/** A Declarative Web Push message as the service worker shows it. */
+export interface DeclarativeMessage {
+  title: string;
+  body?: string;
+  navigate: string;
+}
+
+/** The message in a push's JSON: "web_push": 8030, a notification with a non-empty title and a navigate string; else null. */
+export function declarativeMessage(json: unknown): DeclarativeMessage | null {
+  void json;
+  throw new Error("Not implemented");
+}
+
+/** The members of the service worker's global scope this module uses (both ServiceWorkerGlobalScope and the stand-in fit). */
+export interface PushWorker {
+  location: { origin: string };
+  registration: {
+    showNotification(
+      title: string,
+      options?: { body?: string; data?: unknown },
+    ): Promise<void>;
+  };
+  clients: {
+    matchAll(options: {
+      type: "window";
+      includeUncontrolled: boolean;
+    }): Promise<readonly WindowLike[]>;
+    openWindow(url: string): Promise<unknown>;
+  };
+  addEventListener(type: "push", listener: (event: PushLike) => void): void;
+  addEventListener(
+    type: "notificationclick",
+    listener: (event: NotificationClickLike) => void,
+  ): void;
+}
+
+export interface WindowLike {
+  url: string;
+  focus(): Promise<unknown>;
+}
+
+export interface PushLike {
+  data: { json(): unknown } | null;
+  /** The browser's proposed notification (Declarative Web Push), when it reads the format; undefined or null otherwise. */
+  notification?: unknown;
+  waitUntil(work: Promise<unknown>): void;
+}
+
+export interface NotificationClickLike {
+  notification: { data: unknown; close(): void };
+  waitUntil(work: Promise<unknown>): void;
+}
+
+/**
+ * Listens for pushes and taps (D9): a push with the browser's own notification is left alone; otherwise its
+ * declarative message is shown (title, body, navigate in data). A tap closes the notification and focuses an open
+ * window of the app on the worker's origin, or opens navigate's path, query and fragment on that origin.
+ */
+export function listenForPushes(worker: PushWorker): void {
+  void worker;
+  throw new Error("Not implemented");
+}

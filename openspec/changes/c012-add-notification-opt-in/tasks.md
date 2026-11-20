@@ -12,35 +12,35 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (frontend), the test kit of design.md D10 and § Public API sketch, the test-writer's:
+- [x] 1.1 Foundation (frontend), the test kit of design.md D10 and § Public API sketch, the test-writer's:
   - `src/test/serviceWorker.ts`: a stand-in for the service worker's side (its origin, `registration.showNotification` recording what was shown, `clients` with windows open or none recording `focus` and `openWindow`), with helpers that fire a push as a browser that reads Declarative Web Push (a `notification` on the event) or as one that does not, and a tap on a shown notification;
   - the remembered "Teď ne": `emptyThePhone()` also clears `localStorage`; `reopen()` keeps it; a helper remembers it before a launch;
   - `src/test/server.ts`: a failing answer to `PUT /api/push/subscription` where none exists yet.
 
   Verify: the existing frontend tests stay green
-- [ ] 1.2 Acceptance: notification-opt-in / The card offers notifications under the balance (frontend)
-- [ ] 1.3 Acceptance: notification-opt-in / The card also shows in a computer's browser (frontend)
-- [ ] 1.4 Acceptance: notification-opt-in / Nothing offers notifications where the browser cannot have them (frontend)
-- [ ] 1.5 Acceptance: notification-opt-in / Turning notifications on from the card asks the phone and says they are on (frontend)
-- [ ] 1.6 Acceptance: notification-opt-in / Nothing offers notifications once they are on (frontend)
-- [ ] 1.7 Acceptance: notification-opt-in / "Upozornění jsou zapnutá" is gone at the next opening (frontend)
-- [ ] 1.8 Acceptance: notification-opt-in / Declining the phone's question says where to turn notifications on (frontend)
-- [ ] 1.9 Acceptance: notification-opt-in / The card saying notifications are off is gone at the next opening (frontend)
-- [ ] 1.10 Acceptance: notification-opt-in / "Teď ne" hides the card for good on this device (frontend)
-- [ ] 1.11 Acceptance: notification-opt-in / The account menu offers notifications after "Teď ne" (frontend)
-- [ ] 1.12 Acceptance: notification-opt-in / Turning notifications on from the account menu shows the result in the card (frontend)
-- [ ] 1.13 Acceptance: notification-opt-in / The account menu, with notifications blocked, says where to turn them on (frontend)
-- [ ] 1.14 Acceptance: notification-opt-in / Turning notifications on offline says to try again online (frontend)
-- [ ] 1.15 Acceptance: notification-opt-in / Turning notifications on when the server fails says to try again later (frontend)
-- [ ] 1.16 Acceptance: notification-opt-in / The iPhone asks for permission when the card's button is tapped (manual): its row in `tests/manual-scenarios.md`, handover step M7 (design.md D11, row 1)
-- [ ] 1.17 Acceptance: notification-opt-in / The iPhone asks for permission when the account menu's item is tapped (manual): its row, the after-deploy check (D11, row 3)
-- [ ] 1.18 Acceptance: notification-opt-in / The card's path to the iPhone's Settings is right (manual): its row, the after-deploy check (D11, row 5)
-- [ ] 1.19 Acceptance: push-display / A push shows as a notification where the browser does not show it itself (frontend)
-- [ ] 1.20 Acceptance: push-display / A push the browser shows itself shows once (frontend)
-- [ ] 1.21 Acceptance: push-display / A tap on a notification opens the app at its page (frontend)
-- [ ] 1.22 Acceptance: push-display / A tap on a notification brings the open app to the front (frontend)
-- [ ] 1.23 Acceptance: push-display / A message sent to the account shows on the iPhone and a tap opens the app (manual): its row, handover step M7 (D11, row 2)
-- [ ] 1.24 Acceptance: app-shell / The account menu shows who is signed in (frontend): the existing test in `src/scenarios/app-shell.test.tsx` checked against the changed GIVEN (a browser that cannot have notifications); changed only if it does not already match
+- [x] 1.2 Acceptance: notification-opt-in / The card offers notifications under the balance (frontend)
+- [x] 1.3 Acceptance: notification-opt-in / The card also shows in a computer's browser (frontend)
+- [x] 1.4 Acceptance: notification-opt-in / Nothing offers notifications where the browser cannot have them (frontend)
+- [x] 1.5 Acceptance: notification-opt-in / Turning notifications on from the card asks the phone and says they are on (frontend)
+- [x] 1.6 Acceptance: notification-opt-in / Nothing offers notifications once they are on (frontend)
+- [x] 1.7 Acceptance: notification-opt-in / "Upozornění jsou zapnutá" is gone at the next opening (frontend)
+- [x] 1.8 Acceptance: notification-opt-in / Declining the phone's question says where to turn notifications on (frontend)
+- [x] 1.9 Acceptance: notification-opt-in / The card saying notifications are off is gone at the next opening (frontend)
+- [x] 1.10 Acceptance: notification-opt-in / "Teď ne" hides the card for good on this device (frontend)
+- [x] 1.11 Acceptance: notification-opt-in / The account menu offers notifications after "Teď ne" (frontend)
+- [x] 1.12 Acceptance: notification-opt-in / Turning notifications on from the account menu shows the result in the card (frontend)
+- [x] 1.13 Acceptance: notification-opt-in / The account menu, with notifications blocked, says where to turn them on (frontend)
+- [x] 1.14 Acceptance: notification-opt-in / Turning notifications on offline says to try again online (frontend)
+- [x] 1.15 Acceptance: notification-opt-in / Turning notifications on when the server fails says to try again later (frontend)
+- [x] 1.16 Acceptance: notification-opt-in / The iPhone asks for permission when the card's button is tapped (manual): its row in `tests/manual-scenarios.md`, handover step M7 (design.md D11, row 1)
+- [x] 1.17 Acceptance: notification-opt-in / The iPhone asks for permission when the account menu's item is tapped (manual): its row, the after-deploy check (D11, row 3)
+- [x] 1.18 Acceptance: notification-opt-in / The card's path to the iPhone's Settings is right (manual): its row, the after-deploy check (D11, row 5)
+- [x] 1.19 Acceptance: push-display / A push shows as a notification where the browser does not show it itself (frontend)
+- [x] 1.20 Acceptance: push-display / A push the browser shows itself shows once (frontend)
+- [x] 1.21 Acceptance: push-display / A tap on a notification opens the app at its page (frontend)
+- [x] 1.22 Acceptance: push-display / A tap on a notification brings the open app to the front (frontend)
+- [x] 1.23 Acceptance: push-display / A message sent to the account shows on the iPhone and a tap opens the app (manual): its row, handover step M7 (D11, row 2)
+- [x] 1.24 Acceptance: app-shell / The account menu shows who is signed in (frontend): the existing test in `src/scenarios/app-shell.test.tsx` checked against the changed GIVEN (a browser that cannot have notifications); changed only if it does not already match
 
 ## 2. [unit] Slice 1 — What is offered
 
