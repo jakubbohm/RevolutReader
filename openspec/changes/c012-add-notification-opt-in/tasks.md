@@ -173,7 +173,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 29. [wiring] Slice 11 — The menu's turn-on
 
-- [ ] 29.1 `useNotificationOptIn.fromMenu` (D7); `AccountScreen` shows a result first in the content when there is no header (D2). Verify: group 28 passes; the scenario runs against the app
+- [x] 29.1 `useNotificationOptIn.fromMenu` (D7); `AccountScreen` shows a result first in the content when there is no header (D2). Verify: group 28 passes; the scenario runs against the app
 
 ## 30. [close] Slice 11 — Turning notifications on from the account menu shows the result in the card
 

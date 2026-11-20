@@ -35,7 +35,8 @@ export interface AccountScreenProps {
  * The app's own screen (c007 design.md D5, D12; c009 D2, D7, D10; c010 D8), as `shown` says: the frame, with the
  * account menu once the server named the user; under the top bar the balance header, or its placeholder while the
  * first read runs; then the screen's one banner; then the list slot, or the offline note or the waking-up screen in its
- * place. The notification opt-in card, when offered, sits after the banner, under the header (c012 design.md D2).
+ * place. The notification opt-in card, when offered, sits after the banner, under the header, or first in the content
+ * when there is no header (c012 design.md D2).
  * Without a header and a list it is the empty frame, so the top bar stays in place while the answers come; with
  * nothing to show, offline or the waking-up screen is the whole screen. The freshness line counts again every minute.
  *
@@ -56,6 +57,14 @@ export function AccountScreen({
   // One banner (design system Banner), for the most important problem of both reads (c010 design.md D8).
   const banner =
     shown.banner !== null ? bannerFor(shown.banner, onRetry) : null;
+  const optInCard =
+    optIn.card !== null ? (
+      <NotificationOptIn
+        state={optIn.card}
+        onEnable={optIn.turnOn}
+        onDismiss={optIn.notNow}
+      />
+    ) : null;
 
   return (
     <AppShell
@@ -64,6 +73,8 @@ export function AccountScreen({
       signingOut={shown.signingOut}
       onEnableNotifications={optIn.menuItem ? optIn.fromMenu : undefined}
     >
+      {/* Without a header, a result the user asked for from the menu shows first, so it is always seen (c012 D2). */}
+      {header === null ? optInCard : null}
       {header === "placeholder" ? (
         <Skeleton variant="balance" />
       ) : header !== null ? (
@@ -82,13 +93,7 @@ export function AccountScreen({
           {banner}
         </div>
       ) : null}
-      {optIn.card !== null ? (
-        <NotificationOptIn
-          state={optIn.card}
-          onEnable={optIn.turnOn}
-          onDismiss={optIn.notNow}
-        />
-      ) : null}
+      {header !== null ? optInCard : null}
       {shown.body === "list" && list.shown.body === "placeholder" ? (
         <Skeleton variant="list" />
       ) : null}
