@@ -63,7 +63,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 7. [close] Slice 2 — Nothing is subscribed while notifications are not allowed
 
-- [ ] 7.1 Its acceptance test passes (green from the start, design.md D7). Verify: it, and the full suite, are green
+- [x] 7.1 Its acceptance test passes (green from the start, design.md D7). Verify: it, and the full suite, are green
 
 ## 8. [unit] Slice 3 — Returns (`watchReturns`)
 
