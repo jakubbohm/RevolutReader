@@ -5,6 +5,7 @@ import {
   type PushFeature,
   type PushStandInOptions,
   type PushStandIns,
+  type SubscriptionInit,
 } from "../test/push";
 import {
   answerWith,
@@ -250,6 +251,53 @@ test("A subscription whose key the browser does not name is sent again as it is,
   expect(phone.subscription(), "the phone keeps it").toBe(held);
   expect(phone.subscribeRequests(), "no subscribing again").toEqual([]);
 });
+
+/**
+ * Another key of the same form, 0x04 then 200 − 3i: here it made the subscription, but the browser does not say so, so
+ * nothing on the phone tells the app it is another key.
+ */
+const OLD_KEY =
+  "BMXCv7y5trOwraqnpKGem5iVko-MiYaDgH16d3RxbmtoZWJfXFlWU1BNSkdEQT47ODUyLywpJiMgHRoXFBEOCwg";
+
+const keysLeftOut: {
+  label: string;
+  leavesOut: NonNullable<SubscriptionInit["leavesOut"]>;
+}[] = [
+  {
+    label: "the browser leaves the key out of the subscription's options",
+    leavesOut: "applicationServerKey",
+  },
+  {
+    label: "the browser gives the subscription no options at all",
+    leavesOut: "options",
+  },
+];
+
+test.each(keysLeftOut)(
+  "A subscription whose key the browser does not name is sent again as it is, never replaced: $label",
+  async ({ leavesOut }) => {
+    const phone = installPushStandIns({
+      permission: "granted",
+      subscription: {
+        endpoint: LUCIES_PHONE,
+        applicationServerKey: OLD_KEY,
+        leavesOut,
+      },
+    });
+    const held = phone.subscription()!;
+    answerWith(THE_SERVER);
+
+    expect(await anUpkeep()).toEqual({ kind: "sent again" });
+    expect(subscriptionsSent(), "sent again, as it is").toEqual([
+      held.toJSON(),
+    ]);
+    expect(requests(), "the server never asked to forget it").not.toContain(
+      "DELETE /api/push/subscription",
+    );
+    expect(phone.subscription(), "the phone keeps it").toBe(held);
+    expect(phone.subscribeRequests(), "no subscribing again").toEqual([]);
+  },
+);
 
 // ---- 3.3 ----
 

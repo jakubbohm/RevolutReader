@@ -2,29 +2,43 @@ import { act, renderHook } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { ago, HOUR, SECOND, startTestClock, timePasses } from "../test/clock";
 import {
+  installPushStandIns,
+  type PushStandInOptions,
+  type PushStandIns,
+} from "../test/push";
+import {
   after,
   answerWith,
   balance,
   bankAccessExpired,
   bankRateLimited,
   bankUnavailable,
+  bodiesSent,
+  closeApp,
+  emptyThePhone,
   goOffline,
   goOnline,
   kept,
   keptBalance,
   noAnswerYet,
   noConnection,
+  nobodySignedIn,
   phoneKeeps,
+  pushKey,
+  refused,
   requests,
   serverError,
   signedIn,
   signedOut,
+  stored,
+  subscriptionRefused,
   timeline,
   type BalanceAnswer,
   type ServerAnswers,
+  type WhoIsSignedIn,
 } from "../test/server";
 import type { Problem } from "./screenState";
-import { useAccountScreen } from "./useAccountScreen";
+import { useAccountScreen, type AccountScreenModel } from "./useAccountScreen";
 
 // The account screen's sequence (c009 design.md D2, D3; § Rule ownership: useAccountScreen), driven through the hook on
 // the fake server and the test clock, and observed in the requests it sends. The balances and the user are made up.
@@ -474,3 +488,315 @@ test("Asking again who is signed in clears the offline banner while it runs, and
   await timePasses(0);
   expect(timesSent("GET /api/me"), "asked a third time").toBe(3);
 });
+
+// ---- c013: the upkeep of the phone's push subscription at a launch (design.md D1) ----
+// The launch's upkeep starts the moment the screen learns that a user is signed in: the first answer to who is signed
+// in, or a repeated one after the phone was offline or got an unexpected answer. It goes out with the balance read,
+// never for a visitor, never on "Obnovit" or coming back online, and nothing it comes to shows on the screen. It is
+// observed in what reaches the server (the push key read, the subscription sent); the phone's push is the test kit's
+// stand-ins (src/test/push.ts). Every key and push address here is made up.
+
+/** The push address of Lucie's phone at Apple's push service. */
+const LUCIES_PHONE = "https://web.push.apple.com/lucies-phone";
+
+/** The server's push key: 65 bytes starting 0x04, then 5i + 1; not the fake server's default. */
+const SERVER_KEY =
+  "BAYLEBUaHyQpLjM4PUJHTFFWW2Blam90eX6DiI2Sl5yhpquwtbq_xMnO09jd4ufs8fb7AAUKDxQZHiMoLTI3PEE";
+
+/** The server while Lucie is signed in: her balance, and its push key. */
+const LUCIES_SERVER: ServerAnswers = {
+  whoIsSignedIn: LUCIE,
+  balance: balance(286.4),
+  pushKey: pushKey(SERVER_KEY),
+};
+
+const KEY_READ = "GET /api/push/key";
+const SUBSCRIPTION_SENT = "PUT /api/push/subscription";
+
+/**
+ * Lucie's phone with notifications allowed, holding a subscription made with the server's key, so an upkeep sends it
+ * again.
+ */
+function phoneSubscribed(more: PushStandInOptions = {}): PushStandIns {
+  return installPushStandIns({
+    permission: "granted",
+    subscription: { endpoint: LUCIES_PHONE, applicationServerKey: SERVER_KEY },
+    ...more,
+  });
+}
+
+/** The requests the screen sent for push, in order. */
+function pushRequestsSent(): string[] {
+  return requests().filter((sent) => sent.includes(" /api/push/"));
+}
+
+/** The subscriptions sent to the server, in order, as their bodies. */
+function subscriptionsSent(): unknown[] {
+  return bodiesSent()
+    .filter((sent) => sent.request === SUBSCRIPTION_SENT)
+    .map((sent) => sent.body);
+}
+
+// ---- 4.1 ----
+
+test("An upkeep starts once the server names a signed-in user, together with the balance read", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith({
+    ...LUCIES_SERVER,
+    whoIsSignedIn: after(READ_TIME, LUCIE),
+    balance: after(READ_TIME, balance(286.4)),
+  });
+  renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(pushRequestsSent(), "nothing before the server names her").toEqual([]);
+
+  // The server names her: the balance read goes out, and the upkeep runs while it is under way.
+  await timePasses(READ_TIME);
+  expect(balanceReadsSent(), "the balance read under way").toBe(1);
+  expect(timeline(), "the balance not answered yet").not.toContain(
+    "answer GET /api/balance",
+  );
+  expect(subscriptionsSent(), "the subscription sent again").toEqual([
+    held.toJSON(),
+  ]);
+
+  await timePasses(READ_TIME);
+  expect(pushRequestsSent(), "one upkeep").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+});
+
+test("An upkeep starts once the server names a signed-in user, together with the balance read: the balance does not wait for it", async () => {
+  startTestClock();
+  phoneSubscribed();
+  answerWith({ ...LUCIES_SERVER, pushKey: noAnswerYet });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+
+  expect(pushRequestsSent(), "the upkeep waits for the key").toEqual([
+    KEY_READ,
+  ]);
+  expect(result.current.shown, "the balance read and shown").toMatchObject({
+    screen: "account",
+    header: { balance: { amount: 286.4 }, refreshing: false },
+  });
+});
+
+// ---- 4.2 ----
+
+const visitors: {
+  label: string;
+  whoIsSignedIn: WhoIsSignedIn;
+  screen: "sign-in" | "no access";
+}[] = [
+  {
+    label: "the sign-in screen",
+    whoIsSignedIn: nobodySignedIn,
+    screen: "sign-in",
+  },
+  {
+    label: "the no-access screen",
+    whoIsSignedIn: refused("cizi.ucet@example.com"),
+    screen: "no access",
+  },
+];
+
+test.each(visitors)(
+  "No upkeep starts for a visitor on the sign-in or the no-access screen: $label",
+  async ({ whoIsSignedIn, screen }) => {
+    startTestClock();
+    phoneSubscribed();
+    answerWith({ ...LUCIES_SERVER, whoIsSignedIn });
+    const visit = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    expect(visit.result.current.shown).toMatchObject({ screen });
+    expect(pushRequestsSent(), "nothing for push").toEqual([]);
+
+    // Then Lucie signs in, and the app opens for her (a new launch): the same phone's upkeep runs now.
+    visit.unmount();
+    closeApp();
+    answerWith(LUCIES_SERVER);
+    renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(pushRequestsSent(), "for Lucie, signed in").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+  },
+);
+
+// ---- 4.3 ----
+
+const repeatedQuestions: {
+  label: string;
+  first: WhoIsSignedIn;
+  repeat: (screen: AccountScreenModel) => void;
+}[] = [
+  {
+    label: "no answer at first, then the phone back online",
+    first: noConnection,
+    repeat: () => {
+      goOffline();
+      goOnline();
+    },
+  },
+  {
+    label: 'an unexpected answer at first, then "Zkusit znovu"',
+    first: serverError,
+    repeat: (screen) => {
+      act(() => {
+        screen.retry();
+      });
+    },
+  },
+];
+
+test.each(repeatedQuestions)(
+  "A repeated question that finds a signed-in user starts an upkeep: $label",
+  async ({ first, repeat }) => {
+    startTestClock();
+    const phone = phoneSubscribed();
+    const held = phone.subscription()!;
+    answerWith({ ...LUCIES_SERVER, whoIsSignedIn: [first, LUCIE] });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(pushRequestsSent(), "who is signed in unanswered").toEqual([]);
+
+    repeat(result.current);
+    await timePasses(0);
+
+    expect(timesSent("GET /api/me"), "asked again").toBe(2);
+    expect(subscriptionsSent(), "the subscription sent again").toEqual([
+      held.toJSON(),
+    ]);
+    expect(pushRequestsSent(), "one upkeep").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+  },
+);
+
+// ---- 4.4 ----
+
+const repeatsThatAreNoOpening: {
+  label: string;
+  repeat: (screen: AccountScreenModel) => void;
+}[] = [
+  {
+    label: '"Obnovit"',
+    repeat: (screen) => {
+      act(() => {
+        screen.refresh();
+      });
+    },
+  },
+  {
+    label: "the phone back online",
+    repeat: () => {
+      goOffline();
+      goOnline();
+    },
+  },
+];
+
+test.each(repeatsThatAreNoOpening)(
+  '"Obnovit" and coming back online start no upkeep: $label',
+  async ({ repeat }) => {
+    startTestClock();
+    phoneSubscribed();
+    answerWith(LUCIES_SERVER);
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(pushRequestsSent(), "the launch's upkeep").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+
+    repeat(result.current);
+    await timePasses(0);
+
+    expect(balanceReadsSent(), "the balance read again").toBe(2);
+    expect(pushRequestsSent(), "no upkeep more").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+  },
+);
+
+// ---- 4.5 ----
+
+/** What the screen shows: the screen itself, and the list in its slot. */
+function onScreen(screen: AccountScreenModel): unknown {
+  return { shown: screen.shown, list: screen.list.shown };
+}
+
+/**
+ * What the screen shows after a launch on this server where no upkeep can run, with the same permission: notifications
+ * allowed, but no service worker registered. The app is then closed and the phone emptied, for the launch compared with
+ * it.
+ */
+async function onScreenWithNoUpkeep(server: ServerAnswers): Promise<unknown> {
+  phoneSubscribed({ registered: false });
+  answerWith(server);
+  const { result, unmount } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  const seen = onScreen(result.current);
+  unmount();
+  closeApp();
+  await emptyThePhone();
+  return seen;
+}
+
+const upkeepOutcomes: {
+  label: string;
+  answers: ServerAnswers;
+  pushRequests: string[];
+}[] = [
+  {
+    label: "sent again",
+    answers: { subscription: stored },
+    pushRequests: [KEY_READ, SUBSCRIPTION_SENT],
+  },
+  {
+    label: "stopped on a server error to the subscription sent",
+    answers: { subscription: serverError },
+    pushRequests: [KEY_READ, SUBSCRIPTION_SENT],
+  },
+  {
+    label: "stopped on a refused subscription",
+    answers: { subscription: subscriptionRefused("endpoint") },
+    pushRequests: [KEY_READ, SUBSCRIPTION_SENT],
+  },
+  {
+    label: "stopped on a server error to the key",
+    answers: { pushKey: serverError },
+    pushRequests: [KEY_READ],
+  },
+  {
+    label: "still waiting for the key",
+    answers: { pushKey: noAnswerYet },
+    pushRequests: [KEY_READ],
+  },
+];
+
+test.each(upkeepOutcomes)(
+  "The upkeep's outcome changes nothing on the screen: $label",
+  async ({ answers, pushRequests }) => {
+    startTestClock();
+    const server = { ...LUCIES_SERVER, ...answers };
+    const withNoUpkeep = await onScreenWithNoUpkeep(server);
+
+    phoneSubscribed();
+    answerWith(server);
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    expect(pushRequestsSent(), "the upkeep ran").toEqual(pushRequests);
+    expect(onScreen(result.current), "the same screen").toEqual(withNoUpkeep);
+    expect(result.current.shown, "no banner").toMatchObject({ banner: null });
+  },
+);

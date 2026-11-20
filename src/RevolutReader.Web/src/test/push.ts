@@ -23,7 +23,9 @@
  *   `options` (`userVisibleOnly`, and `applicationServerKey` as an `ArrayBuffer`, or `null`), `getKey`, `toJSON()`
  *   (`{ endpoint, expirationTime, keys: { p256dh, auth } }`, the keys in base64url without padding) and
  *   `unsubscribe()`, which answers the test's `unsubscribeAnswers` (true by default; the registration then holds none)
- *   or fails with its `unsubscribeFails`.
+ *   or fails with its `unsubscribeFails`. Under `leavesOut`, a browser that does not say which key made it (c013):
+ *   `options` without `applicationServerKey`, or no `options` at all; `subscribe` still knows the key, as the browser
+ *   does.
  *
  * Keys given as text are base64url, as browsers take them; every key and push address here is made up.
  */
@@ -45,6 +47,11 @@ export interface SubscriptionInit {
   unsubscribeAnswers?: boolean;
   /** `unsubscribe()` fails with this error instead. */
   unsubscribeFails?: Error;
+  /**
+   * What the browser leaves out, though the subscription was made with `applicationServerKey` (c013): the key from its
+   * `options` (`undefined` there), or `options` itself. By default nothing.
+   */
+  leavesOut?: "applicationServerKey" | "options";
 }
 
 /** How the phone's push and notifications stand for this test. */
@@ -249,7 +256,10 @@ export function madeUpSubscription(
 class StandInPushSubscription {
   readonly endpoint: string;
   readonly expirationTime = null;
-  readonly options: PushSubscriptionOptions;
+  /** Declared only: under `leavesOut: "options"` the subscription has no `options` at all, as such a browser. */
+  declare readonly options: PushSubscriptionOptions;
+  /** The key it was made with, as the browser knows it, whatever `options` says. */
+  private readonly madeWithKey: Uint8Array | null;
   private readonly p256dh: string;
   private readonly auth: string;
   private readonly init: SubscriptionInit;
@@ -262,18 +272,21 @@ class StandInPushSubscription {
     this.endpoint =
       init.endpoint ?? `https://web.push.apple.com/made-up-device-${madeUp}`;
     const key = init.applicationServerKey ?? null;
-    this.options = {
-      userVisibleOnly: true,
-      applicationServerKey:
-        key === null ? null : keyBytesOf(key).slice().buffer,
-    };
+    this.madeWithKey = key === null ? null : keyBytesOf(key);
+    if (init.leavesOut === "applicationServerKey")
+      this.options = { userVisibleOnly: true } as PushSubscriptionOptions;
+    else if (init.leavesOut !== "options")
+      this.options = {
+        userVisibleOnly: true,
+        applicationServerKey:
+          this.madeWithKey === null ? null : this.madeWithKey.slice().buffer,
+      };
     this.p256dh = init.p256dh ?? MADE_UP_DEVICE_KEY;
     this.auth = init.auth ?? MADE_UP_SECRET;
   }
 
   keyBytes(): Uint8Array | null {
-    const key = this.options.applicationServerKey;
-    return key === null ? null : new Uint8Array(key);
+    return this.madeWithKey;
   }
 
   getKey(name: PushEncryptionKeyName): ArrayBuffer | null {
