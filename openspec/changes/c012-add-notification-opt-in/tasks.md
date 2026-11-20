@@ -246,7 +246,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 44. [unit] Slice 17 — The browser's own notification
 
-- [ ] 44.1 A push that carries the browser's own notification shows nothing of the service worker's
+- [x] 44.1 A push that carries the browser's own notification shows nothing of the service worker's
 
 ## 45. [close] Slice 17 — A push the browser shows itself shows once
 

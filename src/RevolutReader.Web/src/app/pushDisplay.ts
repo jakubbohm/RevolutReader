@@ -77,6 +77,8 @@ export interface NotificationClickLike {
  */
 export function listenForPushes(worker: PushWorker): void {
   worker.addEventListener("push", (event) => {
+    // The browser read the message and shows its own notification (Declarative Web Push): leave it, so it shows once.
+    if (event.notification !== undefined && event.notification !== null) return;
     const message = declarativeMessage(pushJson(event));
     if (message === null) return;
     const { title, body, navigate } = message;
