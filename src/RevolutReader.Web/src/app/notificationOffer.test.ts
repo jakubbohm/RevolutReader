@@ -63,3 +63,22 @@ test("Without the balance header, the default card is not shown and the menu ite
     menuItem: true,
   });
 });
+
+// While turning on and once on in this opening (D3, D4), with the balance header on screen; that a result shows without
+// the header too is task 28.4's.
+
+test("While turning on, the enabling card and no menu item", () => {
+  // The phone still asking, and the phone allowing while the app subscribes.
+  for (const permission of ["default", "granted"] as const) {
+    expect(
+      notificationOffer(facts({ step: "enabling", permission })),
+      `the permission ${permission}`,
+    ).toEqual({ card: "enabling", menuItem: false });
+  }
+});
+
+test("Once on in this opening, the enabled card and no menu item", () => {
+  expect(
+    notificationOffer(facts({ step: "enabled", permission: "granted" })),
+  ).toEqual({ card: "enabled", menuItem: false });
+});
