@@ -149,7 +149,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 24. [close] Slice 9 — "Teď ne" hides the card for good on this device
 
-- [ ] 24.1 The scenario's test passes. Verify: green, including notification-opt-in / "Teď ne" hides the card for good on this device
+- [x] 24.1 The scenario's test passes. Verify: green, including notification-opt-in / "Teď ne" hides the card for good on this device
 
 ## 25. [unit] Slice 10 — The menu's item
 
