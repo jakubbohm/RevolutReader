@@ -217,20 +217,48 @@ function namesItsKey(subscription: PushSubscription): boolean {
  * Before the sign-out request (D2): asks the server to forget the push address of the phone's subscription, if there is
  * one. Its answer is ignored; never throws.
  */
-export function forgetThisDevice(options?: {
-  signal?: AbortSignal;
-  browser?: Window;
-}): Promise<void> {
-  void options;
-  throw new Error("Not implemented yet: forgetThisDevice (c013 design.md D2).");
+export async function forgetThisDevice(
+  options: { signal?: AbortSignal; browser?: Window } = {},
+): Promise<void> {
+  const { signal, browser } = options;
+  const held = await subscriptionHeld(browser, signal);
+  if (held === null) return;
+
+  // Whatever the server answers, the sign-out goes on: a device it keeps is deleted once a push to it is reported gone.
+  await forgetSubscription(held.endpoint, { signal });
 }
 
 /** Wherever the login ends (D2 step 4, D4): unsubscribes the phone's subscription, if there is one; never throws. */
-export function unsubscribeThisDevice(options?: {
-  browser?: Window;
-}): Promise<void> {
-  void options;
-  throw new Error(
-    "Not implemented yet: unsubscribeThisDevice (c013 design.md D2, D4).",
-  );
+export async function unsubscribeThisDevice(
+  options: { browser?: Window } = {},
+): Promise<void> {
+  const held = await subscriptionHeld(options.browser, undefined);
+  if (held === null) return;
+
+  try {
+    await unsubscribe(held);
+  } catch {
+    // Ignored, as an answer that it did not unsubscribe is: nothing more can be done from here.
+  }
+}
+
+/**
+ * The subscription the phone holds, whatever the permission or its key (D2, D4): `null` when there is none, no
+ * registration, the browser fails to say, or the limit gave up on it. Never throws.
+ */
+async function subscriptionHeld(
+  browser: Window | undefined,
+  signal: AbortSignal | undefined,
+): Promise<PushSubscription | null> {
+  const registration = await pushRegistration(browser);
+  if (registration === null) return null;
+
+  try {
+    return await beforeTheLimit(
+      () => currentSubscription(registration),
+      signal,
+    );
+  } catch {
+    return null;
+  }
 }

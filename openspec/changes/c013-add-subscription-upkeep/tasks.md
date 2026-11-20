@@ -103,10 +103,10 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 15. [unit] Slice 6 — Forgetting and unsubscribing this device (`forgetThisDevice`, `unsubscribeThisDevice`)
 
-- [ ] 15.1 Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal
-- [ ] 15.2 Forgetting sends nothing without a registration or a subscription
-- [ ] 15.3 Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one
-- [ ] 15.4 Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored
+- [x] 15.1 Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal
+- [x] 15.2 Forgetting sends nothing without a registration or a subscription
+- [x] 15.3 Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one
+- [x] 15.4 Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored
 
 ## 16. [unit] Slice 6 — The sign-out (`useAccountScreen`)
 
