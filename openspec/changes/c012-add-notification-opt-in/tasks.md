@@ -89,7 +89,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 11. [wiring] Slice 4 — Turning on from the card
 
-- [ ] 11.1 `turnNotificationsOn` as sketched (design.md D3); `useNotificationOptIn.turnOn`, the card's `onEnable`; `NotificationOptIn`'s enabling and enabled states; `Button`'s disabled ghost keeps its transparent fill (D1). Verify: groups 8–10 pass; the scenario runs against the app
+- [x] 11.1 `turnNotificationsOn` as sketched (design.md D3); `useNotificationOptIn.turnOn`, the card's `onEnable`; `NotificationOptIn`'s enabling and enabled states; `Button`'s disabled ghost keeps its transparent fill (D1). Verify: groups 8–10 pass; the scenario runs against the app
 
 ## 12. [close] Slice 4 — Turning notifications on from the card asks the phone and says they are on
 
