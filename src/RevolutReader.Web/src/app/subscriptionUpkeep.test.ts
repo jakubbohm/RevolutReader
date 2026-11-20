@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { startTestClock, timePasses } from "../test/clock";
+import { SECOND, startTestClock, timePasses } from "../test/clock";
 import {
   installPushStandIns,
   type PushFeature,
@@ -8,8 +8,10 @@ import {
   type SubscriptionInit,
 } from "../test/push";
 import {
+  after,
   answerWith,
   bodiesSent,
+  forgotten,
   goOffline,
   hostingErrorPage,
   jsonBody,
@@ -23,6 +25,7 @@ import {
   timeline,
   unreadable,
   wifiLoginPage,
+  type ForgetAnswer,
   type PushKeyAnswer,
   type ServerAnswers,
   type SubscriptionAnswer,
@@ -255,8 +258,9 @@ test("A subscription whose key the browser does not name is sent again as it is,
 });
 
 /**
- * Another key of the same form, 0x04 then 200 − 3i: here it made the subscription, but the browser does not say so, so
- * nothing on the phone tells the app it is another key.
+ * Another key of the same form, 0x04 then 200 − 3i: a key the server had before, which made the phone's subscription.
+ * Here the browser does not say so, so nothing on the phone tells the app it is another key; in group 13's tests it
+ * does.
  */
 const OLD_KEY =
   "BMXCv7y5trOwraqnpKGem5iVko-MiYaDgH16d3RxbmtoZWJfXFlWU1BNSkdEQT47ODUyLywpJiMgHRoXFBEOCwg";
@@ -858,4 +862,305 @@ test("A new subscription the server did not get is sent again at the next openin
   expect(subscribedWith(phone), "subscribed at the first opening only").toEqual(
     WITH_THE_SERVERS_KEY,
   );
+});
+
+// ---- Replacing a subscription made with another key (D1, step 5) ----
+
+/** The push address of the subscription Lucie's phone made with the old key. */
+const LUCIES_OLD_SUBSCRIPTION =
+  "https://web.push.apple.com/lucies-old-subscription";
+
+const FORGET_ASKED = "DELETE /api/push/subscription";
+
+/** The old push address, once, as C8a's forget sends it: in the body, never in the URL. */
+const THE_OLD_ADDRESS = [{ endpoint: LUCIES_OLD_SUBSCRIPTION }];
+
+/**
+ * Lucie's phone with notifications allowed, holding a subscription at her old push address made with the old key, which
+ * the browser names; `subscription` and `more` say what differs.
+ */
+function phoneSubscribedWithTheOldKey(
+  subscription: Omit<
+    SubscriptionInit,
+    "endpoint" | "applicationServerKey"
+  > = {},
+  more: PushStandInOptions = {},
+): PushStandIns {
+  return installPushStandIns({
+    permission: "granted",
+    subscription: {
+      endpoint: LUCIES_OLD_SUBSCRIPTION,
+      applicationServerKey: OLD_KEY,
+      ...subscription,
+    },
+    ...more,
+  });
+}
+
+/** What the app asked the server to forget, in order, as the bodies it sent. */
+function forgetsSent(): unknown[] {
+  return bodiesSent()
+    .filter((sent) => sent.request === FORGET_ASKED)
+    .map((sent) => sent.body);
+}
+
+// ---- 13.1 ----
+
+test("A subscription made with another key: the server forgets its push address first, then the phone unsubscribes it, subscribes with the server's key and sends the new one", async () => {
+  const phone = phoneSubscribedWithTheOldKey();
+  const old = phone.subscription()!;
+  answerWith(THE_SERVER);
+
+  expect(await anUpkeep()).toEqual({ kind: "replaced" });
+  expect(
+    forgetsSent(),
+    "the server asked to forget the old push address",
+  ).toEqual(THE_OLD_ADDRESS);
+  const made = phone.subscription();
+  expect(made, "the phone holds a new subscription").not.toBeNull();
+  expect(made, "not the old one").not.toBe(old);
+  expect(
+    subscribedWith(phone),
+    "with the server's key, visible pushes only",
+  ).toEqual(WITH_THE_SERVERS_KEY);
+  expect(subscriptionsSent(), "the new one sent, never the old").toEqual([
+    made?.toJSON(),
+  ]);
+  expect(requests(), "the key, the forget, then the new subscription").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+    SUBSCRIPTION_SENT,
+  ]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+test("A subscription made with another key: the server forgets its push address first, then the phone unsubscribes it, subscribes with the server's key and sends the new one: the phone is untouched until the server has forgotten the old address", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey();
+  const old = phone.subscription()!;
+  answerWith({ ...THE_SERVER, forgetSubscription: after(SECOND, forgotten) });
+
+  const upkeep = anUpkeep();
+  expect(
+    await whereItStands(upkeep),
+    "waiting for the server to forget it",
+  ).toBe("still running");
+  expect(requests()).toEqual([KEY_READ, FORGET_ASKED]);
+  expect(phone.subscription(), "the phone still holds the old one").toBe(old);
+  expect(phone.subscribeRequests(), "nothing subscribed yet").toEqual([]);
+
+  await timePasses(SECOND);
+
+  expect(await whereItStands(upkeep)).toEqual({ kind: "replaced" });
+  const made = phone.subscription();
+  expect(made, "the phone holds a new subscription").not.toBeNull();
+  expect(made, "not the old one").not.toBe(old);
+  expect(subscriptionsSent(), "then the new one sent").toEqual([
+    made?.toJSON(),
+  ]);
+  expect(requests()).toEqual([KEY_READ, FORGET_ASKED, SUBSCRIPTION_SENT]);
+});
+
+test("A subscription made with another key: the server forgets its push address first, then the phone unsubscribes it, subscribes with the server's key and sends the new one: a subscribe that fails once the old one is gone stops the upkeep, and the next opening subscribes again", async () => {
+  const phone = phoneSubscribedWithTheOldKey(
+    {},
+    { subscribeFails: true, subscribeFailures: 1 },
+  );
+  answerWith(THE_SERVER);
+
+  expect(await anUpkeep(), "the opening").toEqual({ kind: "stopped" });
+  expect(forgetsSent(), "the old address forgotten").toEqual(THE_OLD_ADDRESS);
+  expect(phone.subscription(), "the old one gone, and no new one").toBeNull();
+  expect(subscribedWith(phone), "it tried, with the server's key").toEqual(
+    WITH_THE_SERVERS_KEY,
+  );
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+
+  expect(await anUpkeep(), "the next opening").toEqual({
+    kind: "subscribed again",
+  });
+  const made = phone.subscription();
+  expect(made, "the phone holds a new subscription").not.toBeNull();
+  expect(subscriptionsSent(), "the new one sent").toEqual([made?.toJSON()]);
+  expect(forgetsSent(), "nothing more to forget").toEqual(THE_OLD_ADDRESS);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+// ---- 13.2 ----
+
+const forgetsNotForgotten: { label: string; answer: ForgetAnswer }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "a hosting error page", answer: hostingErrorPage },
+  { label: "a 200 the app does not expect", answer: unreadable },
+  { label: "a Wi-Fi login page", answer: wifiLoginPage },
+  { label: "no answer, offline", answer: noConnection },
+];
+
+test.each(forgetsNotForgotten)(
+  'A forget that does not answer "forgotten" leaves the phone\'s subscription untouched and sends nothing more: $label',
+  async ({ answer }) => {
+    const phone = phoneSubscribedWithTheOldKey();
+    const old = phone.subscription()!;
+    answerWith({ ...THE_SERVER, forgetSubscription: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "stopped" });
+    expect(forgetsSent(), "asked to forget the old address").toEqual(
+      THE_OLD_ADDRESS,
+    );
+    expect(requests(), "nothing sent after the forget").toEqual([
+      KEY_READ,
+      FORGET_ASKED,
+    ]);
+    expect(phone.subscription(), "the phone keeps the old one").toBe(old);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test('A forget that does not answer "forgotten" leaves the phone\'s subscription untouched and sends nothing more: no answer, ended by the limit', async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey();
+  const old = phone.subscription()!;
+  answerWith({ ...THE_SERVER, forgetSubscription: noAnswerYet });
+  const limit = new AbortController();
+
+  const upkeep = anUpkeep(limit.signal);
+  expect(await whereItStands(upkeep), "waiting for the server").toBe(
+    "still running",
+  );
+  expect(requests()).toEqual([KEY_READ, FORGET_ASKED]);
+
+  limit.abort();
+
+  expect(await whereItStands(upkeep)).toEqual({ kind: "stopped" });
+  expect(timeline(), "the forget carries the signal").toContain(
+    `aborted ${FORGET_ASKED}`,
+  );
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+  expect(phone.subscription(), "the phone keeps the old one").toBe(old);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+});
+
+test('A forget that does not answer "forgotten" leaves the phone\'s subscription untouched and sends nothing more: the next opening tries the whole replacement again', async () => {
+  const phone = phoneSubscribedWithTheOldKey();
+  const old = phone.subscription()!;
+  answerWith({ ...THE_SERVER, forgetSubscription: [serverError, forgotten] });
+
+  expect(await anUpkeep(), "the opening").toEqual({ kind: "stopped" });
+  expect(phone.subscription(), "the phone keeps the old one").toBe(old);
+
+  expect(await anUpkeep(), "the next opening").toEqual({ kind: "replaced" });
+  expect(forgetsSent(), "the old address asked again").toEqual([
+    ...THE_OLD_ADDRESS,
+    ...THE_OLD_ADDRESS,
+  ]);
+  const made = phone.subscription();
+  expect(made, "the phone holds a new subscription").not.toBeNull();
+  expect(made, "not the old one").not.toBe(old);
+  expect(subscriptionsSent(), "the new one sent").toEqual([made?.toJSON()]);
+});
+
+// ---- 13.3 ----
+
+const unsubscribesThatFail: {
+  label: string;
+  subscription: Pick<
+    SubscriptionInit,
+    "unsubscribeFails" | "unsubscribeAnswers"
+  >;
+}[] = [
+  {
+    label: "the browser fails to unsubscribe it",
+    subscription: {
+      unsubscribeFails: new DOMException("Unsubscribing failed.", "AbortError"),
+    },
+  },
+  {
+    label: "the browser fails in a way of its own",
+    subscription: { unsubscribeFails: new TypeError("Something went wrong.") },
+  },
+  {
+    label: "the browser answers that it did not unsubscribe it",
+    subscription: { unsubscribeAnswers: false },
+  },
+];
+
+test.each(unsubscribesThatFail)(
+  "A failed unsubscribe stops the upkeep before it subscribes: $label",
+  async ({ subscription }) => {
+    const phone = phoneSubscribedWithTheOldKey(subscription);
+    const old = phone.subscription()!;
+    answerWith(THE_SERVER);
+
+    await expect(anUpkeep()).resolves.toEqual({ kind: "stopped" });
+    expect(forgetsSent(), "the old address forgotten first").toEqual(
+      THE_OLD_ADDRESS,
+    );
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+    expect(requests(), "nothing sent after the forget").toEqual([
+      KEY_READ,
+      FORGET_ASKED,
+    ]);
+    expect(phone.subscription(), "the phone still holds the old one").toBe(old);
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test("A failed unsubscribe stops the upkeep before it subscribes: one with no answer, ended by the limit", async () => {
+  startTestClock();
+  // The browser's own call takes no signal: the upkeep stops waiting for it when the limit fires (D1).
+  const phone = phoneSubscribedWithTheOldKey({ unsubscribeWaits: true });
+  const old = phone.subscription()!;
+  answerWith(THE_SERVER);
+  const limit = new AbortController();
+
+  const upkeep = anUpkeep(limit.signal);
+  expect(await whereItStands(upkeep), "waiting for the browser").toBe(
+    "still running",
+  );
+  expect(forgetsSent(), "the old address forgotten first").toEqual(
+    THE_OLD_ADDRESS,
+  );
+  expect(phone.subscription(), "still held while it waits").toBe(old);
+
+  limit.abort();
+
+  expect(await whereItStands(upkeep)).toEqual({ kind: "stopped" });
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(
+    phone.subscription(),
+    "the old one gone once the browser settles",
+  ).toBeNull();
+  expect(
+    phone.subscribeRequests(),
+    "nothing subscribed once it settles either",
+  ).toEqual([]);
+  expect(requests(), "nothing sent once it settles").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+
+  expect(await whereItStands(anUpkeep()), "the next opening").toEqual({
+    kind: "subscribed again",
+  });
+  const made = phone.subscription();
+  expect(made, "the phone holds a new subscription").not.toBeNull();
+  expect(subscriptionsSent(), "the next opening sends the new one").toEqual([
+    made?.toJSON(),
+  ]);
+  expect(forgetsSent(), "nothing more to forget").toEqual(THE_OLD_ADDRESS);
 });
