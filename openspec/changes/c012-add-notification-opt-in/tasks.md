@@ -219,7 +219,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 38. [close] Slice 14 — Turning notifications on when the server fails says to try again later
 
-- [ ] 38.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on when the server fails says to try again later
+- [x] 38.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on when the server fails says to try again later
 
 ## 39. [close] Slice 15 — The account menu shows who is signed in
 
