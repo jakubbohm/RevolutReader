@@ -165,3 +165,103 @@ test("A push whose browser's own notification is null carries none: the service 
       .map(({ title, body }) => ({ title, body })),
   ).toEqual([{ title: "Ahoj", body: "Zkušební zpráva" }]);
 });
+
+// ---- A tap opening the app, with no window of it open: listenForPushes (group 46) ----
+
+/** A Declarative Web Push message opening `navigate`. */
+function pushOpening(navigate: string): unknown {
+  return { web_push: 8030, notification: { title: "Ahoj", navigate } };
+}
+
+test("A tap closes the notification", async () => {
+  const serviceWorker = installServiceWorkerStandIn({ openWindows: [] });
+  listenForPushes(serviceWorker.worker);
+  await serviceWorker.deliverPush(pushOpening(APP_PAGE));
+
+  await serviceWorker.tapNotification();
+
+  expect(serviceWorker.closedNotifications()).toEqual([0]);
+});
+
+test("With no window of the app open, a tap opens the message's page on the service worker's own origin", async () => {
+  const serviceWorker = installServiceWorkerStandIn({ openWindows: [] });
+  listenForPushes(serviceWorker.worker);
+  await serviceWorker.deliverPush(
+    pushOpening(`${ORIGIN}/?z=upozorneni#zustatek`),
+  );
+
+  await serviceWorker.tapNotification();
+
+  expect(serviceWorker.openedWindows()).toEqual([
+    `${ORIGIN}/?z=upozorneni#zustatek`,
+  ]);
+});
+
+test("A page on another origin opens as its path on the service worker's own origin", async () => {
+  const cases: [string, { origin: string; navigate: string; opens: string }][] =
+    [
+      [
+        "another site",
+        {
+          origin: ORIGIN,
+          navigate: "https://jinde.example/ucet?z=upozorneni#zustatek",
+          opens: `${ORIGIN}/ucet?z=upozorneni#zustatek`,
+        },
+      ],
+      [
+        // Locally the server's address is https://localhost (c011 design.md D5), the dev server's another (D9).
+        "the server's local address on the dev server's origin",
+        {
+          origin: "https://localhost:5173",
+          navigate: "https://localhost/",
+          opens: "https://localhost:5173/",
+        },
+      ],
+    ];
+
+  for (const [name, { origin, navigate, opens }] of cases) {
+    const serviceWorker = installServiceWorkerStandIn({
+      origin,
+      openWindows: [],
+    });
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.deliverPush(pushOpening(navigate));
+
+    await serviceWorker.tapNotification();
+
+    expect(serviceWorker.openedWindows(), name).toEqual([opens]);
+  }
+});
+
+test("A page that cannot be read opens the start page", async () => {
+  // A notification's data that is not a string (as one shown by an older service worker), or a string that is no
+  // address even on the service worker's origin, is shown here through the stand-in's own showNotification.
+  const cases: [string, unknown][] = [
+    ["no data", undefined],
+    ["a number", 42],
+    ["an object", { navigate: APP_PAGE }],
+    ["a string that is no address", "http://"],
+  ];
+
+  for (const [name, data] of cases) {
+    const serviceWorker = installServiceWorkerStandIn({ openWindows: [] });
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.worker.registration.showNotification("Ahoj", { data });
+
+    await expect(
+      serviceWorker.tapNotification(),
+      name,
+    ).resolves.toBeUndefined();
+
+    expect(serviceWorker.openedWindows(), name).toEqual([`${ORIGIN}/`]);
+  }
+
+  // An empty page is accepted (declarativeMessage) and opens the origin's root, the start page too.
+  const emptyPage = installServiceWorkerStandIn({ openWindows: [] });
+  listenForPushes(emptyPage.worker);
+  await emptyPage.deliverPush(pushOpening(""));
+
+  await emptyPage.tapNotification();
+
+  expect(emptyPage.openedWindows(), "an empty page").toEqual([`${ORIGIN}/`]);
+});
