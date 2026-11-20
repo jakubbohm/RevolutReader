@@ -45,11 +45,11 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 4. [unit] Slice 1 — The upkeep at a launch (`useAccountScreen`)
 
-- [ ] 4.1 An upkeep starts once the server names a signed-in user, together with the balance read
-- [ ] 4.2 No upkeep starts for a visitor on the sign-in or the no-access screen
-- [ ] 4.3 A repeated question that finds a signed-in user starts an upkeep
-- [ ] 4.4 "Obnovit" and coming back online start no upkeep
-- [ ] 4.5 The upkeep's outcome changes nothing on the screen
+- [x] 4.1 An upkeep starts once the server names a signed-in user, together with the balance read
+- [x] 4.2 No upkeep starts for a visitor on the sign-in or the no-access screen
+- [x] 4.3 A repeated question that finds a signed-in user starts an upkeep
+- [x] 4.4 "Obnovit" and coming back online start no upkeep
+- [x] 4.5 The upkeep's outcome changes nothing on the screen
 
 ## 5. [close] Slice 1 — The subscription is sent to the server again when the app opens
 

@@ -14,6 +14,7 @@ import {
   loadStoredBalance,
   storeBalance,
 } from "./storedBalance";
+import { keepSubscriptionUp } from "./subscriptionUpkeep";
 import {
   useTransactionList,
   type LoginEnded,
@@ -75,6 +76,11 @@ interface Wake {
  * visitor on the account screen, still signed in, so the note never claims a sign-out that did not happen (c007
  * design.md D2). A 401 or 403 to who is signed in, to a balance read or to the list's newest page forgets the balance
  * too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c; c010 D8).
+ *
+ * The phone's push subscription is kept right at a launch (c013 design.md D1; `keepSubscriptionUp`): the moment the
+ * screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an upkeep runs
+ * beside the balance read, which never waits for it. One at a time, with the refresh's limit; what it comes to is never
+ * shown. "Obnovit" and coming back online are no openings, so they run none.
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -103,6 +109,8 @@ export function useAccountScreen(): AccountScreenModel {
   const readUnderWay = useRef(false);
   /** How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped. */
   const loginsEnded = useRef(0);
+  /** As `readUnderWay`, for an upkeep of the push subscription: an opening while one runs is ignored, not queued. */
+  const upkeepUnderWay = useRef(false);
 
   /**
    * The device has no allowed login any more (D4, D5 c): a sign-out the server confirmed, or a 401 or 403 to who is
@@ -221,6 +229,34 @@ export function useAccountScreen(): AccountScreenModel {
     },
     [endLogin, landed],
   );
+
+  /**
+   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way: then nothing is asked. It
+   * has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its request is aborted, so a request left unanswered
+   * cannot block the next opening's upkeep. It runs under the login it started with, while the screen is on the page
+   * (D6). What it comes to is never shown.
+   */
+  const runUpkeep = useCallback(async (): Promise<void> => {
+    if (upkeepUnderWay.current) return;
+    upkeepUnderWay.current = true;
+    const login = loginsEnded.current;
+
+    // A timer of the page's own, not AbortSignal.timeout, so the tests' clock drives it too.
+    const limit = new AbortController();
+    const limitTimer = setTimeout(() => {
+      limit.abort();
+    }, REFRESH_LIMIT_MS);
+
+    try {
+      await keepSubscriptionUp({
+        stillSignedIn: () => onPage.current && login === loginsEnded.current,
+        signal: limit.signal,
+      });
+    } finally {
+      clearTimeout(limitTimer);
+      upkeepUnderWay.current = false;
+    }
+  }, []);
 
   /**
    * Asks who is signed in, unless the question is under way: then nothing is sent, and the answer is `null`. `anew`
@@ -376,6 +412,12 @@ export function useAccountScreen(): AccountScreenModel {
     session.kind === "offline" ||
     session.kind === "unexpected";
   const hasRead = balance !== null;
+
+  // A launch is an opening (c013 design.md D1): the moment the server names a signed-in user, by the first answer or a
+  // repeated one, the upkeep runs beside the balance read, which has already gone out.
+  useEffect(() => {
+    if (signedIn) void runUpkeep();
+  }, [signedIn, runUpkeep]);
 
   // The list reads its newest page once the server has named a signed-in user, never for a visitor (c010 design.md D8).
   const list = useTransactionList({

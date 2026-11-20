@@ -6,7 +6,6 @@
 
 import {
   currentSubscription,
-  keyOf,
   madeWith,
   pushSupported,
   readPushKey,
@@ -81,11 +80,22 @@ export async function keepSubscriptionUp(options: {
 
   // Steps 4 and 5, none held or one made with another key, are not built yet: the upkeep stops.
   if (held === null) return STOPPED;
-  if (keyOf(held) !== null && !madeWith(held, read.key)) return STOPPED;
+  if (namesItsKey(held) && !madeWith(held, read.key)) return STOPPED;
 
   // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
   const sent = await sendSubscription(held, { signal });
   return sent.kind === "done" ? { kind: "sent again" } : STOPPED;
+}
+
+/**
+ * Whether the browser names the key the subscription was made with (D1): only a key it names can be another one. The
+ * DOM types say `options` and its `applicationServerKey` are always there, but a browser may leave out either, which
+ * reads as `null` does, a key not named (`keyOf` reads only `null` so).
+ */
+function namesItsKey(subscription: PushSubscription): boolean {
+  const options = subscription.options as
+    Partial<PushSubscriptionOptions> | undefined;
+  return (options?.applicationServerKey ?? null) !== null;
 }
 
 /**
