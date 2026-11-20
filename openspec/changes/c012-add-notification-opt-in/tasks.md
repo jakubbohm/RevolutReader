@@ -262,7 +262,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 47. [close] Slice 18 — A tap on a notification opens the app at its page
 
-- [ ] 47.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification opens the app at its page
+- [x] 47.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification opens the app at its page
 
 ## 48. [unit] Slice 19 — A tap with the app open
 
