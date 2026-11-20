@@ -99,7 +99,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 14. [close] Slice 5 — A subscription made with another key is replaced quietly
 
-- [ ] 14.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 14.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 15. [unit] Slice 6 — Forgetting and unsubscribing this device (`forgetThisDevice`, `unsubscribeThisDevice`)
 
