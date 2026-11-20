@@ -79,7 +79,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 10. [close] Slice 3 — The subscription is sent to the server again on every return to the app
 
-- [ ] 10.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 10.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 11. [unit] Slice 4 — Subscribing again (`keepSubscriptionUp`)
 
