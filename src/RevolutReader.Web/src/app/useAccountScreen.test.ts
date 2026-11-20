@@ -19,6 +19,7 @@ import {
   forgotten,
   goOffline,
   goOnline,
+  hostingErrorPage,
   kept,
   keptBalance,
   leaveApp,
@@ -37,7 +38,9 @@ import {
   subscriptionRefused,
   timeline,
   type BalanceAnswer,
+  type ForgetAnswer,
   type ServerAnswers,
+  type SignOutAnswer,
   type WhoIsSignedIn,
 } from "../test/server";
 import type { Problem } from "./screenState";
@@ -1193,5 +1196,160 @@ test("A forget with no answer after 60 s is given up, and the sign-out goes on",
   expect(result.current.shown, "signed out").toMatchObject({
     screen: "sign-in",
     justSignedOut: true,
+  });
+});
+
+// ---- c013: a failed forget (design.md D2) ----
+// The push part never makes a sign-out fail: whatever the server answers to the forget, the sign-out request follows,
+// and a confirmed sign-out unsubscribes the phone. A forget with no answer is given up at 60 s (16.3).
+
+// ---- 18.1 ----
+
+const forgetsThatFail: { label: string; answer: ForgetAnswer }[] = [
+  { label: "the server fails it", answer: serverError },
+  {
+    label: "the server answers that the login has ended (401)",
+    answer: nobodySignedIn,
+  },
+  {
+    label: "the server refuses the account (403)",
+    answer: refused("lucie@example.com"),
+  },
+  {
+    label: "no answer reaches the phone, though it says it is online",
+    answer: noConnection,
+  },
+];
+
+test.each(forgetsThatFail)(
+  "A forget the server fails, refuses or does not answer still leads to the sign-out request: $label",
+  async ({ answer }) => {
+    startTestClock();
+    const phone = phoneSubscribed();
+    answerWith({
+      ...LUCIES_SERVER,
+      forgetSubscription: answer,
+      signOut: signedOut,
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    act(() => {
+      result.current.signOut();
+    });
+    await timePasses(0);
+
+    expect(
+      signOutRequestsSent(),
+      "the forget, then the sign-out request",
+    ).toEqual([FORGET_ASKED, SIGN_OUT]);
+    expect(result.current.shown, "signed out").toMatchObject({
+      screen: "sign-in",
+      justSignedOut: true,
+    });
+    expect(phone.subscription(), "the phone holds none").toBeNull();
+    expect(await keptBalance(), "no balance kept").toBeNull();
+  },
+);
+
+// ---- c013: a failed sign-out (design.md D2, D3) ----
+// A sign-out that fails, offline or with a server error, keeps the phone's subscription as C7a keeps the stored balance:
+// the user is still signed in. The phone is unsubscribed only once the server has confirmed a sign-out.
+
+// ---- 20.1 ----
+
+const signOutsTheServerFails: { label: string; answer: SignOutAnswer }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "a hosting error page", answer: hostingErrorPage },
+];
+
+test.each(signOutsTheServerFails)(
+  "A sign-out the server fails leaves the phone's subscription: $label",
+  async ({ answer }) => {
+    startTestClock();
+    const phone = phoneSubscribed();
+    const held = phone.subscription()!;
+    answerWith({ ...LUCIES_SERVER, signOut: answer });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    act(() => {
+      result.current.signOut();
+    });
+    await timePasses(0);
+
+    expect(
+      signOutRequestsSent(),
+      "the forget, then the sign-out request",
+    ).toEqual([FORGET_ASKED, SIGN_OUT]);
+    expect(result.current.shown).toMatchObject({
+      screen: "account",
+      account: { name: "Lucie Nováková", email: "lucie@example.com" },
+      header: { balance: { amount: 286.4 } },
+      banner: { kind: "sign-out failed", offline: false },
+      signingOut: false,
+    });
+    expect(phone.subscription(), "the phone keeps its subscription").toBe(held);
+    expect(await keptBalance(), "and the balance").toMatchObject({
+      amount: 286.4,
+    });
+  },
+);
+
+test("A sign-out the server fails leaves the phone's subscription: the next return sends it to the server again", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith({ ...LUCIES_SERVER, signOut: serverError });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "the sign-out failed").toMatchObject({
+    screen: "account",
+    banner: { kind: "sign-out failed" },
+  });
+  const sentBefore = subscriptionsSent().length;
+
+  // The server may have forgotten the device before the sign-out failed (D3): the next opening tells it again.
+  leavesAndReturns();
+  await timePasses(0);
+
+  expect(subscriptionsSent().slice(sentBefore), "sent again, as it is").toEqual(
+    [held.toJSON()],
+  );
+  expect(phone.subscription(), "the phone keeps it").toBe(held);
+});
+
+// ---- 20.2 ----
+
+test("A sign-out that fails offline sends nothing and leaves the phone's subscription", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith(LUCIES_SERVER);
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  const sentBefore = requests().length;
+  goOffline();
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+
+  expect(requests().slice(sentBefore), "nothing sent").toEqual([]);
+  expect(result.current.shown).toMatchObject({
+    screen: "account",
+    account: { name: "Lucie Nováková", email: "lucie@example.com" },
+    header: { balance: { amount: 286.4 } },
+    banner: { kind: "sign-out failed", offline: true },
+    signingOut: false,
+  });
+  expect(phone.subscription(), "the phone keeps its subscription").toBe(held);
+  expect(await keptBalance(), "and the balance").toMatchObject({
+    amount: 286.4,
   });
 });

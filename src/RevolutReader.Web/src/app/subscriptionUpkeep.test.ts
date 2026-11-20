@@ -18,6 +18,7 @@ import {
   noAnswerYet,
   nobodySignedIn,
   noConnection,
+  problemOf,
   pushKey,
   refused,
   requests,
@@ -1540,3 +1541,36 @@ test("Neither ever throws: a failed unsubscribe and a failure to ask for the reg
   expect(requests(), "nothing sent").toEqual([]);
   expect(phone.subscription(), "the phone keeps it").toBe(held);
 });
+
+// ---- 18.2 ----
+// 15.4 covers a server error, a hosting error page, 401, 403, no connection and the phone offline; 15.1 the forget with
+// no answer, ended by the signal. These are the rest of what the server may answer.
+
+const otherForgetAnswers: { label: string; answer: ForgetAnswer }[] = [
+  { label: "a 200 the app does not expect", answer: unreadable },
+  { label: "a Wi-Fi login page", answer: wifiLoginPage },
+  {
+    label: "the address refused (400)",
+    answer: problemOf(
+      400,
+      "One or more errors occurred!",
+      "https://www.rfc-editor.org/rfc/rfc9110#section-15.5.1",
+    ),
+  },
+];
+
+test.each(otherForgetAnswers)(
+  "Forgetting this device never throws, whatever the server answers: $label",
+  async ({ answer }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY);
+    const held = phone.subscription();
+    answerWith({ ...THE_SERVER, forgetSubscription: answer });
+
+    await expect(forgetThisDevice()).resolves.toBeUndefined();
+    expect(forgetsSent(), "the phone's push address sent").toEqual(
+      THE_PHONES_ADDRESS,
+    );
+    expect(requests(), "nothing more").toEqual([FORGET_ASKED]);
+    expect(phone.subscription(), "the phone keeps it").toBe(held);
+  },
+);

@@ -120,8 +120,8 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 18. [unit] Slice 7 — A failed forget (`useAccountScreen`, `forgetThisDevice`)
 
-- [ ] 18.1 A forget the server fails, refuses or does not answer still leads to the sign-out request
-- [ ] 18.2 Forgetting this device never throws, whatever the server answers
+- [x] 18.1 A forget the server fails, refuses or does not answer still leads to the sign-out request
+- [x] 18.2 Forgetting this device never throws, whatever the server answers
 
 ## 19. [close] Slice 7 — A failed request to forget the phone does not fail the sign-out
 
@@ -129,8 +129,8 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 20. [unit] Slice 8 — A failed sign-out (`useAccountScreen`)
 
-- [ ] 20.1 A sign-out the server fails leaves the phone's subscription
-- [ ] 20.2 A sign-out that fails offline sends nothing and leaves the phone's subscription
+- [x] 20.1 A sign-out the server fails leaves the phone's subscription
+- [x] 20.2 A sign-out that fails offline sends nothing and leaves the phone's subscription
 
 ## 21. [close] Slice 8 — A failed sign-out keeps the subscription
 
