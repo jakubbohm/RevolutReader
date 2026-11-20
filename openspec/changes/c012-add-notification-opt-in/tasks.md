@@ -101,7 +101,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 14. [close] Slice 5 — Nothing offers notifications once they are on
 
-- [ ] 14.1 The scenario's test passes. Verify: green, including notification-opt-in / Nothing offers notifications once they are on
+- [x] 14.1 The scenario's test passes. Verify: green, including notification-opt-in / Nothing offers notifications once they are on
 
 ## 15. [unit] Slice 6 — Openings
 
