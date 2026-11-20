@@ -8,9 +8,12 @@ import {
   goOffline,
   goOnline,
   leaveApp,
+  phoneRemembersNotNow,
+  requests,
   returnToApp,
   stored,
 } from "../test/server";
+import { notNowRemembered } from "./notNow";
 import { useNotificationOptIn } from "./useNotificationOptIn";
 
 // The opt-in's sequence (c012 design.md D3–D8; § Rule ownership: useNotificationOptIn), driven through the hook on the
@@ -151,4 +154,58 @@ test("Every opening reads the phone's permission again", async () => {
 
   expect(result.current.card, "allowed in Settings: no card").toBeNull();
   expect(result.current.menuItem, "and no menu item").toBe(false);
+});
+
+// ---- group 28: turning on from the account menu (D7) ----
+
+// The menu's item asks the phone inside Radix's `onSelect`, so iOS sees the tap (D3, D7): the question goes out before
+// `fromMenu` returns, and nothing is asked of the server before it.
+test("Turning on from the menu asks the phone before anything is awaited", async () => {
+  startTestClock();
+  phoneRemembersNotNow();
+  const phone = installPushStandIns({
+    permission: "default",
+    permissionAnswer: "granted",
+  });
+  answerWith({ subscription: after(KEEP_TIME, stored) });
+  const { result } = theOptIn();
+  expect(result.current.menuItem, "the menu offers notifications").toBe(true);
+
+  let asked = 0;
+  let serverRequests: string[] = [];
+  act(() => {
+    result.current.fromMenu();
+    asked = phone.permissionRequests();
+    serverRequests = requests();
+  });
+
+  expect(asked, "asked before the call returned, so within the tap").toBe(1);
+  expect(
+    serverRequests,
+    "nothing asked of the server before the phone",
+  ).toEqual([]);
+  await timePasses(KEEP_TIME);
+});
+
+// After "Teď ne" the card comes back to show the result (D2, D7), and the choice stays: the menu does not undo it.
+test('With "Teď ne" remembered, the result of a turn-on from the menu shows in the card, and "Teď ne" stays remembered', async () => {
+  startTestClock();
+  phoneRemembersNotNow();
+  aPhoneThatAllows();
+  const { result } = theOptIn();
+  expect(result.current.card, 'no card after "Teď ne"').toBeNull();
+
+  act(() => {
+    result.current.fromMenu();
+  });
+  await timePasses(0);
+
+  expect(result.current.card, "the card back, turning on").toBe("enabling");
+  expect(result.current.menuItem, "and no menu item").toBe(false);
+
+  await timePasses(KEEP_TIME);
+
+  expect(result.current.card, "the card says they are on").toBe("enabled");
+  expect(result.current.menuItem, "and no menu item").toBe(false);
+  expect(notNowRemembered(), '"Teď ne" stays remembered').toBe(true);
 });

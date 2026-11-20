@@ -64,8 +64,7 @@ test("Without the balance header, the default card is not shown and the menu ite
   });
 });
 
-// While turning on and once on in this opening (D3, D4), with the balance header on screen; that a result shows without
-// the header too is task 28.4's.
+// While turning on and once on in this opening (D3, D4), with the balance header on screen; without it, see below.
 
 test("While turning on, the enabling card and no menu item", () => {
   // The phone still asking, and the phone allowing while the app subscribes.
@@ -97,7 +96,7 @@ test("A phone that allows notifications is offered nothing, card or menu item, w
 });
 
 // Declining (D6) and a blocked phone (D7: the web cannot ask again, so the account menu offers to say where to turn
-// them on). A Denied card without the header is task 28.4's.
+// them on). A Denied card without the header: see below.
 
 test("After a decline in this opening, the Denied card and no menu item", () => {
   expect(
@@ -119,11 +118,43 @@ test("A blocked phone with no result of this opening is offered the menu item, n
 });
 
 // "Teď ne" remembered on the device (D5): the card does not come back by itself; the account menu offers instead (D7).
-// A result of a turn-on from the menu after "Teď ne" is task 28.3's.
 
 test('With "Teď ne" remembered, no card and the menu item', () => {
   expect(notificationOffer(facts({ notNow: true }))).toEqual({
     card: null,
     menuItem: true,
   });
+});
+
+// A turn-on from the menu (D2, D7): the step under way and the result of this opening show in the card, wherever the
+// screen is, and the menu offers nothing meanwhile.
+
+/** A step under way or a result of this opening, with a permission it comes with, and the card it shows. */
+const RESULTS = [
+  { step: "enabling", permission: "default", card: "enabling" },
+  { step: "enabling", permission: "granted", card: "enabling" },
+  { step: "enabled", permission: "granted", card: "enabled" },
+  { step: "denied", permission: "denied", card: "denied" },
+] as const;
+
+test('With "Teď ne" remembered, a turn-on from the menu shows its step and its result in the card, and no menu item', () => {
+  for (const { step, permission, card } of RESULTS) {
+    expect(
+      notificationOffer(facts({ notNow: true, step, permission })),
+      `the step ${step}, the permission ${permission}`,
+    ).toEqual({ card, menuItem: false });
+  }
+});
+
+test("A result of this opening shows whether or not the balance header is on screen", () => {
+  for (const { step, permission, card } of RESULTS) {
+    for (const underBalance of [true, false]) {
+      for (const notNow of [false, true]) {
+        expect(
+          notificationOffer(facts({ step, permission, underBalance, notNow })),
+          `the step ${step}, the permission ${permission}, the balance header ${underBalance ? "on screen" : "not on screen"}, "Teď ne" ${notNow ? "remembered" : "not remembered"}`,
+        ).toEqual({ card, menuItem: false });
+      }
+    }
+  }
 });

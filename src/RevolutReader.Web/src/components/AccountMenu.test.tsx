@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Bell, LogOut } from "lucide-react";
 import { expect, test } from "vitest";
+import { installPushStandIns } from "../test/push";
+import { watchPermissionQuestions } from "../test/taps";
 import { AccountMenu } from "./AccountMenu";
 
 // The account menu while a sign-out runs (c009 design.md D6, D10): "Odhlásit se" shows a spinner beside its label, is
@@ -93,6 +95,32 @@ test('Without a handler for it, the account menu holds the one item "Odhlásit s
     screen.getAllByRole("menuitem").map((item) => item.textContent),
     'without it, the one item "Odhlásit se"',
   ).toEqual(["Odhlásit se"]);
+});
+
+// The item's handler asks the phone, as the app's does (c012 design.md D7): iOS asks only from a gesture, so the handler
+// must run within the selection's own tap, which the test kit's watch on the push stand-ins tells (src/test/taps.ts).
+test('Choosing "Zapnout upozornění" calls its handler within the selection and closes the menu', async () => {
+  const phone = installPushStandIns({ permission: "default" });
+  const questions = watchPermissionQuestions();
+  render(
+    <AccountMenu
+      account={LUCIE}
+      onSignOut={() => {}}
+      onEnableNotifications={() => {
+        void Notification.requestPermission();
+      }}
+    />,
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Účet a odhlášení" }));
+
+  await user.click(
+    await screen.findByRole("menuitem", { name: "Zapnout upozornění" }),
+  );
+
+  expect(phone.permissionRequests(), "the handler called once").toBe(1);
+  expect(questions.askedInTap(), "within the selection's tap").toEqual([true]);
+  expect(screen.queryByRole("menu"), "the menu closes").not.toBeInTheDocument();
 });
 
 test('While signing out, "Odhlásit se" shows a spinner beside its label and is marked busy', async () => {
