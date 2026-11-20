@@ -130,7 +130,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 20. [close] Slice 7 — Declining the phone's question says where to turn notifications on
 
-- [ ] 20.1 The scenario's test passes. Verify: green, including notification-opt-in / Declining the phone's question says where to turn notifications on
+- [x] 20.1 The scenario's test passes. Verify: green, including notification-opt-in / Declining the phone's question says where to turn notifications on
 
 ## 21. [close] Slice 8 — The card saying notifications are off is gone at the next opening
 
