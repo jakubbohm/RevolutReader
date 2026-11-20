@@ -13,15 +13,15 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (frontend), the test kit of design.md D8 and § Public API sketch, the test-writer's: in `src/test/serviceWorker.ts`, with `declarative: true` and a declarative message, the proposed notification also carries the message's `notification.data` as its `data`, and the event's own `data` is null (the W3C draft); every other push as before. In `src/scenarios/push-display.test.ts`, a helper builds a push as C9a sends it (`"mutable": true`, `notification.data.balance`, design.md D1). Verify: the existing frontend tests stay green, C8b's `declarative: true` test among them
-- [ ] 1.2 Acceptance: push-display / A push with a balance replaces the balance the phone keeps (frontend)
-- [ ] 1.3 Acceptance: push-display / A push with a balance read earlier than the kept one leaves it as it was (frontend; green from the start, a guard, design.md D8)
-- [ ] 1.4 Acceptance: push-display / A push with a balance stores none on a phone that keeps none (frontend; green from the start, a guard)
-- [ ] 1.5 Acceptance: push-display / A push without a balance leaves the kept balance as it was (frontend; green from the start, a guard)
-- [ ] 1.6 Acceptance: push-display / A push with a balance of the wrong shape leaves the kept balance as it was (frontend; green from the start, a guard)
-- [ ] 1.7 Acceptance: push-display / A push still shows its notification when the phone's storage fails (frontend; green from the start, a guard)
-- [ ] 1.8 Acceptance: push-display / The app opened from a push's notification shows its balance while the server wakes (frontend)
-- [ ] 1.9 Acceptance: push-display / A payment's notification on the iPhone opens the app on its balance (manual): its row in `tests/manual-scenarios.md`, handover step M7, first chance once C9a and C9b are both deployed, with the phone taken offline before the tap (design.md D9)
+- [x] 1.1 Foundation (frontend), the test kit of design.md D8 and § Public API sketch, the test-writer's: in `src/test/serviceWorker.ts`, with `declarative: true` and a declarative message, the proposed notification also carries the message's `notification.data` as its `data`, and the event's own `data` is null (the W3C draft); every other push as before. In `src/scenarios/push-display.test.ts`, a helper builds a push as C9a sends it (`"mutable": true`, `notification.data.balance`, design.md D1). Verify: the existing frontend tests stay green, C8b's `declarative: true` test among them
+- [x] 1.2 Acceptance: push-display / A push with a balance replaces the balance the phone keeps (frontend)
+- [x] 1.3 Acceptance: push-display / A push with a balance read earlier than the kept one leaves it as it was (frontend; green from the start, a guard, design.md D8)
+- [x] 1.4 Acceptance: push-display / A push with a balance stores none on a phone that keeps none (frontend; green from the start, a guard)
+- [x] 1.5 Acceptance: push-display / A push without a balance leaves the kept balance as it was (frontend; green from the start, a guard)
+- [x] 1.6 Acceptance: push-display / A push with a balance of the wrong shape leaves the kept balance as it was (frontend; green from the start, a guard)
+- [x] 1.7 Acceptance: push-display / A push still shows its notification when the phone's storage fails (frontend; green from the start, a guard)
+- [x] 1.8 Acceptance: push-display / The app opened from a push's notification shows its balance while the server wakes (frontend)
+- [x] 1.9 Acceptance: push-display / A payment's notification on the iPhone opens the app on its balance (manual): its row in `tests/manual-scenarios.md`, handover step M7, first chance once C9a and C9b are both deployed, with the phone taken offline before the tap (design.md D9)
 
 ## 2. [unit] Slice 1 — Keeping a push's balance
 
