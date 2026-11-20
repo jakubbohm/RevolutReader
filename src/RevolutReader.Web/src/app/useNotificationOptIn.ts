@@ -108,14 +108,15 @@ export function useNotificationOptIn({
   }, []);
 
   // From the menu (D7): on a blocked phone, asking would do nothing, so the Denied card says where to turn them on;
-  // otherwise as the card's button, the result shown in the card, and a remembered "Teď ne" stays.
+  // otherwise as the card's button, the result shown in the card, and a remembered "Teď ne" stays. The permission is read
+  // at the tap, not at the last opening: the phone's settings may have stopped blocking meanwhile.
   const fromMenu = useCallback((): void => {
-    if (permission === "denied") {
+    if (readPermission() === "denied") {
       setStep("denied");
       return;
     }
     turnOn();
-  }, [permission, turnOn]);
+  }, [turnOn]);
 
   const dismiss = useCallback((): void => {
     rememberNotNow();
