@@ -233,8 +233,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 41. [unit] Slice 16 — Showing a push
 
-- [ ] 41.1 A push without the browser's own notification shows the message's title and text, keeping the page it opens
-- [ ] 41.2 A push that is not a Declarative Web Push message shows nothing
+- [x] 41.1 A push without the browser's own notification shows the message's title and text, keeping the page it opens
+- [x] 41.2 A push that is not a Declarative Web Push message shows nothing
 
 ## 42. [wiring] Slice 16 — The service worker's push handler
 

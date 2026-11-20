@@ -76,6 +76,25 @@ export interface NotificationClickLike {
  * window of the app on the worker's origin, or opens navigate's path, query and fragment on that origin.
  */
 export function listenForPushes(worker: PushWorker): void {
-  void worker;
-  throw new Error("Not implemented");
+  worker.addEventListener("push", (event) => {
+    const message = declarativeMessage(pushJson(event));
+    if (message === null) return;
+    const { title, body, navigate } = message;
+    event.waitUntil(
+      worker.registration.showNotification(
+        title,
+        body === undefined ? { data: navigate } : { body, data: navigate },
+      ),
+    );
+  });
+}
+
+/** The push's data as JSON; undefined when it has none or it is not JSON. */
+function pushJson(event: PushLike): unknown {
+  if (event.data === null) return undefined;
+  try {
+    return event.data.json();
+  } catch {
+    return undefined;
+  }
 }
