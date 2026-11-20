@@ -13,8 +13,21 @@ export interface DeclarativeMessage {
 
 /** The message in a push's JSON: "web_push": 8030, a notification with a non-empty title and a navigate string; else null. */
 export function declarativeMessage(json: unknown): DeclarativeMessage | null {
-  void json;
-  throw new Error("Not implemented");
+  if (!isRecord(json) || json.web_push !== 8030) return null;
+  const notification = json.notification;
+  if (!isRecord(notification)) return null;
+  const { title, body, navigate } = notification;
+  if (typeof title !== "string" || title === "") return null;
+  // Any string is a page: the tap opens its path, query and fragment on the worker's own origin.
+  if (typeof navigate !== "string") return null;
+  // A body that is not a string is no text.
+  return typeof body === "string"
+    ? { title, body, navigate }
+    : { title, navigate };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 /** The members of the service worker's global scope this module uses (both ServiceWorkerGlobalScope and the stand-in fit). */

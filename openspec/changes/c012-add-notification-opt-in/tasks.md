@@ -227,9 +227,9 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 40. [unit] Slice 16 — Reading a push
 
-- [ ] 40.1 A Declarative Web Push message gives its title, its text and the page it opens
-- [ ] 40.2 A message without text gives no text
-- [ ] 40.3 Anything else is no message: not an object, `web_push` other than 8030, no or an empty title, no `navigate`
+- [x] 40.1 A Declarative Web Push message gives its title, its text and the page it opens
+- [x] 40.2 A message without text gives no text
+- [x] 40.3 Anything else is no message: not an object, `web_push` other than 8030, no or an empty title, no `navigate`
 
 ## 41. [unit] Slice 16 — Showing a push
 
