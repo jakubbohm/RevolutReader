@@ -189,11 +189,11 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 33. [unit] Slice 13 — Failing offline
 
-- [ ] 33.1 With the phone offline after the answer, nothing is sent and turning on fails as offline
-- [ ] 33.2 A request with no answer makes turning on fail as offline
-- [ ] 33.3 With no outcome 60 seconds after the phone's answer, the requests are given up and turning on fails as offline
-- [ ] 33.4 A service worker not ready within 60 seconds makes turning on fail, not as offline
-- [ ] 33.5 A subscription the browser refuses while the phone is offline fails as offline
+- [x] 33.1 With the phone offline after the answer, nothing is sent and turning on fails as offline
+- [x] 33.2 A request with no answer makes turning on fail as offline
+- [x] 33.3 With no outcome 60 seconds after the phone's answer, the requests are given up and turning on fails as offline
+- [x] 33.4 A service worker not ready within 60 seconds makes turning on fail, not as offline
+- [x] 33.5 A subscription the browser refuses while the phone is offline fails as offline
 
 ## 34. [unit] Slice 13 — The failure on the screen
 
