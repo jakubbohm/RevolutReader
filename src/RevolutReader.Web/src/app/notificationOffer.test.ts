@@ -117,3 +117,13 @@ test("A blocked phone with no result of this opening is offered the menu item, n
     }
   }
 });
+
+// "Teď ne" remembered on the device (D5): the card does not come back by itself; the account menu offers instead (D7).
+// A result of a turn-on from the menu after "Teď ne" is task 28.3's.
+
+test('With "Teď ne" remembered, no card and the menu item', () => {
+  expect(notificationOffer(facts({ notNow: true }))).toEqual({
+    card: null,
+    menuItem: true,
+  });
+});
