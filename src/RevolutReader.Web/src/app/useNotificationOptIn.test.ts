@@ -360,3 +360,28 @@ test("A new turn-on tells the screen, so its earlier failure clears", async () =
   expect(result.current.card, "and turned them on").toBe("enabled");
   expect(failures, "no new failure").toEqual([false]);
 });
+
+// Review finding (PR #78): the default card after a failure is there so the user can try again (D8), not to outlast
+// "Teď ne", which hides the card (spec: "Tapping 'Teď ne' SHALL hide the card"). The menu's item is left out: the phone
+// already allows notifications after a failure, so whether it is offered is the spec's boundary, not this finding.
+test('"Teď ne" on the default card after a failure hides the card, and is remembered', async () => {
+  startTestClock();
+  installPushStandIns({ permission: "default", permissionAnswer: "granted" });
+  answerWith({ subscription: serverError });
+  const { result } = theOptIn();
+  act(() => {
+    result.current.turnOn();
+  });
+  await timePasses(0);
+  expect(result.current.card, "the default card after the failure").toBe(
+    "default",
+  );
+
+  act(() => {
+    result.current.notNow();
+  });
+  await timePasses(0);
+
+  expect(result.current.card, "the card hidden").toBeNull();
+  expect(notNowRemembered(), '"Teď ne" remembered').toBe(true);
+});
