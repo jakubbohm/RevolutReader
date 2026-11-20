@@ -82,3 +82,16 @@ test("Once on in this opening, the enabled card and no menu item", () => {
     notificationOffer(facts({ step: "enabled", permission: "granted" })),
   ).toEqual({ card: "enabled", menuItem: false });
 });
+
+// Once on (D8, "On": the phone allows notifications), at an opening with no result of its own; that a failure in this
+// opening still shows the default card is task 34.3's.
+
+test("A phone that allows notifications is offered nothing, card or menu item, when no result of this opening shows", () => {
+  for (const changes of WOULD_OFFER) {
+    expect(
+      notificationOffer(
+        facts({ ...changes, permission: "granted", step: "idle" }),
+      ),
+    ).toEqual(NOTHING);
+  }
+});
