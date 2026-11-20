@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Bell, BellRing, LoaderCircle } from "lucide-react";
+import { Bell, BellOff, BellRing, LoaderCircle } from "lucide-react";
 import { expect, test } from "vitest";
 import { NotificationOptIn } from "./NotificationOptIn";
 
@@ -117,6 +117,39 @@ test('Enabled: the ringing bell, "Upozornění jsou zapnutá", its sentence, no 
   expect(
     title.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING,
     "the sentence under the title",
+  ).toBeTruthy();
+  expect(screen.queryAllByRole("button"), "no button").toEqual([]);
+});
+
+// ---- group 18: declining (D1's denied state, D6: the web cannot ask again, so no button) ----
+
+test('The Denied card shows the crossed bell, "Upozornění jsou vypnutá", the path to Settings, no button, announced as a status', () => {
+  const crossedBell = drawingOf(BellOff);
+  expect(crossedBell, "Lucide's crossed bell draws something").not.toBe("");
+  const { container } = render(
+    <NotificationOptIn
+      state="denied"
+      onEnable={() => {}}
+      onDismiss={() => {}}
+    />,
+  );
+
+  expect(
+    [...container.querySelectorAll("svg")].some(
+      (icon) =>
+        icon.innerHTML === crossedBell &&
+        icon.closest('[aria-hidden="true"]') !== null,
+    ),
+    "the crossed bell, hidden from screen readers",
+  ).toBe(true);
+  const status = screen.getByRole("status");
+  const title = within(status).getByText("Upozornění jsou vypnutá");
+  const path = within(status).getByText(
+    "Zapneš je v Nastavení → Oznámení → Tarjeta Papá.",
+  );
+  expect(
+    title.compareDocumentPosition(path) & Node.DOCUMENT_POSITION_FOLLOWING,
+    "the path under the title",
   ).toBeTruthy();
   expect(screen.queryAllByRole("button"), "no button").toEqual([]);
 });

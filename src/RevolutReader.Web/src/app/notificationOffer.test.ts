@@ -95,3 +95,25 @@ test("A phone that allows notifications is offered nothing, card or menu item, w
     ).toEqual(NOTHING);
   }
 });
+
+// Declining (D6) and a blocked phone (D7: the web cannot ask again, so the account menu offers to say where to turn
+// them on). A Denied card without the header is task 28.4's.
+
+test("After a decline in this opening, the Denied card and no menu item", () => {
+  expect(
+    notificationOffer(facts({ step: "denied", permission: "denied" })),
+  ).toEqual({ card: "denied", menuItem: false });
+});
+
+test("A blocked phone with no result of this opening is offered the menu item, never a card", () => {
+  for (const underBalance of [true, false]) {
+    for (const notNow of [false, true]) {
+      expect(
+        notificationOffer(
+          facts({ permission: "denied", step: "idle", underBalance, notNow }),
+        ),
+        `the balance header ${underBalance ? "on screen" : "not on screen"}, "Teď ne" ${notNow ? "remembered" : "not remembered"}`,
+      ).toEqual({ card: null, menuItem: true });
+    }
+  }
+});
