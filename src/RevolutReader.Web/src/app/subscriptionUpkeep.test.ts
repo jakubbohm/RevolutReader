@@ -1574,3 +1574,359 @@ test.each(otherForgetAnswers)(
     expect(phone.subscription(), "the phone keeps it").toBe(held);
   },
 );
+
+// ---- The upkeep and the login's end (D1, D4, D6) ----
+// A 401 or 403 to any of the upkeep's requests ends the login: the upkeep says so, naming the refused account, and
+// leaves the phone's subscription to the screen, whose end of the login unsubscribes it (D4). A login that ends
+// elsewhere while the upkeep runs (`stillSignedIn`, checked after every step) stops it, and a subscription it made is
+// unsubscribed (D6).
+
+/** How the upkeep names a login the server ended. */
+type LoginEnded = Extract<UpkeepOutcome, { kind: "login ended" }>["ended"];
+
+/** The server's answers that the login has ended, and how the upkeep names each. */
+const answersThatEndTheLogin: {
+  label: string;
+  answer: typeof nobodySignedIn | ReturnType<typeof refused>;
+  ended: LoginEnded;
+}[] = [
+  { label: "401", answer: nobodySignedIn, ended: { kind: "signed out" } },
+  {
+    label: "403 naming the account",
+    answer: refused("lucie@example.com"),
+    ended: { kind: "refused", email: "lucie@example.com" },
+  },
+  {
+    label: "403 naming none",
+    answer: refused(null),
+    ended: { kind: "refused", email: null },
+  },
+];
+
+/** The login an upkeep starts under, which the test ends while the upkeep runs (D6). */
+function aLogin(): { stillSignedIn: () => boolean; ends: () => void } {
+  let on = true;
+  return {
+    stillSignedIn: () => on,
+    ends: () => {
+      on = false;
+    },
+  };
+}
+
+/** One upkeep under this login, as the screen starts it. */
+function anUpkeepUnder(login: {
+  stillSignedIn: () => boolean;
+}): Promise<UpkeepOutcome> {
+  return keepSubscriptionUp({ stillSignedIn: login.stillSignedIn });
+}
+
+const DROPPED = { kind: "dropped" };
+
+// ---- 23.1 ----
+
+test.each(answersThatEndTheLogin)(
+  'A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account: the key read, $label',
+  async ({ answer, ended }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY);
+    const held = phone.subscription();
+    answerWith({ ...THE_SERVER, pushKey: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "login ended", ended });
+    expect(requests(), "nothing more sent").toEqual([KEY_READ]);
+    expect(phone.subscription(), "left to the screen").toBe(held);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  },
+);
+
+test.each(answersThatEndTheLogin)(
+  'A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account: the subscription sent again, $label',
+  async ({ answer, ended }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY);
+    const held = phone.subscription();
+    answerWith({ ...THE_SERVER, subscription: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "login ended", ended });
+    expect(requests(), "nothing more sent").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+    expect(phone.subscription(), "left to the screen").toBe(held);
+  },
+);
+
+test.each(answersThatEndTheLogin)(
+  'A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account: the new subscription sent, the phone had none, $label',
+  async ({ answer, ended }) => {
+    const phone = phoneHoldingNone();
+    answerWith({ ...THE_SERVER, subscription: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "login ended", ended });
+    expect(requests(), "nothing more sent").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+    expect(subscribedWith(phone), "subscribed once").toEqual(
+      WITH_THE_SERVERS_KEY,
+    );
+  },
+);
+
+test.each(answersThatEndTheLogin)(
+  'A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account: the old address forgotten, $label',
+  async ({ answer, ended }) => {
+    const phone = phoneSubscribedWithTheOldKey();
+    const old = phone.subscription();
+    answerWith({ ...THE_SERVER, forgetSubscription: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "login ended", ended });
+    expect(requests(), "nothing more sent").toEqual([KEY_READ, FORGET_ASKED]);
+    expect(phone.subscription(), "left to the screen").toBe(old);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  },
+);
+
+test.each(answersThatEndTheLogin)(
+  'A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account: the replacement sent, $label',
+  async ({ answer, ended }) => {
+    phoneSubscribedWithTheOldKey();
+    answerWith({ ...THE_SERVER, subscription: answer });
+
+    expect(await anUpkeep()).toEqual({ kind: "login ended", ended });
+    expect(requests(), "nothing more sent").toEqual([
+      KEY_READ,
+      FORGET_ASKED,
+      SUBSCRIPTION_SENT,
+    ]);
+  },
+);
+
+// ---- 23.2 ----
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the phone subscribed, holding none before", async () => {
+  startTestClock();
+  const phone = phoneHoldingNone({ subscribeWaits: true });
+  answerWith(THE_SERVER);
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "the phone subscribing").toBe(
+    "still running",
+  );
+  expect(subscribedWith(phone)).toEqual(WITH_THE_SERVERS_KEY);
+
+  login.ends();
+  phone.letWaitingCallsSettle();
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "the one it made unsubscribed").toBeNull();
+  expect(requests(), "nothing sent").toEqual([KEY_READ]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the phone subscribed in place of one made with another key", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey({}, { subscribeWaits: true });
+  answerWith(THE_SERVER);
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "the phone subscribing").toBe(
+    "still running",
+  );
+  expect(subscribedWith(phone)).toEqual(WITH_THE_SERVERS_KEY);
+
+  login.ends();
+  phone.letWaitingCallsSettle();
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "the one it made unsubscribed").toBeNull();
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the new subscription was sent", async () => {
+  startTestClock();
+  const phone = phoneHoldingNone();
+  answerWith({ ...THE_SERVER, subscription: after(SECOND, stored) });
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "sending the new one").toBe(
+    "still running",
+  );
+  const made = phone.subscription();
+  expect(made, "the one it made").not.toBeNull();
+
+  login.ends();
+  await timePasses(SECOND);
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "the one it made unsubscribed").toBeNull();
+  expect(subscriptionsSent(), "sent once, nothing more").toEqual([
+    made?.toJSON(),
+  ]);
+  expect(requests()).toEqual([KEY_READ, SUBSCRIPTION_SENT]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the replacement was sent", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey();
+  answerWith({ ...THE_SERVER, subscription: after(SECOND, stored) });
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "sending the replacement").toBe(
+    "still running",
+  );
+  const made = phone.subscription();
+  expect(made, "the one it made").not.toBeNull();
+
+  login.ends();
+  await timePasses(SECOND);
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "the one it made unsubscribed").toBeNull();
+  expect(requests()).toEqual([KEY_READ, FORGET_ASKED, SUBSCRIPTION_SENT]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the subscription was sent again, the one it did not make left alone", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const held = phone.subscription();
+  answerWith({ ...THE_SERVER, subscription: after(SECOND, stored) });
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "sending it again").toBe("still running");
+
+  login.ends();
+  await timePasses(SECOND);
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "left to the screen").toBe(held);
+  expect(requests()).toEqual([KEY_READ, SUBSCRIPTION_SENT]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the server forgot the old address, nothing subscribed", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey();
+  const old = phone.subscription();
+  answerWith({ ...THE_SERVER, forgetSubscription: after(SECOND, forgotten) });
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "the server forgetting it").toBe(
+    "still running",
+  );
+
+  login.ends();
+  await timePasses(SECOND);
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscription(), "the old one left to the screen").toBe(old);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+});
+
+test("An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made: ended while the old one was unsubscribed, nothing subscribed", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWithTheOldKey({ unsubscribeWaits: true });
+  answerWith(THE_SERVER);
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "the phone unsubscribing").toBe(
+    "still running",
+  );
+
+  login.ends();
+  phone.letWaitingCallsSettle();
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(requests(), "nothing sent after the forget").toEqual([
+    KEY_READ,
+    FORGET_ASKED,
+  ]);
+});
+
+// ---- 23.3 ----
+
+/** What the phone may hold when an upkeep starts: each leads to another request once the key is read. */
+const phonesAtTheStart: { label: string; phone: () => PushStandIns }[] = [
+  {
+    label: "a subscription made with the server's key",
+    phone: () => phoneSubscribedWith(SERVER_KEY),
+  },
+  { label: "none", phone: () => phoneHoldingNone() },
+  {
+    label: "a subscription made with another key",
+    phone: () => phoneSubscribedWithTheOldKey(),
+  },
+];
+
+test.each(phonesAtTheStart)(
+  "An upkeep whose login ended before it sends anything sends nothing: ended before it started, the phone holding $label",
+  async ({ phone: phoneHolding }) => {
+    const phone = phoneHolding();
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    expect(await keepSubscriptionUp({ stillSignedIn: () => false })).toEqual(
+      DROPPED,
+    );
+    expect(requests(), "nothing sent, not even the key read").toEqual([]);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test.each(phonesAtTheStart)(
+  "An upkeep whose login ended before it sends anything sends nothing: ended while the key was read, the phone holding $label",
+  async ({ phone: phoneHolding }) => {
+    startTestClock();
+    const phone = phoneHolding();
+    const held = phone.subscription();
+    answerWith({ ...THE_SERVER, pushKey: after(SECOND, pushKey(SERVER_KEY)) });
+    const login = aLogin();
+
+    const upkeep = anUpkeepUnder(login);
+    expect(await whereItStands(upkeep), "reading the key").toBe(
+      "still running",
+    );
+
+    login.ends();
+    await timePasses(SECOND);
+
+    expect(await whereItStands(upkeep)).toEqual(DROPPED);
+    expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+  },
+);
+
+test("An upkeep whose login ended before it sends anything sends nothing: ended while the phone said which subscription it holds", async () => {
+  startTestClock();
+  const phone = phoneHoldingNone({ getSubscriptionWaits: true });
+  answerWith(THE_SERVER);
+  const login = aLogin();
+
+  const upkeep = anUpkeepUnder(login);
+  expect(await whereItStands(upkeep), "the phone answering").toBe(
+    "still running",
+  );
+
+  login.ends();
+  phone.letWaitingCallsSettle();
+
+  expect(await whereItStands(upkeep)).toEqual(DROPPED);
+  expect(requests(), "nothing sent after the key").toEqual([KEY_READ]);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(phone.subscription(), "the phone holds none still").toBeNull();
+});
