@@ -1355,6 +1355,108 @@ test("A sign-out that fails offline sends nothing and leaves the phone's subscri
   });
 });
 
+// ---- c013: no upkeep while a sign-out is under way (design.md D2) ----
+// Review finding 4 (PR 81), as the owner settled it on 2026-11-20: from the tap on "Odhlásit se" until the sign-out has
+// ended, confirmed or failed, an opening starts no upkeep (D2, "No upkeep starts while a sign-out is under way"; spec
+// push-devices, "The subscription is sent to the server again at every opening": "while a user is signed in, no
+// sign-out is under way, and notifications are allowed"). Otherwise a return between the forget and the sign-out's
+// answer would send the subscription to the server again, undoing the forget. After a failed sign-out, the next opening
+// sends it again (D3). An upkeep already running at the tap is not part of this.
+
+/**
+ * Lucie, signed in on her phone with its subscription sent at the launch, taps "Odhlásit se". The server forgets the
+ * device at once and answers the sign-out request with `answer` after `READ_TIME`; meanwhile she leaves the app and
+ * returns.
+ */
+async function aReturnWhileSigningOut(answer: SignOutAnswer): Promise<{
+  result: { current: AccountScreenModel };
+  phone: PushStandIns;
+  held: PushSubscription;
+}> {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith({ ...LUCIES_SERVER, signOut: after(READ_TIME, answer) });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(pushRequestsSent(), "the launch's upkeep, done").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+
+  act(() => {
+    result.current.signOut();
+  });
+  await timePasses(0);
+  expect(timeline(), "the forget answered").toContain(`answer ${FORGET_ASKED}`);
+  expect(signOutRequestsSent(), "the sign-out request on its way").toEqual([
+    FORGET_ASKED,
+    SIGN_OUT,
+  ]);
+  expect(timeline(), "and not answered yet").not.toContain(
+    `answer ${SIGN_OUT}`,
+  );
+
+  leavesAndReturns();
+  await timePasses(0);
+  return { result, phone, held };
+}
+
+test("No upkeep starts while a sign-out is under way: a return before the sign-out is confirmed sends nothing for push", async () => {
+  const { result, phone } = await aReturnWhileSigningOut(signedOut);
+
+  expect(
+    pushRequestsSent(),
+    "nothing for push after the forget: no key read, no subscription sent",
+  ).toEqual([KEY_READ, SUBSCRIPTION_SENT, FORGET_ASKED]);
+
+  await timePasses(READ_TIME);
+
+  expect(result.current.shown, "signed out").toMatchObject({
+    screen: "sign-in",
+    justSignedOut: true,
+  });
+  expect(phone.subscription(), "the phone holds none").toBeNull();
+  expect(pushRequestsSent(), "nothing more for push").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+    FORGET_ASKED,
+  ]);
+});
+
+test("No upkeep starts while a sign-out is under way: a return during a sign-out that then fails sends nothing for push, and the next return sends the subscription again", async () => {
+  const { result, phone, held } = await aReturnWhileSigningOut(serverError);
+
+  expect(
+    pushRequestsSent(),
+    "nothing for push after the forget: no key read, no subscription sent",
+  ).toEqual([KEY_READ, SUBSCRIPTION_SENT, FORGET_ASKED]);
+
+  await timePasses(READ_TIME);
+  expect(result.current.shown, "the sign-out failed").toMatchObject({
+    screen: "account",
+    banner: { kind: "sign-out failed", offline: false },
+    signingOut: false,
+  });
+  expect(phone.subscription(), "the phone keeps its subscription").toBe(held);
+
+  // The server forgot the device before the sign-out failed (D3): the next opening tells it again.
+  leavesAndReturns();
+  await timePasses(0);
+
+  expect(pushRequestsSent(), "the next return's upkeep").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+    FORGET_ASKED,
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+  expect(subscriptionsSent(), "sent again, as it is").toEqual([
+    held.toJSON(),
+    held.toJSON(),
+  ]);
+});
+
 // ---- c013: the login's end (design.md D1, D4, D6) ----
 // Wherever the server answers 401 or 403, the stored balance is forgotten and the phone unsubscribed, together, before
 // the sign-in or no-access screen shows; no request to forget. A 401 or 403 to the upkeep's own requests ends the login
