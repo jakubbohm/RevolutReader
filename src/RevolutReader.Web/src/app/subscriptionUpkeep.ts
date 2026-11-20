@@ -4,7 +4,14 @@
  * push module (`./push`) as it is.
  */
 
-import { pushSupported } from "./push";
+import {
+  currentSubscription,
+  keyOf,
+  madeWith,
+  pushSupported,
+  readPushKey,
+  sendSubscription,
+} from "./push";
 
 /**
  * The service worker registration push needs (D1): `null` when the browser cannot push (`pushSupported`), when no
@@ -43,20 +50,42 @@ export type UpkeepOutcome =
   /** Offline, unexpected, a refused subscription, a browser failure, the limit. */
   | { kind: "stopped" };
 
+const STOPPED = { kind: "stopped" } as const;
+
 /**
  * One upkeep (D1): the key, the phone's subscription, then send it again, subscribe again or replace it. Never asks for
  * the permission, never throws. `stillSignedIn` is checked after every step (D6); `signal` is the 60 s limit, passed to
  * every request.
  */
-export function keepSubscriptionUp(options: {
+export async function keepSubscriptionUp(options: {
   stillSignedIn: () => boolean;
   signal?: AbortSignal;
   browser?: Window;
 }): Promise<UpkeepOutcome> {
-  void options;
-  throw new Error(
-    "Not implemented yet: keepSubscriptionUp (c013 design.md D1, D6).",
-  );
+  const { signal, browser } = options;
+
+  const registration = await pushRegistration(browser);
+  if (registration === null) return STOPPED;
+
+  // Step 1: the server's key, read afresh at every upkeep (S7).
+  const read = await readPushKey({ signal });
+  if (read.kind !== "key") return STOPPED;
+
+  // Step 2: the phone's subscription; a failure of the browser waits for the next opening.
+  let held: PushSubscription | null;
+  try {
+    held = await currentSubscription(registration);
+  } catch {
+    return STOPPED;
+  }
+
+  // Steps 4 and 5, none held or one made with another key, are not built yet: the upkeep stops.
+  if (held === null) return STOPPED;
+  if (keyOf(held) !== null && !madeWith(held, read.key)) return STOPPED;
+
+  // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
+  const sent = await sendSubscription(held, { signal });
+  return sent.kind === "done" ? { kind: "sent again" } : STOPPED;
 }
 
 /**

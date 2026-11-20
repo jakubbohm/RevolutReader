@@ -37,11 +37,11 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 3. [unit] Slice 1 — Sending the subscription again (`keepSubscriptionUp`)
 
-- [ ] 3.1 A subscription made with the server's key is sent again, and the phone keeps it
-- [ ] 3.2 A subscription whose key the browser does not name is sent again as it is, never replaced
-- [ ] 3.3 The upkeep reads the server's key before it compares, and its requests carry the given signal
-- [ ] 3.4 An answer the app cannot read, offline, or a refused subscription stops the upkeep quietly
-- [ ] 3.5 The upkeep never asks for the notification permission and never throws
+- [x] 3.1 A subscription made with the server's key is sent again, and the phone keeps it
+- [x] 3.2 A subscription whose key the browser does not name is sent again as it is, never replaced
+- [x] 3.3 The upkeep reads the server's key before it compares, and its requests carry the given signal
+- [x] 3.4 An answer the app cannot read, offline, or a refused subscription stops the upkeep quietly
+- [x] 3.5 The upkeep never asks for the notification permission and never throws
 
 ## 4. [unit] Slice 1 — The upkeep at a launch (`useAccountScreen`)
 
