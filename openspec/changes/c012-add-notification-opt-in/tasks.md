@@ -93,7 +93,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 12. [close] Slice 4 — Turning notifications on from the card asks the phone and says they are on
 
-- [ ] 12.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on from the card asks the phone and says they are on
+- [x] 12.1 The scenario's test passes. Verify: green, including notification-opt-in / Turning notifications on from the card asks the phone and says they are on
 
 ## 13. [unit] Slice 5 — Once on
 
