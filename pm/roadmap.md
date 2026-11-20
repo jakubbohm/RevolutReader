@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start; 2026-11-09: C8 split into C8a sending, C8b turning notifications on and C8c keeping devices right — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start; 2026-11-09: C8 split into C8a sending, C8b turning notifications on and C8c keeping devices right; 2026-11-20: C14 added, the signed-in account on request telemetry — see the change log in `pm/progress.md`)
 
 ---
 
@@ -50,19 +50,20 @@
 | 20 | C8a | OpenSpec | `cNNN-add-push-sending` (UC3, part 1a) | C4, C6, C7b (its Table Storage setup) | — |
 | 21 | C8b | OpenSpec | `cNNN-add-notification-opt-in` (UC3, part 1b; alongside C8c) | C8a | — |
 | 22 | C8c | OpenSpec | `cNNN-add-subscription-upkeep` (UC3, part 1c; alongside C8b) | C8a; its last task group C8b | — |
-| 23 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8b, C8c; findings on Q5, Q6 | decides Q8 |
+| 23 | C14 | Direct PR | Record the signed-in account on request telemetry | C6, C12; after C8c's merge | — |
+| 24 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8b, C8c; findings on Q5, Q6 | decides Q8 |
 | ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 24 | M7 | Manual | Handover v2 | v2 | — |
+| 25 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 25 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 26 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
-| 27 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
+| 26 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 27 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
+| 28 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 (C8a since C8's split, 2026-11-09) generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8a → C8b and C8c side by side → C9 (v2); C12 runs alongside C6 and is done before C11 and C7.
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8a → C8b and C8c side by side → C9 (v2); C12 runs alongside C6 and is done before C11 and C7. C14, a small telemetry PR, takes C8c's merge before its own.
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -367,6 +368,18 @@ UC3's first part (kickoff ch. 5: the user enables notifications, and the backend
 - **Outputs:** archived change; after sign-out and sign-in on my iPhone, a message arrives without a tap (manual row).
 - **Open questions:** —
 - **Notes:** about 8 scenarios estimated. Issue [#61](https://github.com/jakubbohm/RevolutReader/issues/61).
+
+### C14 — Record the signed-in account on request telemetry
+
+- **Type:** Direct PR, not an OpenSpec change (the user, 2026-11-20): it shows nothing to a user, and the telemetry is no public channel, so it has no scenario of its own; like the other telemetry rules, it is guarded by a rule test in `tests/RevolutReader.AcceptanceTests/Conventions/`. Tests are written first, and the user reviews the PR.
+- **Goal:** Every API request an allowed, signed-in user makes carries that user's account in the deployed app's request telemetry, in Application Insights' column for the signed-in user (`UserAuthenticatedId`), so the app's usage can be read per user. Until now the telemetry records no account, and two users on the same kind of phone can only be told apart by guesswork.
+  - **Recorded:** the account's email address (the user, 2026-11-20), on the request only. Log lines keep holding no email address ([ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md), Decision item 7).
+  - **Not recorded:** anonymous requests, the pages and files the app serves before sign-in, and accounts that are not on the allowlist.
+- **Depends on:** C6 (sign-in), C12 (Application Insights). Branched from `main` alongside C8c, which merges first; this step then takes its merge.
+- **Inputs:** [ADR-0009-application-telemetry](../docs/adr/0009-application-telemetry.md) (Decision item 6: personal data allowed in the private telemetry), [ADR-0004-account-allowlist](../docs/adr/0004-account-allowlist.md); the telemetry guards in `tests/RevolutReader.AcceptanceTests/Conventions/`; the Azure Monitor exporter's mapping of a request's signed-in user (1.10.0).
+- **Outputs:** the merged PR; the rule test and unit tests; ADR-0009 and ADR-0004 amended; [deployment.md § Checks](../docs/operations/deployment.md#checks) with a query of the requests per account; after the deploy, the column filled for an allowed user's requests.
+- **Open questions:** —
+- **Notes:** small. Issue [#82](https://github.com/jakubbohm/RevolutReader/issues/82). Asked for after M5, when the requests of the two iPhones could be told apart only by their Safari version, which an iOS update would end.
 
 ### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
 
