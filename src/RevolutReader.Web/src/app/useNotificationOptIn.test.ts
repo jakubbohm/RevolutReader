@@ -248,6 +248,34 @@ test("On a blocked phone, the menu's item asks nothing and gives the Denied card
   expect(result.current.menuItem, "the menu item again").toBe(true);
 });
 
+// Review finding (PR #78): a computer's site settings can set a blocked permission back to "Ask" while the page stays
+// visible, with no opening. The menu's item then asks the phone (D7: it brings back the Denied card only while the
+// phone blocks notifications), so it reads the permission the phone has at the tap.
+test("The menu's item asks the phone once it no longer blocks notifications, even with no opening since", async () => {
+  startTestClock();
+  const phone = installPushStandIns({
+    permission: "denied",
+    permissionAnswer: "granted",
+  });
+  answerWith({ subscription: after(KEEP_TIME, stored) });
+  const { result } = theOptIn();
+  expect(result.current.menuItem, "the menu offers notifications").toBe(true);
+
+  settingsChangePermissionTo("default");
+
+  let asked = 0;
+  act(() => {
+    result.current.fromMenu();
+    asked = phone.permissionRequests();
+  });
+
+  expect(asked, "the phone asked, within the tap").toBe(1);
+  expect(result.current.card, "turning on, not the Denied card").toBe(
+    "enabling",
+  );
+  await timePasses(KEEP_TIME);
+});
+
 // ---- group 34: a failure to turn on (D8) ----
 // The hook tells the screen of a failure (`onFailed(offline)`), for its one banner, and of a new turn-on
 // (`onRetried()`), which clears that failure. The card returns to its default state for the rest of this opening, a
