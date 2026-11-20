@@ -1,4 +1,4 @@
-import { Bell, BellRing, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, BellRing, type LucideIcon } from "lucide-react";
 import type { JSX, ReactNode } from "react";
 import type { CardState } from "../app/notificationOffer";
 import { Button } from "./Button";
@@ -18,7 +18,9 @@ export interface NotificationOptInProps {
  *   upozornění" and the block ghost "Teď ne";
  * - enabling: the same, the primary in its loading state and "Teď ne" disabled, while the phone asks and the app
  *   subscribes;
- * - enabled: `bell-ring` on `color-incoming-soft`, "Upozornění jsou zapnutá", no button, announced as a status.
+ * - enabled: `bell-ring` on `color-incoming-soft`, "Upozornění jsou zapnutá", no button, announced as a status;
+ * - denied: `bell-off` on `color-surface-muted`, "Upozornění jsou vypnutá" and the path to the phone's Settings, no
+ *   button (the web cannot ask again), announced as a status (D1, D6).
  */
 export function NotificationOptIn({
   state,
@@ -33,6 +35,17 @@ export function NotificationOptIn({
         disc="bg-incoming-soft text-incoming"
         title="Upozornění jsou zapnutá"
         sentence="Když se na účtu něco změní, přijde ti upozornění."
+      />
+    );
+
+  if (state === "denied")
+    return (
+      <Card
+        status
+        icon={BellOff}
+        disc="bg-surface-muted text-ink-muted"
+        title="Upozornění jsou vypnutá"
+        sentence="Zapneš je v Nastavení → Oznámení → Tarjeta Papá."
       />
     );
 

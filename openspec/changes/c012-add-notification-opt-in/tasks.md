@@ -120,9 +120,9 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 18. [unit] Slice 7 — Declining
 
-- [ ] 18.1 After a decline in this opening, the Denied card and no menu item
-- [ ] 18.2 A blocked phone with no result of this opening is offered the menu item, never a card
-- [ ] 18.3 The Denied card shows the crossed bell, "Upozornění jsou vypnutá", the path to Settings, no button, announced as a status
+- [x] 18.1 After a decline in this opening, the Denied card and no menu item
+- [x] 18.2 A blocked phone with no result of this opening is offered the menu item, never a card
+- [x] 18.3 The Denied card shows the crossed bell, "Upozornění jsou vypnutá", the path to Settings, no button, announced as a status
 
 ## 19. [wiring] Slice 7 — The Denied card
 
