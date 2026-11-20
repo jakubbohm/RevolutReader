@@ -507,15 +507,15 @@ $requests = "AppRequests | where TimeGenerated >= datetime($from) and TimeGenera
 
 # Balance reads per account and day, the newest day first
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
-    --analytics-query "$requests | where Name == 'GET /api/balance' | summarize Reads = count(), First = min(TimeGenerated), Last = max(TimeGenerated) by Day = startofday(TimeGenerated), Account = UserAuthenticatedId | order by Day desc, Account asc"
+    --analytics-query "$requests | where Name == 'GET /api/balance' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Reads = count(), First = min(PragueTime), Last = max(PragueTime) by Day = startofday(PragueTime), Account = UserAuthenticatedId | order by Day desc, Account asc"
 
 # Every API request per account, counted by route
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
-    --analytics-query "$requests | summarize Requests = count(), Last = max(TimeGenerated) by Account = UserAuthenticatedId, Name | order by Account asc, Requests desc"
+    --analytics-query "$requests | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Requests = count(), Last = max(PragueTime) by Account = UserAuthenticatedId, Name | order by Account asc, Requests desc"
 ```
 
 - **Which requests carry an account:** the API requests of an allowed, signed-in user, the anonymous ones included (such as `GET /api/auth/login`). The pages and files the app serves before sign-in (`/`, `/sw.js`, the assets) carry none, nor do refused requests, requests without a login, and `/health`, whose requests are not traced. To place a device's page loads, match them to its API requests by time and browser (`ClientBrowser`, `ClientOS`).
-- **The times are UTC.** Add an hour for Prague in winter, two in summer.
+- **The days and times are Prague's.** Both queries turn `TimeGenerated`, which is UTC, into Prague time, summer time included, so a read just after midnight in Prague counts on that day. Only `$from` and `$to` stay UTC, because they filter `TimeGenerated` itself: midnight UTC is 01:00 in Prague in winter, 02:00 in summer.
 - **To be confirmed after C14's deploy:** the query was written from the exporter's code ([`TelemetryItem.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Customizations/Models/TelemetryItem.cs), read 2026-11-20) before any request carried an account. If it comes back empty although an allowed user has opened the app since, look at a raw row: `AppRequests | where Name == 'GET /api/me' | project TimeGenerated, UserAuthenticatedId, Properties | take 5`.
 - **The rows name people:** the email addresses are personal data, allowed in the private telemetry (ADR-0009, Decision item 6). Never copy them into an issue, a PR or any other public place.
 
