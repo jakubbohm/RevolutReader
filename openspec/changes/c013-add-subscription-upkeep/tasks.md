@@ -125,7 +125,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 19. [close] Slice 7 — A failed request to forget the phone does not fail the sign-out
 
-- [ ] 19.1 Its acceptance test passes. Verify: it, and the full suite, are green
+- [x] 19.1 Its acceptance test passes. Verify: it, and the full suite, are green
 
 ## 20. [unit] Slice 8 — A failed sign-out (`useAccountScreen`)
 
@@ -134,7 +134,7 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 21. [close] Slice 8 — A failed sign-out keeps the subscription
 
-- [ ] 21.1 Its acceptance test passes (green from the start, design.md D7). Verify: it, and the full suite, are green
+- [x] 21.1 Its acceptance test passes (green from the start, design.md D7). Verify: it, and the full suite, are green
 
 ## 22. [unit] Slice 9 — The login's end (`useAccountScreen`)
 
