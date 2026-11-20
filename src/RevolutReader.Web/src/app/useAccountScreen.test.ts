@@ -20,6 +20,7 @@ import {
   goOnline,
   kept,
   keptBalance,
+  leaveApp,
   noAnswerYet,
   noConnection,
   nobodySignedIn,
@@ -27,6 +28,7 @@ import {
   pushKey,
   refused,
   requests,
+  returnToApp,
   serverError,
   signedIn,
   signedOut,
@@ -798,5 +800,195 @@ test.each(upkeepOutcomes)(
     expect(pushRequestsSent(), "the upkeep ran").toEqual(pushRequests);
     expect(onScreen(result.current), "the same screen").toEqual(withNoUpkeep);
     expect(result.current.shown, "no banner").toMatchObject({ banner: null });
+  },
+);
+
+// ---- c013: the upkeep at a return (design.md D1) ----
+// A return to the screen (`watchReturns`) is an opening too: while a user is signed in, every return starts an upkeep,
+// unless one is under way; then nothing is asked, and nothing is queued. Each upkeep has the 60 s limit, so one with no
+// answer cannot block the next opening's. The kit's `leaveApp` and `returnToApp` turn the page hidden and visible.
+
+/** The user leaves the app and comes back to it. */
+function leavesAndReturns(): void {
+  leaveApp();
+  returnToApp();
+}
+
+// ---- 9.1 ----
+
+test("Every return while a user is signed in starts an upkeep", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith(LUCIES_SERVER);
+  renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(pushRequestsSent(), "the launch's upkeep").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+
+  leavesAndReturns();
+  await timePasses(0);
+  leavesAndReturns();
+  await timePasses(0);
+
+  expect(pushRequestsSent(), "one upkeep per return").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+  expect(subscriptionsSent(), "sent again each time").toEqual([
+    held.toJSON(),
+    held.toJSON(),
+    held.toJSON(),
+  ]);
+});
+
+const loginsThatEnd: {
+  label: string;
+  ended: BalanceAnswer;
+  screen: "sign-in" | "no access";
+}[] = [
+  {
+    label: "the sign-in screen",
+    ended: nobodySignedIn,
+    screen: "sign-in",
+  },
+  {
+    label: "the no-access screen",
+    ended: refused("cizi.ucet@example.com"),
+    screen: "no access",
+  },
+];
+
+test.each(loginsThatEnd)(
+  "Every return while a user is signed in starts an upkeep: none on $label, once the login has ended",
+  async ({ ended, screen }) => {
+    startTestClock();
+    phoneSubscribed();
+    answerWith({
+      ...LUCIES_SERVER,
+      balance: [balance(286.4), balance(286.4), ended],
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    leavesAndReturns();
+    await timePasses(0);
+    expect(pushRequestsSent(), "the launch's, and a return's").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+
+    // "Obnovit": the balance read finds the login ended.
+    act(() => {
+      result.current.refresh();
+    });
+    await timePasses(0);
+    expect(result.current.shown).toMatchObject({ screen });
+
+    leavesAndReturns();
+    await timePasses(0);
+    expect(pushRequestsSent(), "nothing more on that screen").toEqual([
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+  },
+);
+
+// ---- 9.2 ----
+
+test("A return while an upkeep runs starts none", async () => {
+  startTestClock();
+  const phone = phoneSubscribed();
+  const held = phone.subscription()!;
+  answerWith({
+    ...LUCIES_SERVER,
+    pushKey: [after(5 * SECOND, pushKey(SERVER_KEY)), pushKey(SERVER_KEY)],
+  });
+  renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(pushRequestsSent(), "the launch's upkeep waits for the key").toEqual([
+    KEY_READ,
+  ]);
+
+  leavesAndReturns();
+  await timePasses(0);
+  expect(pushRequestsSent(), "a return while it runs: none").toEqual([
+    KEY_READ,
+  ]);
+
+  await timePasses(5 * SECOND);
+  expect(pushRequestsSent(), "the launch's upkeep ends; none queued").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+
+  leavesAndReturns();
+  await timePasses(0);
+  expect(pushRequestsSent(), "the next return: exactly one").toEqual([
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+    KEY_READ,
+    SUBSCRIPTION_SENT,
+  ]);
+  expect(subscriptionsSent()).toEqual([held.toJSON(), held.toJSON()]);
+});
+
+// ---- 9.3 ----
+
+const upkeepsWithNoAnswer: {
+  label: string;
+  request: string;
+  answers: ServerAnswers;
+}[] = [
+  {
+    label: "the key read",
+    request: KEY_READ,
+    answers: { pushKey: [noAnswerYet, pushKey(SERVER_KEY)] },
+  },
+  {
+    label: "the subscription sent",
+    request: SUBSCRIPTION_SENT,
+    answers: { subscription: [noAnswerYet, stored] },
+  },
+];
+
+test.each(upkeepsWithNoAnswer)(
+  "An upkeep with no answer after 60 s is aborted, and the next opening starts a new one: $label",
+  async ({ request, answers }) => {
+    startTestClock();
+    phoneSubscribed();
+    answerWith({ ...LUCIES_SERVER, ...answers });
+    renderHook(() => useAccountScreen());
+    await timePasses(0);
+    const launchs = pushRequestsSent();
+    expect(launchs.at(-1), "the launch's upkeep waits").toBe(request);
+
+    await timePasses(59 * SECOND);
+    expect(timeline(), "at 59 s, still waiting").not.toContain(
+      `aborted ${request}`,
+    );
+    await timePasses(SECOND);
+    expect(timeline(), "at 60 s, aborted").toContain(`aborted ${request}`);
+
+    leavesAndReturns();
+    await timePasses(0);
+    expect(pushRequestsSent(), "the next return starts a new one").toEqual([
+      ...launchs,
+      KEY_READ,
+      SUBSCRIPTION_SENT,
+    ]);
+    expect(
+      timeline().filter((entry) => entry === `answer ${SUBSCRIPTION_SENT}`),
+      "the new one's subscription stored",
+    ).toHaveLength(1);
   },
 );
