@@ -22,6 +22,11 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// activity, which only the app can have put there, and the stranger's email is one no app copy may export at all. The
 /// logs are this app copy's alone (<see cref="CapturedLogTexts"/>).
 /// </para>
+/// <para>
+/// A request's server activity is exported only after the client has the response, so the first test waits for one
+/// carrying Lucie's email (<see cref="ExportedActivityCollection.WaitForServerActivity"/>) before it asserts: run alone,
+/// the only one is its own last request, <c>GET /api/me</c>, which may still be ending when the sign-in returns.
+/// </para>
 /// </summary>
 public sealed class RequestAccountTelemetryTests : AcceptanceTest {
   /// <summary>OpenTelemetry's attribute the Azure Monitor exporter (1.10.0) reads for a request's authenticated user.</summary>
@@ -35,6 +40,7 @@ public sealed class RequestAccountTelemetryTests : AcceptanceTest {
     SignIn.IsOnTheAllowlist(Visitor.Lucie.Email);
 
     await SignIn.HasSignedIn(Visitor.Lucie);
+    await _traces.WaitForServerActivity(static activity => activity.GetTagItem(SIGNED_IN_USER)?.ToString() == Visitor.Lucie.Email);
 
     _traces.ServerTagValues(SIGNED_IN_USER).ShouldContain(Visitor.Lucie.Email, "the signed-in users of the exported requests");
   }

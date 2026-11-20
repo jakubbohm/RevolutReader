@@ -87,10 +87,23 @@ public sealed class CapturedLogTexts {
 /// activities of other tests' app copies, running in parallel, arrive here too (with their own made-up values). A test
 /// looks for values only it uses, or for a value no app copy may export at all. Moved here from
 /// <c>Conventions/BankTelemetryTests</c> when a second telemetry guard needed it (roadmap C14).
+/// <para>
+/// An activity arrives when it stops (the in-memory exporter runs on OpenTelemetry's simple processor), and the test
+/// server stops a request's server activity only after the client has the response (Microsoft.AspNetCore.TestHost 11.0.0
+/// completes the response, then ends the request, on another thread). So the server activity of a test's last request
+/// may not be here yet when the test's call returns: a test that asserts on a server activity first waits for it with
+/// <see cref="WaitForServerActivity"/>.
+/// </para>
 /// </summary>
 public sealed class ExportedActivityCollection : ICollection<Activity> {
+  /// <summary>How long <see cref="WaitForServerActivity"/> waits at most, far longer than a request takes to end.</summary>
+  private static readonly TimeSpan _waitAtMost = TimeSpan.FromSeconds(5);
+
   private readonly Lock _lock = new();
   private readonly List<Activity> _activities = [];
+
+  /// <summary>Completes at the next <see cref="Add"/>, which puts a new one in its place.</summary>
+  private TaskCompletionSource _nextAdd = NewSignal();
 
   public int Count {
     get {
@@ -108,9 +121,37 @@ public sealed class ExportedActivityCollection : ICollection<Activity> {
   public IReadOnlyList<string> ServerTagValues(string tag) =>
     [.. Snapshot().Where(static activity => activity.Kind == ActivityKind.Server).Select(activity => activity.GetTagItem(tag)?.ToString()).OfType<string>()];
 
+  /// <summary>
+  /// Returns once an exported server activity matches <paramref name="match"/>, or after 5 s when none has: it looks again
+  /// at every add, never on a timer. A miss is no failure here; the test's own assertion that follows reports it. A test
+  /// asserting on one request's server activity, whether it carries a tag or not, waits here for that activity first
+  /// (see the class).
+  /// </summary>
+  public async Task WaitForServerActivity(Func<Activity, bool> match) {
+    ArgumentNullException.ThrowIfNull(match);
+
+    using CancellationTokenSource waitAtMost = new(_waitAtMost);
+
+    while (true) {
+      Task nextAdd = NextAdd();
+
+      if (Snapshot().Any(activity => activity.Kind == ActivityKind.Server && match(activity)) || waitAtMost.IsCancellationRequested)
+        return;
+
+      await nextAdd.WaitAsync(waitAtMost.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+  }
+
   public void Add(Activity item) {
-    lock (_lock)
+    TaskCompletionSource added;
+
+    lock (_lock) {
       _activities.Add(item);
+      added = _nextAdd;
+      _nextAdd = NewSignal();
+    }
+
+    added.SetResult();
   }
 
   public void Clear() {
@@ -141,6 +182,18 @@ public sealed class ExportedActivityCollection : ICollection<Activity> {
     lock (_lock)
       return [.. _activities];
   }
+
+  /// <summary>
+  /// A task that completes at the next add. Taken before a look at the snapshot, so an add between the look and the wait
+  /// still ends the wait.
+  /// </summary>
+  private Task NextAdd() {
+    lock (_lock)
+      return _nextAdd.Task;
+  }
+
+  /// <summary>A waiter resumes on the thread pool, not inside the exporter's add, which runs as the request ends.</summary>
+  private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
   private static IEnumerable<string> TextsOf(Activity activity) {
     yield return activity.DisplayName;
