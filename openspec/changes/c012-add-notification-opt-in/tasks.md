@@ -242,7 +242,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 43. [close] Slice 16 — A push shows as a notification where the browser does not show it itself
 
-- [ ] 43.1 The scenario's test passes. Verify: green, including push-display / A push shows as a notification where the browser does not show it itself
+- [x] 43.1 The scenario's test passes. Verify: green, including push-display / A push shows as a notification where the browser does not show it itself
 
 ## 44. [unit] Slice 17 — The browser's own notification
 
