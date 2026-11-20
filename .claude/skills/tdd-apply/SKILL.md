@@ -55,10 +55,10 @@ Arguments: `$ARGUMENTS`
    the path (e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Write the name into
    `.tdd-state.md` and put it in every brief to T and I: they read code they do not change through the graph, as
    their definitions say. **Index it again after every commit you make** (Rules for you, below), so the graph
-   always holds the last commit: the server refreshes by itself only the folder this session started in, and a
-   project that was behind when the session started stays behind until something changes there (`CLAUDE.md`
-   § Code navigation). An index in place takes seconds, and it works the same whether this session started in
-   the worktree or entered it. Read code you do not change through the graph yourself, too.
+   always holds the last commit: the server refreshes by itself only the folder this session started in, and the
+   project's code-graph hook indexes an entered worktree only once, on entering (`CLAUDE.md` § Code navigation).
+   An index in place takes seconds, and it works the same whether this session started in the worktree or
+   entered it. Read code you do not change through the graph yourself, too.
 
 ## 1. Acceptance group (`[acceptance]`)
 
