@@ -250,8 +250,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 45. [close] Slice 17 — A push the browser shows itself shows once
 
-- [ ] 45.1 The scenario's test passes. Verify: green, including push-display / A push the browser shows itself shows once
-- [ ] 45.2 Docs: ADR-0010's dated note on the service worker's rule and the tap (design.md § Cross-cutting effects). Verify: the note links this design's D9
+- [x] 45.1 The scenario's test passes. Verify: green, including push-display / A push the browser shows itself shows once
+- [x] 45.2 Docs: ADR-0010's dated note on the service worker's rule and the tap (design.md § Cross-cutting effects). Verify: the note links this design's D9
 
 ## 46. [unit] Slice 18 — A tap opening the app
 
