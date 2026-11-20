@@ -144,9 +144,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 23. [unit] Slice 9 — The upkeep and the login's end (`keepSubscriptionUp`, design.md D6)
 
-- [ ] 23.1 A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account
-- [ ] 23.2 An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made
-- [ ] 23.3 An upkeep whose login ended before it sends anything sends nothing
+- [x] 23.1 A 401 or 403 to the key, to the subscription it sends or to the forget answers "login ended", naming the refused account
+- [x] 23.2 An upkeep whose login ended while it ran stops at its next step, and unsubscribes a subscription it made
+- [x] 23.3 An upkeep whose login ended before it sends anything sends nothing
 
 ## 24. [close] Slice 9 — A login that has ended unsubscribes the phone
 

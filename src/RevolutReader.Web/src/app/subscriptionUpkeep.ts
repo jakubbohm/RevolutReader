@@ -57,6 +57,21 @@ const SUBSCRIBED_AGAIN = { kind: "subscribed again" } as const;
 const REPLACED = { kind: "replaced" } as const;
 const STOPPED = { kind: "stopped" } as const;
 const NOT_ALLOWED = { kind: "not allowed" } as const;
+const DROPPED = { kind: "dropped" } as const;
+
+/** What a browser call that failed, or that the limit gave up on, comes to (`attempt`). */
+const FAILED = Symbol("failed");
+
+/** What an upkeep runs with once it has the server's key (D1, D6). */
+interface Run {
+  registration: ServiceWorkerRegistration;
+  /** The server's push key, base64url. */
+  key: string;
+  /** The 60 s limit. */
+  signal: AbortSignal | undefined;
+  /** Whether the login the upkeep started under is still on (D6). */
+  stillSignedIn: () => boolean;
+}
 
 /**
  * One upkeep (D1): the key, the phone's subscription, then send it again, subscribe again or replace it. Never asks for
@@ -68,39 +83,36 @@ export async function keepSubscriptionUp(options: {
   signal?: AbortSignal;
   browser?: Window;
 }): Promise<UpkeepOutcome> {
-  const { signal, browser = window } = options;
+  const { stillSignedIn, signal, browser = window } = options;
 
   // When (D1): the browser can push, a worker is registered, and notifications are allowed; otherwise nothing is asked,
   // subscribed or sent. The registration first: only a browser that can push is sure to have `Notification`.
   const registration = await pushRegistration(browser);
   if (registration === null || !notificationsAllowed(browser))
     return NOT_ALLOWED;
+  if (!stillSignedIn()) return DROPPED;
 
   // Step 1: the server's key, read afresh at every upkeep (S7).
   const read = await readPushKey({ signal });
+  if (!stillSignedIn()) return DROPPED;
+  if (read.kind === "signed out" || read.kind === "refused")
+    return loginEnded(read);
   if (read.kind !== "key") return STOPPED;
+  const run: Run = { registration, key: read.key, signal, stillSignedIn };
 
   // Step 2: the phone's subscription; a failure of the browser, or the limit, waits for the next opening.
-  let held: PushSubscription | null;
-  try {
-    held = await beforeTheLimit(
-      () => currentSubscription(registration),
-      signal,
-    );
-  } catch {
-    return STOPPED;
-  }
+  const held = await attempt(() => currentSubscription(registration), signal);
+  if (!stillSignedIn()) return DROPPED;
+  if (held === FAILED) return STOPPED;
 
   // Step 4: none held: subscribe with the server's key, then send the new one.
-  if (held === null)
-    return subscribedAndSent(registration, read.key, SUBSCRIBED_AGAIN, signal);
+  if (held === null) return subscribedAndSent(run, SUBSCRIBED_AGAIN);
 
   // Step 5: made with a key the browser names, not the server's: replaced.
-  if (namesItsKey(held) && !madeWith(held, read.key))
-    return replaced(registration, held, read.key, signal);
+  if (namesItsKey(held) && !madeWith(held, run.key)) return replaced(run, held);
 
   // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
-  return sentAs(held, SENT_AGAIN, signal);
+  return sentAs(run, held, SENT_AGAIN, null);
 }
 
 /**
@@ -110,23 +122,20 @@ export async function keepSubscriptionUp(options: {
  * fails, answers that it did not unsubscribe, or that the limit gave up on, stops before subscribing.
  */
 async function replaced(
-  registration: ServiceWorkerRegistration,
+  run: Run,
   old: PushSubscription,
-  key: string,
-  signal: AbortSignal | undefined,
 ): Promise<UpkeepOutcome> {
-  const forgot = await forgetSubscription(old.endpoint, { signal });
+  const forgot = await forgetSubscription(old.endpoint, { signal: run.signal });
+  if (!run.stillSignedIn()) return DROPPED;
+  if (forgot.kind === "signed out" || forgot.kind === "refused")
+    return loginEnded(forgot);
   if (forgot.kind !== "done") return STOPPED;
 
-  let unsubscribed: boolean;
-  try {
-    unsubscribed = await beforeTheLimit(() => unsubscribe(old), signal);
-  } catch {
-    return STOPPED;
-  }
-  if (!unsubscribed) return STOPPED;
+  const unsubscribed = await attempt(() => unsubscribe(old), run.signal);
+  if (!run.stillSignedIn()) return DROPPED;
+  if (unsubscribed !== true) return STOPPED;
 
-  return subscribedAndSent(registration, key, REPLACED, signal);
+  return subscribedAndSent(run, REPLACED);
 }
 
 /**
@@ -135,28 +144,78 @@ async function replaced(
  * the next opening sends it again.
  */
 async function subscribedAndSent(
-  registration: ServiceWorkerRegistration,
-  key: string,
+  run: Run,
   outcome: UpkeepOutcome,
-  signal: AbortSignal | undefined,
 ): Promise<UpkeepOutcome> {
-  let made: PushSubscription;
-  try {
-    made = await beforeTheLimit(() => subscribe(registration, key), signal);
-  } catch {
-    return STOPPED;
-  }
-  return sentAs(made, outcome, signal);
+  const made = await attempt(
+    () => subscribe(run.registration, run.key),
+    run.signal,
+  );
+  if (!run.stillSignedIn())
+    return dropped(made === FAILED ? null : made, run.signal);
+  if (made === FAILED) return STOPPED;
+
+  return sentAs(run, made, outcome, made);
 }
 
-/** Sends the subscription to the server: `outcome` once it is stored; anything else stops the upkeep. */
+/**
+ * Sends the subscription to the server: `outcome` once it is stored; a 401 or 403 ends the login, and anything else
+ * stops the upkeep. `made` is the subscription this upkeep made, if it made one, unsubscribed if the login ended
+ * elsewhere meanwhile (D6). One the server refused with a 401 or 403 is left to the screen, whose end of the login
+ * unsubscribes the phone (D4).
+ */
 async function sentAs(
+  run: Run,
   subscription: PushSubscription,
   outcome: UpkeepOutcome,
+  made: PushSubscription | null,
+): Promise<UpkeepOutcome> {
+  const sent = await sendSubscription(subscription, { signal: run.signal });
+  if (!run.stillSignedIn()) return dropped(made, run.signal);
+  if (sent.kind === "signed out" || sent.kind === "refused")
+    return loginEnded(sent);
+  return sent.kind === "done" ? outcome : STOPPED;
+}
+
+/**
+ * The login ended elsewhere while the upkeep ran (D6): a subscription it made is unsubscribed, so a signed-out phone
+ * never keeps one; one it did not make is left to the screen. The unsubscribe starts even past the limit, which only
+ * ends the waiting for it; its failure is ignored.
+ */
+async function dropped(
+  made: PushSubscription | null,
   signal: AbortSignal | undefined,
 ): Promise<UpkeepOutcome> {
-  const sent = await sendSubscription(subscription, { signal });
-  return sent.kind === "done" ? outcome : STOPPED;
+  if (made !== null) {
+    const unsubscribing = attempt(() => unsubscribe(made), undefined);
+    await attempt(() => unsubscribing, signal);
+  }
+  return DROPPED;
+}
+
+/** A 401 or 403 to one of the upkeep's requests (D1, D4), named as the screen's reads name it. */
+function loginEnded(
+  answer: { kind: "signed out" } | { kind: "refused"; email: string | null },
+): UpkeepOutcome {
+  return {
+    kind: "login ended",
+    ended:
+      answer.kind === "signed out"
+        ? { kind: "signed out" }
+        : { kind: "refused", email: answer.email },
+  };
+}
+
+/** One of the browser's own calls with the limit (`beforeTheLimit`): its answer, or `FAILED`; never throws. */
+async function attempt<T>(
+  call: () => Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T | typeof FAILED> {
+  try {
+    return await beforeTheLimit(call, signal);
+  } catch {
+    return FAILED;
+  }
 }
 
 /**
@@ -235,11 +294,8 @@ export async function unsubscribeThisDevice(
   const held = await subscriptionHeld(options.browser, undefined);
   if (held === null) return;
 
-  try {
-    await unsubscribe(held);
-  } catch {
-    // Ignored, as an answer that it did not unsubscribe is: nothing more can be done from here.
-  }
+  // A failure is ignored, as an answer that it did not unsubscribe is: nothing more can be done from here.
+  await attempt(() => unsubscribe(held), undefined);
 }
 
 /**
@@ -253,12 +309,6 @@ async function subscriptionHeld(
   const registration = await pushRegistration(browser);
   if (registration === null) return null;
 
-  try {
-    return await beforeTheLimit(
-      () => currentSubscription(registration),
-      signal,
-    );
-  } catch {
-    return null;
-  }
+  const held = await attempt(() => currentSubscription(registration), signal);
+  return held === FAILED ? null : held;
 }
