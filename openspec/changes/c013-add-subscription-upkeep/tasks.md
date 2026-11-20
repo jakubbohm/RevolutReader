@@ -73,9 +73,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 9. [unit] Slice 3 — The upkeep at a return (`useAccountScreen`)
 
-- [ ] 9.1 Every return while a user is signed in starts an upkeep
-- [ ] 9.2 A return while an upkeep runs starts none
-- [ ] 9.3 An upkeep with no answer after 60 s is aborted, and the next opening starts a new one
+- [x] 9.1 Every return while a user is signed in starts an upkeep
+- [x] 9.2 A return while an upkeep runs starts none
+- [x] 9.3 An upkeep with no answer after 60 s is aborted, and the next opening starts a new one
 
 ## 10. [close] Slice 3 — The subscription is sent to the server again on every return to the app
 

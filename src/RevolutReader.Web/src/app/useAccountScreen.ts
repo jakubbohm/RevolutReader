@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
-import { watchRefreshTriggers } from "./refreshTriggers";
+import { watchRefreshTriggers, watchReturns } from "./refreshTriggers";
 import {
   OFFLINE,
   shown,
@@ -77,10 +77,11 @@ interface Wake {
  * design.md D2). A 401 or 403 to who is signed in, to a balance read or to the list's newest page forgets the balance
  * too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c; c010 D8).
  *
- * The phone's push subscription is kept right at a launch (c013 design.md D1; `keepSubscriptionUp`): the moment the
- * screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an upkeep runs
- * beside the balance read, which never waits for it. One at a time, with the refresh's limit; what it comes to is never
- * shown. "Obnovit" and coming back online are no openings, so they run none.
+ * The phone's push subscription is kept right at every opening (c013 design.md D1; `keepSubscriptionUp`). A launch: the
+ * moment the screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an
+ * upkeep runs beside the balance read, which never waits for it. A return: every return to the screen while a user is
+ * signed in (`watchReturns`). One at a time, so an opening while one runs is ignored, with the refresh's limit; what it
+ * comes to is never shown. "Obnovit" and coming back online are no openings, so they run none.
  */
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
@@ -413,10 +414,15 @@ export function useAccountScreen(): AccountScreenModel {
     session.kind === "unexpected";
   const hasRead = balance !== null;
 
-  // A launch is an opening (c013 design.md D1): the moment the server names a signed-in user, by the first answer or a
-  // repeated one, the upkeep runs beside the balance read, which has already gone out.
+  // The openings (c013 design.md D1). A launch: the moment the server names a signed-in user, by the first answer or a
+  // repeated one, the upkeep runs beside the balance read, which has already gone out. A return: every return to the
+  // screen while the user stays signed in; the watch stops when the login ends.
   useEffect(() => {
-    if (signedIn) void runUpkeep();
+    if (!signedIn) return undefined;
+    void runUpkeep();
+    return watchReturns(() => {
+      void runUpkeep();
+    });
   }, [signedIn, runUpkeep]);
 
   // The list reads its newest page once the server has named a signed-in user, never for a visitor (c010 design.md D8).
