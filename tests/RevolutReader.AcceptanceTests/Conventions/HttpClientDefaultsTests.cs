@@ -40,7 +40,7 @@ public sealed class HttpClientDefaultsTests : AcceptanceTest {
   public async Task A_plain_client_from_the_apps_HttpClient_factory_sends_a_request_answered_503_only_once() {
     Services.GetRequiredService<TimeProvider>().ShouldBeSameAs(TimeProvider.System, "the app copy's clock, which a retry policy waits on");
 
-    using WireMockServer unavailable = WireMockServer.Start(new WireMockServerSettings { AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry });
+    using WireMockServer unavailable = LoopbackWireMock.Start(new WireMockServerSettings { AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry });
     unavailable.Given(Request.Create().UsingAnyMethod()).RespondWith(Response.Create().WithStatusCode(HttpStatusCode.ServiceUnavailable));
     using HttpClient http = Services.GetRequiredService<IHttpClientFactory>().CreateClient();
     using CancellationTokenSource inTime = new(_waitAtMost);

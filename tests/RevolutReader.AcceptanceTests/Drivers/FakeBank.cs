@@ -132,14 +132,14 @@ public sealed class FakeBank : IDisposable {
   }
 
   /// <summary>
-  /// Starts a fake bank on a free local port, its own server kept out of every trace (<see cref="SilenceHostingTelemetry"/>),
-  /// with two middlewares in front of WireMock.Net's own handling: <see cref="ArrivalLog"/>, then <see cref="AnswerBreaker"/>.
-  /// Call it before the app copy starts, so its address is known.
+  /// Starts a fake bank on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server kept out
+  /// of every trace (<see cref="SilenceHostingTelemetry"/>), with two middlewares in front of WireMock.Net's own handling:
+  /// <see cref="ArrivalLog"/>, then <see cref="AnswerBreaker"/>. Call it before the app copy starts, so its address is known.
   /// </summary>
   public static FakeBank Start() {
     ArrivalLog arrivals = new();
     AnswerBreaker breaker = new();
-    WireMockServer server = WireMockServer.Start(new WireMockServerSettings {
+    WireMockServer server = LoopbackWireMock.Start(new WireMockServerSettings {
       AdditionalServiceRegistration = SilenceHostingTelemetry,
       PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record).Use(breaker.Answer),
     });
