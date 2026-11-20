@@ -47,16 +47,18 @@ function aRegistrationOfItsOwn(): ServiceWorkerRegistration {
 
 /**
  * A browser of the test's own, given to the function instead of the window: a service worker that answers
- * `getRegistration` as the test says, `Notification`, and `PushManager` unless left out.
+ * `getRegistration` as the test says, `Notification` with its `permission` (by default `default`), and `PushManager`
+ * unless left out.
  */
 function aBrowserOfItsOwn(options: {
   getRegistration: () => Promise<ServiceWorkerRegistration | undefined>;
   withoutPushManager?: boolean;
+  permission?: NotificationPermission;
 }): Window {
   return {
     navigator: { serviceWorker: { getRegistration: options.getRegistration } },
     ...(options.withoutPushManager === true ? {} : { PushManager: class {} }),
-    Notification: class {},
+    Notification: { permission: options.permission ?? "default" },
   } as unknown as Window;
 }
 
@@ -492,4 +494,134 @@ test("The upkeep never asks for the notification permission and never throws: th
   expect(bodiesSent(), "nothing sent or forgotten").toEqual([]);
   expect(phone.subscribeRequests(), "no subscribing again").toEqual([]);
   expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+// ---- Only while notifications are allowed (D1, "When") ----
+
+/** Lucie's phone with this permission, holding a subscription made with the server's key, or none. */
+function phoneWithPermission(
+  permission: NotificationPermission,
+  holds: boolean,
+): PushStandIns {
+  return installPushStandIns({
+    permission,
+    ...(holds
+      ? {
+          subscription: {
+            endpoint: LUCIES_PHONE,
+            applicationServerKey: SERVER_KEY,
+          },
+        }
+      : {}),
+  });
+}
+
+/**
+ * Nothing was asked of the server or the phone: no request at all, not even the key read; no permission asked; nothing
+ * subscribed; the subscription it held (or none) still held.
+ */
+function expectNothingDone(
+  phone: PushStandIns,
+  held: PushSubscription | null,
+): void {
+  expect(requests(), "nothing sent, not even the key read").toEqual([]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(phone.subscription(), "the phone's subscription untouched").toBe(held);
+}
+
+const heldOrNot: { label: string; holds: boolean }[] = [
+  { label: "a subscription held", holds: true },
+  { label: "none held", holds: false },
+];
+
+// ---- 6.1 ----
+
+test.each(heldOrNot)(
+  "Nothing is asked, subscribed or sent while the permission is `default`, even with a subscription held: $label",
+  async ({ holds }) => {
+    const phone = phoneWithPermission("default", holds);
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    expect(await anUpkeep()).toEqual({ kind: "not allowed" });
+    expectNothingDone(phone, held);
+  },
+);
+
+test("Nothing is asked, subscribed or sent while the permission is `default`, even with a subscription held: the browser given, not the window", async () => {
+  // The window's permission is granted; the browser given says `default`.
+  const phone = phoneWithPermission("granted", true);
+  const held = phone.subscription();
+  answerWith(THE_SERVER);
+  const browser = aBrowserOfItsOwn({
+    getRegistration: () => Promise.resolve(phone.registration),
+    permission: "default",
+  });
+
+  expect(
+    await keepSubscriptionUp({ stillSignedIn: () => true, browser }),
+  ).toEqual({ kind: "not allowed" });
+  expectNothingDone(phone, held);
+});
+
+// ---- 6.2 ----
+
+test.each(heldOrNot)(
+  "Nothing is asked, subscribed or sent while the permission is `denied`: $label",
+  async ({ holds }) => {
+    const phone = phoneWithPermission("denied", holds);
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    expect(await anUpkeep()).toEqual({ kind: "not allowed" });
+    expectNothingDone(phone, held);
+  },
+);
+
+// ---- 6.3 ----
+
+test("Nothing is done where the browser cannot push, or no worker is registered: none of push's features (jsdom as it is)", async () => {
+  answerWith(THE_SERVER);
+
+  expect(await anUpkeep()).toEqual({ kind: "not allowed" });
+  expect(requests(), "nothing sent, not even the key read").toEqual([]);
+});
+
+test.each(missingFeatures)(
+  "Nothing is done where the browser cannot push, or no worker is registered: without $feature",
+  async ({ feature }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY, { without: [feature] });
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    expect(await anUpkeep()).toEqual({ kind: "not allowed" });
+    expectNothingDone(phone, held);
+  },
+);
+
+test("Nothing is done where the browser cannot push, or no worker is registered: no worker registered", async () => {
+  // A service worker, but none registered (Vite's dev server).
+  const phone = phoneSubscribedWith(SERVER_KEY, { registered: false });
+  const held = phone.subscription();
+  answerWith(THE_SERVER);
+
+  expect(await anUpkeep()).toEqual({ kind: "not allowed" });
+  expectNothingDone(phone, held);
+});
+
+test("Nothing is done where the browser cannot push, or no worker is registered: the browser given cannot push, though the window can", async () => {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const held = phone.subscription();
+  answerWith(THE_SERVER);
+  const browser = aBrowserOfItsOwn({
+    getRegistration: () => Promise.resolve(phone.registration),
+    withoutPushManager: true,
+    permission: "granted",
+  });
+
+  expect(
+    await keepSubscriptionUp({ stillSignedIn: () => true, browser }),
+  ).toEqual({ kind: "not allowed" });
+  expectNothingDone(phone, held);
 });
