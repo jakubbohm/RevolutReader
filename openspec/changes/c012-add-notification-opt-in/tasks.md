@@ -134,7 +134,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 21. [close] Slice 8 — The card saying notifications are off is gone at the next opening
 
-- [ ] 21.1 The scenario's test passes (a launch starts afresh, D4). Verify: green, including notification-opt-in / The card saying notifications are off is gone at the next opening
+- [x] 21.1 The scenario's test passes (a launch starts afresh, D4). Verify: green, including notification-opt-in / The card saying notifications are off is gone at the next opening
 
 ## 22. [unit] Slice 9 — "Teď ne" remembered
 
