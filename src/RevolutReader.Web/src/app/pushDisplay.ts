@@ -121,15 +121,20 @@ function originOf(url: string): string | undefined {
 }
 
 /**
- * The page a notification's data names, as its path, query and fragment on `origin`, so it is always a page of the app
- * (D9); the start page when the data is not a string or no address.
+ * The page a notification's data names, as its path, query and fragment joined onto `origin`, and the joined address
+ * checked to be on `origin`, so it is always a page of the app (D9); the start page when the data is not a string, no
+ * address, or its path would lead off the origin (an opaque path running into the host or port).
  */
 function pageOnOrigin(data: unknown, origin: string): string {
   const startPage = `${origin}/`;
   if (typeof data !== "string") return startPage;
   try {
-    const page = new URL(data, startPage);
-    return `${origin}${page.pathname}${page.search}${page.hash}`;
+    const named = new URL(data, startPage);
+    // Joined, not resolved against the start page: a path such as "//other.example/" stays a path on this host.
+    const page = new URL(
+      `${origin}${named.pathname}${named.search}${named.hash}`,
+    );
+    return page.origin === origin ? page.href : startPage;
   } catch {
     return startPage;
   }
