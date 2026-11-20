@@ -59,7 +59,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 5. [close] Slice 1 — The card offers notifications under the balance
 
-- [ ] 5.1 The scenario's test passes. Verify: green, including notification-opt-in / The card offers notifications under the balance
+- [x] 5.1 The scenario's test passes. Verify: green, including notification-opt-in / The card offers notifications under the balance
 
 ## 6. [close] Slice 2 — The card also shows in a computer's browser
 
