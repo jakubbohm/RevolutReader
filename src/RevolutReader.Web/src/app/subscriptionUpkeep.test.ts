@@ -16,8 +16,10 @@ import {
   hostingErrorPage,
   jsonBody,
   noAnswerYet,
+  nobodySignedIn,
   noConnection,
   pushKey,
+  refused,
   requests,
   serverError,
   stored,
@@ -31,8 +33,10 @@ import {
   type SubscriptionAnswer,
 } from "../test/server";
 import {
+  forgetThisDevice,
   keepSubscriptionUp,
   pushRegistration,
+  unsubscribeThisDevice,
   type UpkeepOutcome,
 } from "./subscriptionUpkeep";
 
@@ -211,16 +215,16 @@ function subscriptionsSent(): unknown[] {
 }
 
 /**
- * Where a running upkeep stands once what is due now has happened, the test clock not moving: what it came to, or
- * still running.
+ * Where a running upkeep (or forget) stands once what is due now has happened, the test clock not moving: what it came
+ * to, or still running.
  */
-async function whereItStands(
-  upkeep: Promise<UpkeepOutcome>,
-): Promise<UpkeepOutcome | "still running"> {
+async function whereItStands<Outcome>(
+  running: Promise<Outcome>,
+): Promise<Outcome | "still running"> {
   const nothingMoves = timePasses(0);
   try {
     return await Promise.race([
-      upkeep,
+      running,
       nothingMoves.then(() => "still running" as const),
     ]);
   } finally {
@@ -1163,4 +1167,376 @@ test("A failed unsubscribe stops the upkeep before it subscribes: one with no an
     made?.toJSON(),
   ]);
   expect(forgetsSent(), "nothing more to forget").toEqual(THE_OLD_ADDRESS);
+});
+
+// ---- Forgetting and unsubscribing this device (D2, D4) ----
+
+/** The phone's push address, once, as C8a's forget sends it: in the body, never in the URL. */
+const THE_PHONES_ADDRESS = [{ endpoint: LUCIES_PHONE }];
+
+/** A forget or an unsubscribe, seen only as whether it has ended: it answers nothing (D2, D4). */
+function ended(call: Promise<void>): Promise<"ended"> {
+  return call.then(() => "ended" as const);
+}
+
+/**
+ * The subscription Lucie's phone holds, whatever the permission and the key: neither the forget nor the unsubscribe
+ * checks them.
+ */
+const whateverItHolds: {
+  label: string;
+  key: string | null;
+  permission: NotificationPermission;
+}[] = [
+  {
+    label: "notifications denied since it was made",
+    key: SERVER_KEY,
+    permission: "denied",
+  },
+  {
+    label: "the permission back to never asked",
+    key: SERVER_KEY,
+    permission: "default",
+  },
+  { label: "made with another key", key: OLD_KEY, permission: "granted" },
+  { label: "its key not named", key: null, permission: "granted" },
+];
+
+/**
+ * A browser of the test's own whose registration is Lucie's phone, while the window's is another phone holding none:
+ * so only the browser given can reach her subscription.
+ */
+function herPhoneAsTheBrowserGiven(): { phone: PushStandIns; browser: Window } {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const browser = aBrowserOfItsOwn({
+    getRegistration: () => Promise.resolve(phone.registration),
+    permission: "granted",
+  });
+  // The window's own stand-ins: another phone, holding none. Hers keeps working through its registration.
+  installPushStandIns({ permission: "granted" });
+  return { phone, browser };
+}
+
+// ---- 15.1 ----
+
+test("Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal", async () => {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const held = phone.subscription()!;
+  answerWith(THE_SERVER);
+
+  await forgetThisDevice();
+
+  expect(forgetsSent(), "the phone's push address").toEqual(THE_PHONES_ADDRESS);
+  expect(requests(), "the forget alone, no key read").toEqual([FORGET_ASKED]);
+  expect(
+    phone.subscription(),
+    "the phone keeps it until the sign-out is confirmed",
+  ).toBe(held);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+test.each(whateverItHolds)(
+  "Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal: $label",
+  async ({ key, permission }) => {
+    const phone = phoneSubscribedWith(key, { permission });
+    const held = phone.subscription()!;
+    answerWith(THE_SERVER);
+
+    await forgetThisDevice();
+
+    expect(forgetsSent(), "the phone's push address").toEqual(
+      THE_PHONES_ADDRESS,
+    );
+    expect(requests(), "the forget alone").toEqual([FORGET_ASKED]);
+    expect(phone.subscription(), "the phone keeps it").toBe(held);
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test("Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal: the browser given, not the window", async () => {
+  const { browser } = herPhoneAsTheBrowserGiven();
+  answerWith(THE_SERVER);
+
+  await forgetThisDevice({ browser });
+
+  expect(forgetsSent(), "her phone's push address").toEqual(THE_PHONES_ADDRESS);
+});
+
+test("Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal: the forget with no answer ends with the signal", async () => {
+  startTestClock();
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const held = phone.subscription()!;
+  answerWith({ ...THE_SERVER, forgetSubscription: noAnswerYet });
+  const limit = new AbortController();
+
+  const forgetting = ended(forgetThisDevice({ signal: limit.signal }));
+  expect(await whereItStands(forgetting), "waiting for the server").toBe(
+    "still running",
+  );
+  expect(requests()).toEqual([FORGET_ASKED]);
+
+  limit.abort();
+
+  expect(await whereItStands(forgetting)).toBe("ended");
+  expect(timeline()).toContain(`aborted ${FORGET_ASKED}`);
+  expect(phone.subscription(), "the phone keeps it").toBe(held);
+});
+
+test("Forgetting this device sends the push address of the phone's subscription, and its requests carry the given signal: reading the phone's subscription left hanging ends with the signal too, and nothing is sent", async () => {
+  startTestClock();
+  // The browser's own call takes no signal: the forget stops waiting for it when the limit fires (D1, D2).
+  const phone = phoneSubscribedWith(SERVER_KEY, { getSubscriptionWaits: true });
+  answerWith(THE_SERVER);
+  const limit = new AbortController();
+
+  const forgetting = ended(forgetThisDevice({ signal: limit.signal }));
+  expect(await whereItStands(forgetting), "waiting for the browser").toBe(
+    "still running",
+  );
+
+  limit.abort();
+
+  expect(await whereItStands(forgetting)).toBe("ended");
+  expect(requests(), "nothing sent").toEqual([]);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(requests(), "nothing sent once the browser answers late").toEqual([]);
+});
+
+// ---- 15.2 ----
+
+test("Forgetting sends nothing without a registration or a subscription: none of push's features (jsdom as it is)", async () => {
+  answerWith(THE_SERVER);
+
+  await forgetThisDevice();
+
+  expect(requests(), "nothing sent").toEqual([]);
+});
+
+const nothingToReach: { label: string; phone: PushStandInOptions }[] = [
+  { label: "no subscription held", phone: { permission: "granted" } },
+  {
+    // A service worker, but none registered (Vite's dev server): the subscription cannot be reached.
+    label: "no worker registered",
+    phone: {
+      permission: "granted",
+      registered: false,
+      subscription: {
+        endpoint: LUCIES_PHONE,
+        applicationServerKey: SERVER_KEY,
+      },
+    },
+  },
+];
+
+test.each(nothingToReach)(
+  "Forgetting sends nothing without a registration or a subscription: $label",
+  async ({ phone: stands }) => {
+    const phone = installPushStandIns(stands);
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    await forgetThisDevice();
+
+    expect(requests(), "nothing sent").toEqual([]);
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+  },
+);
+
+test("Forgetting sends nothing without a registration or a subscription: the browser given has none registered, though the window has", async () => {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  answerWith(THE_SERVER);
+  const browser = aBrowserOfItsOwn({
+    getRegistration: () => Promise.resolve(undefined),
+    permission: "granted",
+  });
+
+  await forgetThisDevice({ browser });
+
+  expect(requests(), "nothing sent").toEqual([]);
+  expect(phone.subscription(), "the window's phone untouched").not.toBeNull();
+});
+
+// ---- 15.3 ----
+
+test("Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one", async () => {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  answerWith(THE_SERVER);
+
+  await unsubscribeThisDevice();
+
+  expect(phone.subscription(), "the phone holds none").toBeNull();
+  expect(requests(), "nothing asked of the server").toEqual([]);
+  expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+  expect(phone.permissionRequests(), "nothing asked").toBe(0);
+});
+
+test.each(whateverItHolds)(
+  "Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one: $label",
+  async ({ key, permission }) => {
+    const phone = phoneSubscribedWith(key, { permission });
+    answerWith(THE_SERVER);
+
+    await unsubscribeThisDevice();
+
+    expect(phone.subscription(), "the phone holds none").toBeNull();
+    expect(requests(), "nothing asked of the server").toEqual([]);
+    expect(phone.permissionRequests(), "nothing asked").toBe(0);
+  },
+);
+
+test("Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one: the browser given, not the window", async () => {
+  const { phone, browser } = herPhoneAsTheBrowserGiven();
+
+  await unsubscribeThisDevice({ browser });
+
+  expect(phone.subscription(), "her phone holds none").toBeNull();
+});
+
+test("Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one: none of push's features (jsdom as it is)", async () => {
+  answerWith(THE_SERVER);
+
+  await expect(unsubscribeThisDevice()).resolves.toBeUndefined();
+  expect(requests(), "nothing asked of the server").toEqual([]);
+});
+
+test.each(nothingToReach)(
+  "Unsubscribing this device unsubscribes the phone's subscription, and does nothing without one: $label",
+  async ({ phone: stands }) => {
+    const phone = installPushStandIns(stands);
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    await expect(unsubscribeThisDevice()).resolves.toBeUndefined();
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+    expect(phone.subscribeRequests(), "nothing subscribed").toEqual([]);
+    expect(requests(), "nothing asked of the server").toEqual([]);
+  },
+);
+
+// ---- 15.4 ----
+
+test.each(unsubscribesThatFail)(
+  "Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: unsubscribing, $label",
+  async ({ subscription }) => {
+    const phone = installPushStandIns({
+      permission: "granted",
+      subscription: {
+        endpoint: LUCIES_PHONE,
+        applicationServerKey: SERVER_KEY,
+        ...subscription,
+      },
+    });
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    await expect(unsubscribeThisDevice()).resolves.toBeUndefined();
+    expect(phone.subscription(), "the phone still holds it").toBe(held);
+    expect(requests(), "nothing asked of the server").toEqual([]);
+  },
+);
+
+/** Forgetting and unsubscribing this device, each with the browser given (`undefined`: the window). */
+const forgettingAndUnsubscribing: {
+  label: string;
+  call: (browser?: Window) => Promise<void>;
+}[] = [
+  { label: "forgetting", call: (browser) => forgetThisDevice({ browser }) },
+  {
+    label: "unsubscribing",
+    call: (browser) => unsubscribeThisDevice({ browser }),
+  },
+];
+
+test.each(forgettingAndUnsubscribing)(
+  "Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: $label, the browser refuses to say which registration it has",
+  async ({ call }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY, {
+      registrationFails: new DOMException(
+        "The operation is insecure.",
+        "SecurityError",
+      ),
+    });
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    await expect(call()).resolves.toBeUndefined();
+    expect(requests(), "nothing sent").toEqual([]);
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+  },
+);
+
+test.each(forgettingAndUnsubscribing)(
+  "Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: $label, asking for the registration throws at once",
+  async ({ call }) => {
+    answerWith(THE_SERVER);
+    const browser = aBrowserOfItsOwn({
+      getRegistration: () => {
+        throw new DOMException("The operation is insecure.", "SecurityError");
+      },
+      permission: "granted",
+    });
+
+    await expect(call(browser)).resolves.toBeUndefined();
+    expect(requests(), "nothing sent").toEqual([]);
+  },
+);
+
+test.each(forgettingAndUnsubscribing)(
+  "Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: $label, the browser fails to say which subscription it holds",
+  async ({ call }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY, {
+      getSubscriptionFails: new DOMException(
+        "Getting the subscription failed.",
+        "AbortError",
+      ),
+    });
+    const held = phone.subscription();
+    answerWith(THE_SERVER);
+
+    await expect(call()).resolves.toBeUndefined();
+    expect(requests(), "nothing sent").toEqual([]);
+    expect(phone.subscription(), "the phone untouched").toBe(held);
+  },
+);
+
+const forgetsTheServerFails: { label: string; answer: ForgetAnswer }[] = [
+  { label: "a server error", answer: serverError },
+  { label: "a hosting error page", answer: hostingErrorPage },
+  { label: "the login has ended (401)", answer: nobodySignedIn },
+  {
+    label: "the account is refused (403)",
+    answer: refused("lucie@example.com"),
+  },
+  { label: "no answer, offline", answer: noConnection },
+];
+
+test.each(forgetsTheServerFails)(
+  "Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: forgetting, the server answers $label",
+  async ({ answer }) => {
+    const phone = phoneSubscribedWith(SERVER_KEY);
+    const held = phone.subscription();
+    answerWith({ ...THE_SERVER, forgetSubscription: answer });
+
+    await expect(forgetThisDevice()).resolves.toBeUndefined();
+    expect(forgetsSent(), "the phone's push address sent").toEqual(
+      THE_PHONES_ADDRESS,
+    );
+    expect(requests(), "nothing more").toEqual([FORGET_ASKED]);
+    expect(phone.subscription(), "the phone keeps it").toBe(held);
+  },
+);
+
+test("Neither ever throws: a failed unsubscribe and a failure to ask for the registration are ignored: forgetting, the phone says it is offline", async () => {
+  const phone = phoneSubscribedWith(SERVER_KEY);
+  const held = phone.subscription();
+  answerWith(THE_SERVER);
+  goOffline();
+
+  await expect(forgetThisDevice()).resolves.toBeUndefined();
+  expect(requests(), "nothing sent").toEqual([]);
+  expect(phone.subscription(), "the phone keeps it").toBe(held);
 });
