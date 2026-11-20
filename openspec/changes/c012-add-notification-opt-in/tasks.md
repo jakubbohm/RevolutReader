@@ -63,7 +63,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 6. [close] Slice 2 — The card also shows in a computer's browser
 
-- [ ] 6.1 The scenario's test passes (feature detection, not standalone mode, D2). Verify: green, including notification-opt-in / The card also shows in a computer's browser
+- [x] 6.1 The scenario's test passes (feature detection, not standalone mode, D2). Verify: green, including notification-opt-in / The card also shows in a computer's browser
 
 ## 7. [close] Slice 3 — Nothing offers notifications where the browser cannot have them
 
