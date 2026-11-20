@@ -271,8 +271,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 49. [close] Slice 19 — A tap on a notification brings the open app to the front
 
-- [ ] 49.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification brings the open app to the front
-- [ ] 49.2 Docs: testing.md § Fake push service, the frontend's stand-ins: the service worker's stand-in and the remembered "Teď ne" emptied with the phone; the `.claude/rules/testing.md` mirror. Verify: both name `src/test/serviceWorker.ts`
+- [x] 49.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification brings the open app to the front
+- [x] 49.2 Docs: testing.md § Fake push service, the frontend's stand-ins: the service worker's stand-in and the remembered "Teď ne" emptied with the phone; the `.claude/rules/testing.md` mirror. Verify: both name `src/test/serviceWorker.ts`
 
 ## 50. [close] Acceptance green
 
