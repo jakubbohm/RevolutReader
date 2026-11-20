@@ -145,7 +145,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 23. [wiring] Slice 9 — "Teď ne"
 
-- [ ] 23.1 `notNowRemembered` and `rememberNotNow` on `localStorage` (D5); the card's `onDismiss` → `useNotificationOptIn.notNow`, the card gone at once; the choice read at every opening. Verify: group 22 passes; the scenario runs against the app
+- [x] 23.1 `notNowRemembered` and `rememberNotNow` on `localStorage` (D5); the card's `onDismiss` → `useNotificationOptIn.notNow`, the card gone at once; the choice read at every opening. Verify: group 22 passes; the scenario runs against the app
 
 ## 24. [close] Slice 9 — "Teď ne" hides the card for good on this device
 

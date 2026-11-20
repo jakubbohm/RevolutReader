@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { notificationOffer, type Offer, type Step } from "./notificationOffer";
+import { notNowRemembered, rememberNotNow } from "./notNow";
 import { pushSupported } from "./push";
 import { turnNotificationsOn, type TurnOnOutcome } from "./turnOn";
 
@@ -38,7 +39,8 @@ export interface NotificationOptInOptions {
  * An opening (D4) is the launch, or a return to the app (`visibilitychange` to visible), never coming back online. At
  * every opening the permission is read again; a result of this opening (enabled, denied, the default card after a
  * failure) goes at the first return after the app was left while it showed, so the return that follows the phone's
- * own question leaves the result it is about to show.
+ * own question leaves the result it is about to show. "Teď ne" is remembered on the device and read at every opening
+ * (D5).
  */
 export function useNotificationOptIn({
   signedIn,
@@ -46,6 +48,8 @@ export function useNotificationOptIn({
 }: NotificationOptInOptions): NotificationOptInModel {
   const [step, setStep] = useState<Step>("idle");
   const [permission, setPermission] = useState(readPermission);
+  // Read synchronously at launch, so the card never flashes before the choice is known (D5).
+  const [notNow, setNotNow] = useState(() => notNowRemembered());
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -69,6 +73,8 @@ export function useNotificationOptIn({
       if (leftWhileResultShowed.current) setStep("idle");
       leftWhileResultShowed.current = false;
       setPermission(readPermission());
+      // Once chosen, it stays for the session even when the device could not keep it (D5).
+      setNotNow((chosen) => chosen || notNowRemembered());
     };
     document.addEventListener("visibilitychange", opening);
     return () => document.removeEventListener("visibilitychange", opening);
@@ -87,17 +93,22 @@ export function useNotificationOptIn({
     });
   }, []);
 
+  const dismiss = useCallback((): void => {
+    rememberNotNow();
+    setNotNow(true);
+  }, []);
+
   const supported = pushSupported(window);
   const offer = notificationOffer({
     supported,
     signedIn,
     underBalance,
     permission,
-    notNow: false,
+    notNow,
     step,
   });
 
-  return { ...offer, turnOn, notNow: ignore, fromMenu: ignore };
+  return { ...offer, turnOn, notNow: dismiss, fromMenu: ignore };
 }
 
 /**
