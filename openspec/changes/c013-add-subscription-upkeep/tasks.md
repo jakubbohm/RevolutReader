@@ -57,9 +57,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 6. [unit] Slice 2 — Only while notifications are allowed (`keepSubscriptionUp`)
 
-- [ ] 6.1 Nothing is asked, subscribed or sent while the permission is `default`, even with a subscription held
-- [ ] 6.2 Nothing is asked, subscribed or sent while the permission is `denied`
-- [ ] 6.3 Nothing is done where the browser cannot push, or no worker is registered
+- [x] 6.1 Nothing is asked, subscribed or sent while the permission is `default`, even with a subscription held
+- [x] 6.2 Nothing is asked, subscribed or sent while the permission is `denied`
+- [x] 6.3 Nothing is done where the browser cannot push, or no worker is registered
 
 ## 7. [close] Slice 2 — Nothing is subscribed while notifications are not allowed
 

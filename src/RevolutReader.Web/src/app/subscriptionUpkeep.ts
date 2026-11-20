@@ -50,6 +50,7 @@ export type UpkeepOutcome =
   | { kind: "stopped" };
 
 const STOPPED = { kind: "stopped" } as const;
+const NOT_ALLOWED = { kind: "not allowed" } as const;
 
 /**
  * One upkeep (D1): the key, the phone's subscription, then send it again, subscribe again or replace it. Never asks for
@@ -61,10 +62,13 @@ export async function keepSubscriptionUp(options: {
   signal?: AbortSignal;
   browser?: Window;
 }): Promise<UpkeepOutcome> {
-  const { signal, browser } = options;
+  const { signal, browser = window } = options;
 
+  // When (D1): the browser can push, a worker is registered, and notifications are allowed; otherwise nothing is asked,
+  // subscribed or sent. The registration first: only a browser that can push is sure to have `Notification`.
   const registration = await pushRegistration(browser);
-  if (registration === null) return STOPPED;
+  if (registration === null || !notificationsAllowed(browser))
+    return NOT_ALLOWED;
 
   // Step 1: the server's key, read afresh at every upkeep (S7).
   const read = await readPushKey({ signal });
@@ -85,6 +89,17 @@ export async function keepSubscriptionUp(options: {
   // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
   const sent = await sendSubscription(held, { signal });
   return sent.kind === "done" ? { kind: "sent again" } : STOPPED;
+}
+
+/**
+ * Whether the user has allowed this browser's notifications (D1): its own `Notification.permission` is `granted`. Read,
+ * never asked for (`requestPermission` only ever from a tap). Only for a browser that can push (`pushSupported`).
+ */
+function notificationsAllowed(browser: Window): boolean {
+  return (
+    (browser as Window & typeof globalThis).Notification.permission ===
+    "granted"
+  );
 }
 
 /**
