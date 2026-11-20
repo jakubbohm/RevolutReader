@@ -10,6 +10,7 @@ import {
   pushSupported,
   readPushKey,
   sendSubscription,
+  subscribe,
 } from "./push";
 
 /**
@@ -49,13 +50,15 @@ export type UpkeepOutcome =
   /** Offline, unexpected, a refused subscription, a browser failure, the limit. */
   | { kind: "stopped" };
 
+const SENT_AGAIN = { kind: "sent again" } as const;
+const SUBSCRIBED_AGAIN = { kind: "subscribed again" } as const;
 const STOPPED = { kind: "stopped" } as const;
 const NOT_ALLOWED = { kind: "not allowed" } as const;
 
 /**
  * One upkeep (D1): the key, the phone's subscription, then send it again, subscribe again or replace it. Never asks for
  * the permission, never throws. `stillSignedIn` is checked after every step (D6); `signal` is the 60 s limit, passed to
- * every request.
+ * every request; the browser's own calls take none, so the upkeep stops waiting for one when it fires.
  */
 export async function keepSubscriptionUp(options: {
   stillSignedIn: () => boolean;
@@ -74,21 +77,79 @@ export async function keepSubscriptionUp(options: {
   const read = await readPushKey({ signal });
   if (read.kind !== "key") return STOPPED;
 
-  // Step 2: the phone's subscription; a failure of the browser waits for the next opening.
+  // Step 2: the phone's subscription; a failure of the browser, or the limit, waits for the next opening.
   let held: PushSubscription | null;
   try {
-    held = await currentSubscription(registration);
+    held = await beforeTheLimit(
+      () => currentSubscription(registration),
+      signal,
+    );
   } catch {
     return STOPPED;
   }
 
-  // Steps 4 and 5, none held or one made with another key, are not built yet: the upkeep stops.
-  if (held === null) return STOPPED;
+  // Step 4: none held: subscribe with the server's key, then send the new one. A failed subscribe, or one the limit
+  // gave up on, waits for the next opening; a subscription that settles after the limit is kept, and sent again then.
+  if (held === null) {
+    let made: PushSubscription;
+    try {
+      made = await beforeTheLimit(
+        () => subscribe(registration, read.key),
+        signal,
+      );
+    } catch {
+      return STOPPED;
+    }
+    return sentAs(made, SUBSCRIBED_AGAIN, signal);
+  }
+
+  // Step 5, one made with another key, is not built yet: the upkeep stops.
   if (namesItsKey(held) && !madeWith(held, read.key)) return STOPPED;
 
   // Step 3: made with the server's key, or with a key the browser does not name: sent again as it is, never replaced.
-  const sent = await sendSubscription(held, { signal });
-  return sent.kind === "done" ? { kind: "sent again" } : STOPPED;
+  return sentAs(held, SENT_AGAIN, signal);
+}
+
+/** Sends the subscription to the server: `outcome` once it is stored; anything else stops the upkeep. */
+async function sentAs(
+  subscription: PushSubscription,
+  outcome: UpkeepOutcome,
+  signal: AbortSignal | undefined,
+): Promise<UpkeepOutcome> {
+  const sent = await sendSubscription(subscription, { signal });
+  return sent.kind === "done" ? outcome : STOPPED;
+}
+
+/**
+ * One of the browser's own calls, given up when the limit fires (D1): they take no signal, so the upkeep stops waiting
+ * for one then, and the call is left to settle on its own. Rejects with the call's failure, whether it rejects or throws
+ * at once, or when the limit fires first; a call is never started once it has.
+ */
+function beforeTheLimit<T>(
+  call: () => Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    if (signal?.aborted === true) {
+      reject(signal.reason);
+      return;
+    }
+    const giveUp = (): void => {
+      reject(signal?.reason);
+    };
+    // Started before the limit is watched, so a call that throws at once leaves no listener behind.
+    call().then(
+      (answer) => {
+        signal?.removeEventListener("abort", giveUp);
+        resolve(answer);
+      },
+      (failure: unknown) => {
+        signal?.removeEventListener("abort", giveUp);
+        reject(failure);
+      },
+    );
+    signal?.addEventListener("abort", giveUp, { once: true });
+  });
 }
 
 /**

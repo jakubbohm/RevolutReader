@@ -83,9 +83,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 11. [unit] Slice 4 — Subscribing again (`keepSubscriptionUp`)
 
-- [ ] 11.1 A phone with no subscription subscribes with the server's key, visible pushes only, and sends the new one
-- [ ] 11.2 A failed subscribe stops the upkeep quietly, and nothing is sent
-- [ ] 11.3 A new subscription the server did not get is sent again at the next opening
+- [x] 11.1 A phone with no subscription subscribes with the server's key, visible pushes only, and sends the new one
+- [x] 11.2 A failed subscribe stops the upkeep quietly, and nothing is sent
+- [x] 11.3 A new subscription the server did not get is sent again at the next opening
 
 ## 12. [close] Slice 4 — A subscription the phone has lost is replaced quietly
 
