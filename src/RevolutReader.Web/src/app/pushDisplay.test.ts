@@ -1,10 +1,17 @@
 import { expect, test } from "vitest";
+import { keptBalance, phoneKeeps } from "../test/server";
 import {
   installServiceWorkerStandIn,
   ORIGIN,
   type ServiceWorkerStandIn,
 } from "../test/serviceWorker";
-import { declarativeMessage, listenForPushes } from "./pushDisplay";
+import type { Balance } from "./balance";
+import {
+  declarativeMessage,
+  listenForPushes,
+  pushedBalance,
+  type PushLike,
+} from "./pushDisplay";
 
 // What the service worker does with a push (c012 design.md D9). Every value here is made up.
 
@@ -361,4 +368,121 @@ test("A window on another origin does not count as the app", async () => {
     expect(serviceWorker.focusedWindows(), name).toEqual([]);
     expect(serviceWorker.openedWindows(), name).toEqual([APP_PAGE]);
   }
+});
+
+// ---- c015: the balance a push carries, kept (group 2; design.md D1, D2, D4) ----
+
+/** A balance as a push carries it, exactly as `GET /api/balance` answers it (c015 design.md D1). Made up. */
+const PUSHED: Balance = {
+  amount: 282.6,
+  readAt: "2026-11-10T08:59:00+00:00",
+  czkPerEur: 24.3,
+};
+
+/** Another balance, so a test can tell which of two a push's balance came from. Made up. */
+const OTHER: Balance = {
+  amount: 250,
+  readAt: "2026-11-10T08:30:00+00:00",
+  czkPerEur: 24.3,
+};
+
+/** The balance the phone keeps before a push, read earlier than `PUSHED`. Made up. */
+const KEPT_EARLIER: Balance = {
+  amount: 286.4,
+  readAt: "2026-11-10T07:00:00+00:00",
+  czkPerEur: 24.3,
+};
+
+/** The title and text of a push of the account check (c015 design.md D1, N4). Made up. */
+const PAYMENT_TITLE = "Odešlo 3,80 €";
+const PAYMENT_TEXT = "Zůstatek 282,60 € (≈ 6 867 Kč)";
+
+/**
+ * A push as the account check sends it (c015 design.md D1): Declarative Web Push with `"mutable": true`, opening the
+ * start page, with `balance` in its notification's data.
+ */
+function pushWithBalance(balance: unknown): unknown {
+  return {
+    web_push: 8030,
+    mutable: true,
+    notification: {
+      title: PAYMENT_TITLE,
+      body: PAYMENT_TEXT,
+      navigate: APP_PAGE,
+      data: { balance },
+    },
+  };
+}
+
+/**
+ * The notification a browser that reads Declarative Web Push proposes for that push: the message's `notification.data`
+ * becomes its `data` (W3C draft, c015 design.md D2).
+ */
+function proposedFor(balance: unknown): unknown {
+  return {
+    title: PAYMENT_TITLE,
+    body: PAYMENT_TEXT,
+    navigate: APP_PAGE,
+    data: { balance },
+  };
+}
+
+/** A push event with this data and this proposed notification (left out: a browser without the member). */
+function pushEvent(fields: Pick<PushLike, "data" | "notification">): PushLike {
+  return { ...fields, waitUntil: () => {} };
+}
+
+/** Push data whose `json()` gives this value. */
+function dataOf(json: unknown): PushLike["data"] {
+  return { json: () => structuredClone(json) };
+}
+
+test("The balance comes from the data of the browser's proposed notification when the push event carries one", () => {
+  // As the W3C draft has it: the event carries no data of its own, only the proposed notification.
+  expect(
+    pushedBalance(pushEvent({ data: null, notification: proposedFor(PUSHED) })),
+    "no data of the event's own",
+  ).toEqual(PUSHED);
+  // A browser that also hands over the push's own JSON (design.md D2): the proposed notification's balance comes first.
+  expect(
+    pushedBalance(
+      pushEvent({
+        data: dataOf(pushWithBalance(OTHER)),
+        notification: proposedFor(PUSHED),
+      }),
+    ),
+    "the push's own JSON too, with another balance",
+  ).toEqual(PUSHED);
+});
+
+test("The balance comes from the push's own JSON where the browser proposes no notification", () => {
+  const cases: [string, PushLike][] = [
+    [
+      "a browser that does not read Declarative Web Push (no proposed notification)",
+      pushEvent({ data: dataOf(pushWithBalance(PUSHED)) }),
+    ],
+    [
+      "a browser whose proposed notification is null",
+      pushEvent({ data: dataOf(pushWithBalance(PUSHED)), notification: null }),
+    ],
+  ];
+
+  for (const [name, event] of cases) {
+    expect(pushedBalance(event), name).toEqual(PUSHED);
+  }
+});
+
+test("A push with a balance is kept also where the service worker shows the notification itself, and the message still shows", async () => {
+  await phoneKeeps(KEPT_EARLIER);
+  // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
+  const serviceWorker = installServiceWorkerStandIn();
+  listenForPushes(serviceWorker.worker);
+
+  // Resolves once the event's waitUntil work is done.
+  await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+  expect(await keptBalance(), "the balance the phone keeps").toEqual(PUSHED);
+  expect(serviceWorker.shownNotifications()).toEqual([
+    { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+  ]);
 });

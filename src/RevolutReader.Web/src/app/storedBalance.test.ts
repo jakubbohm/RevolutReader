@@ -9,6 +9,7 @@ import {
 import type { Balance } from "./balance";
 import {
   forgetStoredBalance,
+  keepPushedBalance,
   loadStoredBalance,
   storeBalance,
 } from "./storedBalance";
@@ -87,7 +88,12 @@ const failingStores: {
     label: "a store used before, its connection open",
     module: async () => {
       await loadStoredBalance();
-      return { loadStoredBalance, storeBalance, forgetStoredBalance };
+      return {
+        loadStoredBalance,
+        storeBalance,
+        forgetStoredBalance,
+        keepPushedBalance,
+      };
     },
   },
   {
@@ -124,6 +130,20 @@ test("After forgetting, loading gives none", async () => {
 
   expect(await loadStoredBalance()).toBeNull();
   expect(await keptBalance(), "nothing kept where D4 names it").toBeNull();
+});
+
+// ---- c015: a balance a push brought (design.md D3) ----
+
+test("A pushed balance replaces the one the phone keeps, with only its three fields", async () => {
+  // The phone keeps a balance read earlier than the pushed one.
+  await phoneKeeps(EARLIER);
+  // A balance with a field more than the three, which the phone must not keep.
+  const pushed = { ...LATER, currency: "EUR" };
+
+  await keepPushedBalance(pushed);
+
+  expect(await keptBalance(), "kept where D4 names it").toEqual(LATER);
+  expect(await loadStoredBalance()).toEqual(LATER);
 });
 
 // A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there

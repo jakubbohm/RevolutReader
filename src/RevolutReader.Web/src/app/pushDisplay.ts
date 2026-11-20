@@ -4,6 +4,10 @@
  * members of the service worker's scope it uses as its own small interfaces.
  */
 
+// c015 test-writer's stub (group 2): the generated schema's type, as `Balance` is, until `Balance` moves to
+// `balanceRecord.ts` (design.md D5, task 3.1); `./balance` would bring the API client into the service worker's project.
+import type { components } from "../api/schema";
+
 /** A Declarative Web Push message as the service worker shows it. */
 export interface DeclarativeMessage {
   title: string;
@@ -68,6 +72,18 @@ export interface PushLike {
 export interface NotificationClickLike {
   notification: { data: unknown; close(): void };
   waitUntil(work: Promise<unknown>): void;
+}
+
+/**
+ * The balance a push carries (c015 design.md D2): `balance` in the data of the browser's proposed notification when the
+ * event carries one (a mutable Declarative Web Push gives the event no data of its own, W3C draft), else in the push's
+ * own JSON (`notification.data.balance`); kept only when `balanceOf` gives one. Null when there is none or it has the
+ * wrong shape.
+ */
+export function pushedBalance(
+  _event: PushLike,
+): components["schemas"]["RevolutReaderApiAccountBalanceResponse"] | null {
+  throw new Error("Not implemented yet: pushedBalance (c015 tasks 2.1, 2.2).");
 }
 
 /**

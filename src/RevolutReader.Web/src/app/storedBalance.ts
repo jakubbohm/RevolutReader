@@ -32,6 +32,15 @@ export async function storeBalance(balance: Balance): Promise<void> {
   }
 }
 
+/**
+ * Keeps a balance a push brought in place of the one the phone keeps (c015 design.md D3): only when the phone keeps a
+ * balance of the right shape and the pushed one was not read earlier (`readAt` compared as moments); read, compared and
+ * written in one IndexedDB transaction (idb-keyval's `update`), only the three fields. Never rejects: a failure is ignored.
+ */
+export function keepPushedBalance(_pushed: Balance): Promise<void> {
+  throw new Error("Not implemented yet: keepPushedBalance (c015 task 2.3).");
+}
+
 /** Forgets the kept balance; a failure is ignored. */
 export async function forgetStoredBalance(): Promise<void> {
   try {
