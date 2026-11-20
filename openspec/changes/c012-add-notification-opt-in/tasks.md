@@ -238,7 +238,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 42. [wiring] Slice 16 — The service worker's push handler
 
-- [ ] 42.1 `src/app/pushDisplay.ts` as sketched (D9); `sw.ts` calls `listenForPushes(self)`. Verify: groups 40–41 pass; `npm run typecheck` and `npm run build` pass; the scenario runs against the handler
+- [x] 42.1 `src/app/pushDisplay.ts` as sketched (D9); `sw.ts` calls `listenForPushes(self)`. Verify: groups 40–41 pass; `npm run typecheck` and `npm run build` pass; the scenario runs against the handler
 
 ## 43. [close] Slice 16 — A push shows as a notification where the browser does not show it itself
 
