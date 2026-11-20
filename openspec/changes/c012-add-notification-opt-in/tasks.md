@@ -266,8 +266,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 48. [unit] Slice 19 — A tap with the app open
 
-- [ ] 48.1 With a window of the app open, a tap focuses it and opens no other
-- [ ] 48.2 A window on another origin does not count as the app
+- [x] 48.1 With a window of the app open, a tap focuses it and opens no other
+- [x] 48.2 A window on another origin does not count as the app
 
 ## 49. [close] Slice 19 — A tap on a notification brings the open app to the front
 

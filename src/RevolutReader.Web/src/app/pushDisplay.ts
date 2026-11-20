@@ -92,12 +92,32 @@ export function listenForPushes(worker: PushWorker): void {
 
   worker.addEventListener("notificationclick", (event) => {
     event.notification.close();
-    event.waitUntil(
-      worker.clients.openWindow(
-        pageOnOrigin(event.notification.data, worker.location.origin),
-      ),
-    );
+    event.waitUntil(openApp(worker, event.notification.data));
   });
+}
+
+/**
+ * Focuses a window of the app open on the worker's origin, as it is (the app has one page), or else opens the page
+ * `data` names on that origin.
+ */
+async function openApp(worker: PushWorker, data: unknown): Promise<void> {
+  const { origin } = worker.location;
+  const windows = await worker.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  const appWindow = windows.find((each) => originOf(each.url) === origin);
+  if (appWindow !== undefined) await appWindow.focus();
+  else await worker.clients.openWindow(pageOnOrigin(data, origin));
+}
+
+/** The origin of `url`; undefined when it is no address. */
+function originOf(url: string): string | undefined {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
