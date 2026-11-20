@@ -71,11 +71,11 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 8. [unit] Slice 4 — Turning on
 
-- [ ] 8.1 The phone is asked for permission before anything is awaited
-- [ ] 8.2 Once allowed, the app subscribes with the server's key, for visible pushes only, and sends the subscription
-- [ ] 8.3 The server keeping the subscription is "on"
-- [ ] 8.4 A declined question is "declined", and nothing is sent to the server
-- [ ] 8.5 A question closed without an answer is "undecided", and nothing is sent to the server
+- [x] 8.1 The phone is asked for permission before anything is awaited
+- [x] 8.2 Once allowed, the app subscribes with the server's key, for visible pushes only, and sends the subscription
+- [x] 8.3 The server keeping the subscription is "on"
+- [x] 8.4 A declined question is "declined", and nothing is sent to the server
+- [x] 8.5 A question closed without an answer is "undecided", and nothing is sent to the server
 
 ## 9. [unit] Slice 4 — What is offered while turning on
 
