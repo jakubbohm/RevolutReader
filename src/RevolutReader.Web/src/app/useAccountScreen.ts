@@ -120,7 +120,8 @@ interface Wake {
  * visitor on the account screen, still signed in, so the note never claims a sign-out that did not happen (c007
  * design.md D2). A 401 or 403 to who is signed in, to a balance read or to the list's newest page forgets the balance
  * and unsubscribes the phone too, and shows the sign-in screen (without the note) or the no-access screen (D4, D5 c;
- * c010 D8; c013 D4).
+ * c010 D8; c013 D4). The login ends only once on the screen: from then on nothing is read again and no upkeep runs, also
+ * while the next screen waits for the phone's unsubscribe.
  *
  * The phone's push subscription is kept right at every opening (c013 design.md D1; `keepSubscriptionUp`). A launch: the
  * moment the screen learns that a user is signed in, by the first answer to who is signed in or a repeated one, an
@@ -154,7 +155,10 @@ export function useAccountScreen(): AccountScreenModel {
   const latestQuestion = useRef(0);
   /** As `askUnderWay`, for a balance read. */
   const readUnderWay = useRef(false);
-  /** How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped. */
+  /**
+   * How many logins have ended on this screen: a read started before the latest end lands for nobody, and is dropped;
+   * once one has ended, nothing is read again nor any upkeep run (`repeat`, `runUpkeep`).
+   */
   const loginsEnded = useRef(0);
   /** As `readUnderWay`, for an upkeep of the push subscription: an opening while one runs is ignored, not queued. */
   const upkeepUnderWay = useRef(false);
@@ -284,14 +288,14 @@ export function useAccountScreen(): AccountScreenModel {
   );
 
   /**
-   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way: then nothing is asked. It
-   * has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its request is aborted, so a request left unanswered
-   * cannot block the next opening's upkeep. It runs under the login it started with, while the screen is on the page
-   * (D6). What it comes to is never shown; only a 401 or 403 to one of its requests ends the login, as the list's does
-   * (D1, D4).
+   * One upkeep of the phone's push subscription (c013 design.md D1), unless one is under way or a login has ended on this
+   * screen (`repeat`): then nothing is asked. It has the refresh's limit: with no answer after `REFRESH_LIMIT_MS` its
+   * request is aborted, so a request left unanswered cannot block the next opening's upkeep. It runs under the login it
+   * started with, while the screen is on the page (D6). What it comes to is never shown; only a 401 or 403 to one of its
+   * requests ends the login, as the list's does (D1, D4).
    */
   const runUpkeep = useCallback(async (): Promise<void> => {
-    if (upkeepUnderWay.current) return;
+    if (upkeepUnderWay.current || loginsEnded.current > 0) return;
     upkeepUnderWay.current = true;
     const login = loginsEnded.current;
 
@@ -474,9 +478,12 @@ export function useAccountScreen(): AccountScreenModel {
   /**
    * Repeats what was under way (D2, D3): the question while who is signed in is unanswered; for a signed-in user, the
    * balance read, shown as the first read until one succeeded, and always with the refresh's limit, and the list's newest
-   * page with it (c010 design.md D8). Nothing for a visitor on the sign-in or no-access screen.
+   * page with it (c010 design.md D8). Nothing for a visitor on the sign-in or no-access screen, and nothing once a login
+   * has ended on this screen, though its next screen may still wait for the phone's unsubscribe: the login ends only
+   * once on a screen (c013 design.md D4), and signing in again opens the page afresh (c007 design.md D2).
    */
   const repeat = useCallback((): void => {
+    if (loginsEnded.current > 0) return;
     if (signedIn) {
       void readTheBalance(hasRead ? "refresh" : "first", false);
       refreshTheList();
