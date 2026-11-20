@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: The subscription is sent to the server again at every opening
-At every opening of the app, a launch or a return to it from another app, while a user is signed in and notifications are allowed on the device, the app SHALL send the device's push subscription to the server again when it was made with the server's current public key. The server then keeps it under the account signed in now (requirement "A device is registered under the account signed in"). It SHALL do so quietly: no permission prompt, no tap, nothing on screen.
+At every opening of the app, a launch or a return to it from another app, while a user is signed in, no sign-out is under way, and notifications are allowed on the device, the app SHALL send the device's push subscription to the server again when it was made with the server's current public key. The server then keeps it under the account signed in now (requirement "A device is registered under the account signed in"). It SHALL do so quietly: no permission prompt, no tap, nothing on screen.
 
 #### Scenario: The subscription is sent to the server again when the app opens
 - **GIVEN** Lucie allowed notifications on her phone
