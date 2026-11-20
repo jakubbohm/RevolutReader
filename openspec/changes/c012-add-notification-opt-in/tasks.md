@@ -223,7 +223,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 39. [close] Slice 15 — The account menu shows who is signed in
 
-- [ ] 39.1 The changed scenario's test passes. Verify: green, including app-shell / The account menu shows who is signed in
+- [x] 39.1 The changed scenario's test passes. Verify: green, including app-shell / The account menu shows who is signed in
 
 ## 40. [unit] Slice 16 — Reading a push
 
