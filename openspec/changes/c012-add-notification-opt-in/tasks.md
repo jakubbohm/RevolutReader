@@ -181,7 +181,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 31. [unit] Slice 12 — The menu on a blocked phone
 
-- [ ] 31.1 On a blocked phone, the menu's item asks nothing and gives the Denied card
+- [x] 31.1 On a blocked phone, the menu's item asks nothing and gives the Denied card
 
 ## 32. [close] Slice 12 — The account menu, with notifications blocked, says where to turn them on
 

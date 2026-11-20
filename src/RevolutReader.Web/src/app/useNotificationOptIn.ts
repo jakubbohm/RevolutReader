@@ -93,6 +93,16 @@ export function useNotificationOptIn({
     });
   }, []);
 
+  // From the menu (D7): on a blocked phone, asking would do nothing, so the Denied card says where to turn them on;
+  // otherwise as the card's button, the result shown in the card, and a remembered "Teď ne" stays.
+  const fromMenu = useCallback((): void => {
+    if (permission === "denied") {
+      setStep("denied");
+      return;
+    }
+    turnOn();
+  }, [permission, turnOn]);
+
   const dismiss = useCallback((): void => {
     rememberNotNow();
     setNotNow(true);
@@ -108,8 +118,7 @@ export function useNotificationOptIn({
     step,
   });
 
-  // From the menu, as the card's button (D7): the result shows in the card, and a remembered "Teď ne" stays.
-  return { ...offer, turnOn, notNow: dismiss, fromMenu: turnOn };
+  return { ...offer, turnOn, notNow: dismiss, fromMenu };
 }
 
 /**
