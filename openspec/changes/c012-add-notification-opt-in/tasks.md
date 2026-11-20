@@ -97,7 +97,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 13. [unit] Slice 5 — Once on
 
-- [ ] 13.1 A phone that allows notifications is offered nothing, card or menu item, when no result of this opening shows
+- [x] 13.1 A phone that allows notifications is offered nothing, card or menu item, when no result of this opening shows
 
 ## 14. [close] Slice 5 — Nothing offers notifications once they are on
 

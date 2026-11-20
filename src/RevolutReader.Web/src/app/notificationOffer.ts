@@ -40,12 +40,15 @@ export function notificationOffer(facts: OfferFacts): Offer {
   if (!facts.supported || !facts.signedIn) {
     return NOTHING;
   }
+  const result = cardOfStep(facts.step);
+  if (result !== null && facts.underBalance) {
+    return { card: result, menuItem: false };
+  }
+  if (facts.permission === "granted") {
+    return NOTHING;
+  }
   if (!facts.underBalance) {
     return MENU_ITEM;
-  }
-  const result = cardOfStep(facts.step);
-  if (result !== null) {
-    return { card: result, menuItem: false };
   }
   return { card: "default", menuItem: false };
 }
