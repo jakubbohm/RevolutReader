@@ -105,10 +105,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 15. [unit] Slice 6 — Openings
 
-- [ ] 15.1 A return to the app after it was left while the enabled card showed clears the card
-- [ ] 15.2 A return to the app that comes while turning on leaves the result to show when it comes (the iOS prompt, D4)
-- [ ] 15.3 Coming back online is not an opening: the result stays
-- [ ] 15.4 Every opening reads the phone's permission again
+- [x] 15.1 A return to the app after it was left while the enabled card showed clears the card
+- [x] 15.2 A return to the app that comes while turning on leaves the result to show when it comes (the iOS prompt, D4)
+- [x] 15.3 Coming back online is not an opening: the result stays
+- [x] 15.4 Every opening reads the phone's permission again
 
 ## 16. [wiring] Slice 6 — The opening watch
 

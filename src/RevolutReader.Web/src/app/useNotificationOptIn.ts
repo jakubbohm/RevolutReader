@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { notificationOffer, type Offer, type Step } from "./notificationOffer";
 import { pushSupported } from "./push";
 import { turnNotificationsOn, type TurnOnOutcome } from "./turnOn";
@@ -28,18 +34,44 @@ export interface NotificationOptInOptions {
  * subscribe (`pushSupported`, C8a), the phone's permission, the signed-in user, the balance header and the step of
  * this opening. The card's "Zapnout upozornění" asks the phone within the tap (D3) and shows the card enabling until
  * the outcome.
+ *
+ * An opening (D4) is the launch, or a return to the app (`visibilitychange` to visible), never coming back online. At
+ * every opening the permission is read again; a result of this opening (enabled, denied, the default card after a
+ * failure) goes at the first return after the app was left while it showed, so the return that follows the phone's
+ * own question leaves the result it is about to show.
  */
 export function useNotificationOptIn({
   signedIn,
   underBalance,
 }: NotificationOptInOptions): NotificationOptInModel {
   const [step, setStep] = useState<Step>("idle");
+  const [permission, setPermission] = useState(readPermission);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
+  }, []);
+
+  // The step as the page's listener sees it, and whether a result was on screen when the app was last left (D4).
+  const currentStep = useRef(step);
+  useLayoutEffect(() => {
+    currentStep.current = step;
+  }, [step]);
+  const leftWhileResultShowed = useRef(false);
+  useEffect(() => {
+    const opening = (): void => {
+      if (document.visibilityState === "hidden") {
+        leftWhileResultShowed.current = isResult(currentStep.current);
+        return;
+      }
+      if (leftWhileResultShowed.current) setStep("idle");
+      leftWhileResultShowed.current = false;
+      setPermission(readPermission());
+    };
+    document.addEventListener("visibilitychange", opening);
+    return () => document.removeEventListener("visibilitychange", opening);
   }, []);
 
   const turnOn = useCallback((): void => {
@@ -57,7 +89,7 @@ export function useNotificationOptIn({
     supported,
     signedIn,
     underBalance,
-    permission: supported ? Notification.permission : "default",
+    permission,
     notNow: false,
     step,
   });
@@ -71,6 +103,16 @@ export function useNotificationOptIn({
  */
 function stepAfter(outcome: TurnOnOutcome): Step {
   return outcome.kind === "on" ? "enabled" : "idle";
+}
+
+/** The phone's notification permission; "default" in a browser without `Notification`. */
+function readPermission(): NotificationPermission {
+  return "Notification" in window ? Notification.permission : "default";
+}
+
+/** Whether the step is a result of this opening, which goes at the first return after it showed (D4). */
+function isResult(step: Step): boolean {
+  return step === "enabled" || step === "denied" || step === "failed";
 }
 
 /** What a tap does until its own slice builds it. */
