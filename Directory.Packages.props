@@ -17,8 +17,9 @@
          builds on Microsoft.AspNetCore.OpenApi. No Microsoft.Extensions.ApiDescription.Server: its export at
          build time starts the app, whose start-up checks refuse the placeholder secrets (c007 bootstrap). -->
     <PackageVersion Include="FastEndpoints.OpenApi" Version="9.0.0-beta.7" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0-rc.3.26522.148" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0-rc.3.26522.148" />
+    <!-- The two Microsoft.AspNetCore packages follow the .NET version: 11.0.0 since 2026-11-20 (#74). -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="11.0.0" />
     <!-- The login cookie's encryption keys: a blob, encrypted by a Key Vault key (D7). Azure.Identity
          for its credential is listed once, below, with the telemetry exporter (C12). -->
     <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.5" />
@@ -29,9 +30,10 @@
          in ServiceDefaults (a convention test fails if one appears). -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <!-- The transaction store's client (c010 design.md D5, D11; ADR-0005; verified on nuget.org on 2026-11-08:
-         13.6.4, 2026-10-24): Azurite's connection string locally and in tests, the table endpoint with the app's
-         managed identity in Azure. Its health check stays off: /health never touches storage. -->
-    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.4" />
+         13.6.4, 2026-10-24; 13.6.5 since 2026-11-20 with the other Aspire packages, #74): Azurite's connection
+         string locally and in tests, the table endpoint with the app's managed identity in Azure. Its health check
+         stays off: /health never touches storage. -->
+    <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.5" />
     <!-- Web Push (c011 design.md D1; ADR-0010; verified on nuget.org on 2026-11-08: 3.3.1, 2025-03-09, MIT): encrypts
          with aes128gcm (RFC 8291) and signs with the vapid scheme (RFC 8292), on our own HttpClient with no retries.
          Brings Portable.BouncyCastle; the tests decrypt with their own code, never the library's. -->
@@ -41,9 +43,9 @@
   <ItemGroup Label="AppHost">
     <!-- Runs the frontend's Vite dev server as the "web" resource (c003 design.md D11). Matches
          the Aspire.AppHost.Sdk version in RevolutReader.AppHost.csproj. -->
-    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.4" />
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.5" />
     <!-- Azurite for the transaction store in local development (c010 design.md D11). Same version. -->
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.4" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.5" />
   </ItemGroup>
 
   <ItemGroup Label="ServiceDefaults">
@@ -65,7 +67,7 @@
   <ItemGroup Label="Tests">
     <!-- Mvc.Testing is pinned directly: TUnit.AspNetCore is built up to net10.0 and would
          otherwise pull 10.0.14 into the net11.0 test host. -->
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0-rc.3.26522.148" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
     <!-- The fake clock every app copy runs on (c007 design.md D6). -->
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <!-- The telemetry guard collects what the app exports (c004 design.md D5); same version as the other OpenTelemetry packages. -->

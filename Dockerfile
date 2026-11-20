@@ -4,8 +4,8 @@
 # allowlist (.dockerignore).
 #
 # The .NET tags name exact .NET versions. The SDK tag must hold the SDK that global.json pins
-# (rollForward: disable): the move to .NET 11 GA changes global.json and both .NET tags here
-# together. The Node tag names only the major version (c005 design.md D12), as CI's frontend job
+# (rollForward: disable): a .NET update changes global.json and both .NET tags here together (the
+# move to .NET 11.0.0, #74). The Node tag names only the major version (c005 design.md D12), as CI's frontend job
 # does. No tag is a digest, so the images behind them (a Node patch, the OS layers) can change
 # between a PR's image-and-infra check and the build on main.
 
@@ -20,7 +20,7 @@ COPY src/RevolutReader.Web/ ./
 RUN npm run build
 
 # 2. The backend, published in Release.
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-resolute AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-resolute AS build
 WORKDIR /src
 COPY global.json nuget.config Directory.Build.props Directory.Packages.props BannedSymbols.txt .editorconfig ./
 # The project files first, so the restore is cached until a package changes.
@@ -39,7 +39,7 @@ RUN dotnet publish src/RevolutReader.Api/RevolutReader.Api.csproj \
 
 # 3. The image that runs: non-root (user 1654), port 8080, no shell. The frontend's build is the
 # web root, which the backend serves (spec app-delivery).
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-resolute-chiseled
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-resolute-chiseled
 # Links the package on ghcr.io to the repository.
 LABEL org.opencontainers.image.source="https://github.com/jakubbohm/RevolutReader"
 WORKDIR /app
