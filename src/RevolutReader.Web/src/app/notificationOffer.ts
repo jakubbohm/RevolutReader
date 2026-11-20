@@ -43,7 +43,22 @@ export function notificationOffer(facts: OfferFacts): Offer {
   if (!facts.underBalance) {
     return MENU_ITEM;
   }
+  const result = cardOfStep(facts.step);
+  if (result !== null) {
+    return { card: result, menuItem: false };
+  }
   return { card: "default", menuItem: false };
+}
+
+/** The card a step under way or a result of this opening shows, or `null` when it shows none of its own. */
+function cardOfStep(step: Step): CardState | null {
+  switch (step) {
+    case "enabling":
+    case "enabled":
+      return step;
+    default:
+      return null;
+  }
 }
 
 const NOTHING: Offer = { card: null, menuItem: false };

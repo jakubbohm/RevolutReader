@@ -79,8 +79,8 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 9. [unit] Slice 4 — What is offered while turning on
 
-- [ ] 9.1 While turning on, the enabling card and no menu item
-- [ ] 9.2 Once on in this opening, the enabled card and no menu item
+- [x] 9.1 While turning on, the enabling card and no menu item
+- [x] 9.2 Once on in this opening, the enabled card and no menu item
 
 ## 10. [unit] Slice 4 — The card turning on
 
