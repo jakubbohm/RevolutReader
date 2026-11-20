@@ -136,3 +136,9 @@ Decided by the user, 2026-11-05:
   - every screen counts except the install hint, so the sign-in screen keeps the server awake too;
   - the "Accepted" consequence above still holds for the first open after a quiet spell: the data takes about 20 s, which only an always-on replica would remove ([#18](https://github.com/jakubbohm/RevolutReader/issues/18));
   - to check on Azure after C7a's merge (c009 design.md § Migration plan, step 4): with the app open for more than 5 minutes the replica stays up, and about 5 minutes after it closes it scales to zero.
+- **2026-11-20, the cold start measured ([#18](https://github.com/jakubbohm/RevolutReader/issues/18), after v1): about 26 s, kept as it is.** The owner sees the transaction list about 26 s after opening the app from zero, quite consistently. Azure's platform events and the app's request telemetry for 12 wake-ups (2026-11-16 to 2026-11-20) split it as follows:
+  - Azure places the replica and starts the container: 15–17 s, at times up to 41 s. The image is cached, so the pull takes under 1 s.
+  - The app starts on its 0.25 vCPU: 6–7 s.
+  - The first transaction read on a fresh app: 2–3 s (about 0.9 s once the app is running).
+
+  That is above the "Accepted" 20 s, so item 5's choice went to the owner: one replica always running (about $4–5 a month at the idle rate, up to about $14 if the app does not count as idle), a longer cool-down, or a bigger container (both free, but they save little). **The owner's decision: no change for now.** The owner is happy with it as it is; #18 stays open, labelled `postponed`, with the figures and the prices.
