@@ -63,7 +63,7 @@
 - **Quietly** (C1): no prompt, no tap, nothing on screen. An upkeep's outcome is never shown. *(propose)* What ends it:
   - an answer of 401 or 403 to any of its requests ends the login, as a 401 or 403 to any of the screen's reads does (D4; the list's precedent, c010 D8);
   - anything else stops it quietly and waits for the next opening: offline, an unexpected answer, a refused subscription (400), a failure of the browser's `subscribe` or `unsubscribe`, the time limit.
-- **One upkeep at a time** *(propose)*: an opening while one runs is ignored, not queued. Each upkeep has the refresh's 60 s limit (`REFRESH_LIMIT_MS`, c009 D3), through an `AbortSignal` its requests honour, so a request with no answer cannot block the next opening's upkeep. The browser's own calls (reading the subscription, subscribing, unsubscribing) take no signal, so the upkeep stops waiting for one when the limit fires and ends "stopped": a quiet `subscribe` that iOS leaves hanging cannot block every later opening either (found by the test-writer in `/tdd-apply`, 2026-11-20). A subscription that settles after that is kept, and the next opening sends it again.
+- **One upkeep at a time** *(propose)*: an opening while one runs is ignored, not queued. Each upkeep has the refresh's 60 s limit (`REFRESH_LIMIT_MS`, c009 D3), through an `AbortSignal` its requests honour, so a request with no answer cannot block the next opening's upkeep. The browser's own calls (asking for the registration, reading the subscription, subscribing, unsubscribing) take no signal, so the upkeep stops waiting for one when the limit fires and ends "stopped" ("not allowed" when it gave up on the registration, as for a failure to ask): a quiet `subscribe` that iOS leaves hanging cannot block every later opening either (found by the test-writer in `/tdd-apply`, 2026-11-20). Asking for the registration joined the list after the code review (PR 81, finding 1): the forget before a sign-out (D2) waits on it too. A subscription that settles after that is kept, and the next opening sends it again.
 - **Cost:** two small requests at each opening (the key, then the subscription), not C1's estimate of one. The key must be read to compare it (S7), and C8c adds no endpoint that could return it together with the subscription (S10). Both go out together with the balance read, to a server that is already awake.
 - **Not chosen** (C1): sending the subscription only once, when notifications are turned on. A browser can drop or replace a subscription without telling the page reliably, and pushes would then stop silently.
 
@@ -151,10 +151,11 @@
 
 /**
  * The service worker registration push needs (D1): `null` when the browser cannot push (`pushSupported`), when no
- * worker is registered (Vite's dev server), or when asking fails. Asks `navigator.serviceWorker.getRegistration()`,
- * never `ready`, which never settles without a worker. Never throws.
+ * worker is registered (Vite's dev server), when asking fails, or when the limit gave up on it. Asks
+ * `navigator.serviceWorker.getRegistration()`, never `ready`, which never settles without a worker. `signal` is the 60 s
+ * limit (D1). Never throws.
  */
-export function pushRegistration(browser?: Window): Promise<ServiceWorkerRegistration | null>;
+export function pushRegistration(browser?: Window, signal?: AbortSignal): Promise<ServiceWorkerRegistration | null>;
 
 /** What one upkeep came to (D1, D6). Only "login ended" changes the screen. */
 export type UpkeepOutcome =
@@ -234,7 +235,7 @@ export function watchReturns(onReturn: () => void, page?: Document): () => void;
 
 | Operation | Value | Expected outcomes | Exceptions |
 |---|---|---|---|
-| `pushRegistration` | the registration | `null` (no push, no worker, a failure) | none; never throws |
+| `pushRegistration` | the registration | `null` (no push, no worker, a failure, the limit) | none; never throws |
 | `keepSubscriptionUp` | `UpkeepOutcome` | every kind of it; the browser's and the API's failures become `stopped`, a 401 or 403 `login ended` | none; never throws |
 | `forgetThisDevice` | — | — (its answer is ignored) | none; never throws |
 | `unsubscribeThisDevice` | — | — | none; never throws |
