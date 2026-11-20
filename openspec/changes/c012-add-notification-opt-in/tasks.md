@@ -44,10 +44,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 2. [unit] Slice 1 — What is offered
 
-- [ ] 2.1 A browser that cannot subscribe is offered nothing, card or menu item
-- [ ] 2.2 Nobody signed in is offered nothing
-- [ ] 2.3 A signed-in user never asked, with the balance on screen, gets the default card and no menu item
-- [ ] 2.4 Without the balance header, the default card is not shown and the menu item is
+- [x] 2.1 A browser that cannot subscribe is offered nothing, card or menu item
+- [x] 2.2 Nobody signed in is offered nothing
+- [x] 2.3 A signed-in user never asked, with the balance on screen, gets the default card and no menu item
+- [x] 2.4 Without the balance header, the default card is not shown and the menu item is
 
 ## 3. [unit] Slice 1 — The card
 

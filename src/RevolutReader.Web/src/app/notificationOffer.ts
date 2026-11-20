@@ -37,6 +37,15 @@ export interface Offer {
  * "Teď ne" is remembered or there is no balance header, then the menu item.
  */
 export function notificationOffer(facts: OfferFacts): Offer {
-  void facts;
-  throw new Error("Not implemented");
+  if (!facts.supported || !facts.signedIn) {
+    return NOTHING;
+  }
+  if (!facts.underBalance) {
+    return MENU_ITEM;
+  }
+  return { card: "default", menuItem: false };
 }
+
+const NOTHING: Offer = { card: null, menuItem: false };
+
+const MENU_ITEM: Offer = { card: null, menuItem: true };
