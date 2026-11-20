@@ -26,4 +26,10 @@
     <Compile Include="..\RevolutReader.UnitTests\Push\InMemoryPushDeviceStore.cs" Link="Push\InMemoryPushDeviceStore.cs" />
   </ItemGroup>
 
+  <!-- The one way a test starts a WireMock.Net server, on the loopback address only (docs/conventions/testing.md § Fake
+       servers listen on loopback only): the acceptance project's file, checked by its harness self-test. -->
+  <ItemGroup>
+    <Compile Include="..\RevolutReader.AcceptanceTests\Drivers\LoopbackWireMock.cs" Link="Wiring\LoopbackWireMock.cs" />
+  </ItemGroup>
+
 </Project>

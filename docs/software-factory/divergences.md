@@ -171,3 +171,9 @@ Here (c011 design.md D4, the owner, 2026-11-09, after a review finding): **the f
 Given up: a push service's address with the device's token sits in the private telemetry for 30 days. Someone with the owner's Azure access and the vault's keys could push to the devices. The guard would not see a key or email that reached an exported trace.
 
 *Switch back when:* the telemetry is read by anyone but the owner, it goes anywhere public, or the app outlives its planned period. The switch is the two measures in the push client's registration and a trace reader in the guard.
+
+**R-84 · The local check of the push path stops before subscribing**
+Full version: local development runs the real service worker (vite-plugin-pwa's `devOptions`, or the built app run locally), so the turn-on, a push, its notification and its tap are checked end to end before a merge ([lessons.md R-84](lessons.md)).
+Here (c012 design.md D12, the owner, 2026-11-20): **the dev server registers no service worker (R-42), so locally the card cannot subscribe: "Allow" ends after 60 s in the failure banner.** The local check covers everything before subscribing. Subscribing, the first push, its notification and its tap are checked on the deployed app, in a computer's browser and then on the iPhone. The owner chose it to change no tooling: the dev server's service worker would reverse the "off in the dev server" rule and may serve a stale page, and the built app locally would be a second way to run the app.
+Given up: a fault in subscribing or in showing a push is found only after the merge and the deploy, and its fix takes another PR.
+*Switch back when:* a later change makes the service worker do more on the device (C9 stores the balance from a push), or the app outlives its planned period. The switch is `devOptions` in `vite.config.ts` with a probe that the service worker finds its page under the dev server, or a local run of the built app.

@@ -26,9 +26,10 @@ export interface RenderedApp extends RenderResult {
   timeline(): string[];
   /**
    * Closes the app and opens it again where it was first opened (c009 design.md D8): unmounted, then a new launch.
-   * The server keeps its answers and goes on with them in order, the phone keeps what it stored, and answers to the
-   * closed app's requests never arrive. The network and the screen stay as they are, so `goOffline()` first opens it
-   * offline. Returns the new launch. On the test clock, `timePasses(0)` lets it read the phone's storage.
+   * The server keeps its answers and goes on with them in order, the phone keeps what it stored (the balance, the
+   * remembered "Teď ne"), and the push stand-ins (./push.ts) stay as they are; answers to the closed app's requests
+   * never arrive. The network and the screen stay as they are, so `goOffline()` first opens it offline. Returns the new
+   * launch. On the test clock, `timePasses(0)` lets it read the phone's storage.
    */
   reopen(): RenderedApp;
 }

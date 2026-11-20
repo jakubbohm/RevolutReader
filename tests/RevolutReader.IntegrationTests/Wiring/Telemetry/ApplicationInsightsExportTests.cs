@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using RevolutReader.AcceptanceTests.Drivers;
 using RevolutReader.ServiceDefaults;
 using Shouldly;
 using WireMock.ResponseBuilders;
@@ -103,7 +104,7 @@ public sealed partial class ApplicationInsightsExportTests {
   /// </summary>
   [Test]
   public void With_OTLP_set_as_well_both_destinations_get_the_traces() {
-    using WireMockServer otlp = WireMockServer.Start();
+    using WireMockServer otlp = LoopbackWireMock.Start();
     otlp.Given(WireMockRequest.Create().UsingPost()).RespondWith(Response.Create().WithStatusCode(200));
     FakeIngestion ingestion;
 

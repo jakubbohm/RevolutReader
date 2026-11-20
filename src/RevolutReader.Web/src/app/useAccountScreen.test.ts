@@ -1711,3 +1711,120 @@ test("A failure to unsubscribe does not hold up the next screen: a 401 to the ba
     SIGN_IN_AFTER_A_401,
   );
 });
+
+// ---- c012: a failure to turn notifications on (c012 design.md D8) ----
+// Set like a failed sign-out (D6): the screen's one problem, its banner in place of any other, offline included. It
+// goes when the next action starts: any read, which clears the screen's problem as it always does (D7 c), or a new
+// turn-on, which clears only this failure.
+
+const problemsBefore: { label: string; offline: boolean; banner: Problem }[] = [
+  {
+    label: "after a read failed at the bank, the server failing it",
+    offline: false,
+    banner: { kind: "bank unavailable" },
+  },
+  {
+    label: "after a read found the phone offline, failing offline",
+    offline: true,
+    banner: { kind: "offline" },
+  },
+];
+
+test.each(problemsBefore)(
+  "A failure to turn notifications on is the screen's one banner, in place of any other: $label",
+  async ({ offline, banner }) => {
+    startTestClock();
+    answerWith({
+      whoIsSignedIn: LUCIE,
+      balance: [balance(286.4), bankUnavailable],
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    if (offline) goOffline();
+    act(() => {
+      result.current.refresh();
+    });
+    await timePasses(0);
+    expect(result.current.shown, "the banner before").toMatchObject({
+      banner,
+    });
+
+    act(() => {
+      result.current.notificationsFailed(offline);
+    });
+
+    expect(result.current.shown).toMatchObject({
+      screen: "account",
+      header: { balance: { amount: 286.4 } },
+      banner: { kind: "notifications failed", offline },
+    });
+  },
+);
+
+test("A read that starts clears the failure to turn notifications on", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [balance(286.4), after(READ_TIME, balance(301.9))],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  act(() => {
+    result.current.notificationsFailed(false);
+  });
+  expect(result.current.shown, "the failure's banner").toMatchObject({
+    banner: { kind: "notifications failed", offline: false },
+  });
+
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+
+  expect(result.current.shown, "while the read runs").toMatchObject({
+    banner: null,
+  });
+  await timePasses(READ_TIME);
+  expect(result.current.shown, "once it has read").toMatchObject({
+    header: { balance: { amount: 301.9 } },
+    banner: null,
+  });
+});
+
+test("A new turn-on clears its earlier failure, and only that", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [balance(286.4), bankUnavailable],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  act(() => {
+    result.current.notificationsFailed(true);
+  });
+  expect(result.current.shown, "the failure's banner").toMatchObject({
+    banner: { kind: "notifications failed", offline: true },
+  });
+
+  act(() => {
+    result.current.notificationsRetried();
+  });
+  expect(result.current.shown, "a new turn-on clears it").toMatchObject({
+    banner: null,
+  });
+
+  // Only that: another problem stays through a new turn-on.
+  act(() => {
+    result.current.refresh();
+  });
+  await timePasses(0);
+  expect(result.current.shown, "a read failed at the bank").toMatchObject({
+    banner: { kind: "bank unavailable" },
+  });
+  act(() => {
+    result.current.notificationsRetried();
+  });
+  expect(result.current.shown, "its banner stays").toMatchObject({
+    banner: { kind: "bank unavailable" },
+  });
+});

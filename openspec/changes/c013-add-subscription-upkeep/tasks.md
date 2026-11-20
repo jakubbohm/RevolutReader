@@ -167,9 +167,9 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 Waits for C8b's merge (design.md D8; C7, S10 item 4). C8c merges second.
 
-- [ ] 27.1 Merge `main` with C8b into this branch. Join by hand the files design.md D8 lists: `useAccountScreen.ts` (C8b's two model callbacks and C8c's triggers, `endLogin` and `signOutFromMenu`), `App.tsx`, `src/test/server.ts`, `tests/manual-scenarios.md` and `pm/progress.md`. Verify: no conflict marker is left; both changes' rows, callbacks and helpers are there
-- [ ] 27.2 Check the seams of design.md D5 and D8 as merged: C8b's card stays hidden while the permission is granted, and after the card turns notifications on, the next opening only sends the subscription again. A gap goes to the owner before any fix. Verify: the owner hears what was found
-- [ ] 27.3 All of this change's and C8b's scenarios pass, and the full suite is green; the traceability check passes; the frontend checks are clean. Verify: the runs' counts go into `pm/progress.md`
+- [x] 27.1 Merge `main` with C8b into this branch. Join by hand the files design.md D8 lists: `useAccountScreen.ts` (C8b's two model callbacks and C8c's triggers, `endLogin` and `signOutFromMenu`), `App.tsx`, `src/test/server.ts`, `tests/manual-scenarios.md` and `pm/progress.md`. Verify: no conflict marker is left; both changes' rows, callbacks and helpers are there
+- [x] 27.2 Check the seams of design.md D5 and D8 as merged: C8b's card stays hidden while the permission is granted, and after the card turns notifications on, the next opening only sends the subscription again. A gap goes to the owner before any fix. Verify: the owner hears what was found
+- [x] 27.3 All of this change's and C8b's scenarios pass, and the full suite is green; the traceability check passes; the frontend checks are clean. Verify: the runs' counts go into `pm/progress.md`
 
 ## Workflow follow-up
 

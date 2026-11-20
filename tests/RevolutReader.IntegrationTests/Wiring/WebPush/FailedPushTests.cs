@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using RevolutReader.AcceptanceTests.Drivers;
 using RevolutReader.Api.Push;
 using Shouldly;
 using WireMock.RequestBuilders;
@@ -102,7 +103,7 @@ public sealed class FailedPushTests {
 
   /// <summary>A WireMock.Net push service that answers every push at <see cref="PUSH_PATH"/> with <paramref name="answer"/>.</summary>
   private static WireMockServer PushServiceAnswering(IResponseBuilder answer) {
-    WireMockServer pushService = WireMockServer.Start();
+    WireMockServer pushService = LoopbackWireMock.Start();
     pushService.Given(Request.Create().WithPath(PUSH_PATH).UsingPost()).RespondWith(answer);
 
     return pushService;

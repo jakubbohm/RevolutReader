@@ -2,7 +2,7 @@
 - [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next, except linked questions: write only after the whole round is agreed
 - [Factory gets the full version](factory-gets-full-version.md) — two bars: the app may cut corners for speed, software-factory work never; notes during the project, the perfect solution at the handover
 - [Simplicity vs maturity is the user's call](simplicity-vs-maturity-is-users-call.md) — show both sides of every such trade-off; never pick or narrow the options on the user's behalf
-- [Ask "done?" before committing](ask-done-before-commit.md) — at the end of a step, ask whether it is done so the status update goes into the same commit
+- [A step's PR carries its done status](step-pr-carries-status.md) — about the PR, not a commit: ask "is the step done?" before marking it ready; own commit, pushed with the rest; a later PR only for real post-PR work (a phone check)
 - [Continue announced steps](continue-announced-steps.md) — after one agreed step, go on to the next already-agreed one; stop only for new decisions or unapproved outward actions
 - [Git Bash rewrites /paths for az](git-bash-az-path-conversion.md) — use MSYS_NO_PATHCONV=1 for --scope /subscriptions/...
 - [Every az command names the subscription](az-always-explicit-subscription.md) — always --subscription 7811bd13-…; never the default (employer tenant), never --tenant alone, never az account set

@@ -83,6 +83,10 @@ export interface AccountScreenModel {
   retry: () => void;
   /** "Odhlásit se" in the account menu; settles when the sign-out has ended, whatever its outcome (it never rejects). */
   signOut: () => Promise<void>;
+  /** Turning notifications on failed (c012 design.md D8): the screen's one problem becomes the failure, replacing any other. */
+  notificationsFailed: (offline: boolean) => void;
+  /** A new turn-on (c012 design.md D8): clears that failure only; any read still clears every problem. */
+  notificationsRetried: () => void;
 }
 
 /** A wake under way (D2): which of the first reads have landed since the woken server answered (c010 design.md D8). */
@@ -526,6 +530,18 @@ export function useAccountScreen(): AccountScreenModel {
     signOutUnderWay.current = false;
   }
 
+  /** Turning notifications on failed (c012 design.md D8): set like a failed sign-out, replacing any other problem. */
+  const notificationsFailed = useCallback((offline: boolean): void => {
+    setProblem({ kind: "notifications failed", offline });
+  }, []);
+
+  /** A new turn-on (c012 design.md D8): clears its earlier failure, and only that. */
+  const notificationsRetried = useCallback((): void => {
+    setProblem((current) =>
+      current?.kind === "notifications failed" ? null : current,
+    );
+  }, []);
+
   const facts: Facts = {
     session,
     balance: balance ?? stored,
@@ -547,5 +563,7 @@ export function useAccountScreen(): AccountScreenModel {
     refresh: repeat,
     retry,
     signOut: signOutFromMenu,
+    notificationsFailed,
+    notificationsRetried,
   };
 }

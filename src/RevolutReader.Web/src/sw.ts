@@ -1,5 +1,5 @@
 // The app's service worker (c003 design.md D9): it keeps the build's files, so the app opens without network, and
-// nothing else. No runtime caching: no API answer is ever kept here (Q10, ADR-0007).
+// shows the app's pushes (c012 design.md D9). No runtime caching: no API answer is ever kept here (Q10, ADR-0007).
 import { clientsClaim } from "workbox-core";
 import {
   cleanupOutdatedCaches,
@@ -7,6 +7,7 @@ import {
   precacheAndRoute,
 } from "workbox-precaching";
 import { NavigationRoute, registerRoute } from "workbox-routing";
+import { listenForPushes } from "./app/pushDisplay";
 import { SERVER_ONLY } from "./app/serverOnly";
 
 declare let self: ServiceWorkerGlobalScope;
@@ -30,3 +31,6 @@ registerRoute(
     denylist: SERVER_ONLY,
   }),
 );
+
+// A push shows as a notification, and a tap on it opens the app (c012 design.md D9).
+listenForPushes(self);
