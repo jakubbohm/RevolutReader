@@ -116,7 +116,7 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 17. [close] Slice 6 — "Upozornění jsou zapnutá" is gone at the next opening
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including notification-opt-in / "Upozornění jsou zapnutá" is gone at the next opening
+- [x] 17.1 The scenario's test passes. Verify: green, including notification-opt-in / "Upozornění jsou zapnutá" is gone at the next opening
 
 ## 18. [unit] Slice 7 — Declining
 
