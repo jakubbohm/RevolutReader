@@ -4,16 +4,23 @@
  * push module (`./push`) as it is.
  */
 
+import { pushSupported } from "./push";
+
 /**
  * The service worker registration push needs (D1): `null` when the browser cannot push (`pushSupported`), when no
  * worker is registered (Vite's dev server), or when asking fails. Asks `navigator.serviceWorker.getRegistration()`,
  * never `ready`, which never settles without a worker. Never throws.
  */
-export function pushRegistration(
-  browser?: Window,
+export async function pushRegistration(
+  browser: Window = window,
 ): Promise<ServiceWorkerRegistration | null> {
-  void browser;
-  throw new Error("Not implemented yet: pushRegistration (c013 design.md D1).");
+  if (!pushSupported(browser)) return null;
+  try {
+    return (await browser.navigator.serviceWorker.getRegistration()) ?? null;
+  } catch {
+    // Whether it rejects or throws at once: no registration this time, and the next opening asks again.
+    return null;
+  }
 }
 
 /** What one upkeep came to (D1, D6). Only "login ended" changes the screen. */

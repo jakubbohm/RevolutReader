@@ -30,10 +30,10 @@ Run with `/tdd-apply c013-add-subscription-upkeep` (roadmap C8c; the owner picks
 
 ## 2. [unit] Slice 1 — Finding the registration (`pushRegistration`)
 
-- [ ] 2.1 The registration is the one the browser has registered
-- [ ] 2.2 There is no registration where the browser cannot push
-- [ ] 2.3 There is no registration when no worker is registered, and nothing waits for one
-- [ ] 2.4 A failure to ask for the registration reads as none
+- [x] 2.1 The registration is the one the browser has registered
+- [x] 2.2 There is no registration where the browser cannot push
+- [x] 2.3 There is no registration when no worker is registered, and nothing waits for one
+- [x] 2.4 A failure to ask for the registration reads as none
 
 ## 3. [unit] Slice 1 — Sending the subscription again (`keepSubscriptionUp`)
 
