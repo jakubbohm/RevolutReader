@@ -47,7 +47,7 @@ export function notificationOffer(facts: OfferFacts): Offer {
   if (facts.permission === "granted") {
     return NOTHING;
   }
-  if (facts.permission === "denied" || !facts.underBalance) {
+  if (facts.permission === "denied" || facts.notNow || !facts.underBalance) {
     return MENU_ITEM;
   }
   return { card: "default", menuItem: false };

@@ -138,10 +138,10 @@ Run with `/tdd-apply c012-add-notification-opt-in` (roadmap C8b; the owner picks
 
 ## 22. [unit] Slice 9 — "Teď ne" remembered
 
-- [ ] 22.1 "Teď ne" remembered on the device reads back as remembered
-- [ ] 22.2 A storage that fails to read counts as not remembered
-- [ ] 22.3 A storage that fails to write is ignored
-- [ ] 22.4 With "Teď ne" remembered, no card and the menu item
+- [x] 22.1 "Teď ne" remembered on the device reads back as remembered
+- [x] 22.2 A storage that fails to read counts as not remembered
+- [x] 22.3 A storage that fails to write is ignored
+- [x] 22.4 With "Teď ne" remembered, no card and the menu item
 
 ## 23. [wiring] Slice 9 — "Teď ne"
 
