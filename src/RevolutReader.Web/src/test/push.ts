@@ -17,7 +17,7 @@
  *     permission is `granted` and `userVisibleOnly` is true; fails with `AbortError` without an `applicationServerKey`;
  *     answers the subscription it already holds when that one was made with the same key, and fails with
  *     `InvalidStateError` when it was made with another; otherwise makes a new subscription and holds it.
- *   - `getSubscription()` answers the subscription it holds, or `null`.
+ *   - `getSubscription()` answers the subscription it holds, or `null`; it fails with the test's `getSubscriptionFails`.
  *   - `permissionState()` answers the notification permission as push names it (`default` is `prompt`).
  * - A `PushSubscription` (`madeUpSubscription`, or one `subscribe` made): its `endpoint`, `expirationTime` (`null`),
  *   `options` (`userVisibleOnly`, and `applicationServerKey` as an `ArrayBuffer`, or `null`), `getKey`, `toJSON()`
@@ -57,6 +57,8 @@ export interface PushStandInOptions {
   subscription?: SubscriptionInit;
   /** `subscribe` fails with this error; `true`: a `NotAllowedError`, as when the browser refuses. */
   subscribeFails?: Error | true;
+  /** `getSubscription()` fails with this error, as when the browser cannot say which subscription it holds. */
+  getSubscriptionFails?: Error;
   /** Features this browser does not have. */
   without?: readonly PushFeature[];
   /**
@@ -188,6 +190,8 @@ export function installPushStandIns(
     }
 
     getSubscription(): Promise<PushSubscription | null> {
+      if (options.getSubscriptionFails !== undefined)
+        return Promise.reject(options.getSubscriptionFails);
       return Promise.resolve(held);
     }
 
