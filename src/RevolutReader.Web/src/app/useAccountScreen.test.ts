@@ -1712,6 +1712,63 @@ test("A failure to unsubscribe does not hold up the next screen: a 401 to the ba
   );
 });
 
+// Review finding 3 (PR 81): once the server has confirmed a sign-out, the signed-out screen waits up to 60 s for the
+// phone's unsubscribe (D4, the owner's choice), and Lucie is still on the account screen meanwhile. Whatever she does
+// then, the login has ended once, by her sign-out, so the screen it ends on is the signed-out screen with its note
+// "Odhlášení proběhlo" (sign-in spec, "The signed-out screen"; D4: the login ends once on a screen), never the sign-in
+// screen after a 401, at 60 s or later. After the confirmed sign-out the fake server answers every read with a 401, as
+// the real one does. Whether a read goes out meanwhile is not pinned.
+
+/** What repeats the screen's reads while the sign-out waits for the phone's unsubscribe. */
+const repeatsWhileTheSignOutWaits: { label: string; repeat: () => void }[] = [
+  { label: "she leaves the app and returns", repeat: leavesAndReturns },
+  {
+    label: "the phone comes back online",
+    repeat: () => {
+      goOffline();
+      goOnline();
+    },
+  },
+];
+
+test.each(repeatsWhileTheSignOutWaits)(
+  "A confirmed sign-out ends on the signed-out screen, with its note, though a read repeats while it waits for the phone's unsubscribe: $label",
+  async ({ repeat }) => {
+    startTestClock();
+    phoneSubscribedWhoseUnsubscribe({ unsubscribeWaits: true });
+    answerWith({ ...LUCIES_SERVER, signOut: signedOut });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+
+    act(() => {
+      result.current.signOut();
+    });
+    await timePasses(0);
+    expect(timeline(), "the server confirmed it").toContain(
+      `answer ${SIGN_OUT}`,
+    );
+
+    await timePasses(10 * SECOND);
+    expect(result.current.shown, "at 10 s, still signing out").toMatchObject({
+      screen: "account",
+      signingOut: true,
+    });
+
+    repeat();
+    await timePasses(50 * SECOND);
+    expect(result.current.shown, "at 60 s, signed out").toMatchObject({
+      screen: "sign-in",
+      justSignedOut: true,
+    });
+
+    await timePasses(60 * SECOND);
+    expect(
+      result.current.shown,
+      "a minute later, still signed out",
+    ).toMatchObject({ screen: "sign-in", justSignedOut: true });
+  },
+);
+
 // ---- c012: a failure to turn notifications on (c012 design.md D8) ----
 // Set like a failed sign-out (D6): the screen's one problem, its banner in place of any other, offline included. It
 // goes when the next action starts: any read, which clears the screen's problem as it always does (D7 c), or a new
