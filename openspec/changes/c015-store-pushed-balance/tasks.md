@@ -37,8 +37,8 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 4. [close] Slice 1 — A push with a balance replaces the balance the phone keeps
 
-- [ ] 4.1 The scenario's test passes. Verify: green, including push-display / A push with a balance replaces the balance the phone keeps
-- [ ] 4.2 Docs: testing.md § Fake push service, the service worker's stand-in: what a browser that reads Declarative Web Push hands the push event (no data of its own, the proposed notification with the message's `data`; design.md D8). Verify: the paragraph names the W3C draft and `src/test/serviceWorker.ts`
+- [x] 4.1 The scenario's test passes. Verify: green, including push-display / A push with a balance replaces the balance the phone keeps
+- [x] 4.2 Docs: testing.md § Fake push service, the service worker's stand-in: what a browser that reads Declarative Web Push hands the push event (no data of its own, the proposed notification with the message's `data`; design.md D8). Verify: the paragraph names the W3C draft and `src/test/serviceWorker.ts`
 
 ## 5. [unit] Slice 2 — A balance read earlier
 
