@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RevolutReader.Api.Bank;
 using RevolutReader.Api.Check;
 
@@ -13,11 +14,18 @@ public sealed class GatedRun {
   private readonly TaskCompletionSource<Func<BankResult<CheckOutcome>>> _ending = new(TaskCreationOptions.RunContinuationsAsynchronously);
   private readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-  internal GatedRun(PresentUser user, int runningWhenStarted, CancellationToken token) {
+  internal GatedRun(PresentUser user, int runningWhenStarted, Activity? activityWhenStarted, CancellationToken token) {
     User = user;
     Token = token;
     RunningWhenStarted = runningWhenStarted;
+    ActivityWhenStarted = activityWhenStarted;
   }
+
+  /// <summary>
+  /// The activity current when the run started (<see cref="Activity.Current"/>): the request whose trace the check's bank
+  /// call, pushes and log lines go under; <see langword="null"/> when none was.
+  /// </summary>
+  public Activity? ActivityWhenStarted { get; }
 
   /// <summary>The user the run is for: the one the queue passed to <see cref="IAccountCheck.Run"/>.</summary>
   public PresentUser User { get; }

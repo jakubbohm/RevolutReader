@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -304,6 +305,53 @@ public sealed class AccountCheckQueueTests {
       () => log.Entries.ShouldNotContain(static line => line.EventName == "CheckFailed", "a stop is not a failed check"),
       () => log.Entries.ShouldNotContain(static line => line.Level == LogLevel.Error, "no line at Error for a stop"));
   }
+
+  /// <summary>
+  /// Each check runs under the request of the call that made it (review finding 5 on PR #88, the owner's decision of the
+  /// same day): the first check under the first caller's request, and the waiting check, which the queue starts only after
+  /// the first has ended, under the second caller's, never the first's. So its bank call, pushes and log lines go under the
+  /// second request's trace. Each caller runs in a flow of its own (on the thread pool, <see cref="CallUnderItsOwnRequest"/>) with its own
+  /// started <see cref="Activity"/> as its request, so nothing depends on the test's own flow; the checks are held and let
+  /// through by the gate.
+  /// </summary>
+  [Test]
+  public async Task Each_check_runs_under_the_request_of_the_call_that_made_it() {
+    using QueueUnderTest app = new();
+    using Activity request1 = new("request 1");
+    using Activity request2 = new("request 2");
+
+    Task<BankResult<CheckOutcome>> first = await CallUnderItsOwnRequest(app.Queue, _phone, request1);
+    GatedRun running = await app.Check.WaitForRun(1);
+    Task<BankResult<CheckOutcome>> second = await CallUnderItsOwnRequest(app.Queue, _anotherPhone, request2);
+    running.EndWith(new CheckOutcome(Changed: true));
+    _ = await first;
+    GatedRun waiting = await app.Check.WaitForRun(2);
+    waiting.EndWith(new CheckOutcome(Changed: false));
+    _ = await second;
+
+    running.ShouldSatisfyAllConditions(
+      () => running.ActivityWhenStarted?.OperationName.ShouldBe(request1.OperationName, "the first check: under the first caller's request"),
+      () => running.ActivityWhenStarted.ShouldBeSameAs(request1),
+      () => waiting.ActivityWhenStarted?.OperationName.ShouldBe(request2.OperationName, "the waiting check: under the second caller's request, not the first's"),
+      () => waiting.ActivityWhenStarted.ShouldBeSameAs(request2));
+  }
+
+  /// <summary>
+  /// A caller in a flow of its own, on the thread pool: it starts <paramref name="request"/> as its request
+  /// (<see cref="Activity.Current"/> in that flow only), then calls <paramref name="queue"/> for <paramref name="user"/>. The
+  /// call's task, not awaited here: <c>TaskFactory.StartNew</c> hands it back as it is, where <c>Task.Run</c> would unwrap it
+  /// and so wait for the check itself.
+  /// </summary>
+  private static Task<Task<BankResult<CheckOutcome>>> CallUnderItsOwnRequest(AccountCheckQueue queue, PresentUser user, Activity request) =>
+    Task.Factory.StartNew(
+      () => {
+        _ = request.Start();
+
+        return queue.Check(user);
+      },
+      CancellationToken.None,
+      TaskCreationOptions.DenyChildAttach,
+      TaskScheduler.Default);
 
   /// <summary>
   /// Whether <paramref name="wait"/> ends in an <see cref="OperationCanceledException"/> (or one derived from it, as

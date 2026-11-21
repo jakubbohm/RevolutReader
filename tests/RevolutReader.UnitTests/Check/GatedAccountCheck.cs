@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RevolutReader.Api.Bank;
 using RevolutReader.Api.Check;
 
@@ -64,7 +65,7 @@ public sealed class GatedAccountCheck : IAccountCheck {
     TaskCompletionSource started;
 
     lock (_lock) {
-      run = new GatedRun(user, runningWhenStarted: _runs.Count(static earlier => !earlier.Ended.IsCompleted), cancellationToken);
+      run = new GatedRun(user, runningWhenStarted: _runs.Count(static earlier => !earlier.Ended.IsCompleted), Activity.Current, cancellationToken);
       _runs.Add(run);
       started = _nextRun;
       _nextRun = NewSignal();
