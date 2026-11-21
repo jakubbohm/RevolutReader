@@ -173,7 +173,7 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 28. [unit] Guards
 
-- [ ] 28.1 An ask that keeps a new rate writes one `KorunaRateKept` line and no line of the HTTP client factory's own (`Conventions/KorunaRateTelemetryTests`, read from the app copy's captured log lines, `Drivers/CapturedLogEvents`; design.md D7, D12), proven by a mutation: with the factory's loggers left on the named client, it fails
+- [x] 28.1 An ask that keeps a new rate writes one `KorunaRateKept` line and no line of the HTTP client factory's own (`Conventions/KorunaRateTelemetryTests`, read from the app copy's captured log lines, `Drivers/CapturedLogEvents`; design.md D7, D12), proven by a mutation: with the factory's loggers left on the named client, it fails
 
 ## 29. [wiring] Deployment
 
