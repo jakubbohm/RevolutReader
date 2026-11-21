@@ -217,12 +217,21 @@ resource pushDevicesTable 'Microsoft.Storage/storageAccounts/tableServices/table
   name: 'pushdevices'
 }
 
+// The account check's two balances (C9a, c014 design.md D4, D17): one row, last seen and last
+// notified, each with its read time and rate. Removing this table from the stack deletes them; the
+// next check then keeps the balance it reads as both and sends nothing (c014 design.md § Migration
+// plan, step 5). Its name is the app's default CheckedBalances:TableName.
+resource checkedBalancesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'checkedbalances'
+}
+
 // Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
 // tables, and creates its table when it is missing on first use. On the account rather than the one
 // table, because no doc says a role on the one table allows that creation; the account scope does.
 // It reaches the account's tables and nothing else (no blobs), and the app is their only user; it
-// covers C8a's table above too, so C8a adds no role (c010 design.md D11, the user, 2026-11-09;
-// c011 design.md D12). One of the roles the deploy identity may assign
+// covers C8a's and C9a's tables above too, so neither adds a role (c010 design.md D11, the user,
+// 2026-11-09; c011 design.md D12; c014 design.md D17). One of the roles the deploy identity may assign
 // (docs/operations/azure-prerequisites.md, step 5).
 var storageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 

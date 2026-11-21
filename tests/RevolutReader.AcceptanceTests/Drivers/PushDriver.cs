@@ -53,7 +53,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item><b>What arrived</b> is the fake push service's record of the device's push address, each push decrypted with the
 /// device's own keys (<see cref="TestDevice.Decrypt"/>) and read as <see cref="PushReceived"/> describes; its
 /// <c>TTL</c> as the lifetime in seconds, its <c>Urgency</c> as it is, whether its token passed the fake's checks, and
-/// whether the fake accepted it (201) as reaching the phone.</item>
+/// whether the fake accepted it (201) as reaching the phone; since C9a also <c>mutable</c> at the message's top level and
+/// the balance in <c>notification.data</c> (c014 design.md D14). The reading is the test-writer's, as the fake push service
+/// and the test device are (c011 design.md D7); its self-tests are <c>HarnessSelfTests/PushReadingSelfTests</c>.</item>
 /// </list>
 /// Filled in by the wiring groups (tasks.md 3.4, 10.4, 22.1, 25.1, 48.1); until then every method throws.
 /// </summary>
@@ -131,6 +133,17 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private const string TITLE = "title";
   private const string BODY = "body";
   private const string NAVIGATE = "navigate";
+
+  /// <summary>
+  /// The members a notification about the account adds (c014 design.md D14): <c>mutable</c> at the message's top level, and
+  /// in the notification's <c>data</c> the <c>balance</c>, with the members <c>GET /api/balance</c> answers.
+  /// </summary>
+  private const string MUTABLE = "mutable";
+  private const string DATA = "data";
+  private const string BALANCE = "balance";
+  private const string AMOUNT = "amount";
+  private const string READ_AT = "readAt";
+  private const string CZK_PER_EUR = "czkPerEur";
 
   /// <summary>A push's headers the device reads (RFC 8030 § 5.2, § 5.3).</summary>
   private const string TTL = "TTL";
@@ -506,55 +519,122 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
       throw new InvalidOperationException($"A push to {device.Name} does not decrypt with its own keys: {exception.Message}", exception);
     }
 
-    (string title, string? text, string navigate) = DeclarativeMessage(device, content);
-
-    return new PushReceived(
-      title,
-      text,
-      navigate,
-      LifetimeSeconds(device, push),
-      push.Headers.TryGetValue(URGENCY, out string? urgency) ? urgency : null,
-      push.SignedWithServerKey,
-      ReachedThePhone: push.Answer == HttpStatusCode.Created);
+    return AsTheDeviceReadsIt(device.Name, content, push);
   }
 
   /// <summary>
-  /// The notification of a Declarative Web Push message: a JSON object of exactly <c>web_push</c>, the number 8030, and
-  /// <c>notification</c>, an object of exactly <c>title</c> and <c>navigate</c>, strings, and <c>body</c>, a string, when
-  /// there is text. Anything else fails the step, naming why.
+  /// <paramref name="push"/> to the device named <paramref name="device"/>, whose body decrypted to <paramref name="content"/>,
+  /// as the device reads it: the content strictly as a Declarative Web Push message (<see cref="DeclarativeMessage"/>), the
+  /// push's <c>TTL</c> and <c>Urgency</c> headers, whether its token passed the fake's checks, and whether the fake accepted
+  /// it (201). Content that is not such a message fails the step, naming why. Also for the self-tests
+  /// (<c>HarnessSelfTests/PushReadingSelfTests</c>), which hand it messages they build themselves.
   /// </summary>
-  private static (string Title, string? Text, string Navigate) DeclarativeMessage(TestDevice device, string content) {
-    JsonElement message = JsonObjectOrNull(content)
-      ?? throw new InvalidOperationException($"A push to {device.Name} is not a JSON object: {content}");
+  internal static PushReceived AsTheDeviceReadsIt(string device, string content, ReceivedPush push) {
+    ArgumentNullException.ThrowIfNull(push);
 
-    if (!HasExactly(message, WEB_PUSH, NOTIFICATION) || !message.GetProperty(WEB_PUSH).TryGetInt32(out int webPush) || webPush != DECLARATIVE_WEB_PUSH)
-      throw new InvalidOperationException($"A push to {device.Name} is not a Declarative Web Push message (exactly {WEB_PUSH} {DECLARATIVE_WEB_PUSH} and {NOTIFICATION}): {content}");
+    PushContent message = DeclarativeMessage(device, content);
+
+    return new PushReceived(
+      message.Title,
+      message.Text,
+      message.Navigate,
+      LifetimeSeconds(device, push),
+      push.Headers.TryGetValue(URGENCY, out string? urgency) ? urgency : null,
+      push.SignedWithServerKey,
+      ReachedThePhone: push.Answer == HttpStatusCode.Created,
+      message.MarkedForServiceWorker,
+      message.Balance);
+  }
+
+  /// <summary>
+  /// The content of a Declarative Web Push message: a JSON object of exactly <c>web_push</c>, the number 8030, and
+  /// <c>notification</c>, and <c>mutable</c>, exactly <c>true</c>, when it is marked for the app's service worker (c014
+  /// design.md D14); its <c>notification</c> an object of exactly <c>title</c> and <c>navigate</c>, strings, <c>body</c>, a
+  /// string, when there is text, and <c>data</c> when it carries a balance (<see cref="BalanceIn"/>). Anything else fails the
+  /// step, naming why.
+  /// </summary>
+  private static PushContent DeclarativeMessage(string device, string content) {
+    JsonElement message = JsonObjectOrNull(content)
+      ?? throw new InvalidOperationException($"A push to {device} is not a JSON object: {content}");
+
+    bool declarative = HasMembers(message, [WEB_PUSH, NOTIFICATION], [MUTABLE])
+      && message.GetProperty(WEB_PUSH) is { ValueKind: JsonValueKind.Number } webPush
+      && webPush.TryGetInt32(out int version)
+      && version == DECLARATIVE_WEB_PUSH;
+
+    if (!declarative)
+      throw new InvalidOperationException($"A push to {device} is not a Declarative Web Push message (exactly {WEB_PUSH} {DECLARATIVE_WEB_PUSH} and {NOTIFICATION}, and {MUTABLE} when marked for the service worker): {content}");
+
+    bool markedForServiceWorker = message.TryGetProperty(MUTABLE, out JsonElement mutable);
+
+    if (markedForServiceWorker && mutable.ValueKind != JsonValueKind.True)
+      throw new InvalidOperationException($"A push to {device} has a {MUTABLE} other than true, the only value the app writes: {content}");
 
     JsonElement notification = message.GetProperty(NOTIFICATION);
 
-    bool wellFormed = notification.ValueKind == JsonValueKind.Object
-      && (HasExactly(notification, TITLE, NAVIGATE) || HasExactly(notification, TITLE, BODY, NAVIGATE))
-      && notification.EnumerateObject().All(static member => member.Value.ValueKind == JsonValueKind.String);
+    bool wellFormed = HasMembers(notification, [TITLE, NAVIGATE], [BODY, DATA])
+      && notification.EnumerateObject().Where(static member => member.Name != DATA).All(static member => member.Value.ValueKind == JsonValueKind.String);
 
     return wellFormed && Text(notification, TITLE) is string title && Text(notification, NAVIGATE) is string navigate
-      ? (title, Text(notification, BODY), navigate)
-      : throw new InvalidOperationException($"A push to {device.Name} has a {NOTIFICATION} other than exactly {TITLE}, {NAVIGATE} and, with text, {BODY}, each a string: {content}");
+      ? new PushContent(title, Text(notification, BODY), navigate, markedForServiceWorker, BalanceIn(device, notification, content))
+      : throw new InvalidOperationException($"A push to {device} has a {NOTIFICATION} other than exactly {TITLE}, {NAVIGATE} and, with text, {BODY}, each a string, and, with a balance, {DATA}: {content}");
+  }
+
+  /// <summary>
+  /// The balance in <paramref name="notification"/>'s <c>data</c> (c014 design.md D14): <c>data</c> an object of exactly
+  /// <c>balance</c>, an object of exactly <c>amount</c> and <c>czkPerEur</c>, JSON numbers, and <c>readAt</c>, a JSON string
+  /// holding an ISO 8601 date and time, read as an instant (in UTC), as <see cref="BalanceDriver"/> reads the balance's
+  /// answer. <see langword="null"/> when there is no <c>data</c>; any other <c>data</c> fails the step, naming why.
+  /// </summary>
+  private static BalanceReading? BalanceIn(string device, JsonElement notification, string content) {
+    if (!notification.TryGetProperty(DATA, out JsonElement data))
+      return null;
+
+    JsonElement balance = HasMembers(data, [BALANCE], []) ? data.GetProperty(BALANCE) : default;
+
+    return HasMembers(balance, [AMOUNT, READ_AT, CZK_PER_EUR], [])
+      && Number(balance, AMOUNT) is decimal amount
+      && Instant(balance, READ_AT) is DateTimeOffset readAt
+      && Number(balance, CZK_PER_EUR) is decimal czkPerEur
+      ? BalanceReading.Of(amount, readAt.ToUniversalTime(), czkPerEur)
+      : throw new InvalidOperationException($"A push to {device} has a {NOTIFICATION}.{DATA} other than exactly {BALANCE}, an object of exactly {AMOUNT} and {CZK_PER_EUR}, numbers, and {READ_AT}, an ISO 8601 date and time: {content}");
   }
 
   /// <summary>The push's <c>TTL</c> in seconds; <see langword="null"/> when it has none. A <c>TTL</c> that is not a whole number fails the step.</summary>
-  private static int? LifetimeSeconds(TestDevice device, ReceivedPush push) {
+  private static int? LifetimeSeconds(string device, ReceivedPush push) {
     if (!push.Headers.TryGetValue(TTL, out string? timeToLive))
       return null;
 
     return int.TryParse(timeToLive, NumberStyles.None, CultureInfo.InvariantCulture, out int seconds)
       ? seconds
-      : throw new InvalidOperationException($"A push to {device.Name} has a {TTL} that is not a whole number of seconds: {timeToLive}");
+      : throw new InvalidOperationException($"A push to {device} has a {TTL} that is not a whole number of seconds: {timeToLive}");
   }
 
-  /// <summary>Whether <paramref name="value"/> is an object with exactly the members <paramref name="names"/>, in any order.</summary>
-  private static bool HasExactly(JsonElement value, params string[] names) =>
-    value.ValueKind == JsonValueKind.Object
-    && value.EnumerateObject().Select(static member => member.Name).Order(StringComparer.Ordinal).SequenceEqual(names.Order(StringComparer.Ordinal), StringComparer.Ordinal);
+  /// <summary>
+  /// Whether <paramref name="value"/> is an object holding every member of <paramref name="required"/>, any of
+  /// <paramref name="optional"/>, and no other member, none of them twice, in any order.
+  /// </summary>
+  private static bool HasMembers(JsonElement value, string[] required, string[] optional) {
+    if (value.ValueKind != JsonValueKind.Object)
+      return false;
+
+    string[] names = [.. value.EnumerateObject().Select(static member => member.Name)];
+
+    return names.Distinct(StringComparer.Ordinal).Count() == names.Length
+      && required.All(name => names.Contains(name, StringComparer.Ordinal))
+      && names.All(name => required.Contains(name, StringComparer.Ordinal) || optional.Contains(name, StringComparer.Ordinal));
+  }
+
+  /// <summary>The member <paramref name="name"/> when it is a JSON number a <see cref="decimal"/> holds; otherwise <see langword="null"/>.</summary>
+  private static decimal? Number(JsonElement value, string name) =>
+    value.TryGetProperty(name, out JsonElement member) && member.ValueKind == JsonValueKind.Number && member.TryGetDecimal(out decimal number) ? number : null;
+
+  /// <summary>The member <paramref name="name"/> when it is a JSON string holding an ISO 8601 date and time; otherwise <see langword="null"/>.</summary>
+  private static DateTimeOffset? Instant(JsonElement value, string name) =>
+    value.TryGetProperty(name, out JsonElement member) && member.ValueKind == JsonValueKind.String && member.TryGetDateTimeOffset(out DateTimeOffset instant) ? instant : null;
+
+  /// <summary>A Declarative Web Push message's content, as <see cref="DeclarativeMessage"/> reads it.</summary>
+  private sealed record PushContent(string Title, string? Text, string Navigate, bool MarkedForServiceWorker, BalanceReading? Balance);
 
   /// <summary>The member <paramref name="name"/> when it is a JSON number an <see cref="int"/> holds; otherwise <see langword="null"/>.</summary>
   private static int? Int(JsonElement value, string name) =>

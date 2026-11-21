@@ -5,9 +5,10 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// Declarative Web Push message it decrypts to, how long the push service is to keep it and how urgent it is, whether it
 /// was signed with the server's push key for that push service, and whether it reached the phone. The driver
 /// (<see cref="Drivers.PushDriver"/>) reads the message only when the push's content decrypts with the phone's own keys
-/// (RFC 8291, <see cref="Drivers.TestDevice"/>) and is a Declarative Web Push message: JSON with <c>web_push</c> 8030 and
-/// a <c>notification</c> holding <c>title</c>, <c>navigate</c> and, when there is text, <c>body</c>, and nothing else;
-/// any other content fails the step, naming why.
+/// (RFC 8291, <see cref="Drivers.TestDevice"/>) and is a Declarative Web Push message: JSON with <c>web_push</c> 8030, a
+/// <c>notification</c> holding <c>title</c>, <c>navigate</c>, <c>body</c> when there is text and <c>data</c> when it
+/// carries a balance, and <c>mutable</c> when it is marked for the app's service worker (c014 design.md D14), and nothing
+/// else; any other content fails the step, naming why.
 /// </summary>
 /// <param name="Title">The notification's title.</param>
 /// <param name="Text">The notification's text (<c>body</c>); <see langword="null"/> when it has none.</param>
@@ -23,4 +24,25 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// The push service accepted it for the phone: it passed every check the fake push service makes, and the phone is
 /// neither gone nor failing there.
 /// </param>
-public sealed record PushReceived(string Title, string? Text, string Navigate, int? LifetimeSeconds, string? Urgency, bool SignedWithServerKey, bool ReachedThePhone);
+/// <param name="MarkedForServiceWorker">
+/// The message is marked for the app's service worker: <c>"mutable": true</c> at its top level, where the Declarative Web
+/// Push parser reads it (c014 design.md D14). <see langword="false"/> when it has no <c>mutable</c>; a <c>mutable</c> other
+/// than <c>true</c> fails the step, since the app writes the member only as <c>true</c>.
+/// </param>
+/// <param name="Balance">
+/// The balance the notification carries for the phone to keep: <c>notification.data.balance</c>, an object of exactly
+/// <c>amount</c> and <c>czkPerEur</c>, numbers, and <c>readAt</c>, an ISO 8601 date and time, read as
+/// <see cref="Drivers.BalanceDriver"/> reads <c>GET /api/balance</c>'s answer (its read time as an instant), with no
+/// problem (c014 design.md D14). <see langword="null"/> when the notification has no <c>data</c>; a <c>data</c> other than
+/// exactly that fails the step.
+/// </param>
+public sealed record PushReceived(
+  string Title,
+  string? Text,
+  string Navigate,
+  int? LifetimeSeconds,
+  string? Urgency,
+  bool SignedWithServerKey,
+  bool ReachedThePhone,
+  bool MarkedForServiceWorker,
+  BalanceReading? Balance);

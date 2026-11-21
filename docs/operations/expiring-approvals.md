@@ -2,7 +2,7 @@
 
 > What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
-> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-10 (C8a: the push keys. Before it, 2026-11-08, C6: the Entra client secret).
+> Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-21 (C9a: the check key and the iPhone Shortcut. Before it, 2026-11-10, C8a: the push keys).
 
 ## Overview
 
@@ -14,6 +14,7 @@
 | 4 | [Mock ASPSP session](#4-mock-aspsp-session-local-development) (local development and Check 1 only) | **2027-05-05T19:44Z** (180 days, the mock's maximum) | when it ends; nothing in production depends on it | the Control Panel login, ~5 min |
 | 5 | [Entra client secret](#5-entra-client-secret-sign-in) (`RevolutReader C6`: the app's proof to Microsoft at sign-in) | **2027-11-08T11:00Z** (12 months) | by 2027-10-25: a new secret first, then remove the old one | the owner's Azure login, ~10 min |
 | 6 | [Push keys](#6-push-keys) (C8a: the VAPID key pair every push is signed with, and the message key of the owner's message endpoint) | no expiry | only if lost or leaked; a replaced key heals itself | the owner's Key Vault role, ~5 min |
+| 7 | [The check key and the iPhone Shortcut](#7-the-check-key-and-the-iphone-shortcut) (C9a: the key the owner's Shortcut starts the account check with, and the Shortcut itself) | no expiry | only if lost or leaked, or on a new phone | the owner's Key Vault role and iPhone, ~10 min |
 | — | API token (JWT) | 1 hour | nothing to do: signed for every request | — |
 
 Not expiring, but required: the Enable Banking Control Panel account (registered with the account holder's own email) and the Revolut account itself; the deploy identity and its GitHub trust (M3: no secret, no expiry; rebuild in [azure-prerequisites.md](azure-prerequisites.md)); the Entra ID app registration (M4: no expiry; rebuild in [entra-id.md](entra-id.md)); the deployment (C4: no secret, no expiry). For the deployment: the public package on ghcr.io (the first push created it public; one created again private, e.g. at a reinstatement, is made public by hand: [deployment.md § The first deployment](deployment.md#the-first-deployment)) and the owner's Key Vault role, granted by hand once ([azure-prerequisites.md](azure-prerequisites.md), item 7). The Enable Banking values in Key Vault (C4) are #2 and #3 below; they expire with them. The account allowlist in Key Vault and the user-secrets (C6) has no expiry; changing it: [entra-id.md § The client secret and the allowlist](entra-id.md#the-client-secret-and-the-allowlist-c6). The login cookie's encryption keys (C6) renew themselves: ASP.NET Data Protection adds a new key every 90 days to the blob and keeps the old ones for reading.
@@ -111,3 +112,19 @@ Not expiring, but required: the Enable Banking Control Panel account (registered
   - **A leaked message key:** with it, someone could send messages to the allowed accounts.
   - **After the run:** in production Azure picks up the new values within 30 minutes and restarts the app.
 - **A replaced key heals itself** (D5). Subscriptions made with the old public key stop receiving pushes. Every device then replaces its subscription at its next opening, because the app finds it was made with another key; that upkeep is C8c's. The production values therefore need no backup.
+
+## 7. The check key and the iPhone Shortcut
+
+- **What it is** (c014 design.md D6, D17):
+  - **The check key.** The owner's iPhone Shortcut sends it in `X-Check-Key` to `POST /api/account/check` on every Revolut notification. It is a key of its own, never the message key: it can only start a check, whose notification says what the bank says, never a text of the caller's. Without it the endpoint answers like a missing address and reads nothing.
+  - **The Shortcut.** An iOS Shortcuts automation on the owner's iPhone, "when a notification arrives from Revolut", whose one action calls the check ([iphone-shortcut.md](iphone-shortcut.md)).
+- **Where they are:**
+  - **Production:** the key in Key Vault `kv-revolutreader` (`AccountCheck--Key`) and in the Shortcut on the owner's iPhone, nowhere else.
+  - **The laptop:** a separate key, in the AppHost's user-secrets (`Parameters:accountcheck-key`) and the backup vault ([local-secrets.md](local-secrets.md)).
+- **Current state:** made with the guided task in [deployment.md § The account check](deployment.md#guided-task-the-check-key) (c014 tasks 42.1 and 42.2, 2026-11-21); the Shortcut is set up after C9a's deploy.
+- **Expiry:** none. Neither the key nor the Shortcut lapses.
+- **How you notice a problem:**
+  - **A missing or malformed key** stops the app at start, with a message naming the setting, never a value.
+  - **A Shortcut that stopped working** (an iOS update, a new phone, a key that no longer matches): payments bring no notification, while the app still shows them when opened. The check's requests per day show none, or only 404s ([deployment.md § The checks and what they came to](deployment.md#the-checks-and-what-they-came-to)).
+- **Replace the key, if it leaked or is lost:** run the guided task's production variant again, then put the new value into the Shortcut ([iphone-shortcut.md § Replacing the key](iphone-shortcut.md#replacing-the-key)). A leaked key lets someone start checks: bank reads that carry their own address and browser name as the owner's, and a notification only when the balance really changed. There is no rate limit, as for the message key. The production key needs no backup: a lost one is simply replaced in both places.
+- **A new phone:** set the Shortcut up again ([iphone-shortcut.md § On a new phone](iphone-shortcut.md#on-a-new-phone)); the key stays the same.

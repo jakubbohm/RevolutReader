@@ -20,3 +20,4 @@
 - [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up
 - [gh api --slurp excludes --jq](gh-api-slurp-excludes-jq.md) — slurped pages go to a file and are shaped with node; --jq alone runs per page
 - [Workflow script syntax check](workflow-script-syntax-check.md) — wrap the body in an async function before node --check; a saved workflow appears in the skill list by its meta.name
+- [npm ci vs a locked oxlint](npm-ci-locked-oxlint.md) — run npm ci only when the lockfile changed; the editor's oxlint LSP locks a binary and npm ci fails with node_modules wiped; npm install restores

@@ -2,7 +2,7 @@
 
 > The order of work for the whole project. The current status of each step is in [`pm/progress.md`](progress.md); the project brief is [`pm/kickoff.md`](kickoff.md). Questions "Q1–Q10" refer to the open questions in kickoff ch. 10.
 >
-> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start; 2026-11-09: C8 split into C8a sending, C8b turning notifications on and C8c keeping devices right; 2026-11-20: C14 added, the signed-in account on request telemetry, and C14's not-recorded wording — see the change log in `pm/progress.md`)
+> Created: 2026-11-04 · Updated: 2026-11-05 (F0-1, M1, D2, F0-2, M2, C1, M4, the design workflow, C9's phone trigger; 2026-11-06: C3 planning, C9's phone test and ADR-0008, C4's wake-up measurement moved to after v1; 2026-11-07: M8's handover target, C12 added (first numbered C11); 2026-11-08: C11 bank-read retries, C12 renumbered, C9's one-check-at-a-time design, SF1 full versions of the cut-down kits, C11's goal set to the decided retry policy, C7 split into C13 groundwork, C7a balance and C7b transactions, C9 notifies without the daughter's view time, C7a answers unexpected errors with a problem description, C7b's koruna line from its start; 2026-11-09: C8 split into C8a sending, C8b turning notifications on and C8c keeping devices right; 2026-11-20: C14 added, the signed-in account on request telemetry, and C14's not-recorded wording; 2026-11-21: C9 split into C9a the check and C9b the balance from a push — see the change log in `pm/progress.md`)
 
 ---
 
@@ -51,19 +51,20 @@
 | 21 | C8b | OpenSpec | `cNNN-add-notification-opt-in` (UC3, part 1b; alongside C8c) | C8a | — |
 | 22 | C8c | OpenSpec | `cNNN-add-subscription-upkeep` (UC3, part 1c; alongside C8b) | C8a; its last task group C8b | — |
 | 23 | C14 | Direct PR | Record the signed-in account on request telemetry | C6, C12; after C8c's merge | — |
-| 24 | C9 | OpenSpec | `cNNN-add-account-change-notifications` (UC3, part 2) | C5, C8b, C8c; findings on Q5, Q6 | decides Q8 |
-| ◆ | | Milestone | **v2: push notifications** | C9 deployed | |
-| 25 | M7 | Manual | Handover v2 | v2 | — |
+| 24 | C9a | OpenSpec | `c014-add-account-change-notifications` (UC3, part 2a; alongside C9b) | C5, C8b, C8c; findings on Q5, Q6 | decides Q8 |
+| 25 | C9b | OpenSpec | `c015-store-pushed-balance` (UC3, part 2b; alongside C9a) | C7a, C8b | — |
+| ◆ | | Milestone | **v2: push notifications** | C9a and C9b deployed | |
+| 26 | M7 | Manual | Handover v2 | v2 | — |
 | — | C10 | OpenSpec (conditional) | `cNNN-add-consent-renewal` | C5; findings on Q5 | — |
 | — | M9 | Manual (conditional, dated) | Renew the Enable Banking account link | M1; **deadline 2026-12-03**, then every 30 days | — |
-| 26 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
-| 27 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
-| 28 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
+| 27 | D1 | Documentation | Reinstatement guide | M7 (C10 if it was done) | — |
+| 28 | SF1 | Software factory | Full versions of the cut-down kits | M7; before M8 | — |
+| 29 | M8 | Manual | Decommissioning | end of operation; D1; SF1 | — |
 | — | T1 | Tech debt (low priority) | Explore making the API's FastEndpoints classes internal | C1; before M8 | — |
 
 M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosmos DB and no manual job part remain, and C8 (C8a since C8's split, 2026-11-09) generates the VAPID keys in its guided task (change log in `pm/progress.md`).
 
-**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8a → C8b and C8c side by side → C9 (v2); C12 runs alongside C6 and is done before C11 and C7. C14, a small telemetry PR, takes C8c's merge before its own.
+**Two tracks.** Manual steps (M1–M4) mostly unblock development and should be done as soon as their dependencies allow, so that development steps never wait for them. The main development path is F0-1 → F0-2 → C1 → C2 → C3 → C4 → C5 → C6 → C11 → C13 → C7a and C7b side by side (v1) → C8a → C8b and C8c side by side → C9a and C9b side by side (v2); C12 runs alongside C6 and is done before C11 and C7. C14, a small telemetry PR, takes C8c's merge before its own.
 
 ## 3. Risks 5 and 6: where and how early they are verified
 
@@ -87,7 +88,7 @@ M6 ("Azure prerequisites for notifications") was removed in F0-2: no shared Cosm
 | F0-2 | job hosting (Q4); whether a database is needed already in v1 | done: both decided in F0-2 with the M1 findings ([ADR-0005-data-storage](../docs/adr/0005-data-storage.md), [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)) |
 | C5 | handling of expired consent and rate-limit responses | recommended |
 | C7a, C7b | live reads from the bank or a cache | **blocking** |
-| C9 | check frequency and the use of stored state | **blocking** |
+| C9a (C9 until its split, 2026-11-21) | check frequency and the use of stored state | **blocking** |
 | C10 | whether the step is needed and its deadline | **blocking** |
 | M9 | whether the account link must be renewed, and by when | **blocking** |
 | M8 | what has to be revoked | — |
@@ -381,26 +382,40 @@ UC3's first part (kickoff ch. 5: the user enables notifications, and the backend
 - **Open questions:** —
 - **Notes:** small. Issue [#82](https://github.com/jakubbohm/RevolutReader/issues/82). Asked for after M5, when the requests of the two iPhones could be told apart only by their Safari version, which an iOS update would end.
 
-### C9 — `cNNN-add-account-change-notifications` (UC3, part 2)
+UC3's second part (kickoff ch. 5: a notification when the account changes) is built as two changes, split for size before its proposal (the owner, 2026-11-21, change log in `pm/progress.md`): C9a the check, on the server, and C9b the balance from a push, on the phone, side by side. Every behaviour was decided in C9's explore (2026-11-20/21) and handed to the two changes in their issues' comments, the shared ones on [#52](https://github.com/jakubbohm/RevolutReader/issues/52#issuecomment-7052729352) (N1–N4). Each is proposed directly from them, and its `design.md` then becomes the decisions' home. Until 2026-11-21 this was one step, C9; its phone trigger ([ADR-0008-phone-triggered-check](../docs/adr/0008-phone-triggered-check.md), [issue #12](https://github.com/jakubbohm/RevolutReader/issues/12)) and its starting design of 2026-11-08 (one check at a time, one merged notification) are carried by C9a ([c014 design.md](../openspec/changes/archive/2026-11-21-c014-add-account-change-notifications/design.md) D10).
+
+**C9a and C9b side by side.** Agreed with the owner (2026-11-21, N1–N3):
+
+1. **The contract:** every push the check sends carries `"mutable": true` and, in the notification's `data`, `balance`, exactly as `GET /api/balance` answers it. The owner's messages carry neither.
+2. **Either merges first:** with C9a first, today's service worker shows the notification once and ignores the data; with C9b first, only the owner's messages reach it, which carry no balance.
+3. **They share no code file.** The second to merge joins by hand the rows in `pm/progress.md` and ADR-0007's notes. C9b's iPhone row waits until both are deployed.
+
+### C9a — `c014-add-account-change-notifications` (UC3, part 2a)
 
 - **Type:** OpenSpec change
-- **Goal:** When the Revolut app on my iPhone shows a notification, an iOS 27 Shortcuts automation on the phone calls a protected, retry-safe endpoint in the app. The endpoint reads the account state through the adapter, compares it with the last stored state and, when something has changed, sends a notification to the subscribed users. This replaces the 4 scheduled runs a day and the Logic App clock of [ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md) ([ADR-0008-phone-triggered-check](../docs/adr/0008-phone-triggered-check.md), [issue #12](https://github.com/jakubbohm/RevolutReader/issues/12)). Reads triggered from the phone forward the phone's real PSU headers (my decision; I accept the risk). C9 decides how the Shortcut authenticates and whether a fallback check is kept for when the phone is off or offline.
-- **One check at a time, one merged notification** (the owner, 2026-11-08; the starting design for C9's explore). Revolut often sends an offer right after the payment notification, and each one fires the Shortcut. While the app wakes up, both calls arrive together, read the same new state, compare it with the same old stored state and would both notify. This is how C9 meets ADR-0008's "at most one notification" constraint:
-  1. **Three steps per trigger, one trigger at a time:** read the bank and compare with the stored state; store the new state if it changed; notify. A trigger waits until the previous one has finished. An in-process queue is enough, because the app runs at most one copy ([ADR-0006-hosting-registry-and-job](../docs/adr/0006-hosting-registry-and-job.md)).
-  2. **At most one check waits:** a trigger arriving while a check is already waiting joins that check and gets its answer, so a burst of any size costs at most two bank reads.
-  3. **Two stored markers:** *last seen*, the state from the latest successful read, updated by every check; and *last notified*, the state as of the last notification sent. The notification is the difference between them. Nothing depends on when the daughter opens the app: no view time is stored (the user, 2026-11-08, [ADR-0001-bank-data-access § Decision](../docs/adr/0001-bank-data-access.md#decision), items 4–5 amended). Two notes from C7's split (2026-11-08):
-     - **A state, not a time, and not the last transaction's ID alone.** A pending payment, the one the shop's notification is about, has no stable ID until it settles ([ADR-0001 § Context — Transaction history](../docs/adr/0001-bank-data-access.md#transaction-history)), and how Revolut dates a payment when it settles is not known yet. So the marker probably holds the balance and the pending transactions as well; C9's explore decides.
-     - **The markers are C9's own, never C7b's transaction store.** An open of the app stores newly settled transactions (C7b); a check that compared against the store would find nothing new after the daughter's open and send nothing.
-  4. **Only the last check in a burst notifies:** a check with another check waiting behind it skips the notification and leaves its changes to the last one, which covers everything since the last notification.
-  5. **The notification comes from the stored state, not the live read:** a last check whose bank read fails still sends what earlier checks found, and a stop between storing and notifying (scale to zero, a deploy) is caught up by the next trigger. *Last notified* is written only after the push has gone out: at worst one notification repeats, none is lost.
-  6. **Optional backstop:** a conditional update (ETag) on the stored state, so two app copies during a deploy cannot send the same changes.
-  - **Not chosen:** waiting for a quiet period (debounce) before checking. It delays every notification, needs a timer that outlives the phone's request, and buys nothing: the payment is already readable when its notification arrives ([M1 spike, step 7](../spikes/enable-banking/README.md)). Accepted cost: two real payments a few seconds apart can still bring two notifications.
-  - **C9 decides:** whether the Shortcut waits for the answer (a queued call answers after the wake-up plus under 1 s per read; iOS Shortcuts' request timeout is not known yet) or the endpoint answers at once (202) and checks in the background; the content of a merged notification (Q8, e.g. "2 new payments" plus the balance, which the push carries, [ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md)). *(2026-11-08: "how *last notified* relates to the daughter's last view" is gone from this list; there is no view time, item 3.)*
-- **Depends on:** C5, C8b and C8c (through them C8a, whose sender C9's notifications use); findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06: the automation runs on its own, also while the phone is locked).
-- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); issue #12 (findings, decision, phone test); ADR-0001-bank-data-access, ADR-0006-hosting-registry-and-job, ADR-0008-phone-triggered-check and the outcomes in `pm/progress.md`.
-- **Outputs:** archived change; v2 complete and deployed; the Shortcut and its secret recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
+- **Goal:** When the Revolut app on my iPhone shows a notification, an iOS 27 Shortcuts automation calls a protected, retry-safe endpoint in the app, which reads the balance with the phone's real PSU headers, compares it with the last stored state and, when it changed, notifies the subscribed users:
+  - the endpoint and its key of its own, answering like a missing address without it;
+  - the bank read with the phone's headers, the balance only;
+  - two stored balances of its own, *last seen* and *last notified* (never C7b's transaction store), and the change rule;
+  - the notification's text (Q8) and its recipients (every allowed account with a device);
+  - the balance the push carries for C9b;
+  - one check at a time, at most one waiting, only the last of a burst notifying, from the stored balances;
+  - no backup check; the Shortcut and its key recorded in [docs/operations/](../docs/operations/) with how to restore them (ADR-0008 § Consequences).
+- **Depends on:** C5, C8b and C8c (through them C8a, whose sender the notifications use); findings on Q5 and Q6; the phone test in issue #12 (done 2026-11-06). Runs alongside C9b in the main checkout.
+- **Inputs:** kickoff ch. 5 (UC3), 6, 10 (Q6, Q8); the decisions in [#52](https://github.com/jakubbohm/RevolutReader/issues/52)'s comment (shared N1–N4, C9a's K1–K10); ADR-0001, ADR-0007, ADR-0008, ADR-0010; c009, c011 and c012 design.md; the Screens design's `Notifications / Lock screen / Default`.
+- **Outputs:** archived change; the check deployed; the Shortcut set up on my iPhone; a real payment bringing the notification there (manual row, again at M7 on my daughter's phone); ADR-0008 amended.
 - **Open questions:** decides Q8.
-- **Notes:** the phone test needs no server (issue #12, "Prerequisite"). Enable Banking has no webhooks for account data, and Revolut has no API and no emails for personal accounts, so the phone is the only near-real-time trigger found (issue #12, "Findings"). Issue: [#52](https://github.com/jakubbohm/RevolutReader/issues/52).
+- **Notes:** about 12 scenarios estimated; 15 automated and 1 manual proposed. Enable Banking has no webhooks for account data, and Revolut has no API and no emails for personal accounts, so the phone is the only near-real-time trigger found (issue #12, "Findings"). Issue [#52](https://github.com/jakubbohm/RevolutReader/issues/52).
+
+### C9b — `c015-store-pushed-balance` (UC3, part 2b)
+
+- **Type:** OpenSpec change
+- **Goal:** When a notification about the account arrives, the phone keeps its balance: the service worker writes the balance the push carries into the stored balance ([ADR-0007-offline-balance](../docs/adr/0007-offline-balance.md), item 3), so a tap opens the app on the new balance at once while the server wakes up. Frontend only.
+- **Depends on:** C7a (the stored balance), C8b (the service worker's push handler). Runs alongside C9a in its own worktree; its iPhone row waits until both are deployed.
+- **Inputs:** the decisions in [#86](https://github.com/jakubbohm/RevolutReader/issues/86)'s comment (W1–W6) and #52's shared N1–N4; ADR-0007 and ADR-0010 with their notes; c009 design.md D4 and c012 design.md D9.
+- **Outputs:** archived change; with the app closed, a payment's notification opens the app on its balance at once (manual row on my iPhone, again at M7 on my daughter's).
+- **Open questions:** —
+- **Notes:** about 5–6 scenarios estimated. Issue [#86](https://github.com/jakubbohm/RevolutReader/issues/86).
 
 ### ◆ Milestone v2 — push notifications
 
@@ -409,7 +424,7 @@ UC3's first part (kickoff ch. 5: the user enables notifications, and the backend
 - **Type:** Manual
 - **Goal:** Help my daughter enable notifications on her phone (on iOS, including adding the PWA to the home screen) and confirm that a real change on the account produces a notification.
 - **Depends on:** v2
-- **Inputs:** F0-2 (Q9); outputs of C8a, C8b, C8c and C9.
+- **Inputs:** F0-2 (Q9); outputs of C8a, C8b, C8c, C9a and C9b.
 - **Outputs:** notifications confirmed working on her phone.
 - **Open questions:** —
 
@@ -485,10 +500,10 @@ UC3's first part (kickoff ch. 5: the user enables notifications, and the backend
 | 1 | Account allowlisting mechanism | F0-2 | M2, M4, C6 |
 | 2 | Authentication flow | F0-2 | M4, C3, C6 |
 | 3 | Frontend hosting (one container) | F0-2 | C1, C3, C4 |
-| 4 | Job hosting, registry, costs | F0-2 | M3, C4, C9 |
-| 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9, C10, M9, M8 |
-| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7a, C7b, C9 |
+| 4 | Job hosting, registry, costs | F0-2 | M3, C4, C9a |
+| 5 | Enable Banking consent validity and pricing *(risk)* | M1 (verify) | C5, C9a, C10, M9, M8 |
+| 6 | Bank request limits *(risk)* | M1 (verify) | F0-2, M3, C5, C11, C7a, C7b, C9a |
 | 7 | Transactions (history, paging, details) | C7b | — |
-| 8 | Notification content | C9 | — |
-| 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8b, M5, M7 |
+| 8 | Notification content | C9a | — |
+| 9 | Push on iOS *(risk)* | F0-2 (verify: which phone) | C3, C8b, C9b, M5, M7 |
 | 10 | PWA scope (offline mode?) | C3 | — |

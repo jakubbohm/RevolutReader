@@ -31,6 +31,9 @@ public sealed class AnonymousEndpointsTests : AcceptanceTest {
     // The owner's message endpoint (c011 design.md D10): anonymous, its message key checked in the endpoint itself before
     // anything else; without the right key it answers exactly as an unknown /api address does.
     "POST /api/push/messages",
+    // The account check the owner's iPhone Shortcut calls (c014 design.md D6): anonymous, its own check key checked in the
+    // endpoint itself before anything else; without the right key it answers exactly as an unknown /api address does.
+    "POST /api/account/check",
   ];
 
   [Test]

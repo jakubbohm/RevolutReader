@@ -50,7 +50,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// </para>
 /// <para>
 /// Every request is recorded as it arrived, with whether its token passed and the answer (<see cref="ReceivedPush"/>,
-/// <see cref="Pushes"/>, <see cref="PushesFor"/>). Written by the test-writer, never by the implementer whose sending it
+/// <see cref="Pushes"/>, <see cref="PushesFor"/>), and a test can wait, bounded, for pushes the app sends after the request
+/// that caused them has ended (<see cref="WaitUntilReached"/>, c014 design.md D16). Written by the test-writer, never by
+/// the implementer whose sending it
 /// judges (tasks.md 9a); its self-tests (<c>HarnessSelfTests/FakePushServiceSelfTests</c>) prove each check bites.
 /// </para>
 /// </summary>
@@ -175,6 +177,38 @@ public sealed class FakePushService : IDisposable {
   /// <summary>Every request the server received, at any address, in the order received, however it answered.</summary>
   public IReadOnlyList<ReceivedPush> Pushes() => _checks.Received();
 
+  /// <summary>
+  /// Waits until at least <paramref name="count"/> pushes have reached <paramref name="device"/>: pushes to its push address
+  /// that the server accepted (201), not those it refused or failed. On the real clock, bounded (c014 design.md D16: a
+  /// push sent after the request that caused it has ended): with fewer within <paramref name="within"/>, the step fails
+  /// with <see cref="TimeoutException"/>, naming how many arrived. It never polls: it wakes on each push the server records.
+  /// </summary>
+  public async Task WaitUntilReached(TestDevice device, int count, TimeSpan within) {
+    ArgumentNullException.ThrowIfNull(device);
+    ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+    using CancellationTokenSource deadline = new(within);
+
+    while (true) {
+      Task nextArrival = _checks.NextArrival();
+
+      if (ReachedCount(device) >= count)
+        return;
+
+      try {
+        await nextArrival.WaitAsync(deadline.Token);
+      }
+      catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
+        throw new TimeoutException(string.Create(
+          CultureInfo.InvariantCulture,
+          $"Within {within.TotalSeconds} s, {ReachedCount(device)} of the {count} pushes awaited reached {device.Name}."));
+      }
+    }
+  }
+
+  /// <summary>How many pushes to <paramref name="device"/>'s push address the server accepted (201).</summary>
+  private int ReachedCount(TestDevice device) => PushesFor(device).Count(static push => push.Answer == HttpStatusCode.Created);
+
   /// <summary>The path a device's pushes arrive at on this server.</summary>
   private static string PathOf(TestDevice device) => device.PushAddress.AbsolutePath;
 
@@ -218,7 +252,16 @@ public sealed class FakePushService : IDisposable {
     private readonly ConcurrentDictionary<string, bool> _gone = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _failOnce = new(StringComparer.Ordinal);
 
+    /// <summary>Set when the next push is recorded, then replaced by a new one (<see cref="NextArrival"/>).</summary>
+    private TaskCompletionSource _nextArrival = NewArrival();
+
     public IReadOnlyList<ReceivedPush> Received() => [.. _received];
+
+    /// <summary>
+    /// A task that ends when the next push is recorded. Taken before looking at <see cref="Received"/>, it ends for any push
+    /// recorded after that look, so a waiter never misses one.
+    /// </summary>
+    public Task NextArrival() => Volatile.Read(ref _nextArrival).Task;
 
     public void Gone(string path) => _gone[path] = true;
 
@@ -248,9 +291,12 @@ public sealed class FakePushService : IDisposable {
         body.ToArray(),
         signedWithServerKey,
         answer));
+      _ = Interlocked.Exchange(ref _nextArrival, NewArrival()).TrySetResult();
 
       context.Response.StatusCode = (int)answer;
     }
+
+    private static TaskCompletionSource NewArrival() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Whether <paramref name="authorization"/> is one <c>vapid t=…, k=…</c> header whose <c>k</c> is the server's key and

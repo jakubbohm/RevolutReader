@@ -116,6 +116,9 @@ public sealed class BankDsl(BankDriver driver) {
   /// <summary>Every request the bank received during the test, in order.</summary>
   public IReadOnlyList<RequestAtBank> RequestsReceived() => driver.RequestsReceived();
 
+  /// <summary>Every request for the account's balance the bank received during the test, in order; requests for anything else are left out.</summary>
+  public IReadOnlyList<RequestAtBank> BalanceRequestsReceived() => driver.BalanceRequestsReceived();
+
   /// <summary>The page each transactions request asked for, in the order received (1 for the first page).</summary>
   public IReadOnlyList<int> PagesRequested() => driver.PagesRequested();
 

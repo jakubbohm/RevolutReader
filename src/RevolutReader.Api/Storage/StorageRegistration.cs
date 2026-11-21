@@ -1,9 +1,13 @@
 using RevolutReader.Api.Account;
+using RevolutReader.Api.Check;
 using RevolutReader.Api.Push;
 
 namespace RevolutReader.Api.Storage;
 
-/// <summary>The stores' registrations on Table Storage: the transactions (c010 design.md D11) and the push devices (c011 design.md D11).</summary>
+/// <summary>
+/// The stores' registrations on Table Storage: the transactions (c010 design.md D11), the push devices (c011 design.md
+/// D11) and the account check's balances (c014 design.md D4).
+/// </summary>
 public static class StorageRegistration {
   /// <summary>The connection's name, read from <c>ConnectionStrings:tables</c>.</summary>
   private const string TABLES = "tables";
@@ -54,6 +58,25 @@ public static class StorageRegistration {
       .ValidateOnStart();
 
     builder.Services.AddSingleton<IPushDeviceStore, TablePushDeviceStore>();
+
+    return builder;
+  }
+
+  /// <summary>
+  /// The account check's store of its two balances (c014 design.md D4): binds <see cref="CheckedBalanceStoreOptions"/> from
+  /// its section, validated on start, and <see cref="TableCheckedBalanceStore"/> as <see cref="ICheckedBalanceStore"/>, a
+  /// singleton, so its table is created once per process. Like <see cref="AddPushDeviceStore"/>, it uses the tables client
+  /// <see cref="AddTransactionStore"/> registers, so Program.cs calls it after that one.
+  /// </summary>
+  public static IHostApplicationBuilder AddCheckedBalanceStore(this IHostApplicationBuilder builder) {
+    ArgumentNullException.ThrowIfNull(builder);
+
+    builder.Services.AddOptions<CheckedBalanceStoreOptions>()
+      .BindConfiguration(CheckedBalanceStoreOptions.SECTION)
+      .ValidateDataAnnotations()
+      .ValidateOnStart();
+
+    builder.Services.AddSingleton<ICheckedBalanceStore, TableCheckedBalanceStore>();
 
     return builder;
   }

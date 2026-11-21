@@ -65,6 +65,19 @@ public sealed class PushSendingScenarios : AcceptanceTest {
     push.Urgency.ShouldBe("high");
   }
 
+  [Test, Scenario("push-sending", "The owner's message carries no balance")]
+  public async Task The_owners_message_carries_no_balance() {
+    PhoneForPush phone = Push.NewPhone("Lucie's phone");
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    await Push.HasRegistered(phone);
+
+    await Push.OwnerSends(Visitor.Lucie.Email, "Ahoj");
+
+    PushReceived push = Push.Received(phone).ShouldHaveSingleItem();
+    push.MarkedForServiceWorker.ShouldBeFalse("not marked for the app's service worker");
+    push.Balance.ShouldBeNull("it carries no balance");
+  }
+
   [Test, Scenario("push-sending", "A message without the right key gets the answer of an unknown address")]
   public async Task A_message_without_the_right_key_gets_the_answer_of_an_unknown_address() {
     PhoneForPush phone = Push.NewPhone("Lucie's phone");

@@ -345,3 +345,9 @@ dotnet_diagnostic.CA1815.severity = none
 # The port's success value is named Transactions (c004 design.md § Public API sketch). CA1724 objects because the BCL
 # has a System.Transactions namespace, which nothing in the app imports.
 dotnet_diagnostic.CA1724.severity = none
+
+[src/RevolutReader.Api/Check/AccountCheckQueue.cs]
+# The account check's queue is named AccountCheckQueue (c014 design.md D10, § Public API sketch). CA1711 keeps the suffix
+# "Queue" for collections like System.Collections.Queue; this type lines up checks (one running, at most one waiting, later
+# callers joining it) and is no collection.
+dotnet_diagnostic.CA1711.severity = none

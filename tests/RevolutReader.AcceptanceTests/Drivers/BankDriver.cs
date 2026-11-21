@@ -285,6 +285,9 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// </summary>
   public IReadOnlyList<RequestAtBank> RequestsReceived() => [.. Bank.RequestHeadersReceived().Select(RequestOf)];
 
+  /// <summary>Every request for the account's balances the fake bank received, in order, by its user headers, as <see cref="RequestsReceived"/> reads them.</summary>
+  public IReadOnlyList<RequestAtBank> BalanceRequestsReceived() => [.. Bank.BalanceRequestHeadersReceived().Select(RequestOf)];
+
   /// <summary>
   /// The page every transactions request the fake bank received asked for, in order: 1 without a continuation key, else
   /// the page this test handed that key out for. A key the test never handed out fails the test.

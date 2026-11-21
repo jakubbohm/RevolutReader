@@ -145,6 +145,28 @@ public sealed class FakePushServiceSelfTests {
     fake.PushesFor(phone).Select(static push => push.Answer).ShouldBe([HttpStatusCode.InternalServerError, HttpStatusCode.Created], "recorded with its answer");
   }
 
+  /// <summary>
+  /// The bounded wait for pushes (c014 design.md D16) wakes on the pushes the fake records and counts only those that
+  /// reached the device it waits for: a refused push and another device's leave it waiting, the next accepted one ends it.
+  /// </summary>
+  [Test]
+  public async Task A_wait_for_pushes_ends_once_that_many_reached_the_device_and_no_other_push_counts() {
+    using FakePushService fake = FakePushService.Start();
+    TestDevice phone = fake.NewDevice("phone");
+    TestDevice tablet = fake.NewDevice("tablet");
+    Push correct = CorrectPush(fake);
+
+    Task waiting = fake.WaitUntilReached(phone, count: 2, within: TimeSpan.FromSeconds(10));
+    (await Send(phone, correct)).ShouldBe(HttpStatusCode.Created);
+    (await Send(phone, correct with { TimeToLive = null })).ShouldBe(HttpStatusCode.Forbidden);
+    (await Send(tablet, correct)).ShouldBe(HttpStatusCode.Created);
+
+    waiting.IsCompleted.ShouldBeFalse("one push reached the phone: the refused one and the tablet's do not count");
+
+    (await Send(phone, correct)).ShouldBe(HttpStatusCode.Created);
+    await waiting;
+  }
+
   /// <summary>A push the fake must accept: a token signed with the run's VAPID key, that key as <c>k</c>, a TTL, urgent, <c>aes128gcm</c>, a random body.</summary>
   private static Push CorrectPush(FakePushService fake) =>
     new(Vapid(Token(fake), fake.VapidPublicKey), TimeToLive: "86400", Urgency: "high", ContentEncoding: AES128GCM, Body: RandomNumberGenerator.GetBytes(100));

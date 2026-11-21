@@ -12,10 +12,16 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// Defaults: a phone is known by the name the scenario gives it, unique within the test; registering a phone sends its
 /// own subscription, well-formed; registering at an address the scenario names sends well-formed keys, so only the
 /// address can be refused; a message has no text and no page unless the scenario gives them; a wrong message key is as
-/// long as the key, and never it.
+/// long as the key, and never it; a wait for pushes (<see cref="Eventually"/>) ends after at most 10 s.
 /// </para>
 /// </summary>
 public sealed class PushDsl(PushDriver driver, FakePushService pushService) {
+  /// <summary>
+  /// How long <see cref="Eventually"/> waits on the real clock: far longer than an app copy takes to finish a check and send
+  /// its push, even on a busy machine running the full suite, and short enough that a push that never comes fails soon.
+  /// </summary>
+  private static readonly TimeSpan _eventuallyWithin = TimeSpan.FromSeconds(10);
+
   /// <summary>The test device behind each phone the scenario made (<see cref="NewPhone"/>).</summary>
   private readonly Dictionary<PhoneForPush, TestDevice> _devices = [];
 
@@ -111,6 +117,19 @@ public sealed class PushDsl(PushDriver driver, FakePushService pushService) {
 
   /// <summary>Every push that reached <paramref name="phone"/>, in the order received: those its push service accepted.</summary>
   public IReadOnlyList<PushReceived> Received(PhoneForPush phone) => [.. PushServiceReceived(phone).Where(static push => push.ReachedThePhone)];
+
+  /// <summary>
+  /// Waits until at least <paramref name="pushes"/> pushes have reached <paramref name="phone"/>, then gives every push that
+  /// reached it, as <see cref="Received"/> does: for a push the app sends after the request that caused it has ended (spec
+  /// account-check, a check that goes on when its caller stops waiting; c014 design.md D16). A bounded wait on the real
+  /// clock that wakes on each push the fake push service receives, never a fixed pause; fewer pushes within 10 s fail the
+  /// step, naming how many came.
+  /// </summary>
+  public async Task<IReadOnlyList<PushReceived>> Eventually(PhoneForPush phone, int pushes) {
+    await pushService.WaitUntilReached(DeviceOf(phone), pushes, _eventuallyWithin);
+
+    return Received(phone);
+  }
 
   /// <summary>How many pushes any push service received, for any device: the fake push service is the only one a test reaches.</summary>
   public int PushesAnyPushServiceReceived() => driver.PushesReceivedAtAll();

@@ -100,25 +100,46 @@ public static partial class PushMessages {
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as
   /// <c>body</c> only when there is text, and <c>navigate</c>, the page resolved against <paramref name="appAddress"/>
-  /// (<c>Push:Subject</c>). Never <c>app_badge</c>, and nothing else.
+  /// (<c>Push:Subject</c>). With a balance (a notification about the account, c014 design.md D14), also <c>"mutable": true</c>
+  /// at the top level, where the declarative push parser reads it, and the notification's <c>data</c>, exactly
+  /// <c>{ "balance": { "amount", "readAt", "czkPerEur" } }</c>, each value written by the same converters as
+  /// <c>GET /api/balance</c> writes it (a JSON number for each amount, the ISO 8601 text of the read time); without one,
+  /// neither. Never <c>app_badge</c>, and nothing else.
   /// </summary>
   public static string DeclarativeJson(PushMessage message, Uri appAddress) {
     ArgumentNullException.ThrowIfNull(message);
     ArgumentNullException.ThrowIfNull(appAddress);
 
-    DeclarativePush push = new(DECLARATIVE_WEB_PUSH, new Notification(message.Title, message.Text, new Uri(appAddress, message.Page).AbsoluteUri));
+    NotificationData? data = message.Balance is { } balance
+      ? new NotificationData(new BalanceData(balance.Amount, balance.ReadAt, balance.CzkPerEur))
+      : null;
+    DeclarativePush push = new(
+      DECLARATIVE_WEB_PUSH,
+      new Notification(message.Title, message.Text, new Uri(appAddress, message.Page).AbsoluteUri, data),
+      Mutable: data is null ? null : true);
 
     return JsonSerializer.Serialize(push, _json);
   }
 
-  /// <summary>The push's JSON as Declarative Web Push names its members.</summary>
+  /// <summary>The push's JSON as Declarative Web Push names its members; <c>mutable</c> left out unless it carries a balance.</summary>
   private sealed record DeclarativePush(
     [property: JsonPropertyName("web_push")] int WebPush,
-    [property: JsonPropertyName("notification")] Notification Notification);
+    [property: JsonPropertyName("notification")] Notification Notification,
+    [property: JsonPropertyName("mutable"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Mutable);
 
-  /// <summary>The notification Safari shows by itself; <c>body</c> left out when there is no text.</summary>
+  /// <summary>The notification Safari shows by itself; <c>body</c> left out when there is no text, <c>data</c> when there is no balance.</summary>
   private sealed record Notification(
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("body"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Body,
-    [property: JsonPropertyName("navigate")] string Navigate);
+    [property: JsonPropertyName("navigate")] string Navigate,
+    [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NotificationData? Data);
+
+  /// <summary>The notification's data (c014 design.md D14): the balance alone.</summary>
+  private sealed record NotificationData([property: JsonPropertyName("balance")] BalanceData Balance);
+
+  /// <summary>The balance as <c>GET /api/balance</c> names its members (D14).</summary>
+  private sealed record BalanceData(
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("readAt")] DateTimeOffset ReadAt,
+    [property: JsonPropertyName("czkPerEur")] decimal CzkPerEur);
 }

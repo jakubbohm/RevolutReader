@@ -183,3 +183,9 @@ Full version: a stable opaque id per user on each request (the identity provider
 Here ([ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7, the owner, 2026-11-20): **each API request of an allowed, signed-in user carries the account's email address in `UserAuthenticatedId`.** The app has a handful of known users, no user store to map an id to a person, and telemetry that only the owner reads, where personal data is allowed (ADR-0009, Decision item 6).
 Given up: the private telemetry holds the users' email addresses for 30 days, and a changed address splits one user's history in two.
 *Switch back when:* the telemetry is read by anyone but the owner, the users are not all known to the owner, or the app outlives its planned period. The switch is `RequestAccount.Of` returning the login's `sub` (or the app's own user id) instead of its email.
+
+**R-93 · No guard against two instances sending the same notification**
+Full version: the check claims the notification before sending it, with a conditional write of a claim and its time stamp; another instance seeing a fresh claim skips, and a claim older than about a minute is taken over ([lessons.md R-93](lessons.md)).
+Here (c014 design.md D13, the owner, 2026-11-21): **one row of stored balances, saved whole, last write wins.** The app runs one instance; two run at once only while a deploy swaps revisions, and the old one's checks are cancelled as soon as it is told to stop. A duplicate needs a payment's notification inside that window.
+Given up: a change landing during a deploy's swap may be notified twice, with the same text (next to the accepted repeat after a stop between the notification and its record, R-91).
+*Switch back when:* the app runs more than one instance, or a repeated notification starts to matter. The switch is the claim column in `ICheckedBalanceStore` and both adapters, with its contract tests and the check's claim step (about half a day).
