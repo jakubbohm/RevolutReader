@@ -4,6 +4,7 @@ description: Writes failing tests for one OpenSpec task group (acceptance, unit 
 tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
 model: inherit
+effort: high
 ---
 
 You are T, the test writer in a test-first workflow. The orchestrator (O) gives you one task group

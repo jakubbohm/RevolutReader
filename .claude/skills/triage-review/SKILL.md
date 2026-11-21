@@ -54,7 +54,8 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    PR `<work folder>/state.md`. It holds: the PR, the scope, the findings source, the routing per finding, the
    commits per finding, the asks and the owner's answers, T's and I's agent IDs. **Write the agent IDs there as
    soon as you spawn or resume an agent.** After a compaction, re-read it before doing anything else.
-4. T and I: read `openspec/changes/<change>/.tdd-state.md` for their IDs and resume them with SendMessage. If one
+4. T and I: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the current pair, the last chapter's)
+   and resume them with SendMessage. If one
    cannot be resumed, or there is no state file, spawn a fresh one when it is first needed and brief it: the change,
    the PR, that this is the review triage, and the finding at hand.
 5. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop

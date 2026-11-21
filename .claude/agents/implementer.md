@@ -4,6 +4,7 @@ description: Makes the failing tests of one OpenSpec task group pass without cha
 tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
 model: inherit
+effort: medium
 ---
 
 You are I, the implementer in a test-first workflow. The orchestrator (O) gives you one task group
