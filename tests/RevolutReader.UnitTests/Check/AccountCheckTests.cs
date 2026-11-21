@@ -1,0 +1,221 @@
+using System.Buffers.Text;
+using System.Net;
+using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+using RevolutReader.Api.Account;
+using RevolutReader.Api.Bank;
+using RevolutReader.Api.Check;
+using RevolutReader.Api.Push;
+using RevolutReader.Api.SignIn;
+using RevolutReader.UnitTests.Push;
+using Shouldly;
+
+namespace RevolutReader.UnitTests.Check;
+
+/// <summary>
+/// One account check (c014 design.md D3, D4, D10, D15; § Public API sketch, <see cref="IAccountCheck"/>): it reads the
+/// balance once, as the present user; the first successful read, with nothing kept, is kept as both last seen and last
+/// notified and sends nothing; the check answers whether the two differ after its read; a failed read keeps nothing and is
+/// the read's failure; the check logs what it came to, and never an amount.
+/// <para>
+/// The setup is design.md D16's: a hand-written stub of the bank port under a real <see cref="ReadBalanceHandler"/> on a
+/// <see cref="FakeTimeProvider"/>; the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
+/// real <see cref="SendPushHandler"/> with C8a's in-memory device store and stub delivery, whose hand-overs show what was
+/// sent. The allowlist holds Lucie and Petr; Lucie has a registered phone, so anything sent would reach it. Every log line
+/// of the check, the notifier and the sender goes to one hand-written logger. No check waits behind these ones. The
+/// amounts are made up; the address is a documentation address (RFC 5737), the browser name the Shortcut's.
+/// </para>
+/// </summary>
+public sealed class AccountCheckTests {
+  private const string LUCIE = "lucie@example.com";
+  private const string PETR = "petr@example.com";
+
+  /// <summary>The made-up app address, <c>Push:Subject</c>, as the sender's own tests set it.</summary>
+  private const string APP_ADDRESS = "https://app.example.net";
+
+  /// <summary>The push settings the sender never reads when it sends: the keys are the delivery's business.</summary>
+  private const string NOT_READ_WHEN_SENDING = "made up, not read by the sender";
+
+  /// <summary>The clock when the bank answers: the read time of every balance read here.</summary>
+  private static readonly DateTimeOffset _now = new(2026, 11, 21, 9, 14, 3, TimeSpan.Zero);
+
+  /// <summary>The owner's phone, as its Shortcut calls: a documentation address and the Shortcut's browser name.</summary>
+  private static readonly PresentUser _phone = new(IPAddress.Parse("203.0.113.7"), "BackgroundShortcutRunner/5114.0");
+
+  /// <summary>No check waits behind the one under test (D10's seam).</summary>
+  private static readonly Func<bool> _noCheckWaits = static () => false;
+
+  [Test]
+  public async Task A_first_successful_read_keeps_the_balance_as_both_last_seen_and_last_notified_and_sends_nothing() {
+    InMemoryCheckedBalanceStore store = new();
+    StubPushDelivery delivery = new();
+
+    await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
+    (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "the read, whole, kept as both balances");
+    delivery.HandedOver.ShouldBeEmpty("the first check sends nothing");
+  }
+
+  [Test]
+  public async Task A_first_check_answers_that_nothing_changed() {
+    AccountCheck check = await CheckWith(new Balance(45.20m, "EUR"), new InMemoryCheckedBalanceStore(), new StubPushDelivery());
+
+    BankResult<CheckOutcome> result = await check.Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    result.Value.ShouldBe(new CheckOutcome(Changed: false));
+  }
+
+  /// <param name="failure">The bank's expected failures (C13): each comes back as the check's result, as it is.</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_first_read_that_fails_keeps_nothing_and_is_the_reads_failure(string failure) {
+    BankResult<Balance> answer = failure switch {
+      "access expired" => new BankAccessExpired(),
+      "rate limited" => new BankRateLimited(),
+      "unavailable" => new BankUnavailable(),
+      _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+    };
+    InMemoryCheckedBalanceStore store = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(answer, store, new StubPushDelivery())).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    result.Value.ShouldBe(answer.Value, "the read's failure, as it is");
+    (await store.Read(CancellationToken.None)).ShouldBeNull("nothing kept");
+  }
+
+  /// <summary>
+  /// The first check's line of what it came to is <c>CheckEnded</c> at Information, whose one value is
+  /// <see cref="CheckEnd.FirstBalanceKept"/> (D15); no line of the check, the notifier or the sender holds the amount in any
+  /// form (as the API writes it, as the app writes it in Czech, its koruna value) or the time it was read. The amount is
+  /// distinctive, so it cannot turn up by coincidence.
+  /// </summary>
+  [Test]
+  public async Task A_check_logs_what_it_came_to_with_no_amount() {
+    CapturedLog log = new();
+    AccountCheck check = await CheckWith(new Balance(7531.86m, "EUR"), new InMemoryCheckedBalanceStore(), new StubPushDelivery(), log);
+
+    await check.Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    LogEntry ended = lines.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
+    string[] privateForms = [
+      "7531", "7 531", "7 531", "531.86", "531,86", // the amount, with or without a thousands separator
+      "183024", "183 024", "183 024", // its koruna value at 24.3, 183 024.198
+      "2026-11-21", "11/21/2026", "21.11.2026", "9:14:03", // the time it was read
+    ];
+    ended.ShouldSatisfyAllConditions(
+      () => ended.Level.ShouldBe(LogLevel.Information),
+      () => ended.OwnValues().Select(static value => value.Value).ShouldBe([CheckEnd.FirstBalanceKept], "what the check came to: it kept the first balance"));
+    lines.Where(line => privateForms.Any(form => line.AllText().Contains(form, StringComparison.OrdinalIgnoreCase)))
+      .ShouldBeEmpty("no line holds the amount, in any form, or the time it was read");
+  }
+
+  /// <summary>
+  /// The check under test: the bank answers every balance read with <paramref name="bankAnswer"/> while the clock shows
+  /// <see cref="_now"/>; its balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender,
+  /// with the allowlist Lucie and Petr and Lucie's phone registered, to <paramref name="delivery"/>; every log line goes to
+  /// <paramref name="log"/>.
+  /// </summary>
+  private static async Task<AccountCheck> CheckWith(BankResult<Balance> bankAnswer, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) {
+    CapturedLog lines = log ?? new CapturedLog();
+    Allowlist allowlist = Allowlist.Parse($"{LUCIE}, {PETR}");
+    InMemoryPushDeviceStore devices = new();
+    await devices.Save(Device(LUCIE), CancellationToken.None);
+
+    SendPushHandler sender = new(devices, delivery, allowlist, Options.Create(new PushOptions {
+      VapidPublicKey = NOT_READ_WHEN_SENDING,
+      VapidPrivateKey = NOT_READ_WHEN_SENDING,
+      MessageKey = NOT_READ_WHEN_SENDING,
+      Subject = new Uri(APP_ADDRESS),
+      Services = new Dictionary<string, string>(StringComparer.Ordinal) { ["Google"] = "https://fcm.googleapis.com" },
+    }), lines.For<SendPushHandler>());
+
+    return new AccountCheck(
+      new ReadBalanceHandler(new StubBankAccount(bankAnswer), new FakeTimeProvider(_now)),
+      store,
+      new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
+      lines.For<AccountCheck>());
+  }
+
+  /// <summary>A device of <paramref name="account"/> at a made-up push address, with keys as a browser makes them (random here: the stub never decrypts).</summary>
+  private static PushDevice Device(string account) {
+    byte[] point = RandomNumberGenerator.GetBytes(65);
+    point[0] = 0x04;
+
+    return new PushDevice(
+      $"https://fcm.googleapis.com/fcm/send/made-up-{Guid.NewGuid():N}",
+      Base64Url.EncodeToString(point),
+      Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
+      account);
+  }
+
+  /// <summary>The bank port, answering every balance read with <paramref name="answer"/>; a check reads no transactions (D3).</summary>
+  private sealed class StubBankAccount(BankResult<Balance> answer) : IBankAccount {
+    public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) => Task.FromResult(answer);
+
+    public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) =>
+      throw new NotSupportedException("A check reads no transactions.");
+  }
+
+  /// <summary>
+  /// One log for every logger of a check (the check's, the notifier's, the sender's): each line with its category, level,
+  /// event name, structured values and message. A source-generated line's values are its own fields and its template.
+  /// </summary>
+  private sealed class CapturedLog {
+    private readonly Lock _lock = new();
+    private readonly List<LogEntry> _entries = [];
+
+    /// <summary>Every line, in the order written.</summary>
+    public IReadOnlyList<LogEntry> Entries {
+      get {
+        lock (_lock)
+          return [.. _entries];
+      }
+    }
+
+    /// <summary>A logger of category <typeparamref name="T"/> writing into this log.</summary>
+    public ILogger<T> For<T>() => new CategoryLogger<T>(this);
+
+    private void Add(LogEntry entry) {
+      lock (_lock)
+        _entries.Add(entry);
+    }
+
+    private sealed class CategoryLogger<T>(CapturedLog log) : ILogger<T> {
+      public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+      public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+      public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+        ArgumentNullException.ThrowIfNull(formatter);
+
+        IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
+        log.Add(new LogEntry(typeof(T).Name, logLevel, eventId.Name, [.. values], formatter(state, exception)));
+      }
+    }
+  }
+
+  /// <summary>One line of a check's log.</summary>
+  private sealed record LogEntry(string Category, LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, string Message) {
+    /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
+    private const string ORIGINAL_FORMAT = "{OriginalFormat}";
+
+    /// <summary>The line's own fields, without its message template, as the logging source generator enumerates them.</summary>
+    public IReadOnlyList<KeyValuePair<string, object?>> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT)];
+
+    /// <summary>The category, the event's name, the message and every value, as one text.</summary>
+    public string AllText() => string.Join(" | ", [Category, EventName, Message, .. Values.Select(static pair => $"{pair.Key}={pair.Value}")]);
+
+    #region Object overrides
+
+    /// <summary>For a failure message: the category, the level and the event.</summary>
+    public override string ToString() => $"{Category} {Level} {EventName}";
+
+    #endregion
+  }
+}
