@@ -14,8 +14,9 @@ namespace RevolutReader.UnitTests.Check;
 /// The check's key is checked at start-up (c014 design.md D6; configuration.md § Binding): it is required, it may not still
 /// hold the declared placeholder, it is at least 32 bytes in base64url without padding, read strictly, and it is a key of
 /// its own, never the message key. A failure names the setting (the section <c>AccountCheck</c> and its <c>Key</c>, and for
-/// the message key <c>Push:MessageKey</c> too), never a value; a failure of the setting's own rules names it by its full
-/// name, as the operator sets it (#68). Each test runs the checks the app runs at start, through the
+/// the message key <c>Push:MessageKey</c> too), never a value; a failure of the setting's own rules, and one of the
+/// validator's checks, names it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at
+/// start, through the
 /// check's own registration (<see cref="AccountCheckRegistration.AddAccountCheck"/>): the settings' data annotations and
 /// <see cref="AccountCheckOptionsValidator"/>, however that validator is built. Every key here is made up, generated in the
 /// test.
@@ -103,7 +104,7 @@ public sealed class AccountCheckOptionsTests {
 
     IReadOnlyList<string> failures = Failures(key);
 
-    failures.ShouldContain(failure => NamesTheSetting(failure), "a failure naming AccountCheck's Key");
+    ShouldNameInFull(failures, CHECK_KEY_SETTING);
     failures.ShouldAllBe(failure => !failure.Contains(key, StringComparison.Ordinal), "no failure message may contain the setting's value");
   }
 
@@ -122,9 +123,7 @@ public sealed class AccountCheckOptionsTests {
 
     string[] texts = [refused.Message, .. refused.Failures];
     refused.ShouldSatisfyAllConditions(
-      () => refused.Failures.ShouldContain(
-        static failure => failure.Contains(CHECK_KEY_SETTING, StringComparison.Ordinal) && failure.Contains(MESSAGE_KEY_SETTING, StringComparison.Ordinal),
-        "a failure naming both settings"),
+      () => ShouldNameInFull([.. refused.Failures], CHECK_KEY_SETTING, alsoNaming: MESSAGE_KEY_SETTING),
       () => texts.ShouldAllBe(text => !QuotesAnyPartOf(text, key), "no failure message may contain the key or any part of it"));
   }
 
@@ -168,6 +167,27 @@ public sealed class AccountCheckOptionsTests {
     services.AddAccountCheck();
 
     return services.BuildServiceProvider();
+  }
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>AccountCheck:Key is not …</c>), where a failure of the setting's own rules puts ": " after the name, so only
+  /// the validator's failure passes; a second setting the same failure is about is named in full further on. No failure may
+  /// name a setting by a settings class's name instead (<c>AccountCheckOptions.Key</c>, <c>PushOptions.MessageKey</c>),
+  /// which the operator cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The full name that opens the failure: the section, ":" and the setting.</param>
+  /// <param name="alsoNaming">The full name of a second setting the same failure names, or <see langword="null"/>.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting, string? alsoNaming = null) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal)
+        && (alsoNaming == null || failure.Contains(alsoNaming, StringComparison.Ordinal)),
+      $"a failure opening with \"{setting} \"{(alsoNaming is null ? "" : $" that names \"{alsoNaming}\" too")}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(AccountCheckOptions)}.", StringComparison.Ordinal) && !failure.Contains($"{nameof(PushOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by a settings class's name");
   }
 
   /// <summary>Whether <paramref name="text"/> holds <paramref name="key"/> or any 8 characters of it in a row.</summary>

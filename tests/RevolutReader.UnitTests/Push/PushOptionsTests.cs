@@ -16,8 +16,9 @@ namespace RevolutReader.UnitTests.Push;
 /// key is the 65-byte uncompressed P-256 point and the private key the 32-byte scalar, each in base64url, and the two are
 /// one pair; the message key is at least 32 bytes; <c>Subject</c> is an absolute https address with no path beyond "/", no
 /// query and no fragment; there is at least one known push service and every one is a valid pattern; the request timeout
-/// lies between 1 and 60 seconds. A failure names the setting, never its value; a failure of the settings' own rules names
-/// it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at start, through push's own
+/// lies between 1 and 60 seconds. A failure names the setting (and the entry) by its full name, as the operator sets it
+/// (#68), never its value: a failure of the settings' own rules starts with the name and ": ", one of the validator's
+/// checks opens its sentence with the name. Each test runs the checks the app runs at start, through push's own
 /// registration (<see cref="PushRegistration.AddPush"/>, from an in-memory configuration): the settings' data annotations
 /// and <see cref="PushOptionsValidator"/>, however those checks are built. Every value here is made up; every key is
 /// generated in the test.
@@ -175,7 +176,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.VapidPublicKey), StringComparison.Ordinal), "a failure naming VapidPublicKey");
+    ShouldNameInFull(failures, "Push:VapidPublicKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -197,7 +198,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.VapidPrivateKey), StringComparison.Ordinal), "a failure naming VapidPrivateKey");
+    ShouldNameInFull(failures, "Push:VapidPrivateKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -210,9 +211,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(
-      failure => failure.Contains(nameof(PushOptions.VapidPublicKey), StringComparison.Ordinal) && failure.Contains(nameof(PushOptions.VapidPrivateKey), StringComparison.Ordinal),
-      "a failure naming both halves");
+    ShouldNameInFull(failures, "Push:VapidPublicKey", alsoNaming: "Push:VapidPrivateKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -225,7 +224,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.MessageKey), StringComparison.Ordinal), "a failure naming MessageKey");
+    ShouldNameInFull(failures, "Push:MessageKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -239,8 +238,7 @@ public sealed class PushOptionsTests {
   [Arguments("app.example.net")] // no scheme: binds as a relative address
   [Arguments("mailto:push@example.net")] // a contact the push services accept, but not the app's address
   public void A_subject_that_is_not_an_https_origin_fails_validation(string subject) =>
-    Failures(Settings(subject: new Uri(subject, UriKind.RelativeOrAbsolute)))
-      .ShouldContain(failure => failure.Contains(nameof(PushOptions.Subject), StringComparison.Ordinal), "a failure naming Subject");
+    ShouldNameInFull(Failures(Settings(subject: new Uri(subject, UriKind.RelativeOrAbsolute))), "Push:Subject");
 
   /// <param name="requestTimeout">Shorter than 1 second or longer than 60 (D13), as a TimeSpan setting reads.</param>
   [Test]
@@ -281,9 +279,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(Settings(services: services));
 
-    failures.ShouldContain(
-      failure => failure.Contains(nameof(PushOptions.Services), StringComparison.Ordinal) && failure.Contains(entry, StringComparison.Ordinal),
-      "a failure naming the Services setting and the entry");
+    ShouldNameInFull(failures, $"Push:Services:{entry}");
     failures.ShouldAllBe(failure => !QuotesAny(failure, pattern), "no failure message may contain the entry's value");
     string[] validEntries = [.. _services.Keys];
     failures.ShouldAllBe(failure => !QuotesAny(failure, validEntries), "no failure names an entry that is valid");
@@ -442,6 +438,26 @@ public sealed class PushOptionsTests {
   }
 
   private static string RandomBase64Url(int bytes) => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(bytes));
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>Push:Subject is not …</c>), where a failure of the settings' own rules puts ": " after the name, so only the
+  /// validator's failure passes; a second setting the same failure is about is named in full further on. No failure may
+  /// name a setting by the settings class's name instead (<c>PushOptions.Subject</c>), which the operator cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The full name that opens the failure: the section, ":" and the setting (and ":" and the entry, for a known push service).</param>
+  /// <param name="alsoNaming">The full name of a second setting the same failure names, or <see langword="null"/>.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting, string? alsoNaming = null) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal)
+        && (alsoNaming == null || failure.Contains(alsoNaming, StringComparison.Ordinal)),
+      $"a failure opening with \"{setting} \"{(alsoNaming is null ? "" : $" that names \"{alsoNaming}\" too")}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(PushOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by the settings class's name");
+  }
 
   /// <summary>Whether <paramref name="message"/> contains any of <paramref name="values"/>.</summary>
   private static bool QuotesAny(string message, params string[] values) =>
