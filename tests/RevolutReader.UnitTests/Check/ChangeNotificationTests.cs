@@ -63,6 +63,21 @@ public sealed class ChangeNotificationTests {
   public void The_text_is_the_new_balance_with_its_koruna_value(string lastNotified, string lastSeen, string text) =>
     ChangeNotification.For(Balances(lastSeen, lastNotified)).Text.ShouldBe(text);
 
+  /// <summary>
+  /// The notification carries last seen as its balance, whole: its amount, its own read time and its own rate (D4, D14),
+  /// never last notified's, which was read an hour earlier at another rate.
+  /// </summary>
+  /// <param name="lastNotified">Last notified's amount, in euros.</param>
+  /// <param name="lastSeen">Last seen's amount, in euros.</param>
+  [Test]
+  [Arguments("49.00", "45.20")] // a fall
+  [Arguments("45.20", "145.20")] // a rise
+  public void A_checks_notification_carries_last_seen_as_its_balance_with_its_own_read_time_and_rate(string lastNotified, string lastSeen) {
+    CheckedBalances balances = Balances(lastSeen, lastNotified);
+
+    ChangeNotification.For(balances).Balance.ShouldBe(new PushBalance(balances.LastSeen.Amount, balances.LastSeen.ReadAt, balances.LastSeen.CzkPerEur));
+  }
+
   [Test]
   public void The_notification_opens_the_apps_start_page() =>
     ChangeNotification.For(Balances(lastSeen: "45.20", lastNotified: "49.00")).Page.ShouldBe("/");
