@@ -89,6 +89,28 @@ public sealed class ChangeNotifierTests {
   /// tablet reached, Eva with no device. The one <c>ChangeSent</c> line, at Information, counts the three accounts and sums
   /// their devices: two reached, one failed, one removed.
   /// </summary>
+  /// <summary>
+  /// Lucie's address is on the allowlist twice, once in another letter case, with Petr's between (review finding 7 on PR
+  /// #88): the allowlist compares addresses ignoring case, so it is one account, and the change reaches each of its devices
+  /// once (spec account-check, "Every allowed account with a registered device gets the notification": one notification
+  /// per device). Lucie's one phone is handed exactly one push, and the one <c>ChangeSent</c> line counts the two distinct
+  /// accounts.
+  /// </summary>
+  [Test]
+  public async Task An_account_listed_twice_on_the_allowlist_in_another_letter_case_gets_the_change_once_per_device() {
+    PushDevice luciesPhone = Device(LUCIE);
+    StubPushDelivery delivery = new();
+    CapturedLog log = new();
+    ChangeNotifier notifier = await Notifier($"{LUCIE}, {PETR}, {LUCIE.ToUpperInvariant()}", delivery, log, luciesPhone);
+
+    await notifier.Send(_change, CancellationToken.None);
+
+    LogEntry sent = log.Entries.Where(static line => line.EventName == "ChangeSent").ShouldHaveSingleItem("one line of what the change reached");
+    delivery.HandedOver.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.Select(static handedOver => handedOver.Device).ShouldBe([luciesPhone], "one push to Lucie's phone, however often her address is listed"),
+      () => sent.NamedValues().ShouldBe(["accounts=2", "delivered=1", "failed=0", "removed=0"], StringComparer.OrdinalIgnoreCase, ignoreOrder: true, "two distinct accounts; Lucie's phone reached once"));
+  }
+
   [Test]
   public async Task ChangeSent_sums_the_accounts_and_the_devices_reached_failed_and_removed() {
     PushDevice luciesPhone = Device(LUCIE);
