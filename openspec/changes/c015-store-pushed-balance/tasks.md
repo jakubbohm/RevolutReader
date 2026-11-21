@@ -48,7 +48,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 6. [close] Slice 2 — A push with a balance read earlier than the kept one leaves it as it was
 
-- [ ] 6.1 The scenario's test passes and is proven by a mutation: with the `readAt` comparison removed, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 6.1 The scenario's test passes and is proven by a mutation: with the `readAt` comparison removed, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 7. [unit] Slice 3 — Only a kept balance is replaced
 
