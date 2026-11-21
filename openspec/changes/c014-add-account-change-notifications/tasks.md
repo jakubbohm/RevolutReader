@@ -219,9 +219,9 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 38. [unit] Slice 15 — The app's lifetime
 
-- [ ] 38.1 A check runs on the app's stopping token, never a caller's: a caller that stops waiting leaves it running
-- [ ] 38.2 A joined caller that stops waiting leaves the check and its other callers as they were
-- [ ] 38.3 The app stopping cancels the running check
+- [x] 38.1 A check runs on the app's stopping token, never a caller's: a caller that stops waiting leaves it running
+- [x] 38.2 A joined caller that stops waiting leaves the check and its other callers as they were
+- [x] 38.3 The app stopping cancels the running check
 
 ## 39. [wiring] Slice 15 — A caller that leaves
 

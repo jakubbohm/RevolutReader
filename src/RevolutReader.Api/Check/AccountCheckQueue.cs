@@ -13,8 +13,9 @@ namespace RevolutReader.Api.Check;
 /// after its store step (D10 item 3), and <see cref="CallersWaiting"/> read them under the same lock.</item>
 /// <item>Each check runs in its own DI scope (<see cref="IAccountCheck"/>) on
 /// <see cref="IHostApplicationLifetime.ApplicationStopping"/>, never a caller's token (D8), so a caller that leaves never
-/// stops it. A failed check is logged here (<see cref="CheckLog.CheckFailed"/>), since its callers may have left (D15),
-/// its callers get its exception, and it never blocks the next.</item>
+/// stops it; only the app's stop cancels it, and its callers get that cancellation. A failed check is logged here
+/// (<see cref="CheckLog.CheckFailed"/>), since its callers may have left (D15), its callers get its exception, and it never
+/// blocks the next; a check the app's stop cancels is not logged as failed.</item>
 /// </list>
 /// </summary>
 public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicationLifetime lifetime, ILogger<AccountCheckQueue> logger) {
@@ -97,7 +98,8 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
 
   /// <summary>
   /// One check for <paramref name="user"/>, in a DI scope of its own, on <paramref name="stopping"/>: its result, or its
-  /// exception, logged once here before it reaches any caller.
+  /// exception, logged once here before it reaches any caller. A check the app's stop cancels is no failed check: its
+  /// cancellation reaches its callers unlogged, since a stop is the app ending, on every deploy's swap and scale to zero.
   /// </summary>
   private async Task<BankResult<CheckOutcome>> Run(PresentUser user, CancellationToken stopping) {
     await using AsyncServiceScope scope = scopes.CreateAsyncScope();
@@ -106,7 +108,7 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
     try {
       return await check.Run(user, AnotherCheckWaits, stopping);
     }
-    catch (Exception exception) {
+    catch (Exception exception) when (exception is not OperationCanceledException || !stopping.IsCancellationRequested) {
       CheckLog.CheckFailed(logger, exception);
 
       throw;
