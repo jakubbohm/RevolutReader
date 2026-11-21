@@ -41,21 +41,21 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 2. [unit] Slice 1 — The rate value and when one is due
 
-- [ ] 2.1 The app's own rate is 24.47 CZK per euro for 2026-11-20 (replaces `KorunaRateTests`)
-- [ ] 2.2 With nothing kept, a rate is due
+- [x] 2.1 The app's own rate is 24.47 CZK per euro for 2026-11-20 (replaces `KorunaRateTests`)
+- [x] 2.2 With nothing kept, a rate is due
 
 ## 3. [unit] Slice 1 — KorunaRates, the happy path
 
-- [ ] 3.1 With nothing kept, the CNB is asked and its rate is answered
-- [ ] 3.2 A rate the CNB answers with nothing kept is saved in the store
-- [ ] 3.3 The kept rate is read from the store once per instance, on the first call
-- [ ] 3.4 A rate kept in the store and not due is answered without asking the CNB
+- [x] 3.1 With nothing kept, the CNB is asked and its rate is answered
+- [x] 3.2 A rate the CNB answers with nothing kept is saved in the store
+- [x] 3.3 The kept rate is read from the store once per instance, on the first call
+- [x] 3.4 A rate kept in the store and not due is answered without asking the CNB
 
 ## 4. [unit] Slice 1 — The balance carries the rate
 
-- [ ] 4.1 The balance carries the rate `IKorunaRates` answers
-- [ ] 4.2 The rate is asked before the bank answers, so the two run alongside (a held bank read, the fake rates recording when it was asked)
-- [ ] 4.3 A bank failure still comes back as its case, with the rate awaited
+- [x] 4.1 The balance carries the rate `IKorunaRates` answers
+- [x] 4.2 The rate is asked before the bank answers, so the two run alongside (a held bank read, the fake rates recording when it was asked)
+- [x] 4.3 A bank failure still comes back as its case, with the rate awaited
 
 ## 5. [integration] Slice 1 — IKorunaRateStore
 
