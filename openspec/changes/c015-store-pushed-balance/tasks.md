@@ -32,8 +32,8 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 3. [wiring] Slice 1 — A shape check the service worker can load
 
-- [ ] 3.1 `balanceOf` and `Balance` moved unchanged into `src/app/balanceRecord.ts` (only the type-only schema import), re-exported by `balance.ts`, imported from there by `storedBalance.ts` (design.md D5). Verify: `balance.test.ts` and `storedBalance.test.ts` unchanged and green; `npm run typecheck`
-- [ ] 3.2 `listenForPushes` keeps the push's balance under the event's `waitUntil`, before it shows or leaves the message, in the same turn (D4). Verify: `npm run typecheck` (the service worker's project included) and `npm run build`; the built `dist/sw.js` contains no `window.location`
+- [x] 3.1 `balanceOf` and `Balance` moved unchanged into `src/app/balanceRecord.ts` (only the type-only schema import), re-exported by `balance.ts`, imported from there by `storedBalance.ts` (design.md D5). Verify: `balance.test.ts` and `storedBalance.test.ts` unchanged and green; `npm run typecheck`
+- [x] 3.2 `listenForPushes` keeps the push's balance under the event's `waitUntil`, before it shows or leaves the message, in the same turn (D4). Verify: `npm run typecheck` (the service worker's project included) and `npm run build`; the built `dist/sw.js` contains no `window.location`
 
 ## 4. [close] Slice 1 — A push with a balance replaces the balance the phone keeps
 
