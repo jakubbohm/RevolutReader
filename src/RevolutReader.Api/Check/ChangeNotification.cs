@@ -27,7 +27,8 @@ public static class ChangeNotification {
   private const string START_PAGE = "/";
 
   /// <summary>
-  /// Title "Odešlo …"/"Přišlo …" (the size of last seen − last notified), text "Zůstatek … (≈ … Kč)" of last seen, page "/".
+  /// Title "Odešlo …"/"Přišlo …" (the size of last seen − last notified), text "Zůstatek … (≈ … Kč)" of last seen, page "/",
+  /// and last seen as the push's balance, whole: its amount, its own read time and its own rate (D4, D14).
   /// Throws <see cref="ArgumentException"/> when the two do not differ (a caller's bug).
   /// </summary>
   public static PushMessage For(CheckedBalances balances) {
@@ -42,6 +43,6 @@ public static class ChangeNotification {
     string title = (change < 0 ? MONEY_OUT : MONEY_IN) + CzechAmounts.Euros(Math.Abs(change));
     string text = BALANCE + CzechAmounts.Euros(lastSeen.Amount) + ABOUT + CzechAmounts.WholeKoruna(lastSeen.Amount, lastSeen.CzkPerEur) + CLOSING_BRACKET;
 
-    return new PushMessage(title, text, START_PAGE);
+    return new PushMessage(title, text, START_PAGE, new PushBalance(lastSeen.Amount, lastSeen.ReadAt, lastSeen.CzkPerEur));
   }
 }

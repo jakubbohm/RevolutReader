@@ -151,19 +151,19 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 24. [unit] Slice 9 — The balance in the push
 
-- [ ] 24.1 A message with a balance becomes JSON with `"mutable": true` at the top level and `notification.data.balance` holding `amount`, `readAt` and `czkPerEur`
-- [ ] 24.2 The push's balance is written exactly as `GET /api/balance` writes the same values (the same text)
-- [ ] 24.3 A check's notification carries last seen as its balance, with its own read time and rate
-- [ ] 24.4 A message with a balance still fits the 3993 bytes, and the size check counts the two members
+- [x] 24.1 A message with a balance becomes JSON with `"mutable": true` at the top level and `notification.data.balance` holding `amount`, `readAt` and `czkPerEur`
+- [x] 24.2 The push's balance is written exactly as `GET /api/balance` writes the same values (the same text)
+- [x] 24.3 A check's notification carries last seen as its balance, with its own read time and rate
+- [x] 24.4 A message with a balance still fits the 3993 bytes, and the size check counts the two members
 
 ## 25. [wiring] Slice 9 — `PushMessage` gains the balance
 
-- [ ] 25.1 `PushBalance` and `PushMessage.Balance`; `PushMessages.DeclarativeJson` writes the two members only with a balance (design.md D14). Verify: group 24 green; c011's message tests unchanged and green
-- [ ] 25.2 Docs: ADR-0010 § Notes (the check's notifications: `mutable`, `data.balance`, every allowed account, through the same sender; design.md D14, D18); ADR-0007 § Notes (the push carries the record's three fields; C9b writes it). Verify: each names design.md D14
+- [x] 25.1 `PushBalance` and `PushMessage.Balance`; `PushMessages.DeclarativeJson` writes the two members only with a balance (design.md D14). Verify: group 24 green; c011's message tests unchanged and green
+- [x] 25.2 Docs: ADR-0010 § Notes (the check's notifications: `mutable`, `data.balance`, every allowed account, through the same sender; design.md D14, D18); ADR-0007 § Notes (the push carries the record's three fields; C9b writes it). Verify: each names design.md D14
 
 ## 26. [close] Slice 9 — The notification carries the new balance for the phone to keep
 
-- [ ] 26.1 The scenario's test passes. Verify: green, including account-check / The notification carries the new balance for the phone to keep
+- [x] 26.1 The scenario's test passes. Verify: green, including account-check / The notification carries the new balance for the phone to keep
 
 ## 27. [unit] Slice 10 — The owner's message
 
