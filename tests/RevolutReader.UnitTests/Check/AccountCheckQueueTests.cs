@@ -60,6 +60,35 @@ public sealed class AccountCheckQueueTests {
       () => line.Exception.ShouldBeSameAs(failure, "the line carries the check's exception"));
   }
 
+  /// <summary>
+  /// A check that fails before it runs (review finding 6 on PR #88): its scope cannot build the check, as when one of the
+  /// check's dependencies throws while it is resolved. That is a failure of the check like any other (D11, D15): it is logged
+  /// once, by the queue (<c>CheckFailed</c> at Error, carrying the exception), since its callers may have left, and its
+  /// caller gets the exception itself. A call after it starts its own check all the same, and gets its result.
+  /// </summary>
+  [Test]
+  public async Task A_check_whose_services_fail_to_resolve_is_logged_once_and_its_callers_get_the_exception() {
+    CapturedLog log = new();
+    InvalidOperationException failure = new("A made-up failure building the check's services, 7d3b.");
+    using QueueUnderTest app = new(log, firstResolutionFails: failure);
+
+    Task<BankResult<CheckOutcome>> call = app.Queue.Check(_phone);
+    InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => call.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS)));
+    Task<BankResult<CheckOutcome>> next = app.Queue.Check(_anotherPhone);
+    GatedRun run = await app.Check.WaitForRun(1);
+    run.EndWith(new CheckOutcome(Changed: false));
+    BankResult<CheckOutcome> nextAnswer = await next;
+
+    IReadOnlyList<LogEntry> failed = [.. log.Entries.Where(static line => line.EventName == "CheckFailed")];
+    thrown.ShouldSatisfyAllConditions(
+      () => thrown.ShouldBeSameAs(failure, "the caller gets the failure itself"),
+      () => failed.Count.ShouldBe(1, "the failed check, logged once, by the queue"),
+      () => failed.ShouldAllBe(static line => line.Level == LogLevel.Error),
+      () => failed.ShouldAllBe(line => ReferenceEquals(line.Exception, failure), "the line carries the failure"),
+      () => run.User.ShouldBe(_anotherPhone, "the next call's own check starts"),
+      () => nextAnswer.Value.ShouldBe(new CheckOutcome(Changed: false), "and the next call gets its result"));
+  }
+
   [Test]
   public async Task A_check_that_threw_never_blocks_the_next_call() {
     using QueueUnderTest app = new();
@@ -371,16 +400,21 @@ public sealed class AccountCheckQueueTests {
 
   /// <summary>
   /// The queue under test, on its own service provider, which validates scopes: <see cref="Check"/> is the
-  /// <see cref="IAccountCheck"/> every scope resolves; the app keeps running (<see cref="RunningApp"/>); the queue's lines go
-  /// to the given log, or nowhere.
+  /// <see cref="IAccountCheck"/> every scope resolves, except that the first resolution throws the given
+  /// <c>firstResolutionFails</c>, when one is given (as a check whose dependency cannot be built); the app keeps
+  /// running (<see cref="RunningApp"/>); the queue's lines go to the given log, or nowhere.
   /// </summary>
   private sealed class QueueUnderTest : IDisposable {
     private readonly ServiceProvider _services;
     private readonly RunningApp _app = new();
 
-    public QueueUnderTest(CapturedLog? log = null) {
+    /// <summary>How many times a scope has resolved the check.</summary>
+    private int _resolutions;
+
+    public QueueUnderTest(CapturedLog? log = null, Exception? firstResolutionFails = null) {
       ServiceCollection services = new();
-      services.AddScoped<IAccountCheck>(_ => Check);
+      services.AddScoped<IAccountCheck>(_ =>
+        Interlocked.Increment(ref _resolutions) == 1 && firstResolutionFails is not null ? throw firstResolutionFails : Check);
       _services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 
       Queue = new AccountCheckQueue(
