@@ -81,9 +81,9 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 13. [unit] Slice 6 — A failing store
 
-- [ ] 13.1 A failing store still lets the service worker show the message
-- [ ] 13.2 A failing store never makes the push event's work reject where the browser shows its own notification
-- [ ] 13.3 The message is shown without waiting for the balance to be written
+- [x] 13.1 A failing store still lets the service worker show the message
+- [x] 13.2 A failing store never makes the push event's work reject where the browser shows its own notification
+- [x] 13.3 The message is shown without waiting for the balance to be written
 
 ## 14. [close] Slice 6 — A push still shows its notification when the phone's storage fails
 

@@ -566,6 +566,34 @@ export function phoneStorageFails(): () => void {
   };
 }
 
+/**
+ * The phone's storage is busy until the returned function frees it (c015 design.md D4: a write that has not finished):
+ * a transaction of another's holds the balance's store, so a write the app starts there waits, as IndexedDB queues a
+ * `readwrite` transaction behind one running on the same store, and goes through once the store is free. Free it in a
+ * `finally`, and await that: it resolves once the hold has ended. Call it with nothing of the app's storage under way.
+ */
+export async function phoneStorageBusy(): Promise<() => Promise<void>> {
+  const database = await openPhoneDatabase();
+  const transaction = database.transaction(PHONE_STORE, "readwrite");
+  const store = transaction.objectStore(PHONE_STORE);
+  let busy = true;
+  // A transaction stays open only while it has a request under way: one more each time the last one answers.
+  const keepBusy = (): void => {
+    if (busy) store.get(PHONE_KEY).onsuccess = keepBusy;
+  };
+  keepBusy();
+  const ended = completed(transaction);
+
+  return async () => {
+    busy = false;
+    try {
+      await ended;
+    } finally {
+      database.close();
+    }
+  };
+}
+
 /** The balance the phone keeps, as stored; `null` when it keeps none. */
 export async function keptBalance(): Promise<KeptBalance | null> {
   const kept = await inPhoneStore<unknown>("readonly", (store) =>

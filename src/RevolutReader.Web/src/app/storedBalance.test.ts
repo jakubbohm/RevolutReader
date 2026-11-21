@@ -274,6 +274,23 @@ test("A balance forgotten when a login ended is not written back by a later push
   expect(await loadStoredBalance()).toBeNull();
 });
 
+// Never rejects (design.md D3, D4): the push event's work is `keepPushedBalance`'s promise, so on every failing store
+// C7a's table builds it resolves, neither rejecting nor throwing at once.
+test.each(failingStores)(
+  "A failing store never makes the push event's work reject where the browser shows its own notification: keeping a pushed balance resolves, $label",
+  async ({ module }) => {
+    // The phone keeps a balance read earlier, so on a working store the push would replace it.
+    await phoneKeeps(EARLIER);
+    const stored = await module();
+    const restore = phoneStorageFails();
+    try {
+      await expect(stored.keepPushedBalance(LATER)).resolves.toBeUndefined();
+    } finally {
+      restore();
+    }
+  },
+);
+
 // A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there
 // (`emptyThePhone`), so here the storage starts from a phone with no database at all, and the app's own storage code
 // creates it, as on a first launch. A fresh copy of the module (and of idb-keyval) opens against the new phone.

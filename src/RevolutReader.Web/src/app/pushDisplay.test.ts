@@ -1,5 +1,11 @@
-import { expect, test } from "vitest";
-import { keptBalance, phoneKeeps } from "../test/server";
+import { expect, test, vi } from "vitest";
+import { realTurn } from "../test/clock";
+import {
+  keptBalance,
+  phoneKeeps,
+  phoneStorageBusy,
+  phoneStorageFails,
+} from "../test/server";
 import {
   installServiceWorkerStandIn,
   ORIGIN,
@@ -623,4 +629,113 @@ test("A push with no data at all, or of text that is not JSON, carries no balanc
   for (const [name, event] of cases) {
     expect(pushedBalance(event), name).toBeNull();
   }
+});
+
+// ---- c015: a failing store (group 13; design.md D3: the write never rejects; D4: it never stops the notification) ----
+
+/**
+ * The service worker's storage failing (`phoneStorageFails`) as C7a's tests break it: a store the worker used before,
+ * whose connection idb-keyval keeps open, or one it never opened, where opening fails at once (idb-keyval then throws
+ * rather than rejects). Each gives the `listenForPushes` to test.
+ */
+const FAILING_STORES: {
+  label: string;
+  listen: () => Promise<typeof listenForPushes>;
+}[] = [
+  {
+    label: "a store used before, its connection open",
+    listen: async () => {
+      // An earlier push, while the store works: its write opens the connection.
+      const earlier = installServiceWorkerStandIn();
+      listenForPushes(earlier.worker);
+      await earlier.deliverPush(pushWithBalance(PUSHED));
+      return listenForPushes;
+    },
+  },
+  {
+    label: "a store never opened",
+    listen: async () => {
+      // A fresh copy of the module, its storage and idb-keyval, which have opened nothing yet.
+      vi.resetModules();
+      return (await import("./pushDisplay")).listenForPushes;
+    },
+  },
+];
+
+test.each(FAILING_STORES)(
+  "A failing store still lets the service worker show the message: $label",
+  async ({ listen }) => {
+    const listenHere = await listen();
+    // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
+    const serviceWorker = installServiceWorkerStandIn();
+    listenHere(serviceWorker.worker);
+    const restoreStorage = phoneStorageFails();
+
+    try {
+      // Resolves once the event's waitUntil work is done; fails the test if that work fails.
+      await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+    } finally {
+      restoreStorage();
+    }
+
+    expect(serviceWorker.shownNotifications()).toEqual([
+      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+    ]);
+  },
+);
+
+test.each(FAILING_STORES)(
+  "A failing store never makes the push event's work reject where the browser shows its own notification: $label",
+  async ({ listen }) => {
+    const listenHere = await listen();
+    // A browser that reads Declarative Web Push (as Safari): the balance comes from its proposed notification, and it
+    // shows that notification once the event's work has settled (design.md D4).
+    const serviceWorker = installServiceWorkerStandIn({ declarative: true });
+    listenHere(serviceWorker.worker);
+    const restoreStorage = phoneStorageFails();
+
+    try {
+      // The stand-in waits for every promise given to waitUntil, and rejects as soon as one of them rejects.
+      await expect(
+        serviceWorker.deliverPush(pushWithBalance(PUSHED)),
+      ).resolves.toBeUndefined();
+    } finally {
+      restoreStorage();
+    }
+  },
+);
+
+test("The message is shown without waiting for the balance to be written", async () => {
+  await phoneKeeps(KEPT_EARLIER);
+  // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
+  const serviceWorker = installServiceWorkerStandIn();
+  listenForPushes(serviceWorker.worker);
+  const freeStorage = await phoneStorageBusy();
+  let delivery: Promise<void> | undefined;
+  let workDone = false;
+
+  try {
+    // Not awaited: the stand-in resolves only once the event's work, the write among it, is done.
+    delivery = serviceWorker.deliverPush(pushWithBalance(PUSHED));
+    void delivery.then(
+      () => {
+        workDone = true;
+      },
+      () => {
+        workDone = true;
+      },
+    );
+    for (let turn = 0; turn < 20; turn += 1) await realTurn();
+
+    expect(workDone, "the write is still waiting for the storage").toBe(false);
+    expect(serviceWorker.shownNotifications()).toEqual([
+      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+    ]);
+  } finally {
+    await freeStorage();
+  }
+
+  // Once the storage is free, the write goes through: the worker's work was waiting for it.
+  await delivery;
+  expect(await keptBalance(), "the balance the phone keeps").toEqual(PUSHED);
 });
