@@ -9,6 +9,7 @@ import {
 import type { Balance } from "./balance";
 import {
   forgetStoredBalance,
+  keepPushedBalance,
   loadStoredBalance,
   storeBalance,
 } from "./storedBalance";
@@ -87,7 +88,12 @@ const failingStores: {
     label: "a store used before, its connection open",
     module: async () => {
       await loadStoredBalance();
-      return { loadStoredBalance, storeBalance, forgetStoredBalance };
+      return {
+        loadStoredBalance,
+        storeBalance,
+        forgetStoredBalance,
+        keepPushedBalance,
+      };
     },
   },
   {
@@ -125,6 +131,165 @@ test("After forgetting, loading gives none", async () => {
   expect(await loadStoredBalance()).toBeNull();
   expect(await keptBalance(), "nothing kept where D4 names it").toBeNull();
 });
+
+// ---- c015: a balance a push brought (design.md D3) ----
+
+test("A pushed balance replaces the one the phone keeps, with only its three fields", async () => {
+  // The phone keeps a balance read earlier than the pushed one.
+  await phoneKeeps(EARLIER);
+  // A balance with a field more than the three, which the phone must not keep.
+  const pushed = { ...LATER, currency: "EUR" };
+
+  await keepPushedBalance(pushed);
+
+  expect(await keptBalance(), "kept where D4 names it").toEqual(LATER);
+  expect(await loadStoredBalance()).toEqual(LATER);
+});
+
+/** A balance of `amount` EUR read at `readAt` (as written, offset and all), at C13's rate. Made up. */
+function readAtTime(amount: number, readAt: string): Balance {
+  return { amount, readAt, czkPerEur: 24.3 };
+}
+
+test("A pushed balance read earlier than the kept one leaves the kept one", async () => {
+  const cases: [string, { kept: Balance; pushed: Balance }][] = [
+    [
+      "two hours earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T06:58:00+00:00"),
+      },
+    ],
+    [
+      "a millisecond earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T08:57:59.999+00:00"),
+      },
+    ],
+  ];
+
+  for (const [name, { kept, pushed }] of cases) {
+    await phoneKeeps(kept);
+
+    await keepPushedBalance(pushed);
+
+    expect(await keptBalance(), name).toEqual(kept);
+  }
+});
+
+test("A pushed balance read at the same moment as the kept one replaces it", async () => {
+  // Another amount at the same read time, so the test can see which one the phone keeps.
+  await phoneKeeps(readAtTime(286.4, "2026-11-10T08:58:00+00:00"));
+  const pushed = readAtTime(301.9, "2026-11-10T08:58:00+00:00");
+
+  await keepPushedBalance(pushed);
+
+  expect(await keptBalance()).toEqual(pushed);
+});
+
+test("Read times are compared as moments, whatever their offsets", async () => {
+  // Which balance the phone keeps afterwards: the pushed one (replaced) or the one it kept (left).
+  const cases: [
+    string,
+    { kept: Balance; pushed: Balance; keeps: "pushed" | "kept" },
+  ][] = [
+    [
+      // 08:58 UTC both: the same moment, so it replaces (as at the same moment with one offset).
+      "the same moment, two offsets",
+      {
+        kept: readAtTime(286.4, "2026-11-10T09:58:00+01:00"),
+        pushed: readAtTime(301.9, "2026-11-10T08:58:00+00:00"),
+        keeps: "pushed",
+      },
+    ],
+    [
+      // 08:58 UTC pushed against 08:30 UTC kept: read later, though its text sorts before the kept one's.
+      "read later, its text sorting earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T09:30:00+01:00"),
+        pushed: readAtTime(301.9, "2026-11-10T08:58:00+00:00"),
+        keeps: "pushed",
+      },
+    ],
+    [
+      // 08:30 UTC pushed against 08:58 UTC kept: read earlier, though its text sorts after the kept one's.
+      "read earlier, its text sorting later",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T09:30:00+01:00"),
+        keeps: "kept",
+      },
+    ],
+  ];
+
+  for (const [name, { kept, pushed, keeps }] of cases) {
+    await phoneKeeps(kept);
+
+    await keepPushedBalance(pushed);
+
+    expect(await keptBalance(), name).toEqual(
+      keeps === "pushed" ? pushed : kept,
+    );
+  }
+});
+
+// A push only replaces, never creates (design.md D3, D7 gap 1): each pushed balance below is read later than any read
+// time the phone holds, so only that rule keeps it out.
+
+/** A pushed balance read later than every read time in these tests' records. Made up. */
+const PUSHED_LATEST = readAtTime(301.9, "2026-11-10T09:00:00+00:00");
+
+test("A pushed balance is not stored on a phone that keeps none", async () => {
+  // A second push finds what the first left behind, which must read as nothing kept too (design.md D3).
+  for (const push of ["the first push", "a second push"]) {
+    await keepPushedBalance(PUSHED_LATEST);
+
+    expect(await keptBalance(), push).toBeNull();
+    expect(await loadStoredBalance(), push).toBeNull();
+  }
+});
+
+test.each(wrongShapes)(
+  "A pushed balance is not stored over a kept record of the wrong shape: $label",
+  async ({ record }) => {
+    await phoneKeepsRecord(record);
+
+    await keepPushedBalance(PUSHED_LATEST);
+
+    expect(await keptBalance(), "the record, exactly as it was").toEqual(
+      record,
+    );
+  },
+);
+
+test("A balance forgotten when a login ended is not written back by a later push", async () => {
+  // The page's read keeps a balance; the login ends and the app forgets it; then a push arrives (design.md D7 gap 1).
+  await storeBalance(EARLIER);
+  await forgetStoredBalance();
+
+  await keepPushedBalance(LATER);
+
+  expect(await keptBalance()).toBeNull();
+  expect(await loadStoredBalance()).toBeNull();
+});
+
+// Never rejects (design.md D3, D4): the push event's work is `keepPushedBalance`'s promise, so on every failing store
+// C7a's table builds it resolves, neither rejecting nor throwing at once.
+test.each(failingStores)(
+  "A failing store never makes the push event's work reject where the browser shows its own notification: keeping a pushed balance resolves, $label",
+  async ({ module }) => {
+    // The phone keeps a balance read earlier, so on a working store the push would replace it.
+    await phoneKeeps(EARLIER);
+    const stored = await module();
+    const restore = phoneStorageFails();
+    try {
+      await expect(stored.keepPushedBalance(LATER)).resolves.toBeUndefined();
+    } finally {
+      restore();
+    }
+  },
+);
 
 // A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there
 // (`emptyThePhone`), so here the storage starts from a phone with no database at all, and the app's own storage code
