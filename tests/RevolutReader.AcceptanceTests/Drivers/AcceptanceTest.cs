@@ -110,8 +110,12 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// </summary>
   protected ArrivalDriver ArrivalDriver => _arrivalDriver ??= new(Browser, FakeMicrosoft.Clock, LogEvents);
 
-  /// <summary>The app copy's log lines that name their event, with their structured values; registered in its container before it starts.</summary>
-  private CapturedLogEvents LogEvents { get; } = new();
+  /// <summary>
+  /// The app copy's log lines that name their event, with their categories and structured values; registered in its
+  /// container before it starts. Open to the guards in <c>Conventions/</c> that read the app copy's own lines
+  /// (<c>KorunaRateTelemetryTests</c>, c017 design.md D12). Scenarios read them through a DSL only (<see cref="Arrivals"/>).
+  /// </summary>
+  protected CapturedLogEvents LogEvents { get; } = new();
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();

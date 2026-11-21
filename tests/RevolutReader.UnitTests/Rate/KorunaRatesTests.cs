@@ -1,3 +1,4 @@
+using Azure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -13,15 +14,20 @@ namespace RevolutReader.UnitTests.Rate;
 /// is asked again: a later day's rate replaces the kept one and is logged as kept; after a rate for today is kept, the CNB
 /// is not asked again before the next weekday's 08:00 UTC; a rate for the kept day changes nothing, and every call asks
 /// until a later day's comes; callers at the same time share one ask, which a leaving caller leaves to the others and which
-/// is not shared once it has ended; an earlier day's rate is answered as the kept one. A wait that must end by itself is
-/// bounded on the real clock (<see cref="WITHIN_SECONDS"/>), never a pause. The CNB is a hand-written fake of the port
-/// (<see cref="FakeCnbRates"/>), the kept rate an in-memory store (<see cref="InMemoryKorunaRateStore"/>), the clock a
-/// <see cref="FakeTimeProvider"/>, the log a hand-written logger (<see cref="CapturedLog"/>). The rates and days are the
-/// spec's: Friday 2026-11-20's and Monday 2026-11-23's.
+/// is not shared once it has ended; an earlier day's rate is answered as the kept one. When something fails (D5): a failed
+/// ask answers the kept rate and is logged with its kind; a store that fails to read counts as nothing kept and is read
+/// again; one that fails to save still answers and holds the new rate; with nothing kept and a failed ask, the app's own
+/// rate is answered and never saved. A wait that must end by itself is bounded on the real clock
+/// (<see cref="WITHIN_SECONDS"/>), never a pause. The CNB is a hand-written fake of the port (<see cref="FakeCnbRates"/>),
+/// the kept rate an in-memory store (<see cref="InMemoryKorunaRateStore"/>, behind <see cref="UnreliableStore"/> when it
+/// fails), the clock a <see cref="FakeTimeProvider"/>, the log a hand-written logger (<see cref="CapturedLog"/>). The rates
+/// and days are the spec's: Friday 2026-11-20's and Monday 2026-11-23's.
 /// </summary>
 public sealed class KorunaRatesTests {
-  /// <summary>The event of the line a newly kept rate writes (D7).</summary>
+  /// <summary>The events of the service's lines (D7): a newly kept rate, a failed ask, a store that failed.</summary>
   private const string KORUNA_RATE_KEPT = "KorunaRateKept";
+  private const string KORUNA_RATE_ASK_FAILED = "KorunaRateAskFailed";
+  private const string KORUNA_RATE_STORE_FAILED = "KorunaRateStoreFailed";
 
   /// <summary>How long a test waits on the real clock for a call that must end by itself: far longer than the service takes.</summary>
   private const int WITHIN_SECONDS = 10;
@@ -284,6 +290,136 @@ public sealed class KorunaRatesTests {
       () => log.Entries.ShouldBeEmpty("nothing logged"));
   }
 
+  // A failed ask, a failing store (D5, D6, D7)
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB's ask failing in each of D6's ways: the kept rate is answered, the CNB is
+  /// asked once (no retry), and one <c>KorunaRateAskFailed</c> line at Warning holds the kind, and the status code for a
+  /// status (none otherwise).
+  /// </summary>
+  /// <param name="kind">How the ask failed.</param>
+  /// <param name="statusCode">The status code, for <see cref="CnbFailure.Status"/> only.</param>
+  [Test]
+  [Arguments(CnbFailure.NoAnswerInTime, null)]
+  [Arguments(CnbFailure.Unreachable, null)]
+  [Arguments(CnbFailure.Status, 500)]
+  [Arguments(CnbFailure.Unreadable, null)]
+  public async Task A_failed_ask_answers_the_kept_rate_and_logs_its_kind_once_with_the_status_code_for_a_status(CnbFailure kind, int? statusCode) {
+    FakeCnbRates cnb = new(new CnbFailed(kind, statusCode));
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, await StoreKeeping(_fridays), new FakeTimeProvider(_mondayMorning), log);
+
+    KorunaRate rate = await rates.Current(CancellationToken.None);
+
+    IReadOnlyList<LogEntry> failed = [.. log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_ASK_FAILED)];
+    object?[] expectedValues = statusCode is null ? [kind] : [kind, statusCode];
+    rate.ShouldSatisfyAllConditions(
+      () => rate.ShouldBe(_fridays, "the kept rate"),
+      () => cnb.Calls.ShouldBe(1, "one ask, not retried"),
+      () => failed.ShouldHaveSingleItem("one KorunaRateAskFailed line").Level.ShouldBe(LogLevel.Warning),
+      () => failed.ShouldHaveSingleItem("one KorunaRateAskFailed line").OwnValues().Where(static value => value is not null)
+        .ShouldBe(expectedValues, ignoreOrder: true, "the kind, and the status code for a status"));
+  }
+
+  /// <summary>
+  /// Monday's rate in the store, Tuesday 07:00 UTC, so a kept Monday's rate would not be due; the store's first read fails:
+  /// the call goes on as with nothing kept, asks the CNB and answers its rate, and one <c>KorunaRateStoreFailed</c> line at
+  /// Warning carries the read's failure. The next call reads the store again, and answers the kept rate without asking.
+  /// </summary>
+  /// <param name="failure">The read's failure: a row the store cannot read (§ Error model), or the storage's own failure.</param>
+  [Test]
+  [Arguments("a row it cannot read")]
+  [Arguments("the storage's own failure")]
+  public async Task A_store_that_fails_to_read_is_treated_as_nothing_kept_logged_and_read_again_by_the_next_call(string failure) {
+    FakeCnbRates cnb = new(_mondays);
+    UnreliableStore store = new(await StoreKeeping(_mondays), StoreFailure(failure));
+    store.FailTheNextRead();
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(new DateTimeOffset(2026, 11, 24, 7, 0, 0, TimeSpan.Zero)), log);
+
+    KorunaRate first = await rates.Current(CancellationToken.None);
+    int asksByTheFirstCall = cnb.Calls;
+    KorunaRate next = await rates.Current(CancellationToken.None);
+
+    IReadOnlyList<LogEntry> storeFailed = [.. log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_STORE_FAILED)];
+    first.ShouldSatisfyAllConditions(
+      () => first.ShouldBe(_mondays, "the first call's rate, the CNB's"),
+      () => asksByTheFirstCall.ShouldBe(1, "the first call asks the CNB, as with nothing kept"),
+      () => storeFailed.ShouldHaveSingleItem("one KorunaRateStoreFailed line").Level.ShouldBe(LogLevel.Warning),
+      () => storeFailed.ShouldHaveSingleItem("one KorunaRateStoreFailed line").Exception.ShouldBeSameAs(store.Failure, "the read's failure"),
+      () => store.ReadsTried.ShouldBe(2, "the next call reads the store again"),
+      () => next.ShouldBe(_mondays, "the next call's rate, the kept one"),
+      () => cnb.Calls.ShouldBe(1, "the next call does not ask: Monday's rate is not due before Tuesday's 08:00 UTC"));
+  }
+
+  /// <summary>
+  /// Friday's rate kept, Monday 15:00 UTC, the CNB answering Monday's, and every save failing: the call still answers
+  /// Monday's, holds it, so the next call answers it without asking, and one <c>KorunaRateStoreFailed</c> line at Warning
+  /// carries the save's failure. The store keeps Friday's, as it could not be written.
+  /// </summary>
+  /// <param name="failure">The save's failure: one the store reports itself (§ Error model), or the storage's own failure.</param>
+  [Test]
+  [Arguments("a row it cannot read")]
+  [Arguments("the storage's own failure")]
+  public async Task A_store_that_fails_to_save_still_answers_the_new_rate_holds_it_and_logs_it(string failure) {
+    FakeCnbRates cnb = new(_mondays);
+    InMemoryKorunaRateStore kept = await StoreKeeping(_fridays);
+    UnreliableStore store = new(kept, StoreFailure(failure)) { SavesFail = true };
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_mondayAfternoon), log);
+
+    KorunaRate first = await rates.Current(CancellationToken.None);
+    KorunaRate next = await rates.Current(CancellationToken.None);
+
+    KorunaRate? inTheStore = await kept.Read(CancellationToken.None);
+    IReadOnlyList<LogEntry> storeFailed = [.. log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_STORE_FAILED)];
+    first.ShouldSatisfyAllConditions(
+      () => first.ShouldBe(_mondays, "the new rate, answered though it could not be saved"),
+      () => next.ShouldBe(_mondays, "the new rate, held in memory"),
+      () => cnb.Calls.ShouldBe(1, "the next call does not ask: the held rate is for today"),
+      () => store.SavesTried.ShouldBe(1, "one save tried"),
+      () => inTheStore.ShouldBe(_fridays, "the store keeps what it kept"),
+      () => storeFailed.ShouldHaveSingleItem("one KorunaRateStoreFailed line").Level.ShouldBe(LogLevel.Warning),
+      () => storeFailed.ShouldHaveSingleItem("one KorunaRateStoreFailed line").Exception.ShouldBeSameAs(store.Failure, "the save's failure"));
+  }
+
+  // Nothing kept (D5)
+
+  /// <summary>
+  /// Nothing kept, Monday 09:00 UTC, the CNB answering a server error: the app's own rate is answered, nothing is saved,
+  /// and the next call asks again, and again gets the app's own rate.
+  /// </summary>
+  [Test]
+  public async Task With_nothing_kept_and_a_failed_ask_the_apps_own_rate_is_answered_and_not_saved_and_the_next_call_asks_again() {
+    FakeCnbRates cnb = new(new CnbFailed(CnbFailure.Status, 503));
+    InMemoryKorunaRateStore store = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_mondayMorning), new CapturedLog());
+
+    KorunaRate first = await rates.Current(CancellationToken.None);
+    int asksByTheFirstCall = cnb.Calls;
+    KorunaRate next = await rates.Current(CancellationToken.None);
+
+    KorunaRate? kept = await store.Read(CancellationToken.None);
+    first.ShouldSatisfyAllConditions(
+      () => first.ShouldBe(KorunaRate.AppsOwn, "the app's own rate"),
+      () => store.Saves.ShouldBe(0, "nothing saved"),
+      () => kept.ShouldBeNull("nothing kept in the store"),
+      () => asksByTheFirstCall.ShouldBe(1, "the first call asks"),
+      () => cnb.Calls.ShouldBe(2, "the next call asks again"),
+      () => next.ShouldBe(KorunaRate.AppsOwn, "the next call's rate, the app's own again"));
+  }
+
+  /// <summary>
+  /// The failure a store throws in a test: a row it cannot read, as the Table adapter reports one (§ Error model:
+  /// an <see cref="InvalidOperationException"/> naming the column); or the storage's own failure, as the Azure SDK reports
+  /// one (made up: the service unavailable).
+  /// </summary>
+  private static Exception StoreFailure(string failure) => failure switch {
+    "a row it cannot read" => new InvalidOperationException("A made-up row of the kept koruna rate's table that cannot be read: its CzkPerEur column is missing."),
+    "the storage's own failure" => new RequestFailedException(503, "A made-up storage failure: the table service is unavailable."),
+    _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+  };
+
   /// <summary>
   /// Whether <paramref name="wait"/> ends in an <see cref="OperationCanceledException"/> (or one derived from it, as
   /// <see cref="TaskCanceledException"/>); any other ending is <see langword="false"/>, and a <see cref="TimeoutException"/>
@@ -305,7 +441,7 @@ public sealed class KorunaRatesTests {
     new(cnb, store, new FakeTimeProvider(now), NullLogger<KorunaRates>.Instance);
 
   /// <summary>The service under test, asking <paramref name="cnb"/>, keeping its rate in <paramref name="store"/>, on <paramref name="clock"/>, logging to <paramref name="log"/>.</summary>
-  private static KorunaRates RatesWith(FakeCnbRates cnb, InMemoryKorunaRateStore store, FakeTimeProvider clock, CapturedLog log) =>
+  private static KorunaRates RatesWith(FakeCnbRates cnb, IKorunaRateStore store, FakeTimeProvider clock, CapturedLog log) =>
     new(cnb, store, clock, log);
 
   /// <summary>A store keeping <paramref name="rate"/>, saved before the service exists, so no read is counted yet.</summary>
@@ -335,15 +471,78 @@ public sealed class KorunaRatesTests {
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
       IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
-      LogEntry entry = new(logLevel, eventId.Name, [.. values]);
+      LogEntry entry = new(logLevel, eventId.Name, [.. values], exception);
 
       lock (_lock)
         _entries.Add(entry);
     }
   }
 
+  /// <summary>
+  /// The kept rate's store, failing as the test says, in front of the in-memory one, which keeps what it is given otherwise:
+  /// the next read fails (<see cref="FailTheNextRead"/>), or every save (<see cref="SavesFail"/>), with
+  /// <see cref="Failure"/>, as a faulted task, as the Table adapter's calls fail. Every read and save tried is counted,
+  /// failed or not. Kept apart from <see cref="InMemoryKorunaRateStore"/>, which the contract tests check as a store that
+  /// works.
+  /// </summary>
+  private sealed class UnreliableStore(InMemoryKorunaRateStore kept, Exception failure) : IKorunaRateStore {
+    private readonly Lock _lock = new();
+    private int _readsToFail;
+    private int _readsTried;
+    private int _savesTried;
+
+    /// <summary>What a failing read or save throws.</summary>
+    public Exception Failure => failure;
+
+    /// <summary>Whether every save fails; none does at first.</summary>
+    public bool SavesFail { get; init; }
+
+    /// <summary>How many reads were tried so far, failed or not.</summary>
+    public int ReadsTried {
+      get {
+        lock (_lock)
+          return _readsTried;
+      }
+    }
+
+    /// <summary>How many saves were tried so far, failed or not.</summary>
+    public int SavesTried {
+      get {
+        lock (_lock)
+          return _savesTried;
+      }
+    }
+
+    /// <summary>The next read fails; later ones read the in-memory store.</summary>
+    public void FailTheNextRead() {
+      lock (_lock)
+        _readsToFail++;
+    }
+
+    public Task<KorunaRate?> Read(CancellationToken cancellationToken) {
+      lock (_lock) {
+        _readsTried++;
+
+        if (_readsToFail > 0) {
+          _readsToFail--;
+
+          return Task.FromException<KorunaRate?>(failure);
+        }
+      }
+
+      return kept.Read(cancellationToken);
+    }
+
+    public Task Save(KorunaRate rate, CancellationToken cancellationToken) {
+      lock (_lock)
+        _savesTried++;
+
+      return SavesFail ? Task.FromException(failure) : kept.Save(rate, cancellationToken);
+    }
+  }
+
   /// <summary>One line of the service's log.</summary>
-  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values) {
+  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, Exception? Exception) {
     /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
     private const string ORIGINAL_FORMAT = "{OriginalFormat}";
 
