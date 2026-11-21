@@ -183,7 +183,7 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 ## 30. [close] Acceptance green
 
 - [x] 30.1 All 12 acceptance tests of this change pass and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` unchanged
-- [ ] 30.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP and the real CNB): the account screen opens, the transaction sheet shows "orientační kurz z" with the CNB's latest day, and the app's lines show one `KorunaRateKept` and no `KorunaRateAskFailed`. Verify: the owner sees each
+- [x] 30.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP and the real CNB): the account screen opens, the transaction sheet shows "orientační kurz z" with the CNB's latest day, and the app's lines show one `KorunaRateKept` and no `KorunaRateAskFailed`. Verify: the owner sees each
 - [x] 30.3 Docs: the software-factory lesson R-98, the divergence R-98 and the inventory's rows (the scenario calendar's weekday step, the fake CNB) of design.md D11 (R-98 follows c016's R-95 to R-97, D12). Verify: each names the decision it records
 - [x] 30.4 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (design.md D11). Verify: `CLAUDE.md`'s commands run as written
 
