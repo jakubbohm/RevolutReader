@@ -2,6 +2,7 @@ using FastEndpoints;
 using FastEndpoints.OpenApi;
 using RevolutReader.Api.Account;
 using RevolutReader.Api.Bank;
+using RevolutReader.Api.Check;
 using RevolutReader.Api.DataProtection;
 using RevolutReader.Api.Hosting;
 using RevolutReader.Api.Pages;
@@ -26,6 +27,7 @@ builder.AddTransactionStore();
 builder.AddPushDeviceStore();
 builder.Services.AddTransactions();
 builder.Services.AddPush();
+builder.Services.AddAccountCheck();
 builder.Services.AddSignIn();
 // Where the login cookie's keys live is chosen while registering services, so the composition root hands over the
 // configuration: the DataProtection section and AZURE_CLIENT_ID (c007 design.md D7).

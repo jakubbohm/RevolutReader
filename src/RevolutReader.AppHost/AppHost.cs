@@ -20,6 +20,10 @@ IResourceBuilder<ParameterResource> pushVapidPublicKey = builder.AddParameter("p
 IResourceBuilder<ParameterResource> pushVapidPrivateKey = builder.AddParameter("push-vapid-private-key", secret: true);
 IResourceBuilder<ParameterResource> pushMessageKey = builder.AddParameter("push-message-key", secret: true);
 
+// The account check's key (c014 design.md D6), in the same way (Parameters:accountcheck-key): the key the owner's iPhone
+// Shortcut sends, at least 32 random bytes in base64url without padding, a key of its own, never the message key.
+IResourceBuilder<ParameterResource> accountCheckKey = builder.AddParameter("accountcheck-key", secret: true);
+
 // The transaction store's tables (c010 design.md D11): Azurite in Docker, handed to the API as ConnectionStrings__tables.
 IResourceBuilder<AzureTableStorageResource> tables = builder.AddAzureStorage("storage")
   .RunAsEmulator()
@@ -37,7 +41,8 @@ IResourceBuilder<ProjectResource> api = builder.AddProject<Projects.RevolutReade
   .WithEnvironment("SignIn__AllowedEmails", signInAllowedEmails)
   .WithEnvironment("Push__VapidPublicKey", pushVapidPublicKey)
   .WithEnvironment("Push__VapidPrivateKey", pushVapidPrivateKey)
-  .WithEnvironment("Push__MessageKey", pushMessageKey);
+  .WithEnvironment("Push__MessageKey", pushMessageKey)
+  .WithEnvironment("AccountCheck__Key", accountCheckKey);
 
 // The frontend's Vite dev server: locally the app opens at its address, and it forwards /api to the API (c003 design.md D11).
 // Over HTTPS with the ASP.NET Core development certificate (c007 design.md D2): the sign-in's temporary cookies need

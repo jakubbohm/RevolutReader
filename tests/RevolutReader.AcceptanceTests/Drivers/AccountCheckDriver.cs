@@ -1,5 +1,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Time.Testing;
@@ -45,7 +47,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// check sends afterwards the scenario awaits itself (<see cref="PushDsl.Eventually"/>).</item>
 /// </list>
 /// Filled in by the wiring groups (tasks.md 3.4, 5.1, 10.2, 16.1, 36.1, 39.1); until then every method that calls the app
-/// or reads its services throws. The key and the clock are real now (tasks.md 1.1).
+/// or reads its services throws. The key and the clock are real now (tasks.md 1.1), and so are the wrong key's two calls
+/// (tasks.md 3.4).
 /// </summary>
 public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, FakeTimeProvider clock, IServiceProvider app, string key) {
   /// <summary>The settings section the check's key is bound to (D6).</summary>
@@ -53,6 +56,23 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
 
   /// <summary>The check key's size (D6): 32 random bytes, as the message key's.</summary>
   private const int KEY_BYTES = 32;
+
+  /// <summary>The check endpoint and its key's header (D6).</summary>
+  private const string CHECK = "/api/account/check";
+  private const string KEY_HEADER = "X-Check-Key";
+
+  /// <summary>The headers the hosting proxy and the phone send, which name the present user (C13, D7).</summary>
+  private const string X_FORWARDED_FOR = "X-Forwarded-For";
+  private const string USER_AGENT = "User-Agent";
+
+  /// <summary>An address under <c>/api</c> no endpoint serves (D6's comparison).</summary>
+  private const string UNKNOWN_API_ADDRESS = "/api/no-such-address";
+
+  /// <summary>A whole answer's body member left out of the comparison, different for every request.</summary>
+  private const string TRACE_ID = "traceId";
+
+  /// <summary>The wrong key and the phone <see cref="CheckWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
+  private (string WrongKey, UserAtDevice Phone)? _lastWrongKeyCheck;
 
   /// <summary>
   /// The app copy's clock (<see cref="FakeMicrosoft.Clock"/>), read as it is: a property may not throw
@@ -96,10 +116,22 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   public Task<CheckAnswer> CheckNamingNoBrowser(string ipAddress) => throw new NotImplementedException();
 
   /// <summary><c>POST /api/account/check</c> from <paramref name="phone"/>, with a wrong check key.</summary>
-  public Task<WholeAnswer> CheckWithAWrongKey(UserAtDevice phone) => throw new NotImplementedException();
+  public Task<WholeAnswer> CheckWithAWrongKey(UserAtDevice phone) {
+    ArgumentNullException.ThrowIfNull(phone);
+
+    (string WrongKey, UserAtDevice Phone) check = (WrongKey(), phone);
+    _lastWrongKeyCheck = check;
+
+    return SendWithKey(CHECK, check.WrongKey, check.Phone);
+  }
 
   /// <summary>The request <see cref="CheckWithAWrongKey"/> sent last, sent to an address under <c>/api</c> no endpoint serves; throws when none was sent.</summary>
-  public Task<WholeAnswer> SendTheSameToAnUnknownApiAddress() => throw new NotImplementedException();
+  public Task<WholeAnswer> SendTheSameToAnUnknownApiAddress() {
+    (string wrongKey, UserAtDevice phone) = _lastWrongKeyCheck
+      ?? throw new InvalidOperationException($"No check with a wrong key was sent to {CHECK} to send again.");
+
+    return SendWithKey(UNKNOWN_API_ADDRESS, wrongKey, phone);
+  }
 
   /// <summary>Whether the app copy's store holds any of the check's balances.</summary>
   public Task<bool> KeepsAnyBalance() => throw new NotImplementedException();
@@ -120,4 +152,60 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
 
   /// <summary>A check from <paramref name="phone"/>, whose call is cancelled while the check is still reading the bank, as the class describes.</summary>
   public Task CheckThenStopWaitingWhileTheBankReads(UserAtDevice phone) => throw new NotImplementedException();
+
+  /// <summary>
+  /// <c>POST</c> to <paramref name="address"/> from the phone's anonymous client, as the class describes: no body,
+  /// <c>X-Check-Key</c> <paramref name="checkKey"/>, <c>User-Agent</c> and <c>X-Forwarded-For</c> <paramref name="phone"/>'s,
+  /// each sent as it is; read as a <see cref="WholeAnswer"/>.
+  /// </summary>
+  private async Task<WholeAnswer> SendWithKey(string address, string checkKey, UserAtDevice phone) {
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(address, UriKind.Relative));
+    AddAsItIs(request, KEY_HEADER, checkKey);
+    AddAsItIs(request, USER_AGENT, phone.Browser);
+    AddAsItIs(request, X_FORWARDED_FOR, phone.IpAddress);
+
+    using HttpResponseMessage response = await Phone.SendAsync(request);
+    await response.Content.LoadIntoBufferAsync();
+
+    ProblemDescription? problem = await ApiDriver.ProblemOf(response);
+    string answer = await response.Content.ReadAsStringAsync();
+
+    return new WholeAnswer(problem, $"{(int)response.StatusCode} {response.Content.Headers.ContentType} {WithoutTraceId(answer)}");
+  }
+
+  /// <summary>A wrong check key: <see cref="KEY_BYTES"/> made-up random bytes in base64url, as long as the key and never it.</summary>
+  private string WrongKey() {
+    string wrongKey;
+
+    do
+      wrongKey = NewKey();
+    while (string.Equals(wrongKey, Key, StringComparison.Ordinal));
+
+    return wrongKey;
+  }
+
+  /// <summary>Adds the header unvalidated, so it goes out exactly as given.</summary>
+  private static void AddAsItIs(HttpRequestMessage request, string name, string value) {
+    if (!request.Headers.TryAddWithoutValidation(name, value))
+      throw new InvalidOperationException($"The request header {name} could not be added.");
+  }
+
+  /// <summary><paramref name="body"/> without its <c>traceId</c> when it is a JSON object; otherwise as it is.</summary>
+  private static string WithoutTraceId(string body) {
+    JsonNode? parsed;
+
+    try {
+      parsed = JsonNode.Parse(body);
+    }
+    catch (JsonException) {
+      return body;
+    }
+
+    if (parsed is not JsonObject answer)
+      return body;
+
+    _ = answer.Remove(TRACE_ID);
+
+    return answer.ToJsonString();
+  }
 }

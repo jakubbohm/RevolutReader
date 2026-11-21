@@ -157,7 +157,9 @@ jobs:
       # (c010 design.md D11; nothing connects at start), and made-up push keys, which it needs from
       # C8a on (c011 design.md D5): a VAPID pair, which must be a valid pair, generated per run
       # from Node's P-256 key in JWK form, and 32 random bytes as the message key, all three in
-      # base64url and never printed. On failure the container's log is printed.
+      # base64url and never printed; and a made-up check key, which it needs from C9a on (c014
+      # design.md D6): 32 more random bytes per run, in base64url and never printed. On failure
+      # the container's log is printed.
       - name: Smoke run
         run: |
           set -euo pipefail
@@ -172,6 +174,8 @@ jobs:
           export EnableBanking__PrivateKey
           read -r Push__VapidPublicKey Push__VapidPrivateKey Push__MessageKey < <(node -e "const c=require('crypto');const j=c.generateKeyPairSync('ec',{namedCurve:'P-256'}).privateKey.export({format:'jwk'});const b=s=>Buffer.from(s,'base64url');console.log(Buffer.concat([Buffer.from([4]),b(j.x),b(j.y)]).toString('base64url'),j.d,c.randomBytes(32).toString('base64url'))")
           export Push__VapidPublicKey Push__VapidPrivateKey Push__MessageKey
+          AccountCheck__Key="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")"
+          export AccountCheck__Key
           docker run -d --name smoke-run -p 8080:8080 \
             -e EnableBanking__ApplicationId=00000000-0000-0000-0000-000000000000 \
             -e EnableBanking__PrivateKey \
@@ -183,6 +187,7 @@ jobs:
             -e Push__VapidPublicKey \
             -e Push__VapidPrivateKey \
             -e Push__MessageKey \
+            -e AccountCheck__Key \
             "$IMAGE" >/dev/null
           health=""
           for _ in $(seq 1 30); do

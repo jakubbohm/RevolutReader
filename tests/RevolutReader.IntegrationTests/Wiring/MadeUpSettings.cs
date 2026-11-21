@@ -8,8 +8,8 @@ namespace RevolutReader.IntegrationTests.Wiring;
 /// Made up, never real: a value for each secret the app checks at start, so an app copy in environment <c>Production</c>
 /// starts on <c>appsettings.json</c> without its <c>"&lt;secret&gt;"</c> placeholders. The keys are generated per call,
 /// never printed. Every app copy of the wiring tests that runs on made-up settings builds them here: the OpenAPI export
-/// (<c>OpenApiExport</c>), <c>MessageEndpointApp</c> and <c>SubscriptionEndpointApp</c>. A change that adds a setting
-/// checked at start adds a made-up value to <see cref="For"/>.
+/// (<c>OpenApiExport</c>), <c>MessageEndpointApp</c>, <c>SubscriptionEndpointApp</c> and <c>CheckEndpointApp</c>. A
+/// change that adds a setting checked at start adds a made-up value to <see cref="For"/>.
 /// </summary>
 internal static class MadeUpSettings {
   /// <summary>An uncompressed elliptic-curve point's first byte (SEC 1, § 2.3.3).</summary>
@@ -17,6 +17,9 @@ internal static class MadeUpSettings {
 
   /// <summary>The message key's size (c011 design.md D5).</summary>
   private const int MESSAGE_KEY_BYTES = 32;
+
+  /// <summary>The check key's size (c014 design.md D6).</summary>
+  private const int CHECK_KEY_BYTES = 32;
 
   /// <summary>A made-up message key, as the owner's block makes one: 32 random bytes in base64url.</summary>
   public static string MessageKey() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(MESSAGE_KEY_BYTES));
@@ -49,6 +52,8 @@ internal static class MadeUpSettings {
       ["Push:VapidPublicKey"] = Base64Url.EncodeToString([UNCOMPRESSED_POINT, .. x, .. y]),
       ["Push:VapidPrivateKey"] = Base64Url.EncodeToString(d),
       ["Push:MessageKey"] = messageKey ?? MessageKey(),
+      // The account check's key (c014 design.md D6), 32 random bytes in base64url without padding, never the message key.
+      ["AccountCheck:Key"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(CHECK_KEY_BYTES)),
     };
   }
 }
