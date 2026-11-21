@@ -10,9 +10,16 @@ namespace RevolutReader.Api.Rate;
 /// (<see cref="SharedAsk"/>, D4). A rate for a later day than the kept one is held, saved in the store, logged as kept
 /// (<see cref="RateLog.KorunaRateKept"/>, D7) and answered; one for the kept day or an earlier one changes nothing, the
 /// kept one is answered, and nothing is logged (D2, D6, D7), so the next call asks again while the rate is due.</item>
+/// <item>Never fails for the CNB or the store (D5): a failed ask answers the kept rate, or the app's own when none is kept;
+/// a store that fails is logged (<see cref="RateLog.KorunaRateStoreFailed"/>), its read counting as nothing kept, its write
+/// ignored. Only the caller's own cancellation ends its call.</item>
 /// </list>
 /// </summary>
 public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvider time, ILogger<KorunaRates> logger) : IKorunaRates {
+  /// <summary>The store's operations as <see cref="RateLog.KorunaRateStoreFailed"/> names them: "could not be read", "could not be written".</summary>
+  private const string READ = "read";
+  private const string WRITTEN = "written";
+
   /// <summary>Guards <see cref="_keptWasRead"/>, <see cref="_kept"/> and <see cref="_asking"/>.</summary>
   private readonly Lock _lock = new();
 
@@ -35,8 +42,11 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
   }
 
   /// <summary>
-  /// The kept rate: read from the store on this instance's first call, the one held in memory after it. Of two first calls
-  /// at the same time, the read that ends first counts, so a later read never replaces a rate held meanwhile.
+  /// The kept rate: read from the store on this instance's first call that reads it, the one held in memory after it. A
+  /// read that fails, in whatever way, is logged and counts as nothing kept, and the next call reads again (D5); only the
+  /// caller's own cancellation passes on. A read never replaces a rate held meanwhile for the same or a later day: of two
+  /// first calls at the same time the read that ends first counts, and after a failed read the rate an ask kept stays
+  /// unless the store's is for a later day.
   /// </summary>
   private async Task<KorunaRate?> Kept(CancellationToken cancellationToken) {
     lock (_lock) {
@@ -44,11 +54,23 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
         return _kept;
     }
 
-    KorunaRate? read = await store.Read(cancellationToken);
+    KorunaRate? read;
+
+    try {
+      read = await store.Read(cancellationToken);
+    }
+#pragma warning disable CA1031 // A store that fails to read, in whatever way, counts as nothing kept and never fails the request (D5); only the caller's own cancellation passes.
+    catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested) {
+      RateLog.KorunaRateStoreFailed(logger, READ, exception);
+
+      lock (_lock)
+        return _kept;
+    }
+#pragma warning restore CA1031
 
     lock (_lock) {
       if (!_keptWasRead) {
-        _kept = read;
+        _kept = _kept is { } held && (read is null || held.Date >= read.Date) ? held : read;
         _keptWasRead = true;
       }
 
@@ -71,20 +93,22 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
     }
   }
 
-  /// <summary>One ask of the CNB, and its rate kept when it is for a later day (<see cref="KeptOrNewer"/>); on no caller's token (D4).</summary>
-  private async Task<KorunaRate> AskAndKeep() {
-#pragma warning disable CA1508 // Its flow analysis calls the rate's arm always true, as in AccountCheck's union switch; each case is named, so a case added to the union later is a compile error rather than a silent default.
-    return await cnb.ReadEuroRate(CancellationToken.None) switch {
+  /// <summary>
+  /// One ask of the CNB, on no caller's token (D4): its rate kept when it is for a later day (<see cref="KeptOrNewer"/>), or
+  /// its failure handled (<see cref="AfterAFailedAsk"/>).
+  /// </summary>
+  private async Task<KorunaRate> AskAndKeep() =>
+    await cnb.ReadEuroRate(CancellationToken.None) switch {
       KorunaRate rate => await KeptOrNewer(rate),
-      CnbFailed => throw new NotImplementedException("A failed ask is handled in tasks.md 21.1 (c017 design.md D5)."),
+      CnbFailed failed => AfterAFailedAsk(failed),
     };
-#pragma warning restore CA1508
-  }
 
   /// <summary>
   /// <paramref name="answered"/>, held in memory, saved in the store and logged as kept, when nothing is kept or it is for a
   /// later day than the kept rate (D2, D7); otherwise the kept rate, with nothing saved and nothing logged: the kept day's
-  /// rate again, or an earlier day's, which only a stale copy in front of the CNB could send (D6).
+  /// rate again, or an earlier day's, which only a stale copy in front of the CNB could send (D6). A save that fails, in
+  /// whatever way, is logged and ignored: the rate is still held, logged as kept and answered (D5); the next process reads
+  /// the older row and asks again.
   /// </summary>
   private async Task<KorunaRate> KeptOrNewer(KorunaRate answered) {
     lock (_lock) {
@@ -94,9 +118,29 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
       _kept = answered;
     }
 
-    await store.Save(answered, CancellationToken.None);
+    try {
+      await store.Save(answered, CancellationToken.None);
+    }
+#pragma warning disable CA1031 // A store that fails to write, in whatever way, never fails the request (D5): the save runs on no caller's token, so no failure of it is a caller's cancellation.
+    catch (Exception exception) {
+      RateLog.KorunaRateStoreFailed(logger, WRITTEN, exception);
+    }
+#pragma warning restore CA1031
+
     RateLog.KorunaRateKept(logger, answered.CzkPerEur, answered.Date);
 
     return answered;
+  }
+
+  /// <summary>
+  /// A failed ask (D5): logged with its kind, and the status code for a status (D7); answered with the kept rate, or with
+  /// <see cref="KorunaRate.AppsOwn"/> when none is kept, which is never kept, so the next call asks again. Not retried: the
+  /// next call asks again while the rate is due.
+  /// </summary>
+  private KorunaRate AfterAFailedAsk(CnbFailed failed) {
+    RateLog.KorunaRateAskFailed(logger, failed.Kind, failed.StatusCode);
+
+    lock (_lock)
+      return _kept ?? KorunaRate.AppsOwn;
   }
 }

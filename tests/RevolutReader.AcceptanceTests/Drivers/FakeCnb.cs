@@ -36,9 +36,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// still gets one. <see cref="RequestsReceived"/> counts every request as it arrives, answered or not.
 /// </para>
 /// <para>
-/// Filled in by the wiring groups: <see cref="AnswerServerError"/> (tasks.md 21.1) and <see cref="AnswerNeverInTime"/>
-/// (tasks.md 23.1); until then each throws. The default answer, the settings and the count are real since tasks.md 1.1,
-/// <see cref="AnswerRate"/> since tasks.md 6.6.
+/// A test sets up one answer at a time, each replacing the one before: a rate (<see cref="AnswerRate"/>), a server error
+/// (<see cref="AnswerServerError"/>) or no answer within the limit (<see cref="AnswerNeverInTime"/>).
 /// </para>
 /// </summary>
 public sealed class FakeCnb : IDisposable {
@@ -143,20 +142,27 @@ public sealed class FakeCnb : IDisposable {
   /// a date of the app copy's clock (<see cref="DailyRates"/>), above the default; it replaces the answer set up before
   /// (the test's one answer, <see cref="_answer"/>).
   /// </summary>
-  public void AnswerRate(decimal czkPerEur, DateOnly clockDay) =>
+  public void AnswerRate(decimal czkPerEur, DateOnly clockDay) {
+    _arrivals.Holding = false;
     _server.Given(DailyRatesRequest()).WithGuid(_answer).RespondWith(JsonAnswer(DailyRates(czkPerEur, clockDay)));
+  }
 
   /// <summary>
-  /// The daily rates are answered with a server error (an HTTP 500) instead of a rate. Not captured: the CNB cannot be made
-  /// to fail on demand, so the answer is written with a comment saying so. Wired in tasks.md 21.1.
+  /// The daily rates are answered with a server error (an HTTP 500, no body) instead of a rate; it replaces the answer set
+  /// up before. Not captured: the CNB cannot be made to fail on demand, so the answer is written here.
   /// </summary>
-  public void AnswerServerError() => throw new NotImplementedException("The fake CNB's server error is wired in tasks.md 21.1.");
+  public void AnswerServerError() {
+    _arrivals.Holding = false;
+    _server.Given(DailyRatesRequest()).WithGuid(_answer).RespondWith(Response.Create().WithStatusCode(500));
+  }
 
   /// <summary>
   /// The daily rates are answered only later than the 2 s limit (<see cref="TimeLimit"/>), so the app's ask runs out of
-  /// time; disposing the fake ends a request still waiting. Wired in tasks.md 23.1.
+  /// time; disposing the fake ends a request still waiting. Each request for them is held in front of WireMock.Net's own
+  /// handling (<see cref="ArrivalCount"/>), counted, until the app gives up on it or the fake is disposed, and then cut off
+  /// unanswered; an answer set up later (<see cref="AnswerRate"/>, <see cref="AnswerServerError"/>) replaces it.
   /// </summary>
-  public void AnswerNeverInTime() => throw new NotImplementedException("The fake CNB's answer that never comes in time is wired in tasks.md 23.1.");
+  public void AnswerNeverInTime() => _arrivals.Holding = true;
 
   /// <summary>
   /// The captured answer with the euro's <c>rate</c> <paramref name="czkPerEur"/> and its <c>validFor</c>
@@ -186,24 +192,54 @@ public sealed class FakeCnb : IDisposable {
   /// <summary>
   /// Counts every request the fake CNB's server received, as it arrives: a middleware in front of WireMock.Net's own
   /// handling, so a request still waiting for its answer counts (WireMock.Net logs a request only once it has answered it).
+  /// While <see cref="Holding"/>, it holds each request for the daily rates instead of passing it on, until the client gives
+  /// up on it or the fake stops (<see cref="Stop"/>), and then cuts it off unanswered (<see cref="AnswerNeverInTime"/>).
   /// </summary>
   private sealed class ArrivalCount {
+    /// <summary>Ends every held request: completed when the fake stops.</summary>
+    private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     private int _count;
+    private volatile bool _holding;
 
     /// <summary>The requests so far.</summary>
     public int Count => Volatile.Read(ref _count);
 
-    /// <summary>The middleware: counts the request, then passes it on.</summary>
-    public Task Record(HttpContext context, RequestDelegate next) {
+    /// <summary>Whether requests for the daily rates are held rather than answered.</summary>
+    public bool Holding {
+      set => _holding = value;
+    }
+
+    /// <summary>The middleware: counts the request, then holds it or passes it on.</summary>
+    public async Task Record(HttpContext context, RequestDelegate next) {
       _ = Interlocked.Increment(ref _count);
 
-      return next(context);
+      if (_holding && HttpMethods.IsGet(context.Request.Method) && context.Request.Path == DAILY_RATES) {
+        try {
+          await _stopped.Task.WaitAsync(context.RequestAborted);
+        }
+        catch (OperationCanceledException) {
+          // The client gave up on it: its time limit ran out.
+        }
+
+        context.Abort();
+
+        return;
+      }
+
+      await next(context);
     }
+
+    /// <summary>Ends every held request, as the fake stops.</summary>
+    public void Stop() => _stopped.TrySetResult();
   }
 
   #region IDisposable
 
-  public void Dispose() => _server.Dispose();
+  public void Dispose() {
+    _arrivals.Stop();
+    _server.Dispose();
+  }
 
   #endregion
 }

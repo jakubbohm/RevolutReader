@@ -139,37 +139,37 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 20. [unit] Slice 8 — A failed ask, a failing store
 
-- [ ] 20.1 A failed ask answers the kept rate and logs its kind once (`KorunaRateAskFailed`), with the status code for a status
-- [ ] 20.2 A store that fails to read is treated as nothing kept, logged (`KorunaRateStoreFailed`), and read again by the next call
-- [ ] 20.3 A store that fails to save still answers the new rate, holds it, and logs it (`KorunaRateStoreFailed`)
+- [x] 20.1 A failed ask answers the kept rate and logs its kind once (`KorunaRateAskFailed`), with the status code for a status
+- [x] 20.2 A store that fails to read is treated as nothing kept, logged (`KorunaRateStoreFailed`), and read again by the next call
+- [x] 20.3 A store that fails to save still answers the new rate, holds it, and logs it (`KorunaRateStoreFailed`)
 
 ## 21. [wiring] Slice 8 — The CNB's failures
 
-- [ ] 21.1 `CnbClient`'s failures of design.md D6, as edge tests against WireMock: a 500 and a 404 are `Status` with their code; not JSON, no `rates`, no `EUR` entry, a rate or amount of zero or below, a missing or malformed `validFor` are `Unreadable`; a refused connection is `Unreachable`. `KorunaRates` handles `CnbFailed` (D5). `FakeCnb.AnswerServerError`, `RateDsl.TheCnbAnswersAServerError`. Verify: group 20 green; the edge tests green
+- [x] 21.1 `CnbClient`'s failures of design.md D6, as edge tests against WireMock: a 500 and a 404 are `Status` with their code; not JSON, no `rates`, no `EUR` entry, a rate or amount of zero or below, a missing or malformed `validFor` are `Unreadable`; a refused connection is `Unreachable`. `KorunaRates` handles `CnbFailed` (D5). `FakeCnb.AnswerServerError`, `RateDsl.TheCnbAnswersAServerError`. Verify: group 20 green; the edge tests green
 
 ## 22. [close] Slice 8 — A CNB that answers with an error leaves the kept rate
 
-- [ ] 22.1 The scenario's test passes. Verify: green, including koruna-rate / A CNB that answers with an error leaves the kept rate
+- [x] 22.1 The scenario's test passes. Verify: green, including koruna-rate / A CNB that answers with an error leaves the kept rate
 
 ## 23. [wiring] Slice 9 — The time limit
 
-- [ ] 23.1 `CnbClient`: an answer later than `Cnb:TimeLimit` is `NoAnswerInTime`, and a caller's cancellation passes on as `OperationCanceledException`, as edge tests against WireMock with a short limit. `FakeCnb.AnswerNeverInTime`, `RateDsl.TheCnbDoesNotAnswerInTime`. Verify: the edge tests green
+- [x] 23.1 `CnbClient`: an answer later than `Cnb:TimeLimit` is `NoAnswerInTime`, and a caller's cancellation passes on as `OperationCanceledException`, as edge tests against WireMock with a short limit. `FakeCnb.AnswerNeverInTime`, `RateDsl.TheCnbDoesNotAnswerInTime`. Verify: the edge tests green
 
 ## 24. [close] Slice 9 — A CNB that does not answer within 2 s leaves the kept rate
 
-- [ ] 24.1 The scenario's test passes. Verify: green, including koruna-rate / A CNB that does not answer within 2 s leaves the kept rate
+- [x] 24.1 The scenario's test passes. Verify: green, including koruna-rate / A CNB that does not answer within 2 s leaves the kept rate
 
 ## 25. [unit] Slice 10 — Nothing kept
 
-- [ ] 25.1 With nothing kept and a failed ask, the app's own rate is answered and not saved, and the next call asks again
+- [x] 25.1 With nothing kept and a failed ask, the app's own rate is answered and not saved, and the next call asks again
 
 ## 26. [wiring] Slice 10 — The app's own rate's date
 
-- [ ] 26.1 `RateDsl.NoRateIsKept` (reads the app copy's store and throws when a rate is kept); the scenario compares the date through `TransactionsReading.RateDateAsAnswered` (D10). Verify: group 25 green
+- [x] 26.1 `RateDsl.NoRateIsKept` (reads the app copy's store and throws when a rate is kept); the scenario compares the date through `TransactionsReading.RateDateAsAnswered` (D10). Verify: group 25 green
 
 ## 27. [close] Slice 10 — With no rate kept and the CNB failing, the app's own rate of 24.47 is answered
 
-- [ ] 27.1 The scenario's test passes. Verify: green, including koruna-rate / With no rate kept and the CNB failing, the app's own rate of 24.47 is answered
+- [x] 27.1 The scenario's test passes. Verify: green, including koruna-rate / With no rate kept and the CNB failing, the app's own rate of 24.47 is answered
 
 ## 28. [unit] Guards
 

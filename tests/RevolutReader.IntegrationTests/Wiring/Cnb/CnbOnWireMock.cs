@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -63,11 +64,22 @@ internal sealed class CnbOnWireMock : IDisposable {
 
   /// <summary>
   /// A <c>GET</c> of exactly <see cref="DAILY_RATES"/> with no query parameter (D1: no <c>date</c>, no <c>lang</c>) is
-  /// answered 200 with this JSON body; anything else gets WireMock.Net's 404.
+  /// answered 200 with this JSON body, after <paramref name="after"/> when that is given; anything else gets WireMock.Net's
+  /// 404.
   /// </summary>
-  public void AnswersTheDailyRates(string body) =>
-    _server.Given(Request.Create().UsingGet().WithPath(new ExactMatcher(DAILY_RATES)).WithParam(static parameters => parameters.Count == 0))
-      .RespondWith(Response.Create().WithStatusCode(200).WithHeader("Content-Type", "application/json").WithBody(body));
+  public void AnswersTheDailyRates(string body, TimeSpan? after = null) {
+    IResponseBuilder answer = Response.Create().WithStatusCode(HttpStatusCode.OK).WithHeader("Content-Type", "application/json").WithBody(body);
+
+    _server.Given(DailyRatesRequest()).RespondWith(after is { } delay ? answer.WithDelay(delay) : answer);
+  }
+
+  /// <summary>The daily rates (as <see cref="AnswersTheDailyRates"/> matches them) are answered with this status and body, of this type.</summary>
+  public void AnswersTheDailyRatesWith(HttpStatusCode status, string body, string contentType) =>
+    _server.Given(DailyRatesRequest()).RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
+
+  /// <summary>A <c>GET</c> of exactly <see cref="DAILY_RATES"/> with no query parameter.</summary>
+  private static IRequestBuilder DailyRatesRequest() =>
+    Request.Create().UsingGet().WithPath(new ExactMatcher(DAILY_RATES)).WithParam(static parameters => parameters.Count == 0);
 
   #region IDisposable
 
