@@ -4,10 +4,12 @@ using RevolutReader.Api.Configuration;
 namespace RevolutReader.Api.Bank;
 
 /// <summary>
-/// Section "EnableBanking" (c004 design.md D6): the bank's address, the four secrets, the request timeout and the first
-/// wait before a retry (c008 design.md D7).
+/// The EnableBanking section (c004 design.md D6): the bank's address, the four secrets, the request timeout and the first
+/// wait before a retry (c008 design.md D7). Validated on start, together with <see cref="EnableBankingOptionsValidator"/>.
 /// </summary>
 public sealed class EnableBankingOptions {
+  public const string SECTION = "EnableBanking";
+
   [Required]
   public required Uri ApiBaseUrl { get; init; }
 

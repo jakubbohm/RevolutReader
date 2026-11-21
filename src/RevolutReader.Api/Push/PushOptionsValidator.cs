@@ -9,29 +9,30 @@ namespace RevolutReader.Api.Push;
 /// public half (an import alone does not prove they belong together); the message key is at least 32 bytes in base64url;
 /// Subject is an https origin; every entry of Services is a push service pattern (D9: <see cref="PushServicePattern"/>, the
 /// rule <see cref="KnownPushServices"/> matches by). The request timeout's range is a data annotation. Each message names
-/// the setting (and the entry), never its value or any part of it.
+/// the setting (and the entry) by its full name, as the operator sets it (<c>Section:Member</c>, configuration.md
+/// § Binding), never its value or any part of it.
 /// </summary>
 public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
   private const int MESSAGE_KEY_MIN_BYTES = 32;
 
   private const string NOT_A_PUBLIC_KEY =
-    $"{nameof(PushOptions)}.{nameof(PushOptions.VapidPublicKey)} is not a VAPID public key: "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.VapidPublicKey)} is not a VAPID public key: "
     + "expected the 65-byte uncompressed P-256 point (0x04, X, Y) in base64url without padding.";
 
   private const string NOT_A_PRIVATE_KEY =
-    $"{nameof(PushOptions)}.{nameof(PushOptions.VapidPrivateKey)} is not a VAPID private key: "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.VapidPrivateKey)} is not a VAPID private key: "
     + "expected the 32-byte P-256 scalar in base64url without padding.";
 
   private const string NOT_ONE_PAIR =
-    $"{nameof(PushOptions)}.{nameof(PushOptions.VapidPublicKey)} and {nameof(PushOptions)}.{nameof(PushOptions.VapidPrivateKey)} "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.VapidPublicKey)} and {PushOptions.SECTION}:{nameof(PushOptions.VapidPrivateKey)} "
     + "are not one key pair: a text signed with the private key does not verify with the public key. Generate the two together.";
 
   private const string NOT_A_MESSAGE_KEY =
-    $"{nameof(PushOptions)}.{nameof(PushOptions.MessageKey)} is not a message key: "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.MessageKey)} is not a message key: "
     + "expected at least 32 random bytes in base64url without padding.";
 
   private const string NOT_AN_APP_ADDRESS =
-    $"{nameof(PushOptions)}.{nameof(PushOptions.Subject)} is not the app's address: "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.Subject)} is not the app's address: "
     + "expected an absolute https address with no path beyond \"/\", and no query or fragment.";
 
   /// <summary>What the private half signs and the public half must verify.</summary>
@@ -92,9 +93,9 @@ public sealed class PushOptionsValidator : IValidateOptions<PushOptions> {
     && address.Query.Length == 0
     && address.Fragment.Length == 0;
 
-  /// <summary>The failure for the entry <paramref name="entry"/> of Services: its name, never its value.</summary>
+  /// <summary>The failure for the entry <paramref name="entry"/> of Services: its full name, never its value.</summary>
   private static string NotAPushService(string entry) =>
-    $"{nameof(PushOptions)}.{nameof(PushOptions.Services)}:{entry} is not a push service pattern: expected https and a host, "
+    $"{PushOptions.SECTION}:{nameof(PushOptions.Services)}:{entry} is not a push service pattern: expected https and a host, "
     + "or https, \"*.\" and a host suffix, with an optional port and no user information, path, query or fragment; plain http "
     + "only on a loopback host.";
 }

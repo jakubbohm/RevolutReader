@@ -8,9 +8,6 @@ namespace RevolutReader.Api.Bank;
 
 /// <summary>The bank adapter's production wiring (c004 design.md § Public API sketch, D6).</summary>
 public static class EnableBankingRegistration {
-  /// <summary>The settings section, named after <see cref="EnableBankingOptions"/> (configuration.md § Binding).</summary>
-  private const string SECTION = "EnableBanking";
-
   /// <summary>The bank client's resilience pipeline, as the library's retry warnings name it (c008 design.md D9).</summary>
   private const string RETRY_PIPELINE = "bank-retries";
 
@@ -26,13 +23,13 @@ public static class EnableBankingRegistration {
     ArgumentNullException.ThrowIfNull(services);
 
     services.AddOptions<EnableBankingOptions>()
-      .BindSection(SECTION, new EnableBankingOptionsAnnotations())
+      .BindSection(EnableBankingOptions.SECTION, new EnableBankingOptionsAnnotations())
       .ValidateOnStart();
     services.AddSingleton<IValidateOptions<EnableBankingOptions>, EnableBankingOptionsValidator>();
 
     // Keyed, so no other service is handed the bank key by asking for an RSA; created by the container, so disposed by it.
-    services.AddKeyedSingleton(SECTION, static (provider, _) => ApplicationKey(Settings(provider).PrivateKey));
-    services.AddSingleton(static provider => new ApplicationToken(Settings(provider).ApplicationId, provider.GetRequiredKeyedService<RSA>(SECTION)));
+    services.AddKeyedSingleton(EnableBankingOptions.SECTION, static (provider, _) => ApplicationKey(Settings(provider).PrivateKey));
+    services.AddSingleton(static provider => new ApplicationToken(Settings(provider).ApplicationId, provider.GetRequiredKeyedService<RSA>(EnableBankingOptions.SECTION)));
     services.TryAddSingleton(TimeProvider.System);
 
     IHttpClientBuilder bank = services
