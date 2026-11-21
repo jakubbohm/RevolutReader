@@ -210,12 +210,12 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 36. [wiring] Slice 14 — A burst in the tests
 
-- [ ] 36.1 `AccountCheckDriver` and `CheckDsl` for checks that arrive while the first reads the bank: the bank held, the calls sent, `CallersWaiting` awaited through the app copy's services, the bank released (design.md D16). Verify: group 1.15 runs to its assertions
-- [ ] 36.2 Docs: testing.md § Fake bank (holding an answer) and § Time and the background job (the check through its endpoint; a burst lined up by holding the bank, never by waiting real time), and the `.claude/rules/` mirror. Verify: each names design.md D16
+- [x] 36.1 `AccountCheckDriver` and `CheckDsl` for checks that arrive while the first reads the bank: the bank held, the calls sent, `CallersWaiting` awaited through the app copy's services, the bank released (design.md D16). Verify: group 1.15 runs to its assertions
+- [x] 36.2 Docs: testing.md § Fake bank (holding an answer) and § Time and the background job (the check through its endpoint; a burst lined up by holding the bank, never by waiting real time), and the `.claude/rules/` mirror. Verify: each names design.md D16
 
 ## 37. [close] Slice 14 — A burst of checks sends one notification and reads the bank at most twice
 
-- [ ] 37.1 The scenario's test passes. Verify: green, including account-check / A burst of checks sends one notification and reads the bank at most twice
+- [x] 37.1 The scenario's test passes. Verify: green, including account-check / A burst of checks sends one notification and reads the bank at most twice
 
 ## 38. [unit] Slice 15 — The app's lifetime
 

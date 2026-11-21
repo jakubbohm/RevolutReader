@@ -53,7 +53,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// Filled in by the wiring groups (tasks.md 3.4, 5.1, 10.2, 16.1, 36.1, 39.1); until then every method that calls the app
 /// or reads its services throws. The key and the clock are real now (tasks.md 1.1), and so are the wrong key's two calls
 /// (tasks.md 3.4), the call naming no browser, read with the exact shapes above (tasks.md 5.1), a check from a phone and
-/// the kept balances (tasks.md 10.2).
+/// the kept balances (tasks.md 10.2), and the burst (tasks.md 36.1).
 /// </summary>
 public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, FakeTimeProvider clock, IServiceProvider app, string key) {
   /// <summary>The settings section the check's key is bound to (D6).</summary>
@@ -102,6 +102,15 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
 
   /// <summary>The only members a 500 may have: nothing about the failure (spec api-errors).</summary>
   private static readonly HashSet<string> _internalErrorMembers = new(StringComparer.Ordinal) { TYPE, TITLE, STATUS, TRACE_ID };
+
+  /// <summary>
+  /// How long a burst waits, on the real clock, for the queue to count its calls (<see cref="WaitUntilCallersWait"/>): far
+  /// longer than an app copy takes to take a request in, even on a busy machine running the full suite.
+  /// </summary>
+  private static readonly TimeSpan _callersWaitWithin = TimeSpan.FromSeconds(10);
+
+  /// <summary>How often a burst looks at the queue's count while it waits for it.</summary>
+  private static readonly TimeSpan _callersWaitingPoll = TimeSpan.FromMilliseconds(10);
 
   /// <summary>The wrong key and the phone <see cref="CheckWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
   private (string WrongKey, UserAtDevice Phone)? _lastWrongKeyCheck;
@@ -198,7 +207,22 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// A check from <paramref name="phone"/>, and <paramref name="checks"/> more from it while the first is still reading the
   /// bank, lined up as the class describes; every call's answer, the first first.
   /// </summary>
-  public Task<IReadOnlyList<CheckAnswer>> ChecksWhileTheFirstReadsTheBank(UserAtDevice phone, int checks) => throw new NotImplementedException();
+  public async Task<IReadOnlyList<CheckAnswer>> ChecksWhileTheFirstReadsTheBank(UserAtDevice phone, int checks) {
+    ArgumentNullException.ThrowIfNull(phone);
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(checks);
+
+    AnswerTheDefaultBalanceBelowEverything();
+    Bank.HoldTheNextBalanceAnswer();
+
+    Task<CheckAnswer> first = SendCheck(phone.IpAddress, phone.Browser);
+    await Bank.WaitUntilTheHeldRequestArrives();
+
+    Task<CheckAnswer>[] others = [.. Enumerable.Range(0, checks).Select(_ => SendCheck(phone.IpAddress, phone.Browser))];
+    await WaitUntilCallersWait(checks);
+    Bank.ReleaseTheHeldAnswer();
+
+    return [await first, .. await Task.WhenAll(others)];
+  }
 
   /// <summary>A check from <paramref name="phone"/>, whose call is cancelled while the check is still reading the bank, as the class describes.</summary>
   public Task CheckThenStopWaitingWhileTheBankReads(UserAtDevice phone) => throw new NotImplementedException();
@@ -251,6 +275,26 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
       AddAsItIs(request, USER_AGENT, browserName);
 
     return request;
+  }
+
+  /// <summary>
+  /// Waits until the app copy's <see cref="AccountCheckQueue.CallersWaiting"/> counts <paramref name="callers"/> (D16): every
+  /// call of a burst after the first has reached the queue, as the waiting check or joined to it. A bounded wait on the real
+  /// clock that looks at the count every few milliseconds, since the queue tells no one when it changes; a count that does
+  /// not get there within 10 s fails the step, naming it.
+  /// </summary>
+  private async Task WaitUntilCallersWait(int callers) {
+    AccountCheckQueue queue = App.GetRequiredService<AccountCheckQueue>();
+    using CancellationTokenSource deadline = new(_callersWaitWithin);
+
+    while (queue.CallersWaiting != callers) {
+      try {
+        await Task.Delay(_callersWaitingPoll, deadline.Token);
+      }
+      catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
+        throw new TimeoutException($"Within {_callersWaitWithin.TotalSeconds} s, the check queue counted {queue.CallersWaiting} callers waiting, not {callers}.");
+      }
+    }
   }
 
   /// <summary>
