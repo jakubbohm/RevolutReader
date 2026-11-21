@@ -18,10 +18,10 @@ public sealed class ReadBalanceHandler(IBankAccount bank, IKorunaRates rates, Ti
   public async Task<BankResult<AccountBalance>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
 
-    Task<Rate.KorunaRate> asking = rates.Current(cancellationToken);
+    Task<KorunaRate> asking = rates.Current(cancellationToken);
     BankResult<Balance> read = await bank.ReadBalance(user, cancellationToken);
     DateTimeOffset answeredAt = time.GetUtcNow();
-    Rate.KorunaRate rate = await asking;
+    KorunaRate rate = await asking;
 
     return read switch {
       Balance balance => InEuros(balance, answeredAt, rate),
@@ -36,7 +36,7 @@ public sealed class ReadBalanceHandler(IBankAccount bank, IKorunaRates rates, Ti
   /// (D1): the message names neither the amount nor the currency, as no error message names bank data
   /// (docs/conventions/README.md § Backend code).
   /// </summary>
-  private static AccountBalance InEuros(Balance balance, DateTimeOffset readAt, Rate.KorunaRate rate) {
+  private static AccountBalance InEuros(Balance balance, DateTimeOffset readAt, KorunaRate rate) {
     if (!string.Equals(balance.Currency, EURO, StringComparison.Ordinal))
       throw new InvalidOperationException("The bank answered the balance in a currency other than euros, though the account is a euro account.");
 

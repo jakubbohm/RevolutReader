@@ -80,18 +80,18 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 8. [unit] Slice 2 — The pages carry the rate and its day
 
-- [ ] 8.1 The newest page carries the rate and the day `IKorunaRates` answers
-- [ ] 8.2 The rate is asked before the bank answers the newest page
-- [ ] 8.3 An older page carries the rate and the day `IKorunaRates` answers
+- [x] 8.1 The newest page carries the rate and the day `IKorunaRates` answers
+- [x] 8.2 The rate is asked before the bank answers the newest page
+- [x] 8.3 An older page carries the rate and the day `IKorunaRates` answers
 
 ## 9. [wiring] Slice 2 — The constant removed
 
-- [ ] 9.1 `ReadNewestTransactionsHandler` and `ReadOlderTransactionsHandler` take `IKorunaRates` (D8); `Account/KorunaRate` (the static class) is removed. The test-writer replaces `KorunaRate.CzkPerEur` in `AccountCheckTests` and `CheckedBalancesTests` with a written-out rate, and the 24.3 in the handler tests with the fake rates' (D10). Verify: group 8 green; no `Account.KorunaRate` left (`dotnet build`)
-- [ ] 9.2 `TransactionsReading.RateDate` becomes the scenario's date, shifted back by the calendar as the other dates are (D10). Verify: the C7b scenarios that read a page stay green
+- [x] 9.1 `ReadNewestTransactionsHandler` and `ReadOlderTransactionsHandler` take `IKorunaRates` (D8); `Account/KorunaRate` (the static class) is removed. The test-writer replaces `KorunaRate.CzkPerEur` in `AccountCheckTests` and `CheckedBalancesTests` with a written-out rate, and the 24.3 in the handler tests with the fake rates' (D10). Verify: group 8 green; no `Account.KorunaRate` left (`dotnet build`)
+- [x] 9.2 `TransactionsReading.RateDate` becomes the scenario's date, shifted back by the calendar as the other dates are (D10). Verify: the C7b scenarios that read a page stay green
 
 ## 10. [close] Slice 2 — The newest transactions come live with the koruna rate
 
-- [ ] 10.1 The scenario's test passes. Verify: green, including account-transactions / The newest transactions come live with the koruna rate; `openapi.json` and `schema.d.ts` unchanged
+- [x] 10.1 The scenario's test passes. Verify: green, including account-transactions / The newest transactions come live with the koruna rate; `openapi.json` and `schema.d.ts` unchanged
 
 ## 11. [close] Slice 3 — The account check's notification at the CNB's rate
 
