@@ -191,16 +191,17 @@ with a fresh test-writer and implementer.
    - Size by content, not by a count of groups: what one group adds to an agent's context has ranged from
      about 5k to 50k tokens. Chapters of four to nine slices ran well (C8a, C8b). The token budget (step 3)
      catches a chapter planned too large.
-   - Write the plan into `.tdd-state.md`, name each chapter (A, B, …) with its groups, and present it at the
-     acceptance gate.
+   - Write the plan into `.tdd-state.md`, name each chapter with its groups, and present it at the acceptance
+     gate. The acceptance chapter (group 1) has no letter; A, B, … start at the chapter after it, as `tasks.md`
+     suggests them.
 2. **Within a chapter,** send its test-writer and implementer their work group by group (§ 2, § 2b, § 3, § 4), each
    spawned or resumed as step 4 says.
 3. **Token budget.** Each completion notice of the test-writer or the implementer ends with its context size
    (`subagent_tokens` in its `<usage>` block). Record it in `.tdd-state.md` for that agent. When either agent
    passes **250k tokens**, end the chapter early: after the `[close]` commit of the slice in progress (without
    slices, after the last commit of the group in progress: its `[green]`, `[wire]` or `[close]`), run the
-   checkpoint (step 5), and the rest of the chapter becomes a new chapter with a fresh pair. Where a notice shows
-   no size, chapters end only where they were planned.
+   checkpoint (step 5), and the rest of the chapter becomes a new chapter with a fresh pair, named with its letter
+   and a number (the rest of B is B2). Where a notice shows no size, chapters end only where they were planned.
 4. **A fresh agent.** The test-writer and the implementer are each spawned the first time the chapter sends that
    agent work: a red or a green (§ 2, § 2b), a wiring group (§ 3), a fix routed in a `[close]` group (§ 4 step 1)
    or a dispute (§ Disputes). After that, each is resumed with SendMessage. Brief a fresh agent with: the change
