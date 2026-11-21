@@ -175,6 +175,10 @@ implementer works at a time; never build or test while one of them is working.
   run tests (its prompts forbid it).
 - Commit only on the PR's branch, at the handoffs above, with the `[review]` tag and the finding number. Never
   push, never commit on `main`.
+- The test-writer and the implementer run at the effort their definitions set, high and medium
+  (`docs/software-factory/lessons.md` R-71). A level passed at spawn overrides it and holds across resumes, so a
+  pair resumed from the apply keeps any level its last chapter was given (`.tdd-state.md` records it). Pass the
+  Agent tool's `effort` only when the owner asks for another level, and record that in the state file.
 - Do not use `isolation: "worktree"` for the test-writer or the implementer: one working tree, as in `/tdd-apply`.
 - Never put bank data or secrets into anything you send, commit, post or record.
 - Scripts run verbatim, each as one Bash tool call with the placeholders filled in; never translated to PowerShell.
