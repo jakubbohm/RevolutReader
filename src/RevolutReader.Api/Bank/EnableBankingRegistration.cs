@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Polly;
+using RevolutReader.Api.Configuration;
 
 namespace RevolutReader.Api.Bank;
 
@@ -25,8 +26,7 @@ public static class EnableBankingRegistration {
     ArgumentNullException.ThrowIfNull(services);
 
     services.AddOptions<EnableBankingOptions>()
-      .BindConfiguration(SECTION)
-      .ValidateDataAnnotations()
+      .BindSection(SECTION, new EnableBankingOptionsAnnotations())
       .ValidateOnStart();
     services.AddSingleton<IValidateOptions<EnableBankingOptions>, EnableBankingOptionsValidator>();
 
