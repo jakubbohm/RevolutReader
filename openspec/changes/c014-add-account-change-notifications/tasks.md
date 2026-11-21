@@ -74,9 +74,9 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 9. [integration] Slice 3 — The stored balances
 
-- [ ] 9.1 Nothing stored reads as nothing
-- [ ] 9.2 Saved balances read back whole: amounts to the cent (a negative one too), rates with their decimals, read times with their offset
-- [ ] 9.3 A second save replaces the first
+- [x] 9.1 Nothing stored reads as nothing
+- [x] 9.2 Saved balances read back whole: amounts to the cent (a negative one too), rates with their decimals, read times with their offset
+- [x] 9.3 A second save replaces the first
 
 ## 10. [wiring] Slice 3 — The store, the queue and the endpoint
 
