@@ -91,7 +91,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 15. [close] Slice 7 — The app opened from a push's notification shows its balance while the server wakes
 
-- [ ] 15.1 The scenario's test passes: C7a's start-up shows the kept balance, now the push's (design.md D6). If it is still red here, the orchestrator stops and reports. Verify: green, including the scenario
+- [x] 15.1 The scenario's test passes: C7a's start-up shows the kept balance, now the push's (design.md D6). If it is still red here, the orchestrator stops and reports. Verify: green, including the scenario
 
 ## 16. [close] Acceptance green
 
