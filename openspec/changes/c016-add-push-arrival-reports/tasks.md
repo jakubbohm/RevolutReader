@@ -59,7 +59,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 8. [close] Slice 3 — A report without a read time is refused and records nothing
 
-- [ ] 8.1 The scenario's test passes. Verify: green, including push-arrivals / A report without a read time is refused and records nothing
+- [x] 8.1 The scenario's test passes. Verify: green, including push-arrivals / A report without a read time is refused and records nothing
 
 ## 9. [unit] Guards
 
