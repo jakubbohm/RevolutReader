@@ -63,7 +63,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 9. [unit] Guards
 
-- [ ] 9.1 A report's lines hold no read time in any written form and no email address (`Conventions/PushArrivalTelemetryTests`, design.md D4)
+- [x] 9.1 A report's lines hold no read time in any written form and no email address (`Conventions/PushArrivalTelemetryTests`, design.md D4)
 
 ## 10. [unit] Slice 4 — Reporting an arrival
 

@@ -49,6 +49,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private string? _checkKey;
   private CheckDsl? _check;
   private ArrivalDsl? _arrivals;
+  private ArrivalDriver? _arrivalDriver;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
 
@@ -98,7 +99,13 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// <see cref="SignIn"/> signs in with, on the app copy's clock; and the arrivals the app copy recorded, its
   /// <c>PushArrived</c> lines in <see cref="LogEvents"/>.
   /// </summary>
-  protected ArrivalDsl Arrivals => _arrivals ??= new(new ArrivalDriver(Browser, FakeMicrosoft.Clock, LogEvents));
+  protected ArrivalDsl Arrivals => _arrivals ??= new(ArrivalDriver);
+
+  /// <summary>
+  /// The driver under <see cref="Arrivals"/>, the same browser and clock, for the guards in <c>Conventions/</c> that report
+  /// a read time of their own and look for it (<c>PushArrivalTelemetryTests</c>). Scenarios use <see cref="Arrivals"/> only.
+  /// </summary>
+  protected ArrivalDriver ArrivalDriver => _arrivalDriver ??= new(Browser, FakeMicrosoft.Clock, LogEvents);
 
   /// <summary>The app copy's log lines that name their event, with their structured values; registered in its container before it starts.</summary>
   private CapturedLogEvents LogEvents { get; } = new();
