@@ -7,7 +7,7 @@ namespace RevolutReader.Api.Check;
 public sealed class AccountCheckOptions {
   public const string SECTION = "AccountCheck";
 
-  /// <summary>The check endpoint's key: at least 32 random bytes, base64url without padding (D6).</summary>
+  /// <summary>The check endpoint's key: at least 32 random bytes, base64url without padding, a key of its own, never the message key (D6).</summary>
   [Required, NotSecretPlaceholder]
   public required string Key { get; init; }
 }

@@ -6,7 +6,8 @@ namespace RevolutReader.Api.Check;
 public static class AccountCheckRegistration {
   /// <summary>
   /// The <c>AccountCheck</c> settings, bound and validated at start (the data annotations and
-  /// <see cref="AccountCheckOptionsValidator"/>, D6), so the app refuses to start without a valid check key.
+  /// <see cref="AccountCheckOptionsValidator"/>, D6), so the app refuses to start without a valid check key of its own,
+  /// never the message key (the push settings, which <c>AddPush</c> binds).
   /// <see cref="AccountCheckQueue"/>, a singleton, as the one queue of the app copy (D10); <see cref="AccountCheck"/> as
   /// <see cref="IAccountCheck"/> and <see cref="ChangeNotifier"/>, scoped, as the handlers they use, resolved by the queue
   /// from a scope of each check's own. What they use is registered elsewhere: the store by <c>AddCheckedBalanceStore</c>,
