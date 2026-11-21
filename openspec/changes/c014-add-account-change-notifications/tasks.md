@@ -247,10 +247,10 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 43. [close] Acceptance green
 
-- [ ] 43.1 All 15 automated acceptance tests of this change pass, and the full suite is green; the traceability check passes (the manual row claims the 16th); `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` unchanged
+- [x] 43.1 All 15 automated acceptance tests of this change pass, and the full suite is green; the traceability check passes (the manual row claims the 16th); `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` unchanged
 - [ ] 43.2 Local check with `aspire start --isolated` (design.md § Migration plan, step 2; the laptop's key passed as a `Parameters__*` environment variable from the worktree, never written to the shared user-secrets): a check with the key answers `changed` false twice, a wrong key answers as an unknown address, and the app's lines show `CheckEnded` with no amount. Verify: the owner sees each
-- [ ] 43.3 Docs: the software-factory lessons, the divergence and the inventory line of design.md D20. Verify: each names the decision it records
-- [ ] 43.4 `pm/progress.md`: C9a's row (status, the change link, notes; `in progress` until the iPhone row, design.md § Migration plan, step 4); `CLAUDE.md` § Commands (the quick start's check key, task 3.2; "Run the app" names `accountcheck-key`). Verify: the row links the change
+- [x] 43.3 Docs: the software-factory lessons, the divergence and the inventory line of design.md D20. Verify: each names the decision it records
+- [x] 43.4 `pm/progress.md`: C9a's row (status, the change link, notes; `in progress` until the iPhone row, design.md § Migration plan, step 4); `CLAUDE.md` § Commands (the quick start's check key, task 3.2; "Run the app" names `accountcheck-key`). Verify: the row links the change
 
 ## Workflow follow-up
 
