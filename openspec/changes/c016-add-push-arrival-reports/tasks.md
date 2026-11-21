@@ -135,11 +135,11 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 25. [close] Acceptance green
 
-- [ ] 25.1 All automated scenario tests of this change pass, and the full suite is green, including `npm run build` with no API client in `dist/sw.js`, `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the traceability check (every scenario claimed exactly once, the manual row the 11th), and `openapi.json` and `schema.d.ts` current (a fresh regeneration leaves them unchanged). Verify: the commands' output
-- [ ] 25.2 Docs: ADR-0010 § Notes, dated (design.md D11): the arrival reports, #91's observation (two mutable pushes held about an hour, a plain one at once), and that work under `waitUntil` delays Safari's proposed notification, linking #91. Verify: the note cites this change's design.md D1, D3–D5
-- [ ] 25.3 Docs: the owner's decision of 2026-11-21 (design.md D11): work after the initial development is a GitHub issue only, with no roadmap step, in CLAUDE.md § Project management and workflow.md § 9, the roadmap wording there kept for the initial plan only. Verify: both say it the same way, and neither asks for a roadmap entry or a `pm/progress.md` row for new work
-- [ ] 25.4 Docs: the software-factory lessons and inventory lines of design.md D12, at the next free numbers. Verify: each lesson names the decision it comes from
-- [ ] 25.5 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (design.md D11). Verify: `CLAUDE.md`'s commands run as written
+- [x] 25.1 All automated scenario tests of this change pass, and the full suite is green, including `npm run build` with no API client in `dist/sw.js`, `dotnet format whitespace RevolutReader.slnx --verify-no-changes`, the traceability check (every scenario claimed exactly once, the manual row the 11th), and `openapi.json` and `schema.d.ts` current (a fresh regeneration leaves them unchanged). Verify: the commands' output
+- [x] 25.2 Docs: ADR-0010 § Notes, dated (design.md D11): the arrival reports, #91's observation (two mutable pushes held about an hour, a plain one at once), and that work under `waitUntil` delays Safari's proposed notification, linking #91. Verify: the note cites this change's design.md D1, D3–D5
+- [x] 25.3 Docs: the owner's decision of 2026-11-21 (design.md D11): work after the initial development is a GitHub issue only, with no roadmap step, in CLAUDE.md § Project management and workflow.md § 9, the roadmap wording there kept for the initial plan only. Verify: both say it the same way, and neither asks for a roadmap entry or a `pm/progress.md` row for new work
+- [x] 25.4 Docs: the software-factory lessons and inventory lines of design.md D12, at the next free numbers. Verify: each lesson names the decision it comes from
+- [x] 25.5 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (design.md D11). Verify: `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 

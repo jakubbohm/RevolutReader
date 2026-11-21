@@ -40,7 +40,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 
 ## Read before deciding anything
 
-- [pm/roadmap.md](pm/roadmap.md) and [pm/progress.md](pm/progress.md) — the source of truth for driving development. **Every session reads both at the start, before doing anything else.**
+- [pm/roadmap.md](pm/roadmap.md) and [pm/progress.md](pm/progress.md) — the source of truth for driving the initial development; work after it lives in GitHub issues only ([§ Project management](#project-management)). **Every session reads both at the start, before doing anything else.**
 - [pm/kickoff.md](pm/kickoff.md) — the original brief: why, scope, UC1–UC3, open questions Q1–Q10.
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
 - [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes, design), testing.md. `.claude/rules/` and the tooling mirror them.
@@ -70,10 +70,11 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 
 ## Project management
 
-- Work items live in `pm/roadmap.md` and `pm/progress.md`; `pm/kickoff.md` is the brief the roadmap refers to.
-- Update `pm/progress.md` when a step starts and when it ends. A step's own PR leaves its row final for the merge: ask the owner whether the step is done before marking the PR ready, and mark it `done` in that PR. Preferably that is a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone; the row then names that work. Never a follow-up PR only to change a status or record routine after-deploy checks ([workflow.md § 6](docs/conventions/workflow.md#6-openspec)). Decisions go into ADRs; `pm/progress.md` records only each open question's status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](docs/conventions/workflow.md#2-decisions)).
+- The initial development's work items live in `pm/roadmap.md` and `pm/progress.md`; `pm/kickoff.md` is the brief the roadmap refers to.
+- **Work after the initial development is a GitHub issue only** (the owner, 2026-11-21): no roadmap step and no `pm/progress.md` row; the issue holds the goal, the OpenSpec change and its PR name it, and the PR that finishes it closes it ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
+- Update `pm/progress.md` when a roadmap step starts and when it ends. A step's own PR leaves its row final for the merge: ask the owner whether the step is done before marking the PR ready, and mark it `done` in that PR. Preferably that is a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone; the row then names that work. Never a follow-up PR only to change a status or record routine after-deploy checks ([workflow.md § 6](docs/conventions/workflow.md#6-openspec)). Decisions go into ADRs; `pm/progress.md` records only each open question's status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](docs/conventions/workflow.md#2-decisions)).
 - Roadmap changes only with the user's approval, logged in `pm/progress.md`.
-- Every piece of planned work also gets a GitHub issue, linked both ways with its roadmap entry and closed by the PR that finishes it, unless the user says otherwise for that item ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
+- Every roadmap step also gets a GitHub issue, linked both ways with its roadmap entry and closed by the PR that finishes it, unless the user says otherwise for that item ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
 
 ## Workflow
 
