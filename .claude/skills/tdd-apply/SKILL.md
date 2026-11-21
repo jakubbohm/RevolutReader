@@ -105,7 +105,8 @@ For each group:
    - all tests pass except this change's acceptance tests that are still waiting for their wiring;
    - `git status --porcelain` and `git diff --name-only HEAD` (changes since the `[red]` commit) list no test
      files: paths under `tests/`, `*Tests*/`, `*.Tests.csproj`, `*.test.ts(x)`, `*.spec.ts(x)`, and nothing
-     under `openspec/`. Allowed only in `[wiring]` and `[close]` groups:
+     under `openspec/` other than this change's `.tdd-state.md` and `tasks.md`, which you edit yourself.
+     Allowed only in `[wiring]` and `[close]` groups:
      `tests/RevolutReader.AcceptanceTests/Drivers/**`; only in `[wiring]` groups:
      `tests/RevolutReader.IntegrationTests/Wiring/**`.
      If the implementer changed a disallowed file: restore it (`git restore --source=HEAD -- <path>`), tell the
