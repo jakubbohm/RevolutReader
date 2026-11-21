@@ -11,19 +11,19 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), the test kit of design.md D7 and § Public API sketch, the test-writer's: `Drivers/ArrivalDriver` (reports through the signed-in test browser, as `PushDriver` registers a device; `readAt` relative to the app copy's `FakeTimeProvider`, written as System.Text.Json writes a `DateTimeOffset`; a body with no `readAt`; the recorded delays from a capture of the app copy's `PushArrived` lines), `Dsl/ArrivalDsl` as `AcceptanceTest.Arrivals`, `Dsl/ReportAnswer`; stubs that throw `NotImplementedException`. Verify: the build passes and every existing acceptance test stays green
-- [ ] 1.2 Foundation (frontend), the test-writer's: in `src/test/serviceWorker.ts`, the worker gains `fetch`, handed to the fake server; in `src/test/server.ts` (a block marked "c016"), `POST /api/push/arrivals` answers 204 by default or any `Trouble`, and its bodies show in `bodiesSent()`; in `src/scenarios/push-arrivals.test.ts`, a helper building a push as the account check sends it (`pushWithBalance`, as in `push-display.test.ts`). Verify: the existing frontend tests stay green
-- [ ] 1.3 Acceptance: push-arrivals / A report records how long the push took to arrive
-- [ ] 1.4 Acceptance: push-arrivals / A report whose read time lies ahead records 0 seconds
-- [ ] 1.5 Acceptance: push-arrivals / A report without a read time is refused and records nothing
-- [ ] 1.6 Acceptance: push-arrivals / A push with a balance reports its arrival with the balance's read time (frontend)
-- [ ] 1.7 Acceptance: push-arrivals / A push with a balance reports its arrival on a phone that keeps no balance (frontend)
-- [ ] 1.8 Acceptance: push-arrivals / A push without a balance reports nothing (frontend; green from the start, a guard, design.md D7)
-- [ ] 1.9 Acceptance: push-arrivals / A push with a balance of the wrong shape reports nothing (frontend; green from the start, a guard)
-- [ ] 1.10 Acceptance: push-arrivals / A failed report still keeps the push's balance (frontend; green from the start, a guard)
-- [ ] 1.11 Acceptance: push-arrivals / A failed report still shows the notification (frontend; green from the start, a guard)
-- [ ] 1.12 Acceptance: push-arrivals / The notification is shown without waiting for the report (frontend; green from the start, a guard)
-- [ ] 1.13 Acceptance: push-arrivals / A payment's notification on the iPhone is reported within seconds (manual): its row in `tests/manual-scenarios.md`, first chance after this change deploys, on the owner's iPhone, with the app opened once after the deploy before the payment (design.md § How each scenario is verified)
+- [x] 1.1 Foundation (API), the test kit of design.md D7 and § Public API sketch, the test-writer's: `Drivers/ArrivalDriver` (reports through the signed-in test browser, as `PushDriver` registers a device; `readAt` relative to the app copy's `FakeTimeProvider`, written as System.Text.Json writes a `DateTimeOffset`; a body with no `readAt`; the recorded delays from a capture of the app copy's `PushArrived` lines), `Dsl/ArrivalDsl` as `AcceptanceTest.Arrivals`, `Dsl/ReportAnswer`; stubs that throw `NotImplementedException`. Verify: the build passes and every existing acceptance test stays green
+- [x] 1.2 Foundation (frontend), the test-writer's: in `src/test/serviceWorker.ts`, the worker gains `fetch`, handed to the fake server; in `src/test/server.ts` (a block marked "c016"), `POST /api/push/arrivals` answers 204 by default or any `Trouble`, and its bodies show in `bodiesSent()`; in `src/scenarios/push-arrivals.test.ts`, a helper building a push as the account check sends it (`pushWithBalance`, as in `push-display.test.ts`). Verify: the existing frontend tests stay green
+- [x] 1.3 Acceptance: push-arrivals / A report records how long the push took to arrive
+- [x] 1.4 Acceptance: push-arrivals / A report whose read time lies ahead records 0 seconds
+- [x] 1.5 Acceptance: push-arrivals / A report without a read time is refused and records nothing
+- [x] 1.6 Acceptance: push-arrivals / A push with a balance reports its arrival with the balance's read time (frontend)
+- [x] 1.7 Acceptance: push-arrivals / A push with a balance reports its arrival on a phone that keeps no balance (frontend)
+- [x] 1.8 Acceptance: push-arrivals / A push without a balance reports nothing (frontend; green from the start, a guard, design.md D7)
+- [x] 1.9 Acceptance: push-arrivals / A push with a balance of the wrong shape reports nothing (frontend; green from the start, a guard)
+- [x] 1.10 Acceptance: push-arrivals / A failed report still keeps the push's balance (frontend; green from the start, a guard)
+- [x] 1.11 Acceptance: push-arrivals / A failed report still shows the notification (frontend; green from the start, a guard)
+- [x] 1.12 Acceptance: push-arrivals / The notification is shown without waiting for the report (frontend; green from the start, a guard)
+- [x] 1.13 Acceptance: push-arrivals / A payment's notification on the iPhone is reported within seconds (manual): its row in `tests/manual-scenarios.md`, first chance after this change deploys, on the owner's iPhone, with the app opened once after the deploy before the payment (design.md § How each scenario is verified)
 
 ## 2. [unit] Slice 1 — The delay
 

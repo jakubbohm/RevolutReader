@@ -35,6 +35,11 @@ import { realTurn } from "./clock";
  * design.md D5, D10, in blocks marked "c012"): `emptyThePhone()` clears it with the rest, a reopened app finds it as the
  * phone kept it, and `phoneRemembersNotNow()` sets it before a launch. A failing `PUT /api/push/subscription` needs
  * nothing new: a test sets it as `subscription: serverError` (or any other `Trouble`).
+ *
+ * The answer to the service worker's report of a push's arrival, `POST /api/push/arrivals` (c016 design.md D7), sits in
+ * blocks marked "c016", in the same vocabulary: the arrival is recorded (204) unless the test sets another answer
+ * (`arrivals: serverError`, `noConnection`, `after(…)`, any `Trouble`). The service worker's stand-in
+ * (`./serviceWorker.ts`) sends its requests here, so a report shows in the timeline and in `bodiesSent()`.
  */
 
 /** What any request can meet besides its own answers. */
@@ -170,6 +175,18 @@ export type ForgetAnswer =
   | { kind: "refused"; email: string | null }
   | Trouble;
 
+// ---- c016: push arrivals (design.md D7) ----
+
+/** What the server answers when the service worker reports a push's arrival, `POST /api/push/arrivals` (c016 design.md D3). */
+export type ArrivalAnswer =
+  /** 204: the arrival is recorded. */
+  | { kind: "recorded" }
+  /** 401 with the problem description `Unauthorized`: the login has ended. */
+  | { kind: "nobody" }
+  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
+  | { kind: "refused"; email: string | null }
+  | Trouble;
+
 /** A request the app sent with a body: the request as the timeline writes it, its content type, and the body it sent. */
 export interface SentBody {
   request: string;
@@ -217,6 +234,9 @@ export interface ServerAnswers {
   subscription?: Answers<SubscriptionAnswer>;
   /** `DELETE /api/push/subscription`. Without one, the device is forgotten (204). After a sign-out, 401. */
   forgetSubscription?: Answers<ForgetAnswer>;
+  // ---- c016: push arrivals ----
+  /** `POST /api/push/arrivals`, the service worker's report of a push's arrival. Without one, it is recorded (204). After a sign-out, 401. */
+  arrivals?: Answers<ArrivalAnswer>;
 }
 
 /** The balance the phone keeps (c009 design.md D4): the record as the app stores it, `readAt` in ISO 8601. */
@@ -410,6 +430,11 @@ export function subscriptionRefused(member: string): SubscriptionAnswer {
   return { kind: "subscription refused", member };
 }
 
+// ---- c016: push arrivals (design.md D7) ----
+
+/** The push's arrival is recorded (204). */
+export const recorded = { kind: "recorded" } as const;
+
 const SIGN_OUT = "POST /api/auth/logout";
 const WHO_IS_SIGNED_IN = "GET /api/me";
 const BALANCE = "GET /api/balance";
@@ -421,6 +446,8 @@ const OLDER_TRANSACTIONS = "GET /api/transactions/older";
 const PUSH_KEY = "GET /api/push/key";
 const SEND_SUBSCRIPTION = "PUT /api/push/subscription";
 const FORGET_SUBSCRIPTION = "DELETE /api/push/subscription";
+// ---- c016 ----
+const REPORT_ARRIVAL = "POST /api/push/arrivals";
 
 /** The phone's own database for the balance it keeps (c009 design.md D4). */
 const PHONE_DATABASE = "tarjeta-papa";
@@ -446,6 +473,8 @@ let olderTransactionsAnswers: Readonly<
 let pushKeyAnswers: readonly Delayed<PushKeyAnswer>[] = [];
 let subscriptionAnswers: readonly Delayed<SubscriptionAnswer>[] = [];
 let forgetAnswers: readonly Delayed<ForgetAnswer>[] = [];
+// ---- c016 ----
+let arrivalAnswers: readonly Delayed<ArrivalAnswer>[] = [];
 let bodies: SentBody[] = [];
 /** How many requests of each kind the server has answered or is answering, to pick the next answer in order. */
 let asked = new Map<string, number>();
@@ -470,6 +499,7 @@ export function answerWith(answers: ServerAnswers): void {
   pushKeyAnswers = inOrder(answers.pushKey);
   subscriptionAnswers = inOrder(answers.subscription);
   forgetAnswers = inOrder(answers.forgetSubscription);
+  arrivalAnswers = inOrder(answers.arrivals);
   asked = new Map();
   loginEnded = false;
 }
@@ -653,6 +683,7 @@ export function resetFakeServer(): void {
   pushKeyAnswers = [];
   subscriptionAnswers = [];
   forgetAnswers = [];
+  arrivalAnswers = [];
   bodies = [];
   asked = new Map();
   loginEnded = false;
@@ -856,6 +887,11 @@ function outcomeOf(request: string): Outcome {
     case FORGET_SUBSCRIPTION: {
       const answer = nextOf(request, forgetAnswers) ?? forgotten;
       return forgetOutcome(loginEnded ? nobodySignedIn : answer);
+    }
+    // ---- c016 ----
+    case REPORT_ARRIVAL: {
+      const answer = nextOf(request, arrivalAnswers) ?? recorded;
+      return arrivalOutcome(loginEnded ? nobodySignedIn : answer);
     }
     case HEALTH:
       return {
@@ -1121,6 +1157,29 @@ function subscriptionOutcome(answer: Delayed<SubscriptionAnswer>): Outcome {
 function forgetOutcome(answer: Delayed<ForgetAnswer>): Outcome {
   switch (answer.kind) {
     case "forgotten":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => new Response(null, { status: 204 }),
+      };
+    case "nobody":
+      return {
+        kind: "answer",
+        after: answer.after,
+        response: () => problem(401, "Unauthorized"),
+      };
+    case "refused":
+      return refusedOutcome(answer);
+    default:
+      return troubleOutcome(answer);
+  }
+}
+
+// ---- c016: push arrivals' answers ----
+
+function arrivalOutcome(answer: Delayed<ArrivalAnswer>): Outcome {
+  switch (answer.kind) {
+    case "recorded":
       return {
         kind: "answer",
         after: answer.after,

@@ -85,6 +85,66 @@ public sealed class CapturedLogTexts {
 }
 
 /// <summary>
+/// The app copy's log lines that name their event (an <see cref="EventId"/> with a name, as every <c>[LoggerMessage]</c>
+/// line of the app has), each with its event's name and its own structured values, in the order written: a scenario's
+/// channel where the telemetry is the only place a capability's outcome shows (spec push-arrivals: the owner reads the
+/// arrivals only there, c016 design.md D7; <see cref="ArrivalDriver"/> reads its <c>PushArrived</c> lines). Every app copy
+/// has one: <see cref="AcceptanceTest"/> registers <see cref="Provider"/> in its container, so what reaches it has passed
+/// the app copy's log level settings (<c>Logging:LogLevel</c>), and only this app copy's loggers write into it. Lines whose
+/// event has no name are left out. The guards in <c>Conventions/</c> keep captures of their own, which also read each
+/// line's texts and scopes.
+/// </summary>
+public sealed class CapturedLogEvents {
+  private readonly Lock _lock = new();
+  private readonly List<(string EventName, IReadOnlyDictionary<string, object?> Values)> _lines = [];
+
+  /// <summary>The structured values of every line of the event <paramref name="eventName"/>, in the order written.</summary>
+  public IReadOnlyList<IReadOnlyDictionary<string, object?>> ValuesOf(string eventName) {
+    ArgumentException.ThrowIfNullOrEmpty(eventName);
+
+    lock (_lock)
+      return [.. _lines.Where(line => string.Equals(line.EventName, eventName, StringComparison.Ordinal)).Select(static line => line.Values)];
+  }
+
+  /// <summary>A logger provider writing into this capture; the app copy's container owns it.</summary>
+  public ILoggerProvider Provider() => new CapturingLoggerProvider(this);
+
+  /// <summary>One line: its event's name and its own structured values (the message template's, <c>{OriginalFormat}</c> among them).</summary>
+  private void Add(string eventName, IReadOnlyDictionary<string, object?> values) {
+    lock (_lock)
+      _lines.Add((eventName, values));
+  }
+
+  private sealed class CapturingLoggerProvider(CapturedLogEvents lines) : ILoggerProvider {
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(lines);
+
+    private sealed class CapturingLogger(CapturedLogEvents lines) : ILogger {
+      public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+      public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+      public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+        if (string.IsNullOrEmpty(eventId.Name))
+          return;
+
+        Dictionary<string, object?> values = state is IEnumerable<KeyValuePair<string, object?>> pairs
+          ? pairs.GroupBy(static pair => pair.Key, StringComparer.Ordinal).ToDictionary(static group => group.Key, static group => group.Last().Value, StringComparer.Ordinal)
+          : new(StringComparer.Ordinal);
+
+        lines.Add(eventId.Name, values);
+      }
+    }
+
+    #region IDisposable
+
+    public void Dispose() {
+    }
+
+    #endregion
+  }
+}
+
+/// <summary>
 /// The in-memory exporter's collection, safe for concurrent adds: an app copy's tracer listens process-wide, so the
 /// activities of other tests' app copies, running in parallel, arrive here too (with their own made-up values). A test
 /// looks for values only it uses, for its own requests by an address only it uses (<see cref="RequestsTo"/>), or for a
