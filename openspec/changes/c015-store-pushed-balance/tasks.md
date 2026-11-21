@@ -67,7 +67,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 10. [close] Slice 4 — A push with a balance of the wrong shape leaves the kept balance as it was
 
-- [ ] 10.1 The scenario's test passes and is proven by a mutation: with the push's balance kept without its shape check, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 10.1 The scenario's test passes and is proven by a mutation: with the push's balance kept without its shape check, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 11. [unit] Slice 5 — A push without a balance
 
