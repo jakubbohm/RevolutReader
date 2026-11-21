@@ -328,6 +328,29 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
+  /// An earlier check kept last seen at 45.20 and left last notified at 49.00; this check's bank read fails, and no check
+  /// waits behind, so it sends the kept change first (D10 item 4). The sender throws, since the device table cannot be read.
+  /// That failure decides the outcome (spec account-check, "A bank failure answers as the balance does": a failed send of a
+  /// change an earlier check kept answers as an unexpected failure does; D11, D12): the sender's exception reaches the
+  /// caller, not the read's failure as a result, and both kept balances are left exactly as they were. Whether the check
+  /// logs its <c>CheckEnded</c> line on this path is not pinned here.
+  /// </summary>
+  [Test]
+  public async Task A_failed_read_whose_catch_up_send_throws_throws_leaving_the_kept_balances_as_they_were() {
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 49.00m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    FailingDeviceTable devices = new(await DevicesWithLuciesPhone());
+    AccountCheck check = await CheckWith(new StubBankAccount(Failure("unavailable")), store, new StubPushDelivery(), devices: devices);
+
+    InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => check.Run(_phone, _noCheckWaits, CancellationToken.None));
+
+    CheckedBalances? after = await store.Read(CancellationToken.None);
+    thrown.ShouldSatisfyAllConditions(
+      () => thrown.ShouldBeSameAs(devices.Failure, "the sender's failure reaches the caller as it is, not the read's failure as a result"),
+      () => after.ShouldBe(before, "both kept balances as they were: last seen 45.20, last notified 49.00"));
+  }
+
+  /// <summary>
   /// Both balances kept at 45.20; the bank's read fails. The check keeps nothing new, both balances stay exactly as they
   /// were, and its result is the read's failure, as it is (D11: answered as the balance does). Its one line of what it came
   /// to is <c>CheckEnded</c> at Information whose one value is <see cref="CheckEnd.BankReadFailed"/> (D15), with no amount in
