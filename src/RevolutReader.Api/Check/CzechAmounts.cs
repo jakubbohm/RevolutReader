@@ -10,10 +10,10 @@ namespace RevolutReader.Api.Check;
 /// </summary>
 public static class CzechAmounts {
   /// <summary>A no-break space: the thousands separator, and the space before "€" and "Kč" (D2).</summary>
-  private const char NO_BREAK_SPACE = ' ';
+  private const char NO_BREAK_SPACE = '\u00A0';
 
   /// <summary>The minus sign the app's header writes (U+2212), never the hyphen-minus.</summary>
-  private const char MINUS = '−';
+  private const char MINUS = '\u2212';
 
   private const char DECIMAL_COMMA = ',';
 

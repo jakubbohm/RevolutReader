@@ -116,20 +116,20 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 16. [wiring] Slice 5 — The notifier
 
-- [ ] 16.1 `ChangeNotification`, `CzechAmounts` and `ChangeNotifier` (scoped) in `AddAccountCheck`; `CheckDsl` for a check that changed. Verify: groups 13–15 green
-- [ ] 16.2 Docs: `pm/progress.md` Q8 confirmed against what is built (its outcome and record, design.md D2; written at propose). Verify: the outcome matches the slice's tests
+- [x] 16.1 `ChangeNotification`, `CzechAmounts` and `ChangeNotifier` (scoped) in `AddAccountCheck`; `CheckDsl` for a check that changed. Verify: groups 13–15 green
+- [x] 16.2 Docs: `pm/progress.md` Q8 confirmed against what is built (its outcome and record, design.md D2; written at propose). Verify: the outcome matches the slice's tests
 
 ## 17. [close] Slice 5 — Money out is notified with the new balance
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including account-check / Money out is notified with the new balance
+- [x] 17.1 The scenario's test passes. Verify: green, including account-check / Money out is notified with the new balance
 
 ## 18. [unit] Slice 6 — Money in
 
-- [ ] 18.1 A rise is titled "Přišlo" with the size of the change: 45.20 to 145.20 as "Přišlo 100,00 €", over "Zůstatek 145,20 € (≈ 3 528 Kč)"
+- [x] 18.1 A rise is titled "Přišlo" with the size of the change: 45.20 to 145.20 as "Přišlo 100,00 €", over "Zůstatek 145,20 € (≈ 3 528 Kč)"
 
 ## 19. [close] Slice 6 — Money in is notified with the new balance
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including account-check / Money in is notified with the new balance
+- [x] 19.1 The scenario's test passes. Verify: green, including account-check / Money in is notified with the new balance
 
 ## 20. [unit] Slice 7 — No change
 

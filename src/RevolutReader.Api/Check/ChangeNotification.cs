@@ -5,18 +5,21 @@ namespace RevolutReader.Api.Check;
 
 /// <summary>
 /// The notification for a change (c014 design.md D2, D14), pure. The spacing is the board's: the amounts' no-break spaces
-/// come from <see cref="CzechAmounts"/>, a no-break space follows "≈", and ordinary spaces follow "Odešlo" and "Zůstatek"
-/// and precede "(".
+/// come from <see cref="CzechAmounts"/>, a no-break space follows "≈", and ordinary spaces follow "Odešlo", "Přišlo" and
+/// "Zůstatek" and precede "(".
 /// </summary>
 public static class ChangeNotification {
   /// <summary>The title of a fall, before the size of the change (D2).</summary>
   private const string MONEY_OUT = "Odešlo ";
 
+  /// <summary>The title of a rise, before the size of the change (D2).</summary>
+  private const string MONEY_IN = "Přišlo ";
+
   /// <summary>The text's start, before the new balance (D2).</summary>
   private const string BALANCE = "Zůstatek ";
 
   /// <summary>Before the koruna value: an ordinary space, the bracket, "≈" and a no-break space (D2).</summary>
-  private const string ABOUT = " (≈ ";
+  private const string ABOUT = " (≈\u00A0";
 
   private const string CLOSING_BRACKET = ")";
 
@@ -36,10 +39,7 @@ public static class ChangeNotification {
     AccountBalance lastSeen = balances.LastSeen;
     decimal change = lastSeen.Amount - balances.LastNotified.Amount;
 
-    if (change > 0)
-      throw new NotImplementedException("A rise (\"Přišlo\") comes with c014 tasks.md 18.");
-
-    string title = MONEY_OUT + CzechAmounts.Euros(Math.Abs(change));
+    string title = (change < 0 ? MONEY_OUT : MONEY_IN) + CzechAmounts.Euros(Math.Abs(change));
     string text = BALANCE + CzechAmounts.Euros(lastSeen.Amount) + ABOUT + CzechAmounts.WholeKoruna(lastSeen.Amount, lastSeen.CzkPerEur) + CLOSING_BRACKET;
 
     return new PushMessage(title, text, START_PAGE);
