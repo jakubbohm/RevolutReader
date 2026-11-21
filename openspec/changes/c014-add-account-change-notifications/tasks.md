@@ -141,13 +141,13 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 22. [unit] Slice 8 — Every allowed account
 
-- [ ] 22.1 A change goes to every account on the allowlist, one at a time, in the list's order
-- [ ] 22.2 An allowed account with no device costs nothing more than its zero counts
-- [ ] 22.3 `ChangeSent` sums the accounts and the devices reached, failed and removed
+- [x] 22.1 A change goes to every account on the allowlist, one at a time, in the list's order
+- [x] 22.2 An allowed account with no device costs nothing more than its zero counts
+- [x] 22.3 `ChangeSent` sums the accounts and the devices reached, failed and removed
 
 ## 23. [close] Slice 8 — Every allowed account with a registered device gets the notification
 
-- [ ] 23.1 The scenario's test passes. Verify: green, including account-check / Every allowed account with a registered device gets the notification
+- [x] 23.1 The scenario's test passes. Verify: green, including account-check / Every allowed account with a registered device gets the notification
 
 ## 24. [unit] Slice 9 — The balance in the push
 
