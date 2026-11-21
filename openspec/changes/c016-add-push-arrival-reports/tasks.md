@@ -45,8 +45,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 5. [unit] Slice 2 — A read time ahead
 
-- [ ] 5.1 A read time ahead of the server's time records 0 seconds
-- [ ] 5.2 A read time at the server's own time records 0 seconds
+- [x] 5.1 A read time ahead of the server's time records 0 seconds
+- [x] 5.2 A read time at the server's own time records 0 seconds
 
 ## 6. [close] Slice 2 — A report whose read time lies ahead records 0 seconds
 
