@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RevolutReader.Api.Bank;
 
 namespace RevolutReader.Api.Check;
@@ -11,6 +12,9 @@ namespace RevolutReader.Api.Check;
 /// nothing and gets the waiting check's answer. So a burst of any size runs at most two checks (D10 item 2).</item>
 /// <item>The running check and the waiting one are held under one lock; <c>anotherCheckWaits</c>, which a check asks right
 /// after its store step (D10 item 3), and <see cref="CallersWaiting"/> read them under the same lock.</item>
+/// <item>Each check runs under the request of the call that made it (its execution context, so its trace and logging
+/// scope): the waiting check under its own caller's, never the running one's, so its bank call, pushes and log lines go
+/// under the request that caused them (PR #88 review, the owner's decision, 2026-11-21).</item>
 /// <item>Each check runs in its own DI scope (<see cref="IAccountCheck"/>) on
 /// <see cref="IHostApplicationLifetime.ApplicationStopping"/>, never a caller's token (D8), so a caller that leaves never
 /// stops it; only the app's stop cancels it, and its callers get that cancellation. A failed check is logged here
@@ -49,7 +53,7 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
       if (_waiting is { } waiting)
         return waiting.Join();
 
-      check = new PendingCheck(user);
+      check = new PendingCheck(user, ExecutionContext.Capture());
 
       if (_running is not null) {
         _waiting = check;
@@ -67,17 +71,35 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
 
   /// <summary>
   /// Runs <paramref name="first"/>, then each check that waited behind the one before, in turn, until none waits: each
-  /// starts only once the one before has ended, however it ended.
+  /// starts only once the one before has ended, however it ended, and each under the request of the call that made it
+  /// (<see cref="RunUnderItsRequest"/>); the loop itself goes on in its own.
   /// </summary>
   private async Task RunInTurn(PendingCheck first) {
     PendingCheck? check = first;
 
     while (check is not null) {
-      Task<BankResult<CheckOutcome>> run = Run(check.User, lifetime.ApplicationStopping);
+      Task<BankResult<CheckOutcome>> run = RunUnderItsRequest(check);
       await ((Task)run).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
       check.EndWith(run);
       check = Next();
     }
+  }
+
+  /// <summary>
+  /// Starts <paramref name="check"/> in the execution context of the call that made it, so the check and its continuations
+  /// run under that caller's request (its trace and logging scope), never the one before's (PR #88 review, the owner's
+  /// decision, 2026-11-21). With no context captured (its flow suppressed), it starts in the loop's own, as before.
+  /// </summary>
+  private Task<BankResult<CheckOutcome>> RunUnderItsRequest(PendingCheck check) {
+    CancellationToken stopping = lifetime.ApplicationStopping;
+
+    if (check.Request is not { } request)
+      return Run(check.User, stopping);
+
+    Task<BankResult<CheckOutcome>>? run = null;
+    ExecutionContext.Run(request, _ => run = Run(check.User, stopping), state: null);
+
+    return run ?? throw new UnreachableException("ExecutionContext.Run returned without running the check.");
   }
 
   /// <summary>The waiting check, now the running one, its callers no longer waiting; <see langword="null"/>, and no check runs, when none waits.</summary>
@@ -116,14 +138,20 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
   }
 
   /// <summary>
-  /// A check that runs or waits: the user it runs for, its answer for every caller, and its callers (counted under the
-  /// queue's lock).
+  /// A check that runs or waits: the user it runs for, the request it runs under (both of the call that made it), its
+  /// answer for every caller, and its callers (counted under the queue's lock).
   /// </summary>
-  private sealed class PendingCheck(PresentUser user) {
+  private sealed class PendingCheck(PresentUser user, ExecutionContext? request) {
     private readonly TaskCompletionSource<BankResult<CheckOutcome>> _answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>The user the check reads for: the caller's that made it.</summary>
     public PresentUser User { get; } = user;
+
+    /// <summary>
+    /// The execution context of the call that made the check, captured when it was made, which the check runs in: that
+    /// caller's request, its trace and logging scope; <see langword="null"/> when the caller's flow was suppressed.
+    /// </summary>
+    public ExecutionContext? Request { get; } = request;
 
     /// <summary>The calls waiting for this check: the one that made it, and those that joined it.</summary>
     public int Callers { get; private set; } = 1;
