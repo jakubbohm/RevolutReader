@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using RevolutReader.Api.Rate;
@@ -6,14 +7,19 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Rate;
 
 /// <summary>
-/// The rate an answer carries, the happy path (c017 design.md D2–D4; § Public API sketch, <see cref="IKorunaRates"/>): with
-/// nothing kept, the CNB is asked, and its rate is answered and saved; the kept rate is read from the store once per
-/// instance, on the first call that needs a rate; a kept rate that is not due is answered without asking the CNB. The CNB
-/// is a hand-written fake of the port (<see cref="FakeCnbRates"/>), the kept rate an in-memory store
-/// (<see cref="InMemoryKorunaRateStore"/>), the clock a <see cref="FakeTimeProvider"/>. The rates and days are the spec's:
-/// Friday 2026-11-20's and Monday 2026-11-23's.
+/// The rate an answer carries (c017 design.md D2–D4, D7; § Public API sketch, <see cref="IKorunaRates"/>). The happy path:
+/// with nothing kept, the CNB is asked, and its rate is answered and saved; the kept rate is read from the store once per
+/// instance, on the first call that needs a rate; a kept rate that is not due is answered without asking the CNB. When it
+/// is asked again: a later day's rate replaces the kept one and is logged as kept; after a rate for today is kept, the CNB
+/// is not asked again before the next weekday's 08:00 UTC. The CNB is a hand-written fake of the port
+/// (<see cref="FakeCnbRates"/>), the kept rate an in-memory store (<see cref="InMemoryKorunaRateStore"/>), the clock a
+/// <see cref="FakeTimeProvider"/>, the log a hand-written logger (<see cref="CapturedLog"/>). The rates and days are the
+/// spec's: Friday 2026-11-20's and Monday 2026-11-23's.
 /// </summary>
 public sealed class KorunaRatesTests {
+  /// <summary>The event of the line a newly kept rate writes (D7).</summary>
+  private const string KORUNA_RATE_KEPT = "KorunaRateKept";
+
   /// <summary>Friday's rate, kept over the weekend.</summary>
   private static readonly KorunaRate _fridays = new(24.41m, new DateOnly(2026, 11, 20));
 
@@ -84,9 +90,70 @@ public sealed class KorunaRatesTests {
       () => cnb.Calls.ShouldBe(0, "the CNB is not asked"));
   }
 
+  // When the CNB is asked again (D3, D7)
+
+  /// <summary>
+  /// Friday's rate kept, Monday 15:00 UTC, the CNB answering Monday's: the first call answers Monday's and saves it, and
+  /// the next call answers it from memory, with no read of the store and no ask. One <c>KorunaRateKept</c> line, at
+  /// Information, holding exactly the rate and its day.
+  /// </summary>
+  [Test]
+  public async Task A_rate_for_a_later_day_than_the_kept_one_replaces_it_in_memory_and_in_the_store_and_is_logged_once_as_kept() {
+    FakeCnbRates cnb = new(_mondays);
+    InMemoryKorunaRateStore store = await StoreKeeping(_fridays);
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_mondayAfternoon), log);
+
+    KorunaRate first = await rates.Current(CancellationToken.None);
+    KorunaRate next = await rates.Current(CancellationToken.None);
+    int readsByTheService = store.Reads;
+
+    KorunaRate? saved = await store.Read(CancellationToken.None);
+    IReadOnlyList<LogEntry> kept = [.. log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_KEPT)];
+    first.ShouldSatisfyAllConditions(
+      () => first.ShouldBe(_mondays, "the first call's rate, the CNB's for a later day"),
+      () => next.ShouldBe(_mondays, "the next call's rate, held in memory"),
+      () => cnb.Calls.ShouldBe(1, "the CNB is asked once: the rate for today is not due again on the same day"),
+      () => readsByTheService.ShouldBe(1, "the store is read once, on the first call"),
+      () => saved.ShouldBe(_mondays, "the rate saved in the store"),
+      () => kept.ShouldHaveSingleItem("one KorunaRateKept line").Level.ShouldBe(LogLevel.Information),
+      () => kept.ShouldHaveSingleItem("one KorunaRateKept line").OwnValues().ShouldBe([24.52m, new DateOnly(2026, 11, 23)], ignoreOrder: true, "the rate and its day"));
+  }
+
+  /// <summary>
+  /// Nothing kept on Friday 15:00 UTC, the CNB answering Friday's rate, which is kept: the CNB is not asked again on
+  /// Saturday, nor on Monday one tick before 08:00 UTC; at Monday's 08:00 UTC, the next weekday's, it is.
+  /// </summary>
+  [Test]
+  public async Task After_a_rate_for_today_is_kept_the_CNB_is_not_asked_again_before_the_next_weekdays_08_00_UTC() {
+    FakeCnbRates cnb = new(_fridays);
+    FakeTimeProvider clock = new(new DateTimeOffset(2026, 11, 20, 15, 0, 0, TimeSpan.Zero));
+    KorunaRates rates = RatesWith(cnb, new InMemoryKorunaRateStore(), clock, new CapturedLog());
+    DateTimeOffset mondayAtEight = new(2026, 11, 23, 8, 0, 0, TimeSpan.Zero);
+
+    _ = await rates.Current(CancellationToken.None);
+    int asksOnFriday = cnb.Calls;
+    clock.SetUtcNow(_saturdayMorning);
+    _ = await rates.Current(CancellationToken.None);
+    clock.SetUtcNow(mondayAtEight.AddTicks(-1));
+    _ = await rates.Current(CancellationToken.None);
+    int asksBeforeMondayAtEight = cnb.Calls;
+    clock.SetUtcNow(mondayAtEight);
+    _ = await rates.Current(CancellationToken.None);
+
+    cnb.ShouldSatisfyAllConditions(
+      () => asksOnFriday.ShouldBe(1, "Friday's ask, with nothing kept"),
+      () => asksBeforeMondayAtEight.ShouldBe(1, "no ask on Saturday, nor on Monday one tick before 08:00 UTC"),
+      () => cnb.Calls.ShouldBe(2, "an ask at Monday's 08:00 UTC"));
+  }
+
   /// <summary>The service under test, asking <paramref name="cnb"/>, keeping its rate in <paramref name="store"/>, with the clock at <paramref name="now"/>.</summary>
   private static KorunaRates RatesWith(FakeCnbRates cnb, InMemoryKorunaRateStore store, DateTimeOffset now) =>
     new(cnb, store, new FakeTimeProvider(now), NullLogger<KorunaRates>.Instance);
+
+  /// <summary>The service under test, asking <paramref name="cnb"/>, keeping its rate in <paramref name="store"/>, on <paramref name="clock"/>, logging to <paramref name="log"/>.</summary>
+  private static KorunaRates RatesWith(FakeCnbRates cnb, InMemoryKorunaRateStore store, FakeTimeProvider clock, CapturedLog log) =>
+    new(cnb, store, clock, log);
 
   /// <summary>A store keeping <paramref name="rate"/>, saved before the service exists, so no read is counted yet.</summary>
   private static async Task<InMemoryKorunaRateStore> StoreKeeping(KorunaRate rate) {
@@ -94,5 +161,47 @@ public sealed class KorunaRatesTests {
     await store.Save(rate, CancellationToken.None);
 
     return store;
+  }
+
+  /// <summary>The service's logger, keeping every line it writes: its level, its event's name and its structured values.</summary>
+  private sealed class CapturedLog : ILogger<KorunaRates> {
+    private readonly Lock _lock = new();
+    private readonly List<LogEntry> _entries = [];
+
+    /// <summary>Every line, in the order written.</summary>
+    public IReadOnlyList<LogEntry> Entries {
+      get {
+        lock (_lock)
+          return [.. _entries];
+      }
+    }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+      IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
+      LogEntry entry = new(logLevel, eventId.Name, [.. values]);
+
+      lock (_lock)
+        _entries.Add(entry);
+    }
+  }
+
+  /// <summary>One line of the service's log.</summary>
+  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values) {
+    /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
+    private const string ORIGINAL_FORMAT = "{OriginalFormat}";
+
+    /// <summary>The values of the line's own fields, without its message template.</summary>
+    public IReadOnlyList<object?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value)];
+
+    #region Object overrides
+
+    /// <summary>For a failure message: the level and the event.</summary>
+    public override string ToString() => $"{Level} {EventName}";
+
+    #endregion
   }
 }
