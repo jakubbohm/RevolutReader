@@ -34,8 +34,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 3. [wiring] Slice 1 — The endpoint
 
-- [ ] 3.1 `ArrivalReportRequest`, `ArrivalReportEndpoint` (`POST /api/push/arrivals`, the default policy, `Accepts<ArrivalReportRequest>(JSON)`, 204, 400, 401, 403 `RefusedProblem`), `RecordArrivalHandler` (`TimeProvider`, `ArrivalDelay`), `PushLog.PushArrived` and the handler's registration in `AddPush`, as design.md D3, D4 and § Public API sketch say; `ArrivalDriver`'s report and its reading of the recorded delays. Verify: group 1.3 runs to its assertions; `AnonymousEndpointsTests` green (the endpoint is not anonymous)
-- [ ] 3.2 Regenerate the TS client: `npm --prefix tools/api-client run regenerate` (FastEndpoints' OpenAPI export → `src/RevolutReader.Api/openapi.json` → `src/RevolutReader.Web/src/api/schema.d.ts`), both committed. Verify: the description lists `POST /api/push/arrivals` with `readAt` and its four answers; `schema.d.ts` has `RevolutReaderApiPushArrivalReportRequest`; `npm run typecheck` green
+- [x] 3.1 `ArrivalReportRequest`, `ArrivalReportEndpoint` (`POST /api/push/arrivals`, the default policy, `Accepts<ArrivalReportRequest>(JSON)`, 204, 400, 401, 403 `RefusedProblem`), `RecordArrivalHandler` (`TimeProvider`, `ArrivalDelay`), `PushLog.PushArrived` and the handler's registration in `AddPush`, as design.md D3, D4 and § Public API sketch say; `ArrivalDriver`'s report and its reading of the recorded delays. Verify: group 1.3 runs to its assertions; `AnonymousEndpointsTests` green (the endpoint is not anonymous)
+- [x] 3.2 Regenerate the TS client: `npm --prefix tools/api-client run regenerate` (FastEndpoints' OpenAPI export → `src/RevolutReader.Api/openapi.json` → `src/RevolutReader.Web/src/api/schema.d.ts`), both committed. Verify: the description lists `POST /api/push/arrivals` with `readAt` and its four answers; `schema.d.ts` has `RevolutReaderApiPushArrivalReportRequest`; `npm run typecheck` green
 
 ## 4. [close] Slice 1 — A report records how long the push took to arrive
 
