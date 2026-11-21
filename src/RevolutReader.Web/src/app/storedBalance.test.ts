@@ -146,6 +146,94 @@ test("A pushed balance replaces the one the phone keeps, with only its three fie
   expect(await loadStoredBalance()).toEqual(LATER);
 });
 
+/** A balance of `amount` EUR read at `readAt` (as written, offset and all), at C13's rate. Made up. */
+function readAtTime(amount: number, readAt: string): Balance {
+  return { amount, readAt, czkPerEur: 24.3 };
+}
+
+test("A pushed balance read earlier than the kept one leaves the kept one", async () => {
+  const cases: [string, { kept: Balance; pushed: Balance }][] = [
+    [
+      "two hours earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T06:58:00+00:00"),
+      },
+    ],
+    [
+      "a millisecond earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T08:57:59.999+00:00"),
+      },
+    ],
+  ];
+
+  for (const [name, { kept, pushed }] of cases) {
+    await phoneKeeps(kept);
+
+    await keepPushedBalance(pushed);
+
+    expect(await keptBalance(), name).toEqual(kept);
+  }
+});
+
+test("A pushed balance read at the same moment as the kept one replaces it", async () => {
+  // Another amount at the same read time, so the test can see which one the phone keeps.
+  await phoneKeeps(readAtTime(286.4, "2026-11-10T08:58:00+00:00"));
+  const pushed = readAtTime(301.9, "2026-11-10T08:58:00+00:00");
+
+  await keepPushedBalance(pushed);
+
+  expect(await keptBalance()).toEqual(pushed);
+});
+
+test("Read times are compared as moments, whatever their offsets", async () => {
+  // Which balance the phone keeps afterwards: the pushed one (replaced) or the one it kept (left).
+  const cases: [
+    string,
+    { kept: Balance; pushed: Balance; keeps: "pushed" | "kept" },
+  ][] = [
+    [
+      // 08:58 UTC both: the same moment, so it replaces (as at the same moment with one offset).
+      "the same moment, two offsets",
+      {
+        kept: readAtTime(286.4, "2026-11-10T09:58:00+01:00"),
+        pushed: readAtTime(301.9, "2026-11-10T08:58:00+00:00"),
+        keeps: "pushed",
+      },
+    ],
+    [
+      // 08:58 UTC pushed against 08:30 UTC kept: read later, though its text sorts before the kept one's.
+      "read later, its text sorting earlier",
+      {
+        kept: readAtTime(286.4, "2026-11-10T09:30:00+01:00"),
+        pushed: readAtTime(301.9, "2026-11-10T08:58:00+00:00"),
+        keeps: "pushed",
+      },
+    ],
+    [
+      // 08:30 UTC pushed against 08:58 UTC kept: read earlier, though its text sorts after the kept one's.
+      "read earlier, its text sorting later",
+      {
+        kept: readAtTime(286.4, "2026-11-10T08:58:00+00:00"),
+        pushed: readAtTime(250, "2026-11-10T09:30:00+01:00"),
+        keeps: "kept",
+      },
+    ],
+  ];
+
+  for (const [name, { kept, pushed, keeps }] of cases) {
+    await phoneKeeps(kept);
+
+    await keepPushedBalance(pushed);
+
+    expect(await keptBalance(), name).toEqual(
+      keeps === "pushed" ? pushed : kept,
+    );
+  }
+});
+
 // A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there
 // (`emptyThePhone`), so here the storage starts from a phone with no database at all, and the app's own storage code
 // creates it, as on a first launch. A fresh copy of the module (and of idb-keyval) opens against the new phone.

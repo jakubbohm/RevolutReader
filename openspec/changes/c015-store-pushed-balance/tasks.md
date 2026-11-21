@@ -42,9 +42,9 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 5. [unit] Slice 2 — A balance read earlier
 
-- [ ] 5.1 A pushed balance read earlier than the kept one leaves the kept one
-- [ ] 5.2 A pushed balance read at the same moment as the kept one replaces it
-- [ ] 5.3 Read times are compared as moments, whatever their offsets
+- [x] 5.1 A pushed balance read earlier than the kept one leaves the kept one
+- [x] 5.2 A pushed balance read at the same moment as the kept one replaces it
+- [x] 5.3 Read times are compared as moments, whatever their offsets
 
 ## 6. [close] Slice 2 — A push with a balance read earlier than the kept one leaves it as it was
 
