@@ -7,14 +7,16 @@ disable-model-invocation: true
 
 # Review triage orchestrator
 
-You are the orchestrator (O). You do not write tests or production code yourself. You gather the findings, run
+You are the orchestrator. You do not write tests or production code yourself. You gather the findings, run
 the verification workflow, check its evidence, delegate the fixes, verify every step, decide nothing the owner
 should decide, and record everything in the PR. Three workers do the rest:
 
 - the saved workflow **`triage-review-verify`** (`.claude/workflows/triage-review-verify.js`): verifies every
   finding read-only and routes it;
-- **T** = `test-writer` subagent: writes the failing guard test that reproduces a finding; fixes test-quality findings;
-- **I** = `implementer` subagent: makes a guard test pass; fixes docs and cleanup findings. Never edits tests.
+- **the test-writer** (`test-writer` subagent): writes the failing guard test that reproduces a finding;
+  fixes test-quality findings;
+- **the implementer** (`implementer` subagent): makes a guard test pass; fixes docs and cleanup findings.
+  Never edits tests.
 
 The rules this skill applies: `docs/conventions/testing.md` § Code review after the apply; the roles:
 § Test-first workflow; the `[review]` commits: `docs/conventions/workflow.md` § 3. Test and check commands:
@@ -52,10 +54,11 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 3. Work folder: `<scratchpad>/triage-review/<PR>/`, absolute path, forward slashes. State file:
    `openspec/changes/<change>/.review-triage.md` (in the archive folder when the change is archived); for a Direct
    PR `<work folder>/state.md`. It holds: the PR, the scope, the findings source, the routing per finding, the
-   commits per finding, the asks and the owner's answers, T's and I's agent IDs. **Write the agent IDs there as
-   soon as you spawn or resume an agent.** After a compaction, re-read it before doing anything else.
-4. T and I: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the current pair, the last chapter's)
-   and resume them with SendMessage. If one
+   commits per finding, the asks and the owner's answers, the test-writer's and the implementer's agent IDs.
+   **Write the agent IDs there as soon as you spawn or resume an agent.** After a compaction, re-read it before
+   doing anything else.
+4. The test-writer and the implementer: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the
+   current pair, the last chapter's) and resume them with SendMessage. If one
    cannot be resumed, or there is no state file, spawn a fresh one when it is first needed and brief it: the change,
    the PR, that this is the review triage, and the finding at hand.
 5. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop
@@ -105,27 +108,29 @@ Before acting on anything:
 Order the FIX findings by file, so related ones follow each other. For each, by its kind:
 
 - **behaviour** (`needsFailingTest`):
-  1. Send T the finding (its body, file:line, the investigation's evidence and sketch) and the change's `design.md`
-     and delta specs. Ask for **one guard test that reproduces it**, at the level `testing.md` § Where tests live
-     gives it: a unit test next to the rule, an integration edge test for an adapter, a frontend test for browser
-     behaviour. **Never a new acceptance scenario:** that is a spec change and an ASK. T edits only test files, the
-     DSL and the drivers the test needs.
+  1. Send the test-writer the finding (its body, file:line, the investigation's evidence and sketch) and the
+     change's `design.md` and delta specs. Ask for **one guard test that reproduces it**, at the level
+     `testing.md` § Where tests live gives it: a unit test next to the rule, an integration edge test for an
+     adapter, a frontend test for browser behaviour. **Never a new acceptance scenario:** that is a spec change
+     and an ASK. The test-writer edits only test files, the DSL and the drivers the test needs.
   2. Verify red yourself: the build passes; the new test fails at runtime, not at compile time; everything else is
      still green. Commit `test(<scope>): [review] <id>: <summary>, red`.
      **A guard test that passes at once refutes the finding:** keep it, commit
      `test(<scope>): [review] <id>: guard, passes`, and move the finding to DECLINE with the test as its evidence.
-  3. Send I the test (file and test name), the finding and the sketch; I must not change any test file. Verify
-     green yourself: the full suite passes, and `git diff --name-only HEAD` lists nothing under `tests/`, `*Tests*/`,
-     `*.test.ts(x)`, `*.spec.ts(x)` or `openspec/`. A violation: restore the file
-     (`git restore --source=HEAD -- <path>`), tell I, resume I. Commit `fix(<scope>): [review] <id>: <summary>`.
-  4. I returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding to ASK with T's
-     test, I's claim and the evidence.
-- **test-quality:** T alone fixes the test. Verify the suite is green. Commit `test(<scope>): [review] <id>: <summary>`.
-- **docs** or **cleanup:** I alone. Verify the suite is green and the diff touches no test file. Commit
-  `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
+  3. Send the implementer the test (file and test name), the finding and the sketch; the implementer must not
+     change any test file. Verify green yourself: the full suite passes, and `git diff --name-only HEAD` lists
+     nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or `openspec/`. A violation: restore the
+     file (`git restore --source=HEAD -- <path>`), tell the implementer, resume it. Commit
+     `fix(<scope>): [review] <id>: <summary>`.
+  4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding
+     to ASK with the test-writer's test, the implementer's claim and the evidence.
+- **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
+  `test(<scope>): [review] <id>: <summary>`.
+- **docs** or **cleanup:** The implementer alone. Verify the suite is green and the diff touches no test file.
+  Commit `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
 
-After each commit: tick the finding and note the commit in the state file. Only one of T and I works at a time;
-never build or test while one of them is working.
+After each commit: tick the finding and note the commit in the state file. Only one of the test-writer and the
+implementer works at a time; never build or test while one of them is working.
 
 ## 4. Ask round
 
@@ -136,7 +141,7 @@ never build or test while one of them is working.
    options; a free-text answer is the owner's own words, re-confirm it when it matters.
 3. Act on each answer before the next question:
    - **fix now** → § 3 as a FIX. A spec change first gets its spec or `design.md` edit, committed
-     `docs(<scope>): [plan] <what changed>`; the acceptance test change then goes to T;
+     `docs(<scope>): [plan] <what changed>`; the acceptance test change then goes to the test-writer;
    - **decline** → DECLINE, with the owner's reason as the evidence;
    - **defer** → the owner says where: a GitHub issue (`gh issue create`: the finding and the step it belongs to;
      the issue linked in the thread), or a heads-up in the `design.md` of the step it belongs to, committed
@@ -161,15 +166,16 @@ never build or test while one of them is working.
 5. Report to the owner: the counts per outcome, the commits, what stays open, and the fix range
    `<first sha>..<last sha>` in case they want a second `/code-review` on it.
 
-## Rules for you (O)
+## Rules for you (the orchestrator)
 
 - Never edit tests or production code yourself. The only files you edit are the state file, the findings file and
-  the close-out docs. Restoring a file I was not allowed to change is the one exception.
-- Verify before trusting: the workflow's evidence, T's red, I's green. Never start a build or a test run while T
-  or I works. The workflow's agents never build or run tests (its prompts forbid it).
+  the close-out docs. Restoring a file the implementer was not allowed to change is the one exception.
+- Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
+  build or a test run while the test-writer or the implementer works. The workflow's agents never build or
+  run tests (its prompts forbid it).
 - Commit only on the PR's branch, at the handoffs above, with the `[review]` tag and the finding number. Never
   push, never commit on `main`.
-- Do not use `isolation: "worktree"` for T or I: one working tree, as in `/tdd-apply`.
+- Do not use `isolation: "worktree"` for the test-writer or the implementer: one working tree, as in `/tdd-apply`.
 - Never put bank data or secrets into anything you send, commit, post or record.
 - Scripts run verbatim, each as one Bash tool call with the placeholders filled in; never translated to PowerShell.
 
