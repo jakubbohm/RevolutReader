@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Push;
 using Shouldly;
@@ -10,16 +11,27 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Push;
 
 /// <summary>
-/// The push settings are checked at start-up (c011 design.md D5, D9, D13; configuration.md § Binding): none of the three
-/// secrets may still hold the declared placeholder; the VAPID public key is the 65-byte uncompressed P-256 point and the
-/// private key the 32-byte scalar, each in base64url, and the two are one pair; the message key is at least 32 bytes;
-/// <c>Subject</c> is an absolute https address with no path beyond "/", no query and no fragment; every known push service
-/// is a valid pattern; the request timeout lies between 1 and 60 seconds. A failure names the setting, never its value.
-/// Each test runs both checks the app runs at start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs
-/// them, and <see cref="PushOptionsValidator"/>. Every value here is made up; every key is generated in the test.
+/// The push settings are checked at start-up (c011 design.md D5, D9, D13; configuration.md § Binding): every setting but
+/// the request timeout is required; none of the three secrets may still hold the declared placeholder; the VAPID public
+/// key is the 65-byte uncompressed P-256 point and the private key the 32-byte scalar, each in base64url, and the two are
+/// one pair; the message key is at least 32 bytes; <c>Subject</c> is an absolute https address with no path beyond "/", no
+/// query and no fragment; there is at least one known push service and every one is a valid pattern; the request timeout
+/// lies between 1 and 60 seconds. A failure names the setting, never its value; a failure of the settings' own rules names
+/// it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at start, through push's own
+/// registration (<see cref="PushRegistration.AddPush"/>, from an in-memory configuration): the settings' data annotations
+/// and <see cref="PushOptionsValidator"/>, however those checks are built. Every value here is made up; every key is
+/// generated in the test.
 /// </summary>
 public sealed class PushOptionsTests {
   private const string PLACEHOLDER = "<secret>";
+
+  /// <summary>The settings' section, as the configuration names it (D5), written out, so a renamed setting fails here.</summary>
+  private const string SECTION = "Push";
+
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name.</summary>
+  private const string SAYS_REQUIRED = "required";
+  private const string SAYS_PLACEHOLDER = "placeholder";
+  private const string SAYS_OUT_OF_RANGE = "between";
 
   /// <summary>Distinctive, so it cannot turn up in a message by coincidence.</summary>
   private const string PLAIN_TEXT = "plain text where the key should be, 3e81b7";
@@ -99,9 +111,48 @@ public sealed class PushOptionsTests {
     IReadOnlyList<string> failures = Failures(settings);
 
     failures.ShouldContain(
-      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains("placeholder", StringComparison.OrdinalIgnoreCase),
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_PLACEHOLDER, StringComparison.OrdinalIgnoreCase),
       $"a failure saying that {setting} still holds the placeholder");
     failures.ShouldAllBe(failure => !QuotesAny(failure, PLACEHOLDER, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
+  }
+
+  /// <summary>
+  /// A setting left out of the configuration is required: the failure names it and says so. For the keys and the address,
+  /// the validator's own check fails too; the required rule's failure is still there. Leaving out the known push services
+  /// leaves out every entry.
+  /// </summary>
+  /// <param name="setting">Each setting with no default.</param>
+  [Test]
+  [Arguments(nameof(PushOptions.VapidPublicKey))]
+  [Arguments(nameof(PushOptions.VapidPrivateKey))]
+  [Arguments(nameof(PushOptions.MessageKey))]
+  [Arguments(nameof(PushOptions.Subject))]
+  [Arguments(nameof(PushOptions.Services))]
+  public void A_missing_push_setting_fails_validation_naming_it_as_required(string setting) =>
+    Failures(Settings(), leftOut: setting).ShouldContain(
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_REQUIRED, StringComparison.OrdinalIgnoreCase),
+      $"a failure saying that {setting} is required");
+
+  /// <summary>
+  /// An empty list of known push services fails validation, naming the setting (D9: at least one entry). No configuration
+  /// binds to an empty list (the binder leaves the setting out when <c>Push:Services</c> has no entry, and the required
+  /// rule fails), so this test runs the checks push's registration adds on the settings themselves: every
+  /// <see cref="IValidateOptions{TOptions}"/> of <see cref="PushOptions"/> that <see cref="PushRegistration.AddPush"/>
+  /// registers, as the options factory runs them, whatever their kind.
+  /// </summary>
+  [Test]
+  public void An_empty_list_of_known_push_services_fails_validation_naming_the_setting() {
+    PushOptions settings = Settings(services: new Dictionary<string, string>(StringComparer.Ordinal));
+    using ServiceProvider provider = ServicesWith(Configuration(settings));
+
+    IReadOnlyList<string> failures = [
+      .. provider.GetServices<IValidateOptions<PushOptions>>()
+        .Select(validator => validator.Validate(Options.DefaultName, settings))
+        .Where(static result => result.Failed)
+        .SelectMany(static result => result.Failures ?? []),
+    ];
+
+    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.Services), StringComparison.Ordinal), "a failure naming Services");
   }
 
   /// <param name="notAPoint">A value that is not the 65-byte uncompressed P-256 point in base64url (D5).</param>
@@ -246,6 +297,40 @@ public sealed class PushOptionsTests {
   public void The_known_push_services_declared_in_appsettings_json_pass_validation() =>
     Failures(Settings(services: DeclaredServices())).ShouldBeEmpty();
 
+  /// <summary>
+  /// A failure of the settings' own rules (#68) names the setting by its full name, as the operator sets it
+  /// (<c>Push:MessageKey</c>, or <c>Push__MessageKey</c> in the environment): the message starts with the section, the
+  /// setting and ": ", then says what is wrong, and never holds the value.
+  /// </summary>
+  /// <param name="setting">Each setting with a rule of its own that a configuration can break, by its full name, broken by that rule: a secret still holding the placeholder, the address or the push services left out, the timeout outside its range.</param>
+  [Test]
+  [Arguments("Push:VapidPublicKey")]
+  [Arguments("Push:VapidPrivateKey")]
+  [Arguments("Push:MessageKey")]
+  [Arguments("Push:Subject")]
+  [Arguments("Push:Services")]
+  [Arguments("Push:RequestTimeout")]
+  public void An_invalid_setting_fails_validation_with_a_message_starting_with_its_full_name_never_its_value(string setting) {
+    (PushOptions Settings, string? LeftOut, string? Value, string Says) invalid = setting switch {
+      "Push:VapidPublicKey" => (Settings(vapidPublicKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "Push:VapidPrivateKey" => (Settings(vapidPrivateKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "Push:MessageKey" => (Settings(messageKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "Push:Subject" => (Settings(), nameof(PushOptions.Subject), null, SAYS_REQUIRED),
+      "Push:Services" => (Settings(), nameof(PushOptions.Services), null, SAYS_REQUIRED),
+      "Push:RequestTimeout" => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", SAYS_OUT_OF_RANGE),
+      _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a setting with a rule of its own."),
+    };
+
+    IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
+
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting}: ", StringComparison.Ordinal) && failure.Contains(invalid.Says, StringComparison.OrdinalIgnoreCase),
+      $"a failure starting with \"{setting}: \" that says the setting is {invalid.Says}; the failures were: {string.Join(" | ", failures)}");
+
+    if (invalid.Value is { } value)
+      failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
+  }
+
   /// <summary>Complete, valid settings, except for the values given.</summary>
   private static PushOptions Settings(
     string? vapidPublicKey = null,
@@ -262,14 +347,67 @@ public sealed class PushOptionsTests {
       RequestTimeout = requestTimeout ?? _requestTimeout,
     };
 
-  /// <summary>Every failure message of the start-up checks: the data annotations, then the validator.</summary>
-  private static IReadOnlyList<string> Failures(PushOptions settings) {
-    ValidateOptionsResult[] results = [
-      new DataAnnotationValidateOptions<PushOptions>(Options.DefaultName).Validate(Options.DefaultName, settings),
-      new PushOptionsValidator().Validate(Options.DefaultName, settings),
-    ];
+  /// <summary>
+  /// Every failure message of the start-up checks on <paramref name="settings"/>, as the app runs them: the settings
+  /// written to the configuration under their real names, all but <paramref name="leftOut"/>, then bound and checked
+  /// through <see cref="PushRegistration.AddPush"/>, so the data annotations and the validator. None when the settings
+  /// resolve.
+  /// </summary>
+  /// <param name="settings">The settings to write to the configuration.</param>
+  /// <param name="leftOut">A setting's name (the property's) to leave out of the configuration, with all its entries, or <see langword="null"/>.</param>
+  private static IReadOnlyList<string> Failures(PushOptions settings, string? leftOut = null) {
+    Dictionary<string, string?> values = Configuration(settings);
 
-    return [.. results.Where(static result => result.Failed).SelectMany(static result => result.Failures ?? [])];
+    if (leftOut is not null) {
+      string setting = $"{SECTION}:{leftOut}";
+      string[] keys = [.. values.Keys.Where(key => key == setting || key.StartsWith($"{setting}:", StringComparison.Ordinal))];
+
+      if (keys.Length == 0)
+        throw new ArgumentOutOfRangeException(nameof(leftOut), leftOut, "Not a setting the configuration holds.");
+
+      foreach (string key in keys)
+        values.Remove(key);
+    }
+
+    using ServiceProvider provider = ServicesWith(values);
+
+    try {
+      _ = provider.GetRequiredService<IOptions<PushOptions>>().Value;
+
+      return [];
+    }
+    catch (OptionsValidationException refused) {
+      return [.. refused.Failures];
+    }
+  }
+
+  /// <summary>
+  /// <paramref name="settings"/> as the configuration holds them, under their real names: a key per setting, and one per
+  /// known push service, <c>Push:Services:&lt;name&gt;</c>; the address as written, the timeout as a TimeSpan setting reads.
+  /// </summary>
+  private static Dictionary<string, string?> Configuration(PushOptions settings) {
+    Dictionary<string, string?> values = new(StringComparer.Ordinal) {
+      [$"{SECTION}:VapidPublicKey"] = settings.VapidPublicKey,
+      [$"{SECTION}:VapidPrivateKey"] = settings.VapidPrivateKey,
+      [$"{SECTION}:MessageKey"] = settings.MessageKey,
+      [$"{SECTION}:Subject"] = settings.Subject.OriginalString,
+      [$"{SECTION}:RequestTimeout"] = settings.RequestTimeout.ToString("c", CultureInfo.InvariantCulture),
+    };
+
+    foreach (KeyValuePair<string, string> service in settings.Services)
+      values[$"{SECTION}:Services:{service.Key}"] = service.Value;
+
+    return values;
+  }
+
+  /// <summary>The services the app's start-up checks of the push settings run on: <paramref name="values"/> as the configuration, and push's registration, <see cref="PushRegistration.AddPush"/>.</summary>
+  private static ServiceProvider ServicesWith(IReadOnlyDictionary<string, string?> values) {
+    IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    ServiceCollection services = new();
+    services.AddSingleton(configuration);
+    services.AddPush();
+
+    return services.BuildServiceProvider();
   }
 
   /// <summary>

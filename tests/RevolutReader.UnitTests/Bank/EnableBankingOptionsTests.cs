@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Bank;
 using Shouldly;
@@ -7,11 +10,14 @@ namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
 /// The Enable Banking settings are checked at start-up (c004 design.md D6, § Error model; configuration.md § Binding):
-/// no secret may still hold the declared placeholder, the API address must be an absolute https address (plain http only
-/// on this machine) whose path ends in "/" (a bare host's does) and that has no query or fragment, and the private key
-/// must be an RSA private key in PEM form (a public key fails too). A failure names the setting, never its value. Each
-/// test runs both checks the app runs at start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs
-/// them, and <see cref="EnableBankingOptionsValidator"/>. Every value here is made up; every key is generated in the test.
+/// every setting but the two times is required, no secret may still hold the declared placeholder, the API address must
+/// be an absolute https address (plain http only on this machine) whose path ends in "/" (a bare host's does) and that
+/// has no query or fragment, the private key must be an RSA private key in PEM form (a public key fails too), and the
+/// request timeout lies between 1 second and 2 minutes. A failure names the setting, never its value; a failure of the
+/// settings' own rules names it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at
+/// start, through the bank adapter's own registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an
+/// in-memory configuration): the settings' data annotations and <see cref="EnableBankingOptionsValidator"/>, however those
+/// checks are built. Every value here is made up; every key is generated in the test.
 /// </summary>
 public sealed class EnableBankingOptionsTests {
   private const string PLACEHOLDER = "<secret>";
@@ -19,10 +25,22 @@ public sealed class EnableBankingOptionsTests {
   private const string MADE_UP_SESSION_ID = "0c004000-0000-4000-8000-00000000a002";
   private const string MADE_UP_ACCOUNT_ID = "0c004000-0000-4000-8000-00000000a003";
 
+  /// <summary>The settings' section, as the configuration names it (D6), written out, so a renamed setting fails here.</summary>
+  private const string SECTION = "EnableBanking";
+
   /// <summary>Distinctive, so it cannot turn up in a message by coincidence.</summary>
   private const string PLAIN_TEXT = "plain text where the key should be, 7f3a9c";
 
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name.</summary>
+  private const string SAYS_REQUIRED = "required";
+  private const string SAYS_PLACEHOLDER = "placeholder";
+  private const string SAYS_OUT_OF_RANGE = "between";
+
   private static readonly Uri _apiBaseUrl = new("https://api.enablebanking.com");
+
+  /// <summary>The defaults <c>EnableBankingOptions</c> declares (c008 design.md D1, D7).</summary>
+  private static readonly TimeSpan _requestTimeout = TimeSpan.FromSeconds(15);
+  private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(0.8);
 
   private static readonly Lazy<string> _rsaKey = new(static () => RsaKeyPem("PRIVATE KEY"));
 
@@ -40,8 +58,30 @@ public sealed class EnableBankingOptionsTests {
       _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not one of the four secrets."),
     };
 
-    Failures(settings).ShouldContain(failure => failure.Contains(setting, StringComparison.Ordinal), $"a failure naming {setting}");
+    IReadOnlyList<string> failures = Failures(settings);
+
+    // The placeholder rule's own failure: for the private key, the key check fails too and names the setting as well.
+    failures.ShouldContain(
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_PLACEHOLDER, StringComparison.OrdinalIgnoreCase),
+      $"a failure saying that {setting} still holds the placeholder");
+    failures.ShouldAllBe(failure => !failure.Contains(PLACEHOLDER, StringComparison.Ordinal), "no failure message may contain the setting's value");
   }
+
+  /// <summary>
+  /// A setting left out of the configuration is required: the failure names it and says so. For the address and the key,
+  /// the validator's own check fails too; the required rule's failure is still there.
+  /// </summary>
+  /// <param name="setting">Each setting with no default.</param>
+  [Test]
+  [Arguments(nameof(EnableBankingOptions.ApiBaseUrl))]
+  [Arguments(nameof(EnableBankingOptions.ApplicationId))]
+  [Arguments(nameof(EnableBankingOptions.PrivateKey))]
+  [Arguments(nameof(EnableBankingOptions.SessionId))]
+  [Arguments(nameof(EnableBankingOptions.AccountId))]
+  public void A_missing_setting_fails_validation_naming_it_as_required(string setting) =>
+    Failures(Settings(), leftOut: setting).ShouldContain(
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_REQUIRED, StringComparison.OrdinalIgnoreCase),
+      $"a failure saying that {setting} is required");
 
   [Test]
   [Arguments("plain text")]
@@ -90,23 +130,114 @@ public sealed class EnableBankingOptionsTests {
   public void An_https_api_address_or_an_http_one_on_this_machine_with_no_path_or_a_path_ending_in_a_slash_and_no_query_or_fragment_passes_validation(string address) =>
     Failures(Settings(apiBaseUrl: new Uri(address))).ShouldBeEmpty();
 
+  /// <param name="requestTimeout">Shorter than 1 second or longer than 2 minutes (c008 design.md D1), as a TimeSpan setting reads.</param>
+  [Test]
+  [Arguments("00:00:00")]
+  [Arguments("00:00:00.999")]
+  [Arguments("00:02:00.001")]
+  [Arguments("00:05:00")]
+  public void A_request_timeout_outside_1_second_to_2_minutes_fails_validation(string requestTimeout) =>
+    Failures(Settings(requestTimeout: TimeSpan.Parse(requestTimeout, CultureInfo.InvariantCulture)))
+      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.RequestTimeout), StringComparison.Ordinal), "a failure naming RequestTimeout");
+
+  /// <param name="requestTimeout">The shortest and the longest request timeout the rule allows.</param>
+  [Test]
+  [Arguments("00:00:01")]
+  [Arguments("00:02:00")]
+  public void A_request_timeout_of_1_second_to_2_minutes_passes_validation(string requestTimeout) =>
+    Failures(Settings(requestTimeout: TimeSpan.Parse(requestTimeout, CultureInfo.InvariantCulture))).ShouldBeEmpty();
+
+  /// <summary>
+  /// A failure of the settings' own rules (#68) names the setting by its full name, as the operator sets it
+  /// (<c>EnableBanking:AccountId</c>, or <c>EnableBanking__AccountId</c> in the environment): the message starts with the
+  /// section, the setting and ": ", then says what is wrong, and never holds the value.
+  /// </summary>
+  /// <param name="setting">Each setting with a rule of its own, by its full name, broken by that rule: the address left out, a secret still holding the placeholder, a time outside its range.</param>
+  [Test]
+  [Arguments("EnableBanking:ApiBaseUrl")]
+  [Arguments("EnableBanking:ApplicationId")]
+  [Arguments("EnableBanking:PrivateKey")]
+  [Arguments("EnableBanking:SessionId")]
+  [Arguments("EnableBanking:AccountId")]
+  [Arguments("EnableBanking:RequestTimeout")]
+  [Arguments("EnableBanking:RetryDelay")]
+  public void An_invalid_setting_fails_validation_with_a_message_starting_with_its_full_name_never_its_value(string setting) {
+    (EnableBankingOptions Settings, string? LeftOut, string? Value, string Says) invalid = setting switch {
+      "EnableBanking:ApiBaseUrl" => (Settings(), nameof(EnableBankingOptions.ApiBaseUrl), null, SAYS_REQUIRED),
+      "EnableBanking:ApplicationId" => (Settings(applicationId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "EnableBanking:PrivateKey" => (Settings(privateKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "EnableBanking:SessionId" => (Settings(sessionId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "EnableBanking:AccountId" => (Settings(accountId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      "EnableBanking:RequestTimeout" => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", SAYS_OUT_OF_RANGE),
+      "EnableBanking:RetryDelay" => (Settings(retryDelay: TimeSpan.FromSeconds(6)), null, "00:00:06", SAYS_OUT_OF_RANGE),
+      _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a setting with a rule of its own."),
+    };
+
+    IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
+
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting}: ", StringComparison.Ordinal) && failure.Contains(invalid.Says, StringComparison.OrdinalIgnoreCase),
+      $"a failure starting with \"{setting}: \" that says the setting is {invalid.Says}; the failures were: {string.Join(" | ", failures)}");
+
+    if (invalid.Value is { } value)
+      failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
+  }
+
   /// <summary>Complete, valid settings, except for the values given.</summary>
-  private static EnableBankingOptions Settings(Uri? apiBaseUrl = null, string? applicationId = null, string? privateKey = null, string? sessionId = null, string? accountId = null) => new() {
-    ApiBaseUrl = apiBaseUrl ?? _apiBaseUrl,
-    ApplicationId = applicationId ?? MADE_UP_APPLICATION_ID,
-    PrivateKey = privateKey ?? _rsaKey.Value,
-    SessionId = sessionId ?? MADE_UP_SESSION_ID,
-    AccountId = accountId ?? MADE_UP_ACCOUNT_ID,
-  };
+  private static EnableBankingOptions Settings(
+    Uri? apiBaseUrl = null,
+    string? applicationId = null,
+    string? privateKey = null,
+    string? sessionId = null,
+    string? accountId = null,
+    TimeSpan? requestTimeout = null,
+    TimeSpan? retryDelay = null) => new() {
+      ApiBaseUrl = apiBaseUrl ?? _apiBaseUrl,
+      ApplicationId = applicationId ?? MADE_UP_APPLICATION_ID,
+      PrivateKey = privateKey ?? _rsaKey.Value,
+      SessionId = sessionId ?? MADE_UP_SESSION_ID,
+      AccountId = accountId ?? MADE_UP_ACCOUNT_ID,
+      RequestTimeout = requestTimeout ?? _requestTimeout,
+      RetryDelay = retryDelay ?? _retryDelay,
+    };
 
-  /// <summary>Every failure message of the start-up checks: the data annotations, then the validator.</summary>
-  private static IReadOnlyList<string> Failures(EnableBankingOptions settings) {
-    ValidateOptionsResult[] results = [
-      new DataAnnotationValidateOptions<EnableBankingOptions>(Options.DefaultName).Validate(Options.DefaultName, settings),
-      new EnableBankingOptionsValidator().Validate(Options.DefaultName, settings),
-    ];
+  /// <summary>
+  /// Every failure message of the start-up checks on <paramref name="settings"/>, as the app runs them: the settings
+  /// written to the configuration under their real names, all but <paramref name="leftOut"/>, then bound and checked
+  /// through <see cref="EnableBankingRegistration.AddEnableBanking"/>, so the data annotations and the validator. None
+  /// when the settings resolve.
+  /// </summary>
+  /// <param name="settings">The settings to write to the configuration.</param>
+  /// <param name="leftOut">A setting's name (the property's) to leave out of the configuration, or <see langword="null"/>.</param>
+  private static IReadOnlyList<string> Failures(EnableBankingOptions settings, string? leftOut = null) {
+    Dictionary<string, string?> values = new(StringComparer.Ordinal) {
+      [$"{SECTION}:ApiBaseUrl"] = settings.ApiBaseUrl.OriginalString,
+      [$"{SECTION}:ApplicationId"] = settings.ApplicationId,
+      [$"{SECTION}:PrivateKey"] = settings.PrivateKey,
+      [$"{SECTION}:SessionId"] = settings.SessionId,
+      [$"{SECTION}:AccountId"] = settings.AccountId,
+      [$"{SECTION}:RequestTimeout"] = settings.RequestTimeout.ToString("c", CultureInfo.InvariantCulture),
+      [$"{SECTION}:RetryDelay"] = settings.RetryDelay.ToString("c", CultureInfo.InvariantCulture),
+    };
 
-    return [.. results.Where(static result => result.Failed).SelectMany(static result => result.Failures ?? [])];
+    if (leftOut is not null && !values.Remove($"{SECTION}:{leftOut}"))
+      throw new ArgumentOutOfRangeException(nameof(leftOut), leftOut, "Not a setting the configuration holds.");
+
+    IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    ServiceCollection services = new();
+    services.AddSingleton(configuration);
+    services.AddEnableBanking();
+
+    using ServiceProvider provider = services.BuildServiceProvider();
+
+    try {
+      _ = provider.GetRequiredService<IOptions<EnableBankingOptions>>().Value;
+
+      return [];
+    }
+    catch (OptionsValidationException refused) {
+      return [.. refused.Failures];
+    }
   }
 
   /// <summary>Whether <paramref name="message"/> contains <paramref name="value"/>, or any of its lines longer than a word.</summary>
