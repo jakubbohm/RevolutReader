@@ -83,8 +83,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 13. [unit] Slice 5 — Reporting whatever the phone keeps
 
-- [ ] 13.1 A push's arrival is reported on a phone that keeps no balance
-- [ ] 13.2 A push's arrival is reported when the phone keeps a newer balance than the push's
+- [x] 13.1 A push's arrival is reported on a phone that keeps no balance
+- [x] 13.2 A push's arrival is reported when the phone keeps a newer balance than the push's
 
 ## 14. [close] Slice 5 — A push with a balance reports its arrival on a phone that keeps no balance
 
@@ -92,8 +92,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 15. [unit] Slice 6 — No balance, no report
 
-- [ ] 15.1 A declarative message with no data in its notification reports nothing, as the owner's messages
-- [ ] 15.2 A proposed notification whose data has no balance, and a push with no data or of text that is not JSON, report nothing
+- [x] 15.1 A declarative message with no data in its notification reports nothing, as the owner's messages
+- [x] 15.2 A proposed notification whose data has no balance, and a push with no data or of text that is not JSON, report nothing
 
 ## 16. [close] Slice 6 — A push without a balance reports nothing
 
@@ -101,7 +101,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 17. [unit] Slice 7 — A balance of the wrong shape
 
-- [ ] 17.1 A balance without its read time, or whose amount or rate is not a number, reports nothing
+- [x] 17.1 A balance without its read time, or whose amount or rate is not a number, reports nothing
 
 ## 18. [close] Slice 7 — A push with a balance of the wrong shape reports nothing
 
@@ -109,9 +109,9 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 19. [unit] Slice 8 — A failed report
 
-- [ ] 19.1 A report resolves when the request fails (offline)
-- [ ] 19.2 A report resolves when the server answers 401, 403 or 500
-- [ ] 19.3 A failed report is never sent again
+- [x] 19.1 A report resolves when the request fails (offline)
+- [x] 19.2 A report resolves when the server answers 401, 403 or 500
+- [x] 19.3 A failed report is never sent again
 
 ## 20. [close] Slice 8 — A failed report still keeps the push's balance
 
@@ -119,7 +119,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 21. [unit] Slice 9 — The notification after a failed report
 
-- [ ] 21.1 A failed report still lets the service worker show the message
+- [x] 21.1 A failed report still lets the service worker show the message
 
 ## 22. [close] Slice 9 — A failed report still shows the notification
 
@@ -127,7 +127,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 23. [unit] Slice 10 — Not waiting for the report
 
-- [ ] 23.1 The message is shown without waiting for the report's answer
+- [x] 23.1 The message is shown without waiting for the report's answer
 
 ## 24. [close] Slice 10 — The notification is shown without waiting for the report
 

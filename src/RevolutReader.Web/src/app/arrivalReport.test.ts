@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { HOUR, startTestClock, timePasses } from "../test/clock";
 import { reportArrival, type ReportingWorker } from "./arrivalReport";
 
 // A push's arrival, reported to the server (c016 design.md D1-D3, D5). Every value here is made up.
@@ -49,4 +50,71 @@ test("A report is one POST to /api/push/arrivals on the worker's own origin, as 
     "the body: only the read time, exactly as given",
   ).toEqual({ readAt: READ_AT });
   expect(init.credentials, "the credentials").toBe("same-origin");
+});
+
+// ---- A failed report (group 19; design.md D5: never rejects, ignores the answer, never sends again) ----
+
+/** A service worker whose `fetch` counts each request and gives `answer()` for it: a response, or a failed request. */
+function workerAnswering(answer: () => Promise<unknown>): {
+  worker: ReportingWorker;
+  requestsSent: () => number;
+} {
+  let sent = 0;
+  const worker: ReportingWorker = {
+    location: { origin: WORKER_ORIGIN },
+    fetch: () => {
+      sent += 1;
+      return answer();
+    },
+  };
+  return { worker, requestsSent: () => sent };
+}
+
+/** The request fails, as the browser's `fetch` rejects when the device is offline. */
+const offline = (): Promise<unknown> =>
+  Promise.reject(new TypeError("Failed to fetch"));
+
+/** A problem description with this status and title, as the API answers one (RFC 9457), made up. */
+const problemAnswer = (status: number, title: string) => (): Promise<unknown> =>
+  Promise.resolve(
+    new Response(JSON.stringify({ title, status }), {
+      status,
+      headers: { "Content-Type": "application/problem+json" },
+    }),
+  );
+
+test("A report resolves when the request fails (offline)", async () => {
+  const { worker } = workerAnswering(offline);
+
+  await expect(reportArrival(worker, READ_AT)).resolves.toBeUndefined();
+});
+
+test.each([
+  { status: 401, title: "Unauthorized" },
+  { status: 403, title: "Forbidden" },
+  { status: 500, title: "Internal Server Error" },
+])(
+  "A report resolves when the server answers 401, 403 or 500: $status",
+  async ({ status, title }) => {
+    const { worker } = workerAnswering(problemAnswer(status, title));
+
+    await expect(reportArrival(worker, READ_AT)).resolves.toBeUndefined();
+  },
+);
+
+test.each([
+  { label: "the request fails", answer: offline },
+  {
+    label: "the server answers 500",
+    answer: problemAnswer(500, "Internal Server Error"),
+  },
+])("A failed report is never sent again: $label", async ({ answer }) => {
+  startTestClock();
+  const { worker, requestsSent } = workerAnswering(answer);
+
+  await reportArrival(worker, READ_AT);
+  // Long after: a later attempt on a timer would have gone by now.
+  await timePasses(HOUR);
+
+  expect(requestsSent(), "requests sent").toBe(1);
 });

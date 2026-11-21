@@ -5,12 +5,15 @@ import {
   answerWith,
   bodiesSent,
   keptBalance,
+  noConnection,
   phoneKeeps,
   phoneStorageBusy,
   phoneStorageFails,
   recorded,
   requests,
+  serverError,
   timeline,
+  type ArrivalAnswer,
 } from "../test/server";
 import {
   installServiceWorkerStandIn,
@@ -857,3 +860,203 @@ test.each(BOTH_KINDS)(
     );
   },
 );
+
+// ---- c016: reporting whatever the phone keeps (group 13; design.md D1: the report is independent of the write) ----
+
+/** A balance the phone keeps, read later than `PUSHED`, so the push's balance does not replace it. Made up. */
+const KEPT_LATER: Balance = {
+  amount: 286.4,
+  readAt: "2026-11-10T09:30:00+00:00",
+  czkPerEur: 24.3,
+};
+
+test("A push's arrival is reported on a phone that keeps no balance", async () => {
+  // A browser that reads Declarative Web Push (as Safari on the iPhone), where the balance is written.
+  const serviceWorker = installServiceWorkerStandIn({ declarative: true });
+  listenForPushes(serviceWorker.worker);
+
+  await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+  expect(reportsReceived(), "the reports received").toEqual([
+    { readAt: PUSHED.readAt },
+  ]);
+  // The write stored nothing (c015: a phone that keeps none stores none), yet the push was reported.
+  expect(await keptBalance(), "the balance the phone keeps").toBeNull();
+});
+
+test("A push's arrival is reported when the phone keeps a newer balance than the push's", async () => {
+  await phoneKeeps(KEPT_LATER);
+  const serviceWorker = installServiceWorkerStandIn({ declarative: true });
+  listenForPushes(serviceWorker.worker);
+
+  await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+  expect(reportsReceived(), "the reports received").toEqual([
+    { readAt: PUSHED.readAt },
+  ]);
+  // The write left the newer balance as it was, yet the push was reported.
+  expect(await keptBalance(), "the balance the phone keeps").toEqual(
+    KEPT_LATER,
+  );
+});
+
+// ---- c016: no balance, no report (groups 15, 17; design.md D1: a push reports when `pushedBalance` gives a balance) ----
+
+/** Every request to the reports' address the fake server received, whatever its method or origin, as the timeline writes it. */
+function reportRequests(): string[] {
+  return requests().filter((request) => request.includes("/api/push/arrivals"));
+}
+
+/** Every kind of browser the stand-in plays: one that shows its own notification, one that does not, one that proposes null. */
+const EVERY_KIND: {
+  label: string;
+  options: ServiceWorkerStandInOptions;
+}[] = [
+  ...BOTH_KINDS,
+  {
+    label: "a browser whose proposed notification is null",
+    options: { proposesNull: true },
+  },
+];
+
+test("A declarative message with no data in its notification reports nothing, as the owner's messages", async () => {
+  for (const { label, options } of EVERY_KIND) {
+    const serviceWorker = installServiceWorkerStandIn(options);
+    listenForPushes(serviceWorker.worker);
+
+    // The owner's message (c011 design.md D2): no "mutable", no data.
+    await serviceWorker.deliverPush(DECLARATIVE_PUSH);
+
+    expect(reportRequests(), label).toEqual([]);
+  }
+});
+
+test("A proposed notification whose data has no balance, and a push with no data or of text that is not JSON, report nothing", async () => {
+  /** A push of the account check whose notification's data is this, not `{ balance }`. */
+  const pushWithData = (data: unknown): unknown => ({
+    web_push: 8030,
+    mutable: true,
+    notification: {
+      title: PAYMENT_TITLE,
+      body: PAYMENT_TEXT,
+      navigate: APP_PAGE,
+      data,
+    },
+  });
+  const cases: [
+    string,
+    ServiceWorkerStandInOptions,
+    (serviceWorker: ServiceWorkerStandIn) => Promise<void>,
+  ][] = [
+    [
+      "a proposed notification whose data has no balance",
+      { declarative: true },
+      (serviceWorker) => serviceWorker.deliverPush(pushWithData({})),
+    ],
+    [
+      "a proposed notification whose data is text",
+      { declarative: true },
+      (serviceWorker) => serviceWorker.deliverPush(pushWithData("282,60 €")),
+    ],
+    [
+      "a proposed notification with the balance's fields in its data itself, not under balance",
+      { declarative: true },
+      (serviceWorker) => serviceWorker.deliverPush(pushWithData(PUSHED)),
+    ],
+    [
+      "a push with no data, where the browser shows its own notification",
+      { declarative: true },
+      (serviceWorker) => serviceWorker.deliverPushWithoutData(),
+    ],
+    [
+      "a push with no data, where the service worker shows the notification",
+      { declarative: false },
+      (serviceWorker) => serviceWorker.deliverPushWithoutData(),
+    ],
+    [
+      "a push of text that is not JSON",
+      { declarative: false },
+      (serviceWorker) => serviceWorker.deliverPushOfText("Ahoj"),
+    ],
+  ];
+
+  for (const [name, options, deliver] of cases) {
+    const serviceWorker = installServiceWorkerStandIn(options);
+    listenForPushes(serviceWorker.worker);
+
+    await deliver(serviceWorker);
+
+    expect(reportRequests(), name).toEqual([]);
+  }
+});
+
+test("A balance without its read time, or whose amount or rate is not a number, reports nothing", async () => {
+  const shapes: [string, unknown][] = [
+    ["no read time", { amount: PUSHED.amount, czkPerEur: PUSHED.czkPerEur }],
+    ["the amount as text", { ...PUSHED, amount: "282.60" }],
+    ["the rate as text", { ...PUSHED, czkPerEur: "24.3" }],
+  ];
+
+  for (const [shape, balance] of shapes) {
+    // In the proposed notification (a browser that shows its own) and in the push's own JSON (one that does not).
+    for (const { label, options } of BOTH_KINDS) {
+      const serviceWorker = installServiceWorkerStandIn(options);
+      listenForPushes(serviceWorker.worker);
+
+      await serviceWorker.deliverPush(pushWithBalance(balance));
+
+      expect(reportRequests(), `${shape}, ${label}`).toEqual([]);
+    }
+  }
+});
+
+// ---- c016: the notification and the report (groups 21, 23; design.md D5) ----
+
+/** The ways a report fails: the server fails with an error of its own, or the request fails (offline). */
+const FAILED_REPORTS: { label: string; answer: ArrivalAnswer }[] = [
+  { label: "the server fails", answer: serverError },
+  { label: "the request fails", answer: noConnection },
+];
+
+test.each(FAILED_REPORTS)(
+  "A failed report still lets the service worker show the message: $label",
+  async ({ answer }) => {
+    answerWith({ arrivals: answer });
+    // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
+    const serviceWorker = installServiceWorkerStandIn();
+    listenForPushes(serviceWorker.worker);
+
+    // Resolves once the event's waitUntil work is done; fails the test if that work fails.
+    await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+    expect(reportRequests(), "the report was sent").toEqual([REPORT]);
+    expect(serviceWorker.shownNotifications()).toEqual([
+      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+    ]);
+  },
+);
+
+test("The message is shown without waiting for the report's answer", async () => {
+  startTestClock();
+  // The server is waking up: it answers the report only 20 s later.
+  answerWith({ arrivals: after(20 * SECOND, recorded) });
+  // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
+  const serviceWorker = installServiceWorkerStandIn();
+  listenForPushes(serviceWorker.worker);
+
+  // Not awaited: the stand-in resolves only once the event's work, the report among it, is done.
+  const delivery = serviceWorker.deliverPush(pushWithBalance(PUSHED));
+  await timePasses(0);
+
+  expect(reportRequests(), "the report is under way").toEqual([REPORT]);
+  expect(timeline(), "the server has not answered the report").not.toContain(
+    `answer ${REPORT}`,
+  );
+  expect(serviceWorker.shownNotifications()).toEqual([
+    { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+  ]);
+
+  // The server wakes and answers: the push's work ends.
+  await timePasses(20 * SECOND);
+  await delivery;
+});
