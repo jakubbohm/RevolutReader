@@ -102,10 +102,10 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 14. [unit] Slice 5 — The notification
 
-- [ ] 14.1 A fall is titled "Odešlo" with the size of the change: 49.00 to 45.20 as "Odešlo 3,80 €"
-- [ ] 14.2 The text is the new balance with its koruna value: "Zůstatek 45,20 € (≈ 1 098 Kč)", with the no-break spaces design.md D2 lists and ordinary spaces elsewhere
-- [ ] 14.3 The notification opens the app's start page
-- [ ] 14.4 Two balances that do not differ make no notification (ArgumentException)
+- [x] 14.1 A fall is titled "Odešlo" with the size of the change: 49.00 to 45.20 as "Odešlo 3,80 €"
+- [x] 14.2 The text is the new balance with its koruna value: "Zůstatek 45,20 € (≈ 1 098 Kč)", with the no-break spaces design.md D2 lists and ordinary spaces elsewhere
+- [x] 14.3 The notification opens the app's start page
+- [x] 14.4 Two balances that do not differ make no notification (ArgumentException)
 
 ## 15. [unit] Slice 5 — Notifying a change
 
