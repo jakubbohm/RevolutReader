@@ -52,9 +52,9 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 7. [unit] Slice 3 — Only a kept balance is replaced
 
-- [ ] 7.1 A pushed balance is not stored on a phone that keeps none
-- [ ] 7.2 A pushed balance is not stored over a kept record of the wrong shape
-- [ ] 7.3 A balance forgotten when a login ended is not written back by a later push
+- [x] 7.1 A pushed balance is not stored on a phone that keeps none
+- [x] 7.2 A pushed balance is not stored over a kept record of the wrong shape
+- [x] 7.3 A balance forgotten when a login ended is not written back by a later push
 
 ## 8. [close] Slice 3 — A push with a balance stores none on a phone that keeps none
 

@@ -234,6 +234,46 @@ test("Read times are compared as moments, whatever their offsets", async () => {
   }
 });
 
+// A push only replaces, never creates (design.md D3, D7 gap 1): each pushed balance below is read later than any read
+// time the phone holds, so only that rule keeps it out.
+
+/** A pushed balance read later than every read time in these tests' records. Made up. */
+const PUSHED_LATEST = readAtTime(301.9, "2026-11-10T09:00:00+00:00");
+
+test("A pushed balance is not stored on a phone that keeps none", async () => {
+  // A second push finds what the first left behind, which must read as nothing kept too (design.md D3).
+  for (const push of ["the first push", "a second push"]) {
+    await keepPushedBalance(PUSHED_LATEST);
+
+    expect(await keptBalance(), push).toBeNull();
+    expect(await loadStoredBalance(), push).toBeNull();
+  }
+});
+
+test.each(wrongShapes)(
+  "A pushed balance is not stored over a kept record of the wrong shape: $label",
+  async ({ record }) => {
+    await phoneKeepsRecord(record);
+
+    await keepPushedBalance(PUSHED_LATEST);
+
+    expect(await keptBalance(), "the record, exactly as it was").toEqual(
+      record,
+    );
+  },
+);
+
+test("A balance forgotten when a login ended is not written back by a later push", async () => {
+  // The page's read keeps a balance; the login ends and the app forgets it; then a push arrives (design.md D7 gap 1).
+  await storeBalance(EARLIER);
+  await forgetStoredBalance();
+
+  await keepPushedBalance(LATER);
+
+  expect(await keptBalance()).toBeNull();
+  expect(await loadStoredBalance()).toBeNull();
+});
+
 // A new phone (code review of PR #59, finding 12): every other test starts with the kit's database already there
 // (`emptyThePhone`), so here the storage starts from a phone with no database at all, and the app's own storage code
 // creates it, as on a first launch. A fresh copy of the module (and of idb-keyval) opens against the new phone.
