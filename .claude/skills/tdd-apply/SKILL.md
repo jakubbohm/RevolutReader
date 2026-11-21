@@ -212,8 +212,8 @@ with a fresh test-writer and implementer.
    same brief replaces an agent that cannot be resumed, and then also says where the chapter stands, from
    `.tdd-state.md` and `git status`: its groups already committed, the group in progress with any uncommitted work
    the replaced agent left in the tree, and any open dispute.
-5. **Checkpoint at each chapter's end,** after its last commit, except the last chapter, where § 4's report
-   takes its place:
+5. **Checkpoint at each chapter's end,** after its last commit, except the acceptance chapter, which ends at its
+   gate (§ 1 step 3), and the last chapter, where § 4's report takes its place:
    1. Run the full suite (`dotnet test` and the frontend tests) and the traceability test: everything passes
       except the acceptance tests of later chapters.
    2. Rewrite `.tdd-state.md` for resuming: "Resume here" names the next chapter and its first group; what the
