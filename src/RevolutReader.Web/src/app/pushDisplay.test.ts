@@ -1,15 +1,22 @@
 import { expect, test, vi } from "vitest";
-import { realTurn } from "../test/clock";
+import { realTurn, SECOND, startTestClock, timePasses } from "../test/clock";
 import {
+  after,
+  answerWith,
+  bodiesSent,
   keptBalance,
   phoneKeeps,
   phoneStorageBusy,
   phoneStorageFails,
+  recorded,
+  requests,
+  timeline,
 } from "../test/server";
 import {
   installServiceWorkerStandIn,
   ORIGIN,
   type ServiceWorkerStandIn,
+  type ServiceWorkerStandInOptions,
 } from "../test/serviceWorker";
 import type { Balance } from "./balance";
 import {
@@ -739,3 +746,114 @@ test("The message is shown without waiting for the balance to be written", async
   await delivery;
   expect(await keptBalance(), "the balance the phone keeps").toEqual(PUSHED);
 });
+
+// ---- c016: a push's arrival, reported (group 10; design.md D1, D2, D5) ----
+// The stand-in's `fetch` reaches the fake server (../test/server.ts), which answers the report 204 unless a test sets
+// another answer; a report is read there.
+
+/** A report of a push's arrival, as the fake server's timeline writes it: on the app's own origin (design.md D3). */
+const REPORT = "POST /api/push/arrivals";
+
+/** The bodies of the reports of a push's arrival the fake server received, in order. */
+function reportsReceived(): unknown[] {
+  return bodiesSent()
+    .filter(({ request }) => request === REPORT)
+    .map(({ body }) => body);
+}
+
+/** The two browsers that propose no notification of their own: the push's balance is in its own JSON (design.md D2). */
+const PROPOSING_NONE: {
+  label: string;
+  options: ServiceWorkerStandInOptions;
+}[] = [
+  {
+    label: "a browser that does not read Declarative Web Push",
+    options: { declarative: false },
+  },
+  {
+    label: "a browser whose proposed notification is null",
+    options: { proposesNull: true },
+  },
+];
+
+/** Both kinds of browser: one that shows its own notification (as Safari), one where the service worker shows it (as Chrome). */
+const BOTH_KINDS: {
+  label: string;
+  options: ServiceWorkerStandInOptions;
+}[] = [
+  {
+    label: "where the browser shows its own notification",
+    options: { declarative: true },
+  },
+  {
+    label: "where the service worker shows the notification",
+    options: { declarative: false },
+  },
+];
+
+test("A push's arrival is reported with the read time from the data of the browser's proposed notification", async () => {
+  // As the W3C draft has it: the event carries no data of its own, only the proposed notification.
+  const serviceWorker = installServiceWorkerStandIn({ declarative: true });
+  listenForPushes(serviceWorker.worker);
+
+  // Resolves once the event's waitUntil work is done.
+  await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+  expect(reportsReceived(), "the reports received").toEqual([
+    { readAt: PUSHED.readAt },
+  ]);
+});
+
+test.each(PROPOSING_NONE)(
+  "A push's arrival is reported with the read time from the push's own JSON where the browser proposes no notification: $label",
+  async ({ options }) => {
+    const serviceWorker = installServiceWorkerStandIn(options);
+    listenForPushes(serviceWorker.worker);
+
+    // Resolves once the event's waitUntil work is done.
+    await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+
+    expect(reportsReceived(), "the reports received").toEqual([
+      { readAt: PUSHED.readAt },
+    ]);
+  },
+);
+
+test.each(BOTH_KINDS)(
+  "The report runs under the push event's waitUntil: $label",
+  async ({ options }) => {
+    startTestClock();
+    // Read earlier than the push's balance, so the push's balance replaces it and the write shows when it is done.
+    await phoneKeeps(KEPT_EARLIER);
+    // The server is waking up: it answers the report only 20 s later.
+    answerWith({ arrivals: after(20 * SECOND, recorded) });
+    const serviceWorker = installServiceWorkerStandIn(options);
+    listenForPushes(serviceWorker.worker);
+    let workDone = false;
+
+    // Not awaited: the stand-in resolves only once the work given to the event's waitUntil is done.
+    const delivery = serviceWorker
+      .deliverPush(pushWithBalance(PUSHED))
+      .then(() => {
+        workDone = true;
+      });
+    await timePasses(0);
+
+    expect(requests(), "the report is under way").toContain(REPORT);
+    // The balance is written, so nothing else of the push's is left to wait for.
+    expect(await keptBalance(), "the balance the phone keeps").toEqual(PUSHED);
+    await timePasses(0);
+    expect(workDone, "the push's work, while the report has no answer").toBe(
+      false,
+    );
+
+    await timePasses(20 * SECOND);
+    expect(timeline(), "the server answered the report").toContain(
+      `answer ${REPORT}`,
+    );
+    await delivery;
+    expect(workDone, "the push's work, once the report has its answer").toBe(
+      true,
+    );
+  },
+);
