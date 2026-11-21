@@ -110,8 +110,8 @@ public sealed class AccountCheckTests {
     IReadOnlyList<LogEntry> lines = log.Entries;
     LogEntry ended = lines.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
     string[] privateForms = [
-      "7531", "7 531", "7 531", "531.86", "531,86", // the amount, with or without a thousands separator
-      "183024", "183 024", "183 024", // its koruna value at 24.3, 183 024.198
+      "7531", "7 531", "7\u00A0531", "531.86", "531,86", // the amount, with or without a thousands separator
+      "183024", "183 024", "183\u00A0024", // its koruna value at 24.3, 183 024.198
       "2026-11-21", "11/21/2026", "21.11.2026", "9:14:03", // the time it was read
     ];
     ended.ShouldSatisfyAllConditions(
@@ -148,7 +148,7 @@ public sealed class AccountCheckTests {
 
     await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
 
-    delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push).Title).ShouldBe(["Odešlo 3,80 €"], "the change from 49.00 to 45.20, notified once");
+    delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push).Title).ShouldBe(["Odešlo 3,80\u00A0€"], "the change from 49.00 to 45.20, notified once");
     AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
     (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "last notified written as last seen: both the read, whole");
   }
@@ -176,7 +176,7 @@ public sealed class AccountCheckTests {
     (PushDevice device, OutgoingPush push) = delivery.HandedOver.ShouldHaveSingleItem("one push, to the one registered device");
     device.ShouldBe(_luciesPhone);
     push.ShouldSatisfyAllConditions(
-      () => Notification(push).ShouldBe(("Odešlo 3,80 €", "Zůstatek 45,20 € (≈ 1 098 Kč)")),
+      () => Notification(push).ShouldBe(("Odešlo 3,80\u00A0€", "Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)")),
       () => push.Lifetime.ShouldBe(TimeSpan.FromHours(24)),
       () => push.Urgency.ShouldBe(PushUrgency.High));
   }
@@ -200,10 +200,10 @@ public sealed class AccountCheckTests {
     LogEntry ended = lines.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
     LogEntry sent = lines.Where(static line => line.EventName == "ChangeSent").ShouldHaveSingleItem("the line of what the change reached: one");
     string[] privateForms = [
-      "7531", "7 531", "7 531", "531.86", "531,86", // the kept balance, 7 531.86
-      "6297", "6 297", "6 297", "297.3", "297,3", // the new balance, 6 297.30
-      "1234", "1 234", "1 234", "234.56", "234,56", // the change, 1 234.56
-      "153024", "153 024", "153 024", // the new balance's koruna value at 24.3, 153 024.39
+      "7531", "7 531", "7\u00A0531", "531.86", "531,86", // the kept balance, 7 531.86
+      "6297", "6 297", "6\u00A0297", "297.3", "297,3", // the new balance, 6 297.30
+      "1234", "1 234", "1\u00A0234", "234.56", "234,56", // the change, 1 234.56
+      "153024", "153 024", "153\u00A0024", // the new balance's koruna value at 24.3, 153 024.39
       "2026-11-21", "11/21/2026", "21.11.2026", "9:14:03", "8:14:03", // the times the balances were read
       LUCIE, PETR, // the allowlist's accounts
     ];

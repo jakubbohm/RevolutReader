@@ -1,18 +1,19 @@
 using System.Globalization;
 using RevolutReader.Api.Account;
 using RevolutReader.Api.Check;
+using RevolutReader.Api.Push;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Check;
 
 /// <summary>
-/// The notification for a change (c014 design.md D2, the owner's Q8): a fall is titled "Odešlo" with the size of the change,
-/// last seen − last notified, without a sign; the text is last seen with its koruna value at last seen's own rate; a tap
-/// opens the app's start page; two balances that do not differ make no notification, a caller's bug. The spacing is the
-/// board's: a no-break space (U+00A0, written <c> </c> here) before "€" and "Kč", after "≈" and between thousands; an
-/// ordinary space after "Odešlo" and "Zůstatek" and before "("; U+2212 for a minus (written <c>−</c>). Last notified
-/// was read an hour before last seen, at another rate, so a text built from it, or from its rate, fails. A rise is tasks.md
-/// group 18's. Amounts are given as invariant text, since an attribute cannot hold a decimal; they are made up.
+/// The notification for a change (c014 design.md D2, the owner's Q8): a fall is titled "Odešlo" and a rise "Přišlo", each
+/// with the size of the change, last seen − last notified, without a sign; the text is last seen with its koruna value at
+/// last seen's own rate; a tap opens the app's start page; two balances that do not differ make no notification, a
+/// caller's bug. The spacing is the board's: a no-break space (U+00A0, written <c>\u00A0</c> here) before "€" and "Kč",
+/// after "≈" and between thousands; an ordinary space after "Odešlo", "Přišlo" and "Zůstatek" and before "("; U+2212 for a
+/// minus (written <c>\u2212</c>). Last notified was read an hour before last seen, at another rate, so a text built from it,
+/// or from its rate, fails. Amounts are given as invariant text, since an attribute cannot hold a decimal; they are made up.
 /// </summary>
 public sealed class ChangeNotificationTests {
   /// <summary>When last seen was read.</summary>
@@ -28,20 +29,37 @@ public sealed class ChangeNotificationTests {
   /// <param name="lastSeen">Last seen's amount, in euros: lower.</param>
   /// <param name="title">The notification's title.</param>
   [Test]
-  [Arguments("49.00", "45.20", "Odešlo 3,80 €")] // the board's example
-  [Arguments("45.21", "45.20", "Odešlo 0,01 €")] // a cent, the least change
-  [Arguments("2500.00", "1265.44", "Odešlo 1 234,56 €")] // its thousands grouped
-  [Arguments("2.00", "-3.00", "Odešlo 5,00 €")] // below zero: the size, without a sign
+  [Arguments("49.00", "45.20", "Odešlo 3,80\u00A0€")] // the board's example
+  [Arguments("45.21", "45.20", "Odešlo 0,01\u00A0€")] // a cent, the least change
+  [Arguments("2500.00", "1265.44", "Odešlo 1\u00A0234,56\u00A0€")] // its thousands grouped
+  [Arguments("2.00", "-3.00", "Odešlo 5,00\u00A0€")] // below zero: the size, without a sign
   public void A_fall_is_titled_Odeslo_with_the_size_of_the_change(string lastNotified, string lastSeen, string title) =>
     ChangeNotification.For(Balances(lastSeen, lastNotified)).Title.ShouldBe(title);
+
+  /// <param name="lastNotified">Last notified's amount, in euros.</param>
+  /// <param name="lastSeen">Last seen's amount, in euros: higher, the new balance.</param>
+  /// <param name="title">The notification's title.</param>
+  /// <param name="text">The notification's text, as for a fall.</param>
+  [Test]
+  [Arguments("45.20", "145.20", "Přišlo 100,00\u00A0€", "Zůstatek 145,20\u00A0€ (≈\u00A03\u00A0528\u00A0Kč)")] // the board's example
+  [Arguments("45.20", "45.21", "Přišlo 0,01\u00A0€", "Zůstatek 45,21\u00A0€ (≈\u00A01\u00A0099\u00A0Kč)")] // a cent, the least change; 1 098.603
+  [Arguments("1265.44", "2500.00", "Přišlo 1\u00A0234,56\u00A0€", "Zůstatek 2\u00A0500,00\u00A0€ (≈\u00A060\u00A0750\u00A0Kč)")] // thousands grouped
+  [Arguments("-3.00", "2.00", "Přišlo 5,00\u00A0€", "Zůstatek 2,00\u00A0€ (≈\u00A049\u00A0Kč)")] // from below zero: the size, without a sign; 48.6
+  public void A_rise_is_titled_Prislo_with_the_size_of_the_change(string lastNotified, string lastSeen, string title, string text) {
+    PushMessage message = ChangeNotification.For(Balances(lastSeen, lastNotified));
+
+    message.ShouldSatisfyAllConditions(
+      () => message.Title.ShouldBe(title),
+      () => message.Text.ShouldBe(text));
+  }
 
   /// <param name="lastNotified">Last notified's amount, in euros.</param>
   /// <param name="lastSeen">Last seen's amount, in euros: the new balance.</param>
   /// <param name="text">The notification's text.</param>
   [Test]
-  [Arguments("49.00", "45.20", "Zůstatek 45,20 € (≈ 1 098 Kč)")] // the board's example
-  [Arguments("2500.00", "1234.56", "Zůstatek 1 234,56 € (≈ 30 000 Kč)")] // thousands in both: 29 999.808
-  [Arguments("2.00", "-3.00", "Zůstatek −3,00 € (≈ 73 Kč)")] // a negative balance keeps its minus; its koruna value is its size, 72.9
+  [Arguments("49.00", "45.20", "Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)")] // the board's example
+  [Arguments("2500.00", "1234.56", "Zůstatek 1\u00A0234,56\u00A0€ (≈\u00A030\u00A0000\u00A0Kč)")] // thousands in both: 29 999.808
+  [Arguments("2.00", "-3.00", "Zůstatek \u22123,00\u00A0€ (≈\u00A073\u00A0Kč)")] // a negative balance keeps its minus; its koruna value is its size, 72.9
   public void The_text_is_the_new_balance_with_its_koruna_value(string lastNotified, string lastSeen, string text) =>
     ChangeNotification.For(Balances(lastSeen, lastNotified)).Text.ShouldBe(text);
 

@@ -7,7 +7,7 @@ namespace RevolutReader.AcceptanceTests.Scenarios.AccountCheck;
 
 /// <summary>
 /// The notification's texts are written as the app writes amounts (c014 design.md D2): a no-break space (U+00A0, written
-/// <c> </c> here) before "€" and "Kč", after "≈" and between thousands; an ordinary space after "Odešlo", "Přišlo" and
+/// <c>\u00A0</c> here) before "€" and "Kč", after "≈" and between thousands; an ordinary space after "Odešlo", "Přišlo" and
 /// "Zůstatek" and before "(". The spec shows them as ordinary spaces.
 /// </summary>
 public sealed class AccountCheckScenarios : AcceptanceTest {
@@ -63,8 +63,8 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     CheckAnswer answer = await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
-    notification.Title.ShouldBe("Odešlo 3,80 €");
-    notification.Text.ShouldBe("Zůstatek 45,20 € (≈ 1 098 Kč)");
+    notification.Title.ShouldBe("Odešlo 3,80\u00A0€");
+    notification.Text.ShouldBe("Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)");
     notification.Navigate.ShouldBe(Push.AppAddressOf("/"));
     answer.ShouldBe(CheckAnswer.BalanceChanged);
   }
@@ -80,8 +80,8 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
-    notification.Title.ShouldBe("Přišlo 100,00 €");
-    notification.Text.ShouldBe("Zůstatek 145,20 € (≈ 3 528 Kč)");
+    notification.Title.ShouldBe("Přišlo 100,00\u00A0€");
+    notification.Text.ShouldBe("Zůstatek 145,20\u00A0€ (≈\u00A03\u00A0528\u00A0Kč)");
   }
 
   [Test, Scenario("account-check", "An unchanged balance sends nothing")]
@@ -112,8 +112,8 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
 
     await Check.PhoneAsksForACheck();
 
-    Push.Received(luciesPhone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80 €");
-    Push.Received(petrsPhone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80 €");
+    Push.Received(luciesPhone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
+    Push.Received(petrsPhone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
   }
 
   [Test, Scenario("account-check", "The notification carries the new balance for the phone to keep")]
@@ -154,7 +154,7 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.ChecksArriveWhileTheFirstReadsTheBank(3);
 
     Bank.BalanceRequestsReceived().Count.ShouldBe(2, "the bank receives two balance requests");
-    Push.Received(phone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80 €");
+    Push.Received(phone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
   }
 
   [Test, Scenario("account-check", "A check whose bank read fails still sends what an earlier check found")]
@@ -168,8 +168,8 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
-    notification.Title.ShouldBe("Odešlo 3,80 €");
-    notification.Text.ShouldBe("Zůstatek 45,20 € (≈ 1 098 Kč)");
+    notification.Title.ShouldBe("Odešlo 3,80\u00A0€");
+    notification.Text.ShouldBe("Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)");
   }
 
   [Test, Scenario("account-check", "A check goes on when its caller stops waiting")]
@@ -182,7 +182,7 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
 
     await Check.PhoneStopsWaitingWhileTheCheckReadsTheBank();
 
-    (await Push.Eventually(phone, pushes: 1)).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80 €");
+    (await Push.Eventually(phone, pushes: 1)).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
   }
 
   [Test, Scenario("account-check", "A change is not notified again after a device's push failed")]
