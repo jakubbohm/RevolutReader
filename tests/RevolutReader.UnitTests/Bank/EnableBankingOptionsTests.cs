@@ -13,9 +13,10 @@ namespace RevolutReader.UnitTests.Bank;
 /// every setting but the two times is required, no secret may still hold the declared placeholder, the API address must
 /// be an absolute https address (plain http only on this machine) whose path ends in "/" (a bare host's does) and that
 /// has no query or fragment, the private key must be an RSA private key in PEM form (a public key fails too), and the
-/// request timeout lies between 1 second and 2 minutes. A failure names the setting, never its value; a failure of the
-/// settings' own rules names it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at
-/// start, through the bank adapter's own registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an
+/// request timeout lies between 1 second and 2 minutes. A failure names the setting by its full name, as the operator sets
+/// it (#68), never its value: a failure of the settings' own rules starts with the name and ": ", one of the validator's
+/// checks opens its sentence with the name. Each test runs the checks the app runs at start, through the bank adapter's own
+/// registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an
 /// in-memory configuration): the settings' data annotations and <see cref="EnableBankingOptionsValidator"/>, however those
 /// checks are built. Every value here is made up; every key is generated in the test.
 /// </summary>
@@ -97,7 +98,7 @@ public sealed class EnableBankingOptionsTests {
 
     IReadOnlyList<string> failures = Failures(Settings(privateKey: privateKey));
 
-    failures.ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.PrivateKey), StringComparison.Ordinal), "a failure naming PrivateKey");
+    ShouldNameInFull(failures, "EnableBanking:PrivateKey");
     failures.ShouldAllBe(failure => !Contains(failure, privateKey), "no failure message may contain the key or any line of it");
   }
 
@@ -114,13 +115,11 @@ public sealed class EnableBankingOptionsTests {
   [Arguments("https://proxy.example/eb/?tenant=x")] // its query would be dropped
   [Arguments("https://api.enablebanking.com/#x")] // its fragment would be dropped
   public void An_api_address_requests_cannot_be_resolved_against_fails_validation(string address) =>
-    Failures(Settings(apiBaseUrl: new Uri(address, UriKind.RelativeOrAbsolute)))
-      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.ApiBaseUrl), StringComparison.Ordinal), "a failure naming ApiBaseUrl");
+    ShouldNameInFull(Failures(Settings(apiBaseUrl: new Uri(address, UriKind.RelativeOrAbsolute))), "EnableBanking:ApiBaseUrl");
 
   [Test]
   public void A_plain_http_api_address_off_this_machine_fails_validation() =>
-    Failures(Settings(apiBaseUrl: new Uri("http://api.enablebanking.com")))
-      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.ApiBaseUrl), StringComparison.Ordinal), "a failure naming ApiBaseUrl");
+    ShouldNameInFull(Failures(Settings(apiBaseUrl: new Uri("http://api.enablebanking.com"))), "EnableBanking:ApiBaseUrl");
 
   [Test]
   [Arguments("https://api.enablebanking.com")]
@@ -238,6 +237,24 @@ public sealed class EnableBankingOptionsTests {
     catch (OptionsValidationException refused) {
       return [.. refused.Failures];
     }
+  }
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>EnableBanking:PrivateKey is not …</c>), where a failure of the settings' own rules puts ": " after the name,
+  /// so only the validator's failure passes. No failure may name a setting by the settings class's name instead
+  /// (<c>EnableBankingOptions.PrivateKey</c>), which the operator cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The setting's full name: the section, ":" and the setting.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal),
+      $"a failure opening with \"{setting} \"; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(EnableBankingOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by the settings class's name");
   }
 
   /// <summary>Whether <paramref name="message"/> contains <paramref name="value"/>, or any of its lines longer than a word.</summary>

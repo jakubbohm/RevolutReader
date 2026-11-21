@@ -9,9 +9,9 @@ namespace RevolutReader.UnitTests.SignIn;
 /// <summary>
 /// The sign-in settings are checked at start-up (c007 design.md D8, D11; configuration.md § Binding): every setting is
 /// required, neither secret may still hold the declared placeholder, and the allowlist must hold at least one entry, no
-/// empty entry, and only email addresses (text, one <c>@</c>, text). A failure names the setting, never the addresses or
-/// the placeholder; a failure of the settings' own rules names it by its full name, as the operator sets it (#68). Each
-/// test runs the checks the app runs at start, through sign-in's own registration (<see cref="SignInRegistration.AddSignIn"/>,
+/// empty entry, and only email addresses (text, one <c>@</c>, text). A failure names the setting by its full name, as the
+/// operator sets it (#68), never the addresses or the placeholder: a failure of the settings' own rules starts with the
+/// name and ": ", the validator's allowlist check opens its sentence with the name. Each test runs the checks the app runs at start, through sign-in's own registration (<see cref="SignInRegistration.AddSignIn"/>,
 /// from an in-memory configuration): the settings' data annotations and <see cref="SignInOptionsValidator"/>, however those
 /// checks are built. Every value here is made up.
 /// </summary>
@@ -70,8 +70,7 @@ public sealed class SignInOptionsTests {
   [Arguments("   ")]
   [Arguments(",")]
   public void An_allowlist_without_any_address_fails_validation(string allowedEmails) =>
-    Failures(Settings(allowedEmails: allowedEmails))
-      .ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(Failures(Settings(allowedEmails: allowedEmails)), "SignIn:AllowedEmails");
 
   [Test]
   [Arguments($"{LUCIE},,{JANA}")]
@@ -80,7 +79,7 @@ public sealed class SignInOptionsTests {
   public void An_allowlist_with_an_empty_entry_between_commas_fails_validation(string allowedEmails) {
     IReadOnlyList<string> failures = Failures(Settings(allowedEmails: allowedEmails));
 
-    failures.ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(failures, "SignIn:AllowedEmails");
     failures.ShouldAllBe(failure => !NamesAnAddress(failure, LUCIE, JANA), "no failure message may contain an address (D8)");
   }
 
@@ -92,7 +91,7 @@ public sealed class SignInOptionsTests {
   public void An_allowlist_entry_that_is_not_an_email_address_fails_validation_and_the_message_does_not_contain_the_entry(string entry) {
     IReadOnlyList<string> failures = Failures(Settings(allowedEmails: $"{JANA}, {entry}"));
 
-    failures.ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(failures, "SignIn:AllowedEmails");
     failures.ShouldAllBe(failure => !NamesAnAddress(failure, entry, JANA), "no failure message may contain the entry, or any other address (D8)");
   }
 
@@ -174,6 +173,24 @@ public sealed class SignInOptionsTests {
     catch (OptionsValidationException refused) {
       return [.. refused.Failures];
     }
+  }
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own check naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>SignIn:AllowedEmails is not …</c>), where a failure of the settings' own rules puts ": " after the name, so
+  /// only the validator's failure passes, also beside the required rule's failure for an empty list. No failure may name a
+  /// setting by the settings class's name instead (<c>SignInOptions.AllowedEmails</c>), which the operator cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The setting's full name: the section, ":" and the setting.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal),
+      $"a failure opening with \"{setting} \"; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(SignInOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by the settings class's name");
   }
 
   private static bool NamesAnAddress(string message, params string[] addresses) =>
