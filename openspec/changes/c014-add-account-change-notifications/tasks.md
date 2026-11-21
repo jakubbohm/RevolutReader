@@ -68,9 +68,9 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 8. [unit] Slice 3 — One check at a time
 
-- [ ] 8.1 A call while no check runs starts one at once, with the call's own user
-- [ ] 8.2 A check that throws is logged once (`CheckFailed`), and its callers get the exception
-- [ ] 8.3 A check that threw never blocks the next call
+- [x] 8.1 A call while no check runs starts one at once, with the call's own user
+- [x] 8.2 A check that throws is logged once (`CheckFailed`), and its callers get the exception
+- [x] 8.3 A check that threw never blocks the next call
 
 ## 9. [integration] Slice 3 — The stored balances
 
