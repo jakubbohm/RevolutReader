@@ -83,7 +83,7 @@ Every notification the check sends SHALL be marked for the app's service worker 
 - **AND** it carries the balance with `amount` 45.20, `readAt` the time the server read it, and `czkPerEur` 24.3
 
 ### Requirement: A bank failure answers as the balance does
-When the check's bank read fails, the check SHALL keep no new balance and SHALL answer as `GET /api/balance` does (spec account-balance): 503 or 429 with the problem description whose `type` names the case.
+When the check's bank read fails, the check SHALL keep no new balance and SHALL answer as `GET /api/balance` does (spec account-balance): 503 or 429 with the problem description whose `type` names the case. If the check then fails to send a change an earlier check kept, that failure SHALL decide the answer instead, as an unexpected failure does (spec api-errors).
 
 #### Scenario: A failed bank read sends nothing and answers as the balance does
 - **GIVEN** the check's last seen and last notified balances are 45.20 EUR
