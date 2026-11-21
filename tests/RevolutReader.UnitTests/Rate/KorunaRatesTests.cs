@@ -11,7 +11,10 @@ namespace RevolutReader.UnitTests.Rate;
 /// with nothing kept, the CNB is asked, and its rate is answered and saved; the kept rate is read from the store once per
 /// instance, on the first call that needs a rate; a kept rate that is not due is answered without asking the CNB. When it
 /// is asked again: a later day's rate replaces the kept one and is logged as kept; after a rate for today is kept, the CNB
-/// is not asked again before the next weekday's 08:00 UTC. The CNB is a hand-written fake of the port
+/// is not asked again before the next weekday's 08:00 UTC; a rate for the kept day changes nothing, and every call asks
+/// until a later day's comes; callers at the same time share one ask, which a leaving caller leaves to the others and which
+/// is not shared once it has ended; an earlier day's rate is answered as the kept one. A wait that must end by itself is
+/// bounded on the real clock (<see cref="WITHIN_SECONDS"/>), never a pause. The CNB is a hand-written fake of the port
 /// (<see cref="FakeCnbRates"/>), the kept rate an in-memory store (<see cref="InMemoryKorunaRateStore"/>), the clock a
 /// <see cref="FakeTimeProvider"/>, the log a hand-written logger (<see cref="CapturedLog"/>). The rates and days are the
 /// spec's: Friday 2026-11-20's and Monday 2026-11-23's.
@@ -19,6 +22,9 @@ namespace RevolutReader.UnitTests.Rate;
 public sealed class KorunaRatesTests {
   /// <summary>The event of the line a newly kept rate writes (D7).</summary>
   private const string KORUNA_RATE_KEPT = "KorunaRateKept";
+
+  /// <summary>How long a test waits on the real clock for a call that must end by itself: far longer than the service takes.</summary>
+  private const int WITHIN_SECONDS = 10;
 
   /// <summary>Friday's rate, kept over the weekend.</summary>
   private static readonly KorunaRate _fridays = new(24.41m, new DateOnly(2026, 11, 20));
@@ -31,6 +37,12 @@ public sealed class KorunaRatesTests {
 
   /// <summary>Saturday 2026-11-21 at 10:00 UTC, before Monday's 08:00 UTC: a rate kept for Friday is not due.</summary>
   private static readonly DateTimeOffset _saturdayMorning = new(2026, 11, 21, 10, 0, 0, TimeSpan.Zero);
+
+  /// <summary>Monday 2026-11-23 at 09:00 UTC, after Monday's 08:00 UTC: a rate kept for Friday is due.</summary>
+  private static readonly DateTimeOffset _mondayMorning = new(2026, 11, 23, 9, 0, 0, TimeSpan.Zero);
+
+  /// <summary>Tuesday 2026-11-24 at 09:00 UTC, after Tuesday's 08:00 UTC: a rate kept for Monday is due.</summary>
+  private static readonly DateTimeOffset _tuesdayMorning = new(2026, 11, 24, 9, 0, 0, TimeSpan.Zero);
 
   [Test]
   public async Task With_nothing_kept_the_CNB_is_asked_and_its_rate_is_answered() {
@@ -145,6 +157,147 @@ public sealed class KorunaRatesTests {
       () => asksOnFriday.ShouldBe(1, "Friday's ask, with nothing kept"),
       () => asksBeforeMondayAtEight.ShouldBe(1, "no ask on Saturday, nor on Monday one tick before 08:00 UTC"),
       () => cnb.Calls.ShouldBe(2, "an ask at Monday's 08:00 UTC"));
+  }
+
+  // Every request asks until a newer day's rate comes (D2, D3, D4, D7)
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB still answering Friday's: each call answers Friday's and asks again,
+  /// and nothing is saved and nothing logged (D7: no line for an ask that returns the rate already kept).
+  /// </summary>
+  [Test]
+  public async Task A_rate_for_the_kept_day_changes_nothing_nothing_is_saved_and_nothing_logged_and_the_next_call_asks_again() {
+    FakeCnbRates cnb = new(_fridays);
+    InMemoryKorunaRateStore store = await StoreKeeping(_fridays);
+    int savesBefore = store.Saves;
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_mondayMorning), log);
+
+    KorunaRate first = await rates.Current(CancellationToken.None);
+    int asksAfterTheFirstCall = cnb.Calls;
+    KorunaRate next = await rates.Current(CancellationToken.None);
+
+    first.ShouldSatisfyAllConditions(
+      () => first.ShouldBe(_fridays, "the first call's rate, the kept one"),
+      () => next.ShouldBe(_fridays, "the next call's rate, the kept one"),
+      () => asksAfterTheFirstCall.ShouldBe(1, "the first call asks"),
+      () => cnb.Calls.ShouldBe(2, "the next call asks again: the rate is still due"),
+      () => (store.Saves - savesBefore).ShouldBe(0, "nothing saved"),
+      () => log.Entries.ShouldBeEmpty("nothing logged"));
+  }
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC: the CNB's answer is held while two callers ask, so the second arrives while the
+  /// first one's ask is on its way; both get Monday's rate from one ask (D4).
+  /// </summary>
+  [Test]
+  public async Task Callers_at_the_same_time_share_one_ask() {
+    FakeCnbRates cnb = new(_mondays);
+    KorunaRates rates = RatesWith(cnb, await StoreKeeping(_fridays), _mondayMorning);
+    cnb.HoldTheAnswers();
+
+    Task<KorunaRate> first = rates.Current(CancellationToken.None);
+    Task<KorunaRate> second = rates.Current(CancellationToken.None);
+    cnb.ReleaseTheAnswers();
+    KorunaRate[] answers = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+
+    answers.ShouldSatisfyAllConditions(
+      () => answers.ShouldBe([_mondays, _mondays], "both callers get the CNB's rate"),
+      () => cnb.Calls.ShouldBe(1, "one call to the CNB"));
+  }
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB's answer held: the caller that started the ask stops waiting, and its
+  /// wait ends at once in a cancellation while the ask is still on its way; the other caller still gets the ask's answer,
+  /// with no second ask, and the answer is kept, so the ask ran on though its first caller left (D4: it runs without any
+  /// caller's token).
+  /// </summary>
+  [Test]
+  public async Task A_caller_that_stops_waiting_leaves_the_ask_and_its_answer_to_the_other_callers() {
+    FakeCnbRates cnb = new(_mondays);
+    InMemoryKorunaRateStore store = await StoreKeeping(_fridays);
+    KorunaRates rates = RatesWith(cnb, store, _mondayMorning);
+    cnb.HoldTheAnswers();
+    using CancellationTokenSource leaving = new();
+
+    Task<KorunaRate> left = rates.Current(leaving.Token);
+    Task<KorunaRate> staying = rates.Current(CancellationToken.None);
+    await leaving.CancelAsync();
+    bool leftWithACancellation = await StopsWithACancellation(left.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS)));
+    cnb.ReleaseTheAnswers();
+    KorunaRate stayingAnswer = await staying.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+
+    KorunaRate? saved = await store.Read(CancellationToken.None);
+    stayingAnswer.ShouldSatisfyAllConditions(
+      () => leftWithACancellation.ShouldBeTrue("the leaving caller's wait ends in a cancellation, while the ask is held"),
+      () => stayingAnswer.ShouldBe(_mondays, "the other caller gets the ask's answer"),
+      () => cnb.Calls.ShouldBe(1, "one call to the CNB: the ask went on"),
+      () => saved.ShouldBe(_mondays, "the ask's answer kept"));
+  }
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB still answering Friday's: two callers share one held ask; once it has
+  /// ended, a third caller asks anew, now that the CNB answers Monday's, and gets it (D4: the ask is cleared when it ends).
+  /// </summary>
+  [Test]
+  public async Task An_ask_that_has_ended_is_not_shared_the_next_caller_asks_anew_while_the_rate_is_due() {
+    FakeCnbRates cnb = new(_fridays);
+    KorunaRates rates = RatesWith(cnb, await StoreKeeping(_fridays), _mondayMorning);
+    cnb.HoldTheAnswers();
+    Task<KorunaRate> first = rates.Current(CancellationToken.None);
+    Task<KorunaRate> second = rates.Current(CancellationToken.None);
+    cnb.ReleaseTheAnswers();
+    _ = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+    int asksByTheTwo = cnb.Calls;
+    cnb.Answers(_mondays);
+
+    KorunaRate third = await rates.Current(CancellationToken.None);
+
+    third.ShouldSatisfyAllConditions(
+      () => asksByTheTwo.ShouldBe(1, "the two callers shared one ask"),
+      () => cnb.Calls.ShouldBe(2, "the third caller asks anew"),
+      () => third.ShouldBe(_mondays, "the new ask's answer"));
+  }
+
+  // An earlier day's rate (D2, D6, D7)
+
+  /// <summary>
+  /// Monday's rate kept, Tuesday 09:00 UTC, the CNB answering Friday's, as a stale copy in front of it might: the answer is
+  /// Monday's, nothing is saved and nothing logged (D6: ignored without a log line).
+  /// </summary>
+  [Test]
+  public async Task A_rate_for_an_earlier_day_than_the_kept_one_is_answered_as_the_kept_one_with_nothing_saved_and_nothing_logged() {
+    FakeCnbRates cnb = new(_fridays);
+    InMemoryKorunaRateStore store = await StoreKeeping(_mondays);
+    int savesBefore = store.Saves;
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_tuesdayMorning), log);
+
+    KorunaRate rate = await rates.Current(CancellationToken.None);
+
+    KorunaRate? kept = await store.Read(CancellationToken.None);
+    rate.ShouldSatisfyAllConditions(
+      () => cnb.Calls.ShouldBe(1, "the CNB is asked: Monday's rate is due on Tuesday"),
+      () => rate.ShouldBe(_mondays, "the kept rate"),
+      () => (store.Saves - savesBefore).ShouldBe(0, "nothing saved"),
+      () => kept.ShouldBe(_mondays, "the store still keeps Monday's"),
+      () => log.Entries.ShouldBeEmpty("nothing logged"));
+  }
+
+  /// <summary>
+  /// Whether <paramref name="wait"/> ends in an <see cref="OperationCanceledException"/> (or one derived from it, as
+  /// <see cref="TaskCanceledException"/>); any other ending is <see langword="false"/>, and a <see cref="TimeoutException"/>
+  /// from a bounded wait passes on.
+  /// </summary>
+  private static async Task<bool> StopsWithACancellation(Task wait) {
+    try {
+      await wait;
+
+      return false;
+    }
+    catch (OperationCanceledException) {
+      return true;
+    }
   }
 
   /// <summary>The service under test, asking <paramref name="cnb"/>, keeping its rate in <paramref name="store"/>, with the clock at <paramref name="now"/>.</summary>

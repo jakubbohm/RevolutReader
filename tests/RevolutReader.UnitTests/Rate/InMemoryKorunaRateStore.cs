@@ -11,7 +11,8 @@ namespace RevolutReader.UnitTests.Rate;
 /// <item><see cref="Read"/>: the rate as last saved, exactly (the decimal with its scale, the day);
 /// <see langword="null"/> when nothing was ever saved. Each read is counted (<see cref="Reads"/>), so a test sees how often
 /// the service read the kept rate.</item>
-/// <item><see cref="Save"/>: replaces the kept rate, whole; the last write wins.</item>
+/// <item><see cref="Save"/>: replaces the kept rate, whole; the last write wins. Each save is counted
+/// (<see cref="Saves"/>), so a test sees whether the service saved a rate, even one equal to the kept one.</item>
 /// <item>Safe for calls from several threads at once.</item>
 /// </list>
 /// </summary>
@@ -19,12 +20,21 @@ public sealed class InMemoryKorunaRateStore : IKorunaRateStore {
   private readonly Lock _lock = new();
   private KorunaRate? _kept;
   private int _reads;
+  private int _saves;
 
   /// <summary>How many times the kept rate was read so far.</summary>
   public int Reads {
     get {
       lock (_lock)
         return _reads;
+    }
+  }
+
+  /// <summary>How many times a rate was saved so far.</summary>
+  public int Saves {
+    get {
+      lock (_lock)
+        return _saves;
     }
   }
 
@@ -42,8 +52,10 @@ public sealed class InMemoryKorunaRateStore : IKorunaRateStore {
     ArgumentNullException.ThrowIfNull(rate);
     cancellationToken.ThrowIfCancellationRequested();
 
-    lock (_lock)
+    lock (_lock) {
       _kept = rate;
+      _saves++;
+    }
 
     return Task.CompletedTask;
   }
