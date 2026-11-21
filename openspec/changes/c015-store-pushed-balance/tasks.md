@@ -25,10 +25,10 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 2. [unit] Slice 1 — Keeping a push's balance
 
-- [ ] 2.1 The balance comes from the data of the browser's proposed notification when the push event carries one
-- [ ] 2.2 The balance comes from the push's own JSON where the browser proposes no notification
-- [ ] 2.3 A pushed balance replaces the one the phone keeps, with only its three fields
-- [ ] 2.4 A push with a balance is kept also where the service worker shows the notification itself, and the message still shows
+- [x] 2.1 The balance comes from the data of the browser's proposed notification when the push event carries one
+- [x] 2.2 The balance comes from the push's own JSON where the browser proposes no notification
+- [x] 2.3 A pushed balance replaces the one the phone keeps, with only its three fields
+- [x] 2.4 A push with a balance is kept also where the service worker shows the notification itself, and the message still shows
 
 ## 3. [wiring] Slice 1 — A shape check the service worker can load
 

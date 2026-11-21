@@ -1,10 +1,9 @@
 import { api, askTheApi } from "../api/client";
-import type { components } from "../api/schema";
 import { bankProblemOf } from "./bankProblem";
+import { balanceOf, type Balance } from "./balanceRecord";
 
-/** The balance as the API answers it and as the phone keeps it (c009 design.md D1, D4): `readAt` in ISO 8601. */
-export type Balance =
-  components["schemas"]["RevolutReaderApiAccountBalanceResponse"];
+// The shape check and its type live in balanceRecord.ts, which the service worker can load (c015 design.md D5).
+export { balanceOf, type Balance };
 
 /** What a balance read came to (c009 design.md D1, D2, D5). */
 export type BalanceRead =
@@ -49,21 +48,4 @@ export async function readBalance(options?: {
   }
 
   return bankProblemOf(answer.error) ?? UNEXPECTED;
-}
-
-/**
- * The balance, when the value has its shape: the amount and the rate as numbers, the read time as a date and time; only
- * those three. For the API's answer and for the record the phone keeps (c009 design.md D4).
- */
-export function balanceOf(body: unknown): Balance | null {
-  if (typeof body !== "object" || body === null) return null;
-  if (!("amount" in body && "readAt" in body && "czkPerEur" in body))
-    return null;
-
-  const { amount, readAt, czkPerEur } = body;
-  if (typeof amount !== "number" || typeof czkPerEur !== "number") return null;
-  if (typeof readAt !== "string" || Number.isNaN(Date.parse(readAt)))
-    return null;
-
-  return { amount, readAt, czkPerEur };
 }
