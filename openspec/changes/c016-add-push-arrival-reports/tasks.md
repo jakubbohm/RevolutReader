@@ -27,10 +27,10 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 2. [unit] Slice 1 — The delay
 
-- [ ] 2.1 The delay is the server's time minus the read time, in whole seconds
-- [ ] 2.2 A delay with a fraction of a second is rounded down
-- [ ] 2.3 A delay of an hour is 3600 seconds
-- [ ] 2.4 The earliest read time and the latest server time still give a delay
+- [x] 2.1 The delay is the server's time minus the read time, in whole seconds
+- [x] 2.2 A delay with a fraction of a second is rounded down
+- [x] 2.3 A delay of an hour is 3600 seconds
+- [x] 2.4 The earliest read time and the latest server time still give a delay
 
 ## 3. [wiring] Slice 1 — The endpoint
 
