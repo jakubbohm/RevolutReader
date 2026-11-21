@@ -177,8 +177,8 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 29. [wiring] Deployment
 
-- [ ] 29.1 The read-only preview (deployment.md § Previewing a change to the Bicep, with the owner's login). Verify: it shows exactly the new table
-- [ ] 29.2 Docs: deployment.md § The koruna rate (c017): the table, what to look at after the deploy (design.md § Migration plan, step 2), and a read-only query of `KorunaRateKept` and `KorunaRateAskFailed` per day. Verify: the query runs read-only against the workspace (no rows before the deploy)
+- [x] 29.1 The read-only preview (deployment.md § Previewing a change to the Bicep, with the owner's login). Verify: it shows exactly the new table
+- [x] 29.2 Docs: deployment.md § The koruna rate (c017): the table, what to look at after the deploy (design.md § Migration plan, step 2), and a read-only query of `KorunaRateKept` and `KorunaRateAskFailed` per day. Verify: the query runs read-only against the workspace (no rows before the deploy)
 
 ## 30. [close] Acceptance green
 
