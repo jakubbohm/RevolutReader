@@ -77,7 +77,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 12. [close] Slice 5 — A push without a balance leaves the kept balance as it was
 
-- [ ] 12.1 The scenario's test passes and is proven by a mutation: with the kept balance forgotten for a push that carries none, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 12.1 The scenario's test passes and is proven by a mutation: with the kept balance forgotten for a push that carries none, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 13. [unit] Slice 6 — A failing store
 
