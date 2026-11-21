@@ -7,12 +7,15 @@ namespace RevolutReader.Api.Rate;
 /// <item>While a rate is not due (<see cref="RateAsking.IsDue"/>), the kept one is answered and the CNB is not asked
 /// (D3).</item>
 /// <item>While one is due, the call asks the CNB, sharing the ask in flight with every caller that comes while it runs
-/// (<see cref="SharedAsk"/>, D4). A rate for a later day than the kept one is held, saved in the store, logged as kept
-/// (<see cref="RateLog.KorunaRateKept"/>, D7) and answered; one for the kept day or an earlier one changes nothing, the
-/// kept one is answered, and nothing is logged (D2, D6, D7), so the next call asks again while the rate is due.</item>
+/// (<see cref="SharedAsk"/>, D4). A rate for a later day than the kept one is held, logged as kept
+/// (<see cref="RateLog.KorunaRateKept"/>, D7) and answered, and saved in the store after the answer, off the callers' path
+/// (<see cref="SaveInTheBackground"/>), so the shared ask ends within the CNB's time limit whatever the store takes; one
+/// for the kept day or an earlier one changes nothing, the kept one is answered, and nothing is logged (D2, D6, D7), so the
+/// next call asks again while the rate is due.</item>
 /// <item>Never fails for the CNB or the store (D5): a failed ask answers the kept rate, or the app's own when none is kept;
 /// a store that fails is logged (<see cref="RateLog.KorunaRateStoreFailed"/>), its read counting as nothing kept, its write
-/// ignored. Only the caller's own cancellation ends its call.</item>
+/// ignored. A save cut off when the app stops is harmless: the next process reads the older row and asks again. Only the
+/// caller's own cancellation ends its call.</item>
 /// </list>
 /// </summary>
 public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvider time, ILogger<KorunaRates> logger) : IKorunaRates {
@@ -99,18 +102,18 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
   /// </summary>
   private async Task<KorunaRate> AskAndKeep() =>
     await cnb.ReadEuroRate(CancellationToken.None) switch {
-      KorunaRate rate => await KeptOrNewer(rate),
+      KorunaRate rate => KeptOrNewer(rate),
       CnbFailed failed => AfterAFailedAsk(failed),
     };
 
   /// <summary>
-  /// <paramref name="answered"/>, held in memory, saved in the store and logged as kept, when nothing is kept or it is for a
-  /// later day than the kept rate (D2, D7); otherwise the kept rate, with nothing saved and nothing logged: the kept day's
-  /// rate again, or an earlier day's, which only a stale copy in front of the CNB could send (D6). A save that fails, in
-  /// whatever way, is logged and ignored: the rate is still held, logged as kept and answered (D5); the next process reads
-  /// the older row and asks again.
+  /// <paramref name="answered"/>, held in memory, its save started (<see cref="SaveInTheBackground"/>), logged as kept and
+  /// answered at once, when nothing is kept or it is for a later day than the kept rate (D2, D7); otherwise the kept rate,
+  /// with nothing saved and nothing logged: the kept day's rate again, or an earlier day's, which only a stale copy in front
+  /// of the CNB could send (D6). The save is not awaited: the shared ask every caller awaits ends with the CNB's answer,
+  /// within its time limit, never held by a slow store (D4; review of PR #95, finding 4).
   /// </summary>
-  private async Task<KorunaRate> KeptOrNewer(KorunaRate answered) {
+  private KorunaRate KeptOrNewer(KorunaRate answered) {
     lock (_lock) {
       if (_kept is { } kept && answered.Date <= kept.Date)
         return kept;
@@ -118,18 +121,28 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
       _kept = answered;
     }
 
+    _ = SaveInTheBackground(answered);
+    RateLog.KorunaRateKept(logger, answered.CzkPerEur, answered.Date);
+
+    return answered;
+  }
+
+  /// <summary>
+  /// The one place the kept rate is saved: <paramref name="rate"/> into the store, on no caller's token, after its answer
+  /// and off the callers' path. Started from <see cref="KeptOrNewer"/> and not awaited there, so a store whose save ends at
+  /// once has saved before the call returns, and a slow one holds no caller. It never faults: a save that fails, in whatever
+  /// way, is logged and ignored, the rate still held and answered (D5). A save cut off when the app stops is harmless too:
+  /// the next process reads the older row and asks again.
+  /// </summary>
+  private async Task SaveInTheBackground(KorunaRate rate) {
     try {
-      await store.Save(answered, CancellationToken.None);
+      await store.Save(rate, CancellationToken.None);
     }
-#pragma warning disable CA1031 // A store that fails to write, in whatever way, never fails the request (D5): the save runs on no caller's token, so no failure of it is a caller's cancellation.
+#pragma warning disable CA1031 // A store that fails to write, in whatever way, never fails a request and never faults unobserved (D5): the save runs on no caller's token, so no failure of it is a caller's cancellation.
     catch (Exception exception) {
       RateLog.KorunaRateStoreFailed(logger, WRITTEN, exception);
     }
 #pragma warning restore CA1031
-
-    RateLog.KorunaRateKept(logger, answered.CzkPerEur, answered.Date);
-
-    return answered;
   }
 
   /// <summary>
