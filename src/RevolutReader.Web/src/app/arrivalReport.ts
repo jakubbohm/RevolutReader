@@ -12,14 +12,29 @@ export interface ReportingWorker {
   fetch(input: string, init: RequestInit): Promise<unknown>;
 }
 
+/** Where a phone reports a push's arrival, on the app's own origin (D3). */
+const ARRIVALS = "/api/push/arrivals";
+
 /**
  * Reports a push's arrival (D1-D3, D5): one POST of `{ readAt }` as JSON to `/api/push/arrivals` on the worker's own
  * origin, with same-origin credentials, no time limit and no keepalive. Ignores the answer; never rejects (offline, any
  * status); never sends again.
  */
-export function reportArrival(
-  _worker: ReportingWorker,
-  _readAt: string,
+export async function reportArrival(
+  worker: ReportingWorker,
+  readAt: string,
 ): Promise<void> {
-  throw new Error("Not implemented yet: reportArrival (c016 tasks.md 11.1).");
+  const report: ArrivalReport = { readAt };
+  try {
+    // Any answer is the end of it: a status is not looked at, so it never fails the report.
+    await worker.fetch(new URL(ARRIVALS, worker.location.origin).href, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+      credentials: "same-origin",
+    });
+  } catch {
+    // Not reported this time, and never sent again (D5): nothing about the report may stop the notification or the
+    // balance, and a missing report shows in the server's records as one.
+  }
 }

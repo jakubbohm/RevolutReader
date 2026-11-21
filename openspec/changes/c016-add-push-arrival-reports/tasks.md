@@ -67,14 +67,14 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 10. [unit] Slice 4 — Reporting an arrival
 
-- [ ] 10.1 A report is one POST to `/api/push/arrivals` on the worker's own origin, as JSON with only `readAt`, with same-origin credentials
-- [ ] 10.2 A push's arrival is reported with the read time from the data of the browser's proposed notification
-- [ ] 10.3 A push's arrival is reported with the read time from the push's own JSON where the browser proposes no notification
-- [ ] 10.4 The report runs under the push event's `waitUntil`
+- [x] 10.1 A report is one POST to `/api/push/arrivals` on the worker's own origin, as JSON with only `readAt`, with same-origin credentials
+- [x] 10.2 A push's arrival is reported with the read time from the data of the browser's proposed notification
+- [x] 10.3 A push's arrival is reported with the read time from the push's own JSON where the browser proposes no notification
+- [x] 10.4 The report runs under the push event's `waitUntil`
 
 ## 11. [wiring] Slice 4 — The service worker reports
 
-- [ ] 11.1 `src/app/arrivalReport.ts` (`reportArrival`, its only import the type-only schema) and `PushWorker` gains `fetch`; `listenForPushes` reports beside the balance write, in the same turn, before it shows or leaves the message (design.md D5, § Public API sketch). Verify: `npm run typecheck` (the service worker's project included) and `npm run build`; the built `dist/sw.js` contains no API client (`window.location`)
+- [x] 11.1 `src/app/arrivalReport.ts` (`reportArrival`, its only import the type-only schema) and `PushWorker` gains `fetch`; `listenForPushes` reports beside the balance write, in the same turn, before it shows or leaves the message (design.md D5, § Public API sketch). Verify: `npm run typecheck` (the service worker's project included) and `npm run build`; the built `dist/sw.js` contains no API client (`window.location`)
 
 ## 12. [close] Slice 4 — A push with a balance reports its arrival with the balance's read time
 
