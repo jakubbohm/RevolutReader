@@ -202,11 +202,11 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 35. [unit] Slice 14 — Waiting and joining
 
-- [ ] 35.1 A call while a check runs becomes the waiting check and starts only when the running one ends, with its own user
-- [ ] 35.2 A call while a check waits joins it: no check of its own, and the waiting check's answer
-- [ ] 35.3 A check with another waiting behind it leaves the notification to it (`CheckEnded` `ChangeLeftToTheNextCheck`)
-- [ ] 35.4 `CallersWaiting` counts the waiting check's callers, and is zero once it starts
-- [ ] 35.5 The waiting check starts after a running check that threw
+- [x] 35.1 A call while a check runs becomes the waiting check and starts only when the running one ends, with its own user
+- [x] 35.2 A call while a check waits joins it: no check of its own, and the waiting check's answer
+- [x] 35.3 A check with another waiting behind it leaves the notification to it (`CheckEnded` `ChangeLeftToTheNextCheck`)
+- [x] 35.4 `CallersWaiting` counts the waiting check's callers, and is zero once it starts
+- [x] 35.5 The waiting check starts after a running check that threw
 
 ## 36. [wiring] Slice 14 — A burst in the tests
 
