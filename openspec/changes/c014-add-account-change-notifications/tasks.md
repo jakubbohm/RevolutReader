@@ -175,12 +175,12 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 29. [unit] Slice 11 — A failed read
 
-- [ ] 29.1 A failed read keeps nothing new and is the read's failure (access expired, rate limited, unavailable), logged `BankReadFailed`
-- [ ] 29.2 A failed read with nothing to notify sends nothing
+- [x] 29.1 A failed read keeps nothing new and is the read's failure (access expired, rate limited, unavailable), logged `BankReadFailed`
+- [x] 29.2 A failed read with nothing to notify sends nothing
 
 ## 30. [close] Slice 11 — A failed bank read sends nothing and answers as the balance does
 
-- [ ] 30.1 The scenario's test passes. Verify: green, including account-check / A failed bank read sends nothing and answers as the balance does
+- [x] 30.1 The scenario's test passes. Verify: green, including account-check / A failed bank read sends nothing and answers as the balance does
 
 ## 31. [unit] Slice 12 — Notified once
 

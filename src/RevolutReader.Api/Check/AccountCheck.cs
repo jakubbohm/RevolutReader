@@ -9,7 +9,8 @@ namespace RevolutReader.Api.Check;
 /// present user (D3, D7).
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
-/// changed (D4); a failed read keeps nothing and is the read's failure.</item>
+/// changed (D4).</item>
+/// <item>A failed read keeps nothing new and is the read's failure (D11); with no change kept, nothing is sent.</item>
 /// <item>With balances kept, a successful read is kept as last seen, last notified as it was (D4). With no change, nothing
 /// is sent and the check answers that nothing changed. A change, with no check waiting behind (D10 item 3), is notified
 /// from the stored balances (D10 item 4) through <see cref="ChangeNotifier"/>, and last notified is written as last seen
@@ -26,19 +27,30 @@ public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore
     CheckedBalances? kept = await store.Read(cancellationToken);
     BankResult<AccountBalance> read = await reader.Handle(user, cancellationToken);
 
-    if (kept is not null && read is not AccountBalance)
-      throw new NotImplementedException("A failed read with balances kept comes with c014 tasks.md groups 29 and 33.");
-
 #pragma warning disable CA1508 // Its interprocedural analysis follows the reader's returns and calls every arm always true; each case is named, so a case added to the union later is a compile error rather than a silent default.
     return read switch {
       AccountBalance balance => kept is null
         ? await KeepTheFirst(balance, cancellationToken)
         : await KeepAndNotify(kept with { LastSeen = balance }, anotherCheckWaits, cancellationToken),
-      BankAccessExpired expired => expired,
-      BankRateLimited rateLimited => rateLimited,
-      BankUnavailable unavailable => unavailable,
+      BankAccessExpired expired => ReadFailed(expired, kept),
+      BankRateLimited rateLimited => ReadFailed(rateLimited, kept),
+      BankUnavailable unavailable => ReadFailed(unavailable, kept),
     };
 #pragma warning restore CA1508
+  }
+
+  /// <summary>
+  /// A failed read: nothing new kept, and <paramref name="failure"/>, the read's own, is the result (D11), logged as
+  /// <see cref="CheckEnd.BankReadFailed"/> (D15). With no change kept (<paramref name="kept"/> none, or not differing),
+  /// nothing is sent.
+  /// </summary>
+  private BankResult<CheckOutcome> ReadFailed(BankResult<CheckOutcome> failure, CheckedBalances? kept) {
+    if (kept is { Changed: true })
+      throw new NotImplementedException("A failed read with a change kept comes with c014 tasks.md group 33.");
+
+    CheckLog.CheckEnded(logger, CheckEnd.BankReadFailed);
+
+    return failure;
   }
 
   /// <summary>The first successful read, with nothing kept: kept as both last seen and last notified, nothing sent (D4).</summary>
