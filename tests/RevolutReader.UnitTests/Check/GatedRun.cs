@@ -13,13 +13,17 @@ public sealed class GatedRun {
   private readonly TaskCompletionSource<Func<BankResult<CheckOutcome>>> _ending = new(TaskCreationOptions.RunContinuationsAsynchronously);
   private readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-  internal GatedRun(PresentUser user, CancellationToken token) {
+  internal GatedRun(PresentUser user, int runningWhenStarted, CancellationToken token) {
     User = user;
     Token = token;
+    RunningWhenStarted = runningWhenStarted;
   }
 
   /// <summary>The user the run is for: the one the queue passed to <see cref="IAccountCheck.Run"/>.</summary>
   public PresentUser User { get; }
+
+  /// <summary>How many earlier runs had not yet ended when this one started: 0 when it started only once they had.</summary>
+  public int RunningWhenStarted { get; }
 
   /// <summary>The token the run is on: the one the queue passed to <see cref="IAccountCheck.Run"/>.</summary>
   public CancellationToken Token { get; }

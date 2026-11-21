@@ -17,6 +17,10 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
   /// <summary>No check waits behind the running one, until the waiting check is built (c014 tasks.md 35).</summary>
   private static readonly Func<bool> _noCheckWaits = static () => false;
 
+  /// <summary>How many calls wait behind the running check (the waiting one and those joined to it); read by the acceptance driver (D16).</summary>
+  /// <remarks>A test-first stub: a property may not throw <see cref="NotImplementedException"/> (CA1065), so it throws <see cref="NotSupportedException"/> until it is built.</remarks>
+  public int CallersWaiting => throw new NotSupportedException("Not built yet: c014 tasks.md 35.4.");
+
   /// <summary>Starts a check, makes this call the waiting one, or joins the waiting one; the task ends with that check.</summary>
   public Task<BankResult<CheckOutcome>> Check(PresentUser user) {
     ArgumentNullException.ThrowIfNull(user);

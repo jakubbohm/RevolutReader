@@ -5,8 +5,8 @@ namespace RevolutReader.UnitTests.Check;
 
 /// <summary>
 /// A gated <see cref="IAccountCheck"/> for the queue's unit tests (c014 design.md D16): each <see cref="Run"/> is recorded
-/// as a <see cref="GatedRun"/>, in the order started, and waits until the test ends it or its token is cancelled, so the
-/// test decides when each check ends and how. One instance serves every scope: the tests register it as scoped through a
+/// as a <see cref="GatedRun"/>, in the order started, with how many earlier runs had not yet ended, and waits until the
+/// test ends it or its token is cancelled, so the test decides when each check ends and how. One instance serves every scope: the tests register it as scoped through a
 /// factory on a provider that validates scopes, so a queue that resolved it outside a scope of its own would fail. Safe for
 /// runs on several threads at once.
 /// </summary>
@@ -60,10 +60,11 @@ public sealed class GatedAccountCheck : IAccountCheck {
     ArgumentNullException.ThrowIfNull(user);
     ArgumentNullException.ThrowIfNull(anotherCheckWaits);
 
-    GatedRun run = new(user, cancellationToken);
+    GatedRun run;
     TaskCompletionSource started;
 
     lock (_lock) {
+      run = new GatedRun(user, runningWhenStarted: _runs.Count(static earlier => !earlier.Ended.IsCompleted), cancellationToken);
       _runs.Add(run);
       started = _nextRun;
       _nextRun = NewSignal();

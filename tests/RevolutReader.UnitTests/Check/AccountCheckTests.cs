@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -49,6 +50,9 @@ public sealed class AccountCheckTests {
 
   /// <summary>No check waits behind the one under test (D10's seam).</summary>
   private static readonly Func<bool> _noCheckWaits = static () => false;
+
+  /// <summary>Another check waits behind the one under test (D10's seam).</summary>
+  private static readonly Func<bool> _anotherCheckWaits = static () => true;
 
   /// <summary>Lucie's registered phone, the one device every check here can reach.</summary>
   private static readonly PushDevice _luciesPhone = Device(LUCIE);
@@ -426,6 +430,71 @@ public sealed class AccountCheckTests {
 
     delivery.HandedOver.ShouldBeEmpty("nothing is sent");
   }
+
+  /// <summary>
+  /// Another check waits behind this one (D10 item 3): a change, found by this check's read or kept from an earlier one, is
+  /// left to it. The read is kept as last seen (the store step runs first), last notified is left as it was, nothing is
+  /// sent, the one line of what the check came to is <c>CheckEnded</c> with
+  /// <see cref="CheckEnd.ChangeLeftToTheNextCheck"/>, and the check answers that the balance changed, since last seen
+  /// differs from last notified after its read and store (D11).
+  /// </summary>
+  /// <param name="keptLastSeen">Last seen as kept before the check, in euros.</param>
+  /// <param name="keptLastNotified">Last notified as kept before the check, in euros.</param>
+  [Test]
+  [Arguments("49.00", "49.00")] // the change is this check's read: 45.20 against 49.00
+  [Arguments("45.20", "49.00")] // the change was kept by an earlier check, and the read finds the same balance
+  public async Task A_check_with_another_waiting_behind_it_leaves_the_notification_to_it(string keptLastSeen, string keptLastNotified) {
+    InMemoryCheckedBalanceStore store = await StoreKeeping(Euros(keptLastSeen), Euros(keptLastNotified));
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    StubPushDelivery delivery = new();
+    CapturedLog log = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery, log)).Run(_phone, _anotherCheckWaits, CancellationToken.None);
+
+    CheckedBalances? after = await store.Read(CancellationToken.None);
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.ShouldBeEmpty("nothing is sent: the notification is left to the check waiting behind"),
+      () => after.ShouldBe(new CheckedBalances(LastSeen: new AccountBalance(45.20m, _now, KorunaRate.CzkPerEur), LastNotified: before.LastNotified), "the read kept as last seen; last notified as it was"),
+      () => lines.Where(static line => line.EventName == "CheckEnded").Select(static line => line.OwnValues().Single().Value)
+        .ShouldBe([CheckEnd.ChangeLeftToTheNextCheck], "one line of what the check came to: the change left to the next check"),
+      () => result.Value.ShouldBe(new CheckOutcome(Changed: true), "the balance changed: last seen differs from last notified"));
+  }
+
+  /// <summary>
+  /// An earlier check kept last seen at 45.20 and last notified at 49.00; this check's read fails, and another check waits
+  /// behind it (D10 items 3 and 4): the kept change is left to that one too. Nothing new is kept, last notified is left as
+  /// it was, nothing is sent, and the result is still the read's failure (D11). Its one line of what it came to is
+  /// <c>CheckEnded</c> with <see cref="CheckEnd.BankReadFailed"/>, as the check answers, as for a failed read that notified
+  /// (tasks.md 33.1); no <c>ChangeSent</c> line, since nothing was sent.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_check_whose_read_fails_with_another_waiting_behind_it_leaves_a_kept_change_to_it(string failure) {
+    BankResult<Balance> answer = Failure(failure);
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 49.00m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    StubPushDelivery delivery = new();
+    CapturedLog log = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(answer, store, delivery, log)).Run(_phone, _anotherCheckWaits, CancellationToken.None);
+
+    CheckedBalances? after = await store.Read(CancellationToken.None);
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.ShouldBeEmpty("nothing is sent: the kept change is left to the check waiting behind"),
+      () => after.ShouldBe(before, "nothing new kept; last notified as it was"),
+      () => result.Value.ShouldBe(answer.Value, "the read's failure, as it is"),
+      () => lines.Where(static line => line.EventName == "CheckEnded").Select(static line => line.OwnValues().Single().Value)
+        .ShouldBe([CheckEnd.BankReadFailed], "one line of what the check came to: the bank read failed, as the check answers"),
+      () => lines.ShouldNotContain(static line => line.EventName == "ChangeSent", "nothing was sent"));
+  }
+
+  /// <summary>An amount in euros given as invariant text (an attribute cannot hold a decimal).</summary>
+  private static decimal Euros(string amount) => decimal.Parse(amount, NumberStyles.Number, CultureInfo.InvariantCulture);
 
   /// <summary>The bank's expected failure named <paramref name="failure"/>: access expired, rate limited or unavailable.</summary>
   private static BankResult<Balance> Failure(string failure) => failure switch {
