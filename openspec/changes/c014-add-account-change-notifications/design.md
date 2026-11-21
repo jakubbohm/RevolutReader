@@ -167,7 +167,7 @@ As roadmap C9, items 1–5:
 - Source-generated in `CheckLog`:
   - `CheckEnded` (Information), with what the check came to: `FirstBalanceKept`, `Unchanged`, `ChangeLeftToTheNextCheck`, `ChangeNotified` or `BankReadFailed`. A check whose read fails comes to `BankReadFailed` also when it still sends a change an earlier check kept, or leaves it to the check waiting behind (D10 item 4): the line agrees with its answer (D11) and keeps the bank problem visible, and `ChangeSent` shows the send (the owner, 2026-11-21);
   - `ChangeSent` (Information): accounts, and the devices reached, failed and removed, summed;
-  - `CheckFailed` (Error, with the exception): a check that threw. Exceptions carry no bank data (README.md § Backend code).
+  - `CheckFailed` (Error, with the exception): a check that threw. Exceptions carry no bank data (README.md § Backend code). A check the app's stop cancels writes no line of its own, neither `CheckFailed` nor any Error: a stop is the app ending (a deploy, Azure stopping it), not a fault, and *last notified* stays, so the next trigger sends the change (the owner, 2026-11-21).
 - The bank adapter's line per read and C8a's `PushSent` lines stay as they are.
 - **A guard test** (`Conventions/AccountCheckTelemetryTests`) captures every line a notifying check writes and finds no amount in any of its forms ("45.20", "45,20", "3,80", "1 098"), no email and no key.
 
