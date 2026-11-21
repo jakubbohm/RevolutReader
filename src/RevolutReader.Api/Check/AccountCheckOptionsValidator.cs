@@ -7,8 +7,9 @@ namespace RevolutReader.Api.Check;
 /// What the data annotations cannot check (c014 design.md D6): the check key decodes, read strictly as base64url without
 /// padding (<see cref="StrictBase64Url"/>), to at least 32 bytes, and it is a key of its own, never the message key
 /// (<see cref="PushOptions.MessageKey"/>), the two compared in constant time (<see cref="MessageKeyCheck.Matches"/>). Each
-/// message names the settings, never a value or any part of one. When the push settings fail their own checks, they are
-/// not compared: those checks report it, once, and the app refuses to start all the same.
+/// message names the settings by their full names, as the operator sets them (<c>Section:Member</c>, configuration.md
+/// § Binding), never a value or any part of one. When the push settings fail their own checks, they are not compared:
+/// those checks report it, once, and the app refuses to start all the same.
 /// </summary>
 public sealed class AccountCheckOptionsValidator(IOptions<PushOptions> push) : IValidateOptions<AccountCheckOptions> {
   private const int KEY_MIN_BYTES = 32;

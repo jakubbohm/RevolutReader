@@ -7,19 +7,20 @@ namespace RevolutReader.Api.Bank;
 /// What the data annotations cannot check (c004 design.md D6). The API address is an absolute https address (plain http
 /// only on this machine) whose path ends in "/" (a bare host's path is "/") and that has no query or fragment, so every
 /// request path is appended to it and nothing of it is lost. The key parses as an RSA private key in PEM form, PKCS#8
-/// or PKCS#1; a public key fails too. Each message names the setting, never its value or any part of it.
+/// or PKCS#1; a public key fails too. Each message names the setting by its full name, as the operator sets it
+/// (<c>Section:Member</c>, configuration.md § Binding), never its value or any part of it.
 /// </summary>
 public sealed class EnableBankingOptionsValidator : IValidateOptions<EnableBankingOptions> {
   private const string PKCS8_LABEL = "PRIVATE KEY";
   private const string PKCS1_LABEL = "RSA PRIVATE KEY";
 
   private const string NOT_AN_API_ADDRESS =
-    $"{nameof(EnableBankingOptions)}.{nameof(EnableBankingOptions.ApiBaseUrl)} is not an address the requests can be sent to: "
+    $"{EnableBankingOptions.SECTION}:{nameof(EnableBankingOptions.ApiBaseUrl)} is not an address the requests can be sent to: "
     + "expected an absolute https address (plain http only on this machine) with no path or a path ending in \"/\", "
     + "and no query or fragment.";
 
   private const string NOT_AN_RSA_PRIVATE_KEY =
-    $"{nameof(EnableBankingOptions)}.{nameof(EnableBankingOptions.PrivateKey)} is not an RSA private key in PEM form: "
+    $"{EnableBankingOptions.SECTION}:{nameof(EnableBankingOptions.PrivateKey)} is not an RSA private key in PEM form: "
     + $"expected exactly one unencrypted key, labelled \"{PKCS8_LABEL}\" (PKCS#8) or \"{PKCS1_LABEL}\" (PKCS#1).";
 
   public ValidateOptionsResult Validate(string? name, EnableBankingOptions options) {

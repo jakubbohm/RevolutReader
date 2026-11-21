@@ -4,10 +4,11 @@ namespace RevolutReader.Api.SignIn;
 
 /// <summary>
 /// What the data annotations cannot check (D8): the allowlist parses (<see cref="Allowlist.Parse"/>), so it holds at least
-/// one entry, none empty, each one email address. The message names the setting, never its value or an address.
+/// one entry, none empty, each one email address. The message names the setting by its full name, as the operator sets it
+/// (<c>Section:Member</c>, configuration.md § Binding), never its value or an address.
 /// </summary>
 public sealed class SignInOptionsValidator : IValidateOptions<SignInOptions> {
-  private const string NOT_AN_ALLOWLIST = $"{nameof(SignInOptions)}.{nameof(SignInOptions.AllowedEmails)} is not an allowlist";
+  private const string NOT_AN_ALLOWLIST = $"{SignInOptions.SECTION}:{nameof(SignInOptions.AllowedEmails)} is not an allowlist";
 
   public ValidateOptionsResult Validate(string? name, SignInOptions options) {
     ArgumentNullException.ThrowIfNull(options);
