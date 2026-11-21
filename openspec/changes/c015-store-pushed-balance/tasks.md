@@ -58,7 +58,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 8. [close] Slice 3 — A push with a balance stores none on a phone that keeps none
 
-- [ ] 8.1 The scenario's test passes and is proven by a mutation: with a write when nothing is kept, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 8.1 The scenario's test passes and is proven by a mutation: with a write when nothing is kept, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 9. [unit] Slice 4 — A balance of the wrong shape
 
