@@ -94,11 +94,11 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 13. [unit] Slice 5 — Czech amounts
 
-- [ ] 13.1 Euros are written with two decimals, a decimal comma and a no-break space before "€": 3.80 as "3,80 €", 45.20 as "45,20 €"
-- [ ] 13.2 Euros from a thousand on are grouped by no-break spaces: 1234.56 as "1 234,56 €"
-- [ ] 13.3 A negative balance keeps its minus as U+2212: −5.00 as "−5,00 €"
-- [ ] 13.4 The koruna value is the size at the rate, rounded half up to whole koruna and grouped: 45.20 at 24.3 as "1 098 Kč", 145.20 as "3 528 Kč", 286.40 as "6 960 Kč"; a value of exactly half rounds up
-- [ ] 13.5 The koruna value of a negative balance is its size
+- [x] 13.1 Euros are written with two decimals, a decimal comma and a no-break space before "€": 3.80 as "3,80 €", 45.20 as "45,20 €"
+- [x] 13.2 Euros from a thousand on are grouped by no-break spaces: 1234.56 as "1 234,56 €"
+- [x] 13.3 A negative balance keeps its minus as U+2212: −5.00 as "−5,00 €"
+- [x] 13.4 The koruna value is the size at the rate, rounded half up to whole koruna and grouped: 45.20 at 24.3 as "1 098 Kč", 145.20 as "3 528 Kč", 286.40 as "6 960 Kč"; a value of exactly half rounds up
+- [x] 13.5 The koruna value of a negative balance is its size
 
 ## 14. [unit] Slice 5 — The notification
 
