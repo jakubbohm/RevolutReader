@@ -9,6 +9,7 @@
     "lint": "oxlint --deny-warnings",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:gc-pressure": "vitest run --execArgv=--expose-gc --execArgv=--import=./src/test/gcPressure.mjs --testTimeout=600000",
     "typecheck": "tsc -b",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
