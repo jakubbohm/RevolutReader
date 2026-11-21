@@ -9,7 +9,7 @@ public static partial class CheckLog {
   [LoggerMessage(EventName = "CheckEnded", Level = LogLevel.Information, Message = "An account check ended: {End}")]
   public static partial void CheckEnded(ILogger logger, CheckEnd end);
 
-  /// <summary>A change sent to every allowed account: how many accounts, and the devices reached, failed and kept, and removed as gone, summed.</summary>
+  /// <summary>A change sent to every allowed account: how many accounts, each counted once whatever its letter case, and the devices reached, failed and kept, and removed as gone, summed.</summary>
   [LoggerMessage(EventName = "ChangeSent", Level = LogLevel.Information, Message = "A change was sent to {Accounts} accounts: {Delivered} devices reached, {Failed} failed and were kept, {Removed} were removed as gone")]
   public static partial void ChangeSent(ILogger logger, int accounts, int delivered, int failed, int removed);
 
