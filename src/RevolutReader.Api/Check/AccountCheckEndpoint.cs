@@ -21,9 +21,10 @@ namespace RevolutReader.Api.Check;
 /// <item>Then the check, through <see cref="AccountCheckQueue"/>, which runs it on the app's lifetime, never this request's
 /// (D8): the request only waits for it, on its own token. Its result as <see cref="BankAnswers.From"/> answers it (D11):
 /// 200 <see cref="AccountCheckResponse"/>, or the bank's 503 and 429 problems, as <c>GET /api/balance</c> answers them.</item>
-/// <item>A check that threw answers C7a's 500 problem description, with nothing about the failure (spec api-errors); the
-/// queue has logged it already (<see cref="CheckLog.CheckFailed"/>, D15), so it is not left to the exception handler,
-/// which would log it again. A caller that left gets nothing: its wait ends with its token.</item>
+/// <item>A check that threw answers C7a's 500 problem description, with nothing about the failure (spec api-errors), also
+/// when its caller is leaving at that moment; the queue has logged it already (<see cref="CheckLog.CheckFailed"/>, D15),
+/// so it is never left to the exception handler, which would log it again. A caller that left gets nothing: its wait ends
+/// with its token, and only that cancellation of its own passes on.</item>
 /// </list>
 /// The Shortcut's request carries neither <c>Sec-Fetch-Site</c> nor <c>Origin</c>, so the cross-site rule lets it through.
 /// </summary>
@@ -57,8 +58,8 @@ public sealed class AccountCheckEndpoint(AccountCheckQueue queue, IOptions<Accou
     try {
       result = await queue.Check(user).WaitAsync(ct);
     }
-#pragma warning disable CA1031 // Every failure of a check, of whatever type, answers the same 500 (D11): the queue has logged it, and the exception handler would log it again.
-    catch (Exception) when (!ct.IsCancellationRequested) {
+#pragma warning disable CA1031 // Every failure of a check, of whatever type, answers the same 500 (D11): the queue has logged it, and the exception handler would log it again. Only the caller's own cancellation passes.
+    catch (Exception exception) when (exception is not OperationCanceledException || !ct.IsCancellationRequested) {
       await Send.ResultAsync(TypedResults.Problem(statusCode: StatusCodes.Status500InternalServerError));
 
       return;
