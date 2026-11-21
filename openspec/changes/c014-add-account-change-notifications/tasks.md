@@ -90,7 +90,7 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 12. [close] Slice 4 — The bank sees the phone's address and browser name
 
-- [ ] 12.1 The scenario's test passes (expected green since slice 3: the read is `ReadBalanceHandler`'s, as the present user); if it was green before this slice, a unit test pins that the check reads for the call's own user, and the test-writer shows it bites (a mutation). Verify: green, including account-check / The bank sees the phone's address and browser name
+- [x] 12.1 The scenario's test passes (expected green since slice 3: the read is `ReadBalanceHandler`'s, as the present user); if it was green before this slice, a unit test pins that the check reads for the call's own user, and the test-writer shows it bites (a mutation). Verify: green, including account-check / The bank sees the phone's address and browser name
 
 ## 13. [unit] Slice 5 — Czech amounts
 

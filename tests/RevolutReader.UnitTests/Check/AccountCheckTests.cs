@@ -116,12 +116,30 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
-  /// The check under test: the bank answers every balance read with <paramref name="bankAnswer"/> while the clock shows
-  /// <see cref="_now"/>; its balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender,
-  /// with the allowlist Lucie and Petr and Lucie's phone registered, to <paramref name="delivery"/>; every log line goes to
-  /// <paramref name="log"/>.
+  /// The check reads the balance once, and as the user it runs for: the bank gets that user's address and browser name, and
+  /// no other read (spec account-check, "The check reads the balance as the phone present"; D3, D7; tasks.md 12.1). The
+  /// user is one no other test here names.
   /// </summary>
-  private static async Task<AccountCheck> CheckWith(BankResult<Balance> bankAnswer, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) {
+  [Test]
+  public async Task A_check_reads_the_bank_once_as_the_user_it_runs_for() {
+    PresentUser user = new(IPAddress.Parse("203.0.113.42"), "BackgroundShortcutRunner/5108.1");
+    StubBankAccount bank = new(new Balance(45.20m, "EUR"));
+
+    await (await CheckWith(bank, new InMemoryCheckedBalanceStore(), new StubPushDelivery())).Run(user, _noCheckWaits, CancellationToken.None);
+
+    bank.ReadsFor.ShouldBe([user], "one balance read, as the user the check runs for: the same address and browser name");
+  }
+
+  /// <summary>The check under test, as the other overload, with a bank that answers every balance read with <paramref name="bankAnswer"/>.</summary>
+  private static Task<AccountCheck> CheckWith(BankResult<Balance> bankAnswer, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) =>
+    CheckWith(new StubBankAccount(bankAnswer), store, delivery, log);
+
+  /// <summary>
+  /// The check under test: it reads the balance at <paramref name="bank"/> while the clock shows <see cref="_now"/>; its
+  /// balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender, with the allowlist Lucie
+  /// and Petr and Lucie's phone registered, to <paramref name="delivery"/>; every log line goes to <paramref name="log"/>.
+  /// </summary>
+  private static async Task<AccountCheck> CheckWith(StubBankAccount bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) {
     CapturedLog lines = log ?? new CapturedLog();
     Allowlist allowlist = Allowlist.Parse($"{LUCIE}, {PETR}");
     InMemoryPushDeviceStore devices = new();
@@ -136,7 +154,7 @@ public sealed class AccountCheckTests {
     }), lines.For<SendPushHandler>());
 
     return new AccountCheck(
-      new ReadBalanceHandler(new StubBankAccount(bankAnswer), new FakeTimeProvider(_now)),
+      new ReadBalanceHandler(bank, new FakeTimeProvider(_now)),
       store,
       new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
       lines.For<AccountCheck>());
@@ -154,9 +172,28 @@ public sealed class AccountCheckTests {
       account);
   }
 
-  /// <summary>The bank port, answering every balance read with <paramref name="answer"/>; a check reads no transactions (D3).</summary>
+  /// <summary>
+  /// The bank port, answering every balance read with <paramref name="answer"/> and recording who each read was for
+  /// (<see cref="ReadsFor"/>); a check reads no transactions (D3).
+  /// </summary>
   private sealed class StubBankAccount(BankResult<Balance> answer) : IBankAccount {
-    public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) => Task.FromResult(answer);
+    private readonly Lock _lock = new();
+    private readonly List<object> _readsFor = [];
+
+    /// <summary>Who each balance read was for, in order: the trigger's case (a <see cref="PresentUser"/> or <see cref="Unattended"/>).</summary>
+    public IReadOnlyList<object> ReadsFor {
+      get {
+        lock (_lock)
+          return [.. _readsFor];
+      }
+    }
+
+    public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) {
+      lock (_lock)
+        _readsFor.Add(trigger.Value!);
+
+      return Task.FromResult(answer);
+    }
 
     public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) =>
       throw new NotSupportedException("A check reads no transactions.");
