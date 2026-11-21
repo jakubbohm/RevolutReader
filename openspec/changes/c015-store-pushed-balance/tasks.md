@@ -95,10 +95,10 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 16. [close] Acceptance green
 
-- [ ] 16.1 All scenario tests of this change pass, and the full suite is green, including `npm run build` with no `window.location` in `dist/sw.js`, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check (every scenario claimed exactly once). Verify: the commands' output
-- [ ] 16.2 Docs: ADR-0007's dated note, as built (design.md § Cross-cutting effects): where the service worker finds a push's balance, when it replaces the kept one, and that writing never stops the notification. Verify: the note cites this change's design.md D2–D4
-- [ ] 16.3 Docs: the software-factory lessons and inventory lines of design.md D11, at the next free numbers. Verify: each lesson names the decision it comes from
-- [ ] 16.4 `pm/progress.md`: C9b's row, with Q10 marked as applied (ADR-0007, item 3). `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
+- [x] 16.1 All scenario tests of this change pass, and the full suite is green, including `npm run build` with no `window.location` in `dist/sw.js`, `dotnet format whitespace RevolutReader.slnx --verify-no-changes` and the traceability check (every scenario claimed exactly once). Verify: the commands' output
+- [x] 16.2 Docs: ADR-0007's dated note, as built (design.md § Cross-cutting effects): where the service worker finds a push's balance, when it replaces the kept one, and that writing never stops the notification. Verify: the note cites this change's design.md D2–D4
+- [x] 16.3 Docs: the software-factory lessons and inventory lines of design.md D11, at the next free numbers. Verify: each lesson names the decision it comes from
+- [x] 16.4 `pm/progress.md`: C9b's row, with Q10 marked as applied (ADR-0007, item 3). `CLAUDE.md` checked against every command this change touched. Verify: the row links the change; `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 

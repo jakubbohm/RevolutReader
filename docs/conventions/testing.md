@@ -128,7 +128,7 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
 - **Shared fakes only when two test projects need the same one;** no `tests/Fakes/` project up front. A fake the contract tests also need is compiled into the integration project as a link (§ Integration tests).
 - **Frontend tests live next to the frontend code** (Vitest with Testing Library and jsdom; decided in C3, c003 design.md D1):
   - a unit test sits next to its target as `<file>.test.ts(x)`, e.g. `src/app/device.ts` ↔ `src/app/device.test.ts`;
-  - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx` (`.test.ts` when it renders nothing, as `push-display`'s since C8b), each test a `scenario("<capability>", "<exact scenario name>", …)`;
+  - scenario tests go one file per capability, `src/scenarios/<capability>.test.tsx` (`.test.ts` when it has no JSX, as `push-display`'s, which since C9b opens the app through `renderApp` without JSX), each test a `scenario("<capability>", "<exact scenario name>", …)`;
   - the helpers live in `src/test/`: `setup.ts`, `scenario.ts`, `renderApp.tsx`, `server.ts` (the fake server), `clock.ts` (the test clock) and `banners.ts` (a banner found by its tone and title).
 
   The implementer may not edit `*.test.ts(x)`, as with every test file; `src/test/` belongs to the test-writer.
