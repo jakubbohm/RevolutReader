@@ -198,8 +198,9 @@ with a fresh test-writer and implementer.
 3. **Token budget.** Each completion notice of the test-writer or the implementer ends with its context size
    (`subagent_tokens` in its `<usage>` block). Record it in `.tdd-state.md` for that agent. When either agent
    passes **250k tokens**, end the chapter early: after the `[close]` commit of the slice in progress (without
-   slices, after the next group's commit), run the checkpoint (step 5), and the rest of the chapter becomes a new
-   chapter with a fresh pair. Where a notice shows no size, chapters end only where they were planned.
+   slices, after the last commit of the group in progress: its `[green]`, `[wire]` or `[close]`), run the
+   checkpoint (step 5), and the rest of the chapter becomes a new chapter with a fresh pair. Where a notice shows
+   no size, chapters end only where they were planned.
 4. **A fresh agent.** The test-writer and the implementer are each spawned the first time the chapter sends that
    agent work: a red or a green (§ 2, § 2b), a wiring group (§ 3), a fix routed in a `[close]` group (§ 4 step 1)
    or a dispute (§ Disputes). After that, each is resumed with SendMessage. Brief a fresh agent with: the change
