@@ -59,10 +59,10 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 5. [integration] Slice 1 — IKorunaRateStore
 
-- [ ] 5.1 Nothing saved reads as nothing
-- [ ] 5.2 A saved rate reads back exactly: the decimal with its scale, the date to the day
-- [ ] 5.3 A save replaces the kept rate
-- [ ] 5.4 The table is created when missing (Table adapter); a row it cannot read is an `InvalidOperationException` naming the column, never its value (adapter edge case)
+- [x] 5.1 Nothing saved reads as nothing
+- [x] 5.2 A saved rate reads back exactly: the decimal with its scale, the date to the day
+- [x] 5.3 A save replaces the kept rate
+- [x] 5.4 The table is created when missing (Table adapter); a row it cannot read is an `InvalidOperationException` naming the column, never its value (adapter edge case)
 
 ## 6. [wiring] Slice 1 — The CNB client, the store and the settings
 
