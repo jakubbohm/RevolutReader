@@ -95,7 +95,7 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 11. [close] Slice 3 — The account check's notification at the CNB's rate
 
-- [ ] 11.1 The three account-check scenarios pass, as expected after slice 1 (the check reads through `ReadBalanceHandler`, design.md D8), and are proven by a mutation: with `ReadBalanceHandler` answering `KorunaRate.AppsOwn` instead of the service's rate, they fail. `Conventions/AccountCheckTelemetryTests` computes its koruna forms with the rate its app copy answers. Verify: green, including account-check / Money out is notified with the new balance, Money in is notified with the new balance and The notification carries the new balance for the phone to keep; the mutation's red result in `.tdd-state.md`
+- [x] 11.1 The three account-check scenarios pass, as expected after slice 1 (the check reads through `ReadBalanceHandler`, design.md D8), and are proven by a mutation: with `ReadBalanceHandler` answering `KorunaRate.AppsOwn` instead of the service's rate, they fail. `Conventions/AccountCheckTelemetryTests` computes its koruna forms with the rate its app copy answers. Verify: green, including account-check / Money out is notified with the new balance, Money in is notified with the new balance and The notification carries the new balance for the phone to keep; the mutation's red result in `.tdd-state.md`
 
 ## 12. [unit] Slice 4 — When the CNB is asked again
 
