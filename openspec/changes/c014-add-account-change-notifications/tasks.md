@@ -109,10 +109,10 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 15. [unit] Slice 5 — Notifying a change
 
-- [ ] 15.1 A check with no check waiting behind it notifies a change from the stored balances, then writes last notified as last seen
-- [ ] 15.2 A check answers that the balance changed when it found a change
-- [ ] 15.3 The change goes through the sender to an allowed account's device
-- [ ] 15.4 A check that notified logs it, with counts and no amount (`CheckEnded` `ChangeNotified`, `ChangeSent`)
+- [x] 15.1 A check with no check waiting behind it notifies a change from the stored balances, then writes last notified as last seen
+- [x] 15.2 A check answers that the balance changed when it found a change
+- [x] 15.3 The change goes through the sender to an allowed account's device
+- [x] 15.4 A check that notified logs it, with counts and no amount (`CheckEnded` `ChangeNotified`, `ChangeSent`)
 
 ## 16. [wiring] Slice 5 — The notifier
 
