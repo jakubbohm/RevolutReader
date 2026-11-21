@@ -2,7 +2,7 @@
 
 > The owner's iPhone starts the app's account check on every Revolut notification ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md)). This page says how the Shortcut is set up, how to check it, and how to restore it on a new phone or with a new key (c014 design.md D17). Its key's expiry and replacement are also in [expiring-approvals.md § 7](expiring-approvals.md#7-the-check-key-and-the-iphone-shortcut).
 >
-> Written 2026-11-21 (C9a), before the first setup: the menu names below follow iOS 27 as the phone test of 2026-11-06 used it ([#12](https://github.com/jakubbohm/RevolutReader/issues/12)). Correct them here if the phone shows them otherwise.
+> Set up on the owner's iPhone on 2026-11-21 (C9a); the menu names below matched the phone. Correct them here if a later iOS shows them otherwise.
 
 ## What it does
 
