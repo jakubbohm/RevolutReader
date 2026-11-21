@@ -7,9 +7,11 @@ namespace RevolutReader.Api.Configuration;
 /// full, as the operator sets the setting (configuration.md § Binding, #68). The generated validator names a failure by the
 /// member alone, <c>Key: The …</c>, so each failure gets the section in front: <c>AccountCheck:Key: The …</c>, which is
 /// <c>AccountCheck__Key</c> in the environment. The section is put in front, never parsed out of the generated text, so a
-/// change to that text upstream (dotnet/runtime#135978) still reaches the operator with the full name. Success and skip
-/// pass through. Only the options name it was registered for is validated and any other is skipped, as
-/// <c>ValidateDataAnnotations</c> did.
+/// change to that text upstream (dotnet/runtime#135978) still reaches the operator with the full name. The result is the
+/// full name only while every failure names one member, the member itself, which <c>SettingsFailureNamingTests</c> guards:
+/// a nested or self-validating check would need this wrapper extended first, and a check on the class as a whole belongs on
+/// its members or in a hand-written validator. Success and skip pass through. Only the options name it was registered for
+/// is validated and any other is skipped, as <c>ValidateDataAnnotations</c> did.
 /// </summary>
 /// <param name="optionsName">The options name the settings were registered under.</param>
 /// <param name="section">The settings' section, as the configuration names it.</param>
