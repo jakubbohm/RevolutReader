@@ -5,8 +5,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using RevolutReader.AcceptanceTests.Dsl;
+using RevolutReader.Api.Account;
+using RevolutReader.Api.Check;
 
 namespace RevolutReader.AcceptanceTests.Drivers;
 
@@ -49,7 +52,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// </list>
 /// Filled in by the wiring groups (tasks.md 3.4, 5.1, 10.2, 16.1, 36.1, 39.1); until then every method that calls the app
 /// or reads its services throws. The key and the clock are real now (tasks.md 1.1), and so are the wrong key's two calls
-/// (tasks.md 3.4) and the call naming no browser, read with the exact shapes above (tasks.md 5.1).
+/// (tasks.md 3.4), the call naming no browser, read with the exact shapes above (tasks.md 5.1), a check from a phone and
+/// the kept balances (tasks.md 10.2).
 /// </summary>
 public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, FakeTimeProvider clock, IServiceProvider app, string key) {
   /// <summary>The settings section the check's key is bound to (D6).</summary>
@@ -123,6 +127,9 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// <summary>This test's check key, the one the app copy is configured with (<see cref="Configure"/>).</summary>
   internal string Key => key;
 
+  /// <summary>The app copy's own store of the check's balances: the real Table adapter on the test's own table in Azurite.</summary>
+  private ICheckedBalanceStore Store => App.GetRequiredService<ICheckedBalanceStore>();
+
   /// <summary>A new made-up check key: 32 random bytes in base64url without padding (D6), never a real one.</summary>
   public static string NewKey() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(KEY_BYTES));
 
@@ -141,7 +148,11 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   }
 
   /// <summary><c>POST /api/account/check</c> from <paramref name="phone"/> with the check key: its address and its browser name.</summary>
-  public Task<CheckAnswer> Check(UserAtDevice phone) => throw new NotImplementedException();
+  public Task<CheckAnswer> Check(UserAtDevice phone) {
+    ArgumentNullException.ThrowIfNull(phone);
+
+    return SendCheck(phone.IpAddress, phone.Browser);
+  }
 
   /// <summary><c>POST /api/account/check</c> with the check key and <c>X-Forwarded-For</c> <paramref name="ipAddress"/>, but no <c>User-Agent</c>.</summary>
   public Task<CheckAnswer> CheckNamingNoBrowser(string ipAddress) {
@@ -169,7 +180,7 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   }
 
   /// <summary>Whether the app copy's store holds any of the check's balances.</summary>
-  public Task<bool> KeepsAnyBalance() => throw new NotImplementedException();
+  public async Task<bool> KeepsAnyBalance() => await Store.Read(CancellationToken.None) is not null;
 
   /// <summary>
   /// Writes the check's two balances into the app copy's store, replacing what it held: last seen
@@ -177,7 +188,11 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// EUR read at <paramref name="lastNotifiedReadAt"/>, both at <paramref name="czkPerEur"/> koruna per euro.
   /// </summary>
   public Task Keep(decimal lastSeen, DateTimeOffset lastSeenReadAt, decimal lastNotified, DateTimeOffset lastNotifiedReadAt, decimal czkPerEur) =>
-    throw new NotImplementedException();
+    Store.Save(
+      new CheckedBalances(
+        LastSeen: new AccountBalance(lastSeen, lastSeenReadAt, czkPerEur),
+        LastNotified: new AccountBalance(lastNotified, lastNotifiedReadAt, czkPerEur)),
+      CancellationToken.None);
 
   /// <summary>
   /// A check from <paramref name="phone"/>, and <paramref name="checks"/> more from it while the first is still reading the

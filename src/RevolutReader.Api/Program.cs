@@ -25,6 +25,8 @@ builder.Services.AddBalance();
 builder.AddTransactionStore();
 // On the tables client AddTransactionStore registers (c011 design.md D11).
 builder.AddPushDeviceStore();
+// On the same tables client (c014 design.md D4).
+builder.AddCheckedBalanceStore();
 builder.Services.AddTransactions();
 builder.Services.AddPush();
 builder.Services.AddAccountCheck();

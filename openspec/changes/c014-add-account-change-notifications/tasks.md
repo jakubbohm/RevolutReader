@@ -80,13 +80,13 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 10. [wiring] Slice 3 — The store, the queue and the endpoint
 
-- [ ] 10.1 `ICheckedBalanceStore`, `InMemoryCheckedBalanceStore` (unit and integration), `TableCheckedBalanceStore` with `CheckedBalanceStoreOptions`; `StorageRegistration.AddCheckedBalanceStore` after `AddPushDeviceStore` in `Program.cs`; `appsettings.json` gains `CheckedBalances` (`TableName` `checkedbalances`, its provenance comment) (design.md D4). Verify: group 9 green on the fake and on Azurite
-- [ ] 10.2 `AccountCheckQueue` (singleton, a scope per check, `ApplicationStopping`), `AccountCheck` as `IAccountCheck` (scoped); the endpoint answers `BankAnswers.From(result, o => new AccountCheckResponse(o.Changed))`, a failed check its own 500 problem (design.md D10, D11). `AccountCheckDriver` and `CheckDsl` for a check from the default phone and for kept balances in a GIVEN, through the app copy's store (D16). Verify: groups 7 and 8 green
-- [ ] 10.3 Docs: configuration.md § `appsettings.json` is the inventory (`CheckedBalances`); ADR-0005 item 4's dated note (the check's two balances, design.md D4, D18). Verify: each names design.md D4
+- [x] 10.1 `ICheckedBalanceStore`, `InMemoryCheckedBalanceStore` (unit and integration), `TableCheckedBalanceStore` with `CheckedBalanceStoreOptions`; `StorageRegistration.AddCheckedBalanceStore` after `AddPushDeviceStore` in `Program.cs`; `appsettings.json` gains `CheckedBalances` (`TableName` `checkedbalances`, its provenance comment) (design.md D4). Verify: group 9 green on the fake and on Azurite
+- [x] 10.2 `AccountCheckQueue` (singleton, a scope per check, `ApplicationStopping`), `AccountCheck` as `IAccountCheck` (scoped); the endpoint answers `BankAnswers.From(result, o => new AccountCheckResponse(o.Changed))`, a failed check its own 500 problem (design.md D10, D11). `AccountCheckDriver` and `CheckDsl` for a check from the default phone and for kept balances in a GIVEN, through the app copy's store (D16). Verify: groups 7 and 8 green
+- [x] 10.3 Docs: configuration.md § `appsettings.json` is the inventory (`CheckedBalances`); ADR-0005 item 4's dated note (the check's two balances, design.md D4, D18). Verify: each names design.md D4
 
 ## 11. [close] Slice 3 — The first check sends nothing
 
-- [ ] 11.1 The scenario's test passes. Verify: green, including account-check / The first check sends nothing
+- [x] 11.1 The scenario's test passes. Verify: green, including account-check / The first check sends nothing
 
 ## 12. [close] Slice 4 — The bank sees the phone's address and browser name
 
