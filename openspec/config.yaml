@@ -3,8 +3,9 @@ schema: spec-driven
 context: |
   RevolutReader — a read-only PWA in which the owner's daughter sees the balance and
   transactions of one Revolut account (via Enable Banking) and gets a push notification
-  when it changes. Operating period ~2 months; speed of delivery is the top priority
-  for the app, never for software-factory work (docs/conventions/workflow.md § 10).
+  when it changes. Operating period ~2 months; released and working since v2
+  (2026-11-21), so precision and the best solution come first, for the app and
+  software-factory work alike; speed no longer decides (docs/conventions/workflow.md § 10).
   Users: a few pre-approved Microsoft accounts. App UI text is Czech; everything else
   (code, specs, docs) is English.
 
