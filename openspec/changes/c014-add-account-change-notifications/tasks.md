@@ -48,15 +48,15 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 4. [close] Slice 1 — A check without the right key gets the answer of an unknown address
 
-- [ ] 4.1 The scenario's test passes. Verify: green, including account-check / A check without the right key gets the answer of an unknown address
+- [x] 4.1 The scenario's test passes. Verify: green, including account-check / A check without the right key gets the answer of an unknown address
 
 ## 5. [wiring] Slice 2 — No present user
 
-- [ ] 5.1 After the key, `PresentUserFromRequest.Read`; `null` answers `BankAnswers.NoPresentUser()` and nothing is read (design.md D7). `AccountCheckDriver` and `CheckDsl` for a call that names no browser. Verify: group 1.3 compiles against it
+- [x] 5.1 After the key, `PresentUserFromRequest.Read`; `null` answers `BankAnswers.NoPresentUser()` and nothing is read (design.md D7). `AccountCheckDriver` and `CheckDsl` for a call that names no browser. Verify: group 1.3 compiles against it
 
 ## 6. [close] Slice 2 — A check that names no browser reads nothing at the bank
 
-- [ ] 6.1 The scenario's test passes. Verify: green, including account-check / A check that names no browser reads nothing at the bank
+- [x] 6.1 The scenario's test passes. Verify: green, including account-check / A check that names no browser reads nothing at the bank
 
 ## 7. [unit] Slice 3 — The first check
 
