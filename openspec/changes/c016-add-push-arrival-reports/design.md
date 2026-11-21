@@ -67,6 +67,7 @@
   - A request without a JSON body gets the catch-all's 404, as for the other endpoints with a body (c011 D9).
 - **The cross-site write rule applies** and lets the worker's request through: a service worker's request to its own origin carries `Sec-Fetch-Site: same-origin`.
 - **The login cookie travels** (`SameSite=Lax`, same origin, the request's `credentials: "same-origin"`). **One assumption only the iPhone can prove:** that the Home Screen app's service worker uses the app's own cookie store, where the login lives. If it does not, every iPhone report gets a 401, visible at once in the request telemetry as 401s on this address, and the manual row fails (§ Risks).
+- **A report never renews the login** (added at the review, PR #92 finding 3, the owner, 2026-11-21): the login slides (30 days, renewed once half has passed, c007), and a report is a request with the login, so without a rule every balance push would keep the login of a device nobody opens alive for ever, against sign-in's "The login lasts 30 days and is renewed while the app is used" (a login unused for 30 days has always ended). So the cookie handler skips the renewal for `POST /api/push/arrivals` (`CookieAuthenticationEvents.OnCheckSlidingExpiration`, `ShouldRenew = false`); the report is still accepted while the login lasts. Sign-in's spec is unchanged, and a guard test keeps the rule (not a scenario). Cost: a device that only receives pushes is signed out at day 30, and its reports then get 401s, visible in the request telemetry. Not covered: iOS's own background loads of the whole app (#91's evening findings, D6) are ordinary requests and still renew it, as before c016.
 - **In the API description**, like the other user endpoints: `Accepts<ArrivalReportRequest>(JSON)`, 204, 400, 401 and 403 (`RefusedProblem`). The client is regenerated, so `src/api/schema.d.ts` gives the worker the body's type; the worker imports that type only, never the client (c015 D5).
 - **Not scenarios:** the 401 and 403 (#91's scenario 7). Sign-in's "Only allowed accounts use the API" covers every API address, and the push endpoints have no per-endpoint scenario for it either; `AnonymousEndpointsTests` keeps this one off the anonymous list.
 
@@ -264,6 +265,7 @@ public sealed class ArrivalDsl(ArrivalDriver driver) {
 | The worker lives until the report is done; the message is never held back by it where the worker shows it | `listenForPushes` (`waitUntil`, the order) |
 | The report goes to the app's own origin with the login | `reportArrival` (`worker.location.origin`, `credentials: "same-origin"`) |
 | Only allowed, signed-in users; writes from other sites refused | the default policy `AllowedUser`; `CrossSiteWrites`; `AnonymousEndpointsTests` |
+| A report never renews the login (D3, the review) | the cookie handler's `OnCheckSlidingExpiration` (`SignInRegistration`); a guard test |
 | A missing `readAt` → 400, nothing recorded | `ArrivalReportEndpoint` |
 | An unreadable `readAt` → 400, nothing recorded | FastEndpoints' binding (`Errors.UseProblemDetails`); the wiring edge test |
 | The delay: server time − `readAt`, whole seconds rounded down, never below 0 | `ArrivalDelay` |

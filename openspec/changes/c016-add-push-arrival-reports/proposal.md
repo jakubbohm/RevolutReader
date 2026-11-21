@@ -50,7 +50,7 @@ The decisions R1–R7 in #91 were Claude's defaults; the owner confirmed them on
 ## Impact
 
 - **Frontend:** `src/app/pushDisplay.ts` (the push listener sends the report; the worker's scope gains `fetch` in its small interface); a new `src/app/arrivalReport.ts` (the report itself, never rejects). `src/api/schema.d.ts` regenerated. No new package, no screen change.
-- **API:** `src/RevolutReader.Api/Push/`: the endpoint, its request, a pure delay rule and a log line in `PushLog`. `openapi.json` regenerated. No new setting, secret or table.
+- **API:** `src/RevolutReader.Api/Push/`: the endpoint, its request, a pure delay rule and a log line in `PushLog`. `openapi.json` regenerated. Since the review, `src/RevolutReader.Api/SignIn/SignInRegistration.cs`: a report never renews the login (design.md D3). No new setting, secret or table.
 - **Tests:** frontend scenarios in `src/scenarios/push-arrivals.test.ts`, the service-worker stand-in gains `fetch` (to the fake server); API scenarios in `Scenarios/PushArrivals/`, with a driver reading the app copy's `PushArrived` lines; a telemetry guard in `Conventions/`; unit tests for the delay rule; one manual row.
 - **Docs:** deployment.md (the queries), ADR-0010 § Notes, testing.md (the stand-in's `fetch`, the arrival lines as a scenario's channel), lessons.md, CLAUDE.md § Project management, workflow.md § 9.
 - **No change** to the AppHost, settings, secrets, Bicep or the design system.
