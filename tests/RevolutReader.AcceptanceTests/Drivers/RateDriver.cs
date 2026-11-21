@@ -1,3 +1,6 @@
+using Microsoft.Extensions.DependencyInjection;
+using RevolutReader.Api.Rate;
+
 namespace RevolutReader.AcceptanceTests.Drivers;
 
 /// <summary>
@@ -14,8 +17,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item>The CNB's answers go to <see cref="FakeCnb"/>, their day shifted onto the clock; the scenario's today is the
 /// clock's today.</item>
 /// </list>
-/// Filled in by the wiring groups: the CNB's rate answers and its count since tasks.md 6.6; the rest (tasks.md 13.1, 21.1,
-/// 23.1, 26.1) throws until then, here or in <see cref="ScenarioCalendar"/> and <see cref="FakeCnb"/>, where its step lives.
+/// Filled in by the wiring groups: the CNB's rate answers and its count since tasks.md 6.6, the weekday step and the kept
+/// rate's write since tasks.md 13.1; the rest (tasks.md 21.1, 23.1, 26.1) throws until then, here or in
+/// <see cref="FakeCnb"/>, where its step lives.
 /// </summary>
 public sealed class RateDriver(FakeCnb cnb, ScenarioCalendar calendar, IServiceProvider app) {
   /// <summary>The app copy's services, for its store of the kept rate (tasks.md 13.1, 26.1).</summary>
@@ -29,9 +33,10 @@ public sealed class RateDriver(FakeCnb cnb, ScenarioCalendar calendar, IServiceP
 
   /// <summary>
   /// The app keeps <paramref name="czkPerEur"/> koruna per euro for <paramref name="scenarioDay"/>, written through its own
-  /// <c>IKorunaRateStore</c>, the day shifted onto the clock. Wired in tasks.md 13.1.
+  /// <c>IKorunaRateStore</c>, the day shifted onto the clock.
   /// </summary>
-  public Task KeepRate(decimal czkPerEur, DateOnly scenarioDay) => throw new NotImplementedException("Keeping a rate through the app copy's store is wired in tasks.md 13.1.");
+  public Task KeepRate(decimal czkPerEur, DateOnly scenarioDay) =>
+    app.GetRequiredService<IKorunaRateStore>().Save(new KorunaRate(czkPerEur, calendar.ToClock(scenarioDay)), CancellationToken.None);
 
   /// <summary>Whether the app's own <c>IKorunaRateStore</c> holds a rate. Wired in tasks.md 26.1.</summary>
   public Task<bool> KeepsARate() => throw new NotImplementedException("Reading the app copy's kept rate is wired in tasks.md 26.1.");

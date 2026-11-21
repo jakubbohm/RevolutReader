@@ -24,6 +24,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// scenario's same date.
 /// </summary>
 public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider clock) {
+  private const int DAYS_IN_A_WEEK = 7;
+
   /// <summary>The app copy's clock.</summary>
   private readonly FakeTimeProvider _clock = clock;
 
@@ -41,9 +43,21 @@ public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider cl
   /// clock moves forward to the coming day with the same weekday as <paramref name="scenarioDay"/>, at
   /// <paramref name="utcTime"/> UTC, and the scenario's dates are mapped onto it, so their distances are multiples of 7
   /// days and weekdays agree. Only after signing in, as <see cref="PassDays"/>: Microsoft's ID token is checked against the
-  /// real clock. Wired in tasks.md 13.1.
+  /// real clock. The clock only moves forward: on the same weekday the coming day is today while the clock is not yet past
+  /// <paramref name="utcTime"/> (exactly at it, the clock stays), and a week later once it is.
   /// </summary>
-  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) => throw new NotImplementedException("The scenario calendar's weekday step is wired in tasks.md 13.1.");
+  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) {
+    DateTimeOffset now = _clock.GetUtcNow();
+    DateOnly today = ClockTodayOf(_clock);
+    int daysToTheWeekday = ((int)scenarioDay.DayOfWeek - (int)today.DayOfWeek + DAYS_IN_A_WEEK) % DAYS_IN_A_WEEK;
+    DateTimeOffset coming = new(today.AddDays(daysToTheWeekday).ToDateTime(utcTime), TimeSpan.Zero);
+
+    if (coming < now)
+      coming = coming.AddDays(DAYS_IN_A_WEEK);
+
+    _clock.Advance(coming - now);
+    _daysAhead = DaysAhead(scenarioDay, _clock);
+  }
 
   /// <summary>The clock's date for <paramref name="scenarioDate"/>: as many days from the clock's today as it is from the scenario's.</summary>
   public DateOnly ToClock(DateOnly scenarioDate) => scenarioDate.AddDays(_daysAhead);

@@ -99,20 +99,20 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 12. [unit] Slice 4 — When the CNB is asked again
 
-- [ ] 12.1 After a Monday to Thursday, the next ask is from 08:00 UTC the next day
-- [ ] 12.2 After a Friday, a Saturday or a Sunday, the next ask is from 08:00 UTC on Monday
-- [ ] 12.3 A kept rate is not due one tick before 08:00 UTC and is due at 08:00 UTC
-- [ ] 12.4 A rate for a later day than the kept one replaces it, in memory and in the store, and is logged once as kept (`KorunaRateKept`, with the rate and its day)
-- [ ] 12.5 After a rate for today is kept, the CNB is not asked again before the next weekday's 08:00 UTC
+- [x] 12.1 After a Monday to Thursday, the next ask is from 08:00 UTC the next day
+- [x] 12.2 After a Friday, a Saturday or a Sunday, the next ask is from 08:00 UTC on Monday
+- [x] 12.3 A kept rate is not due one tick before 08:00 UTC and is due at 08:00 UTC
+- [x] 12.4 A rate for a later day than the kept one replaces it, in memory and in the store, and is logged once as kept (`KorunaRateKept`, with the rate and its day)
+- [x] 12.5 After a rate for today is kept, the CNB is not asked again before the next weekday's 08:00 UTC
 
 ## 13. [wiring] Slice 4 — A scenario on a named weekday
 
-- [ ] 13.1 `RateAsking.NextAskFrom`; `ScenarioCalendar.TodayIsAt` (the coming day of the same weekday at the given UTC time, after signing in); `RateDsl.TodayIs` and `TheKeptRateIs` through the app copy's own `IKorunaRateStore` (D10); `RateLog`. Verify: group 12 green; a harness self-test shows the calendar's Monday lands on a Monday
+- [x] 13.1 `RateAsking.NextAskFrom`; `ScenarioCalendar.TodayIsAt` (the coming day of the same weekday at the given UTC time, after signing in); `RateDsl.TodayIs` and `TheKeptRateIs` through the app copy's own `IKorunaRateStore` (D10); `RateLog`. Verify: group 12 green; a harness self-test shows the calendar's Monday lands on a Monday
 
 ## 14. [close] Slice 4 — Monday's rate replaces Friday's and is not asked for again that day
 
-- [ ] 14.1 The scenario's test passes. Verify: green, including koruna-rate / Monday's rate replaces Friday's and is not asked for again that day
-- [ ] 14.2 Docs: testing.md § Time and the background job: the weekday step and why the calendar needs it (design.md D10). Verify: it names `ScenarioCalendar.TodayIsAt`
+- [x] 14.1 The scenario's test passes. Verify: green, including koruna-rate / Monday's rate replaces Friday's and is not asked for again that day
+- [x] 14.2 Docs: testing.md § Time and the background job: the weekday step and why the calendar needs it (design.md D10). Verify: it names `ScenarioCalendar.TodayIsAt`
 
 ## 15. [close] Slice 5 — Friday's rate is not asked for again over the weekend
 
