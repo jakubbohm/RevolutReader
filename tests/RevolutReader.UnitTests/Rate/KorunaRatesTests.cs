@@ -139,6 +139,33 @@ public sealed class KorunaRatesTests {
   }
 
   /// <summary>
+  /// Friday's rate kept, Monday 15:00 UTC, the CNB answering Monday's, and a store whose save ends only once the test lets
+  /// it (<see cref="SlowSavingStore"/>): the call answers Monday's while the save is still held. The shared ask every caller
+  /// awaits ends within the CNB's time limit (D4), never held by a slow store (review of PR #95, finding 4). The wait for the
+  /// answer is bounded on the real clock (<see cref="WITHIN_SECONDS"/>), so a call held by the save fails the test rather
+  /// than hanging it; the save is let end afterwards, whatever came.
+  /// </summary>
+  [Test]
+  public async Task A_later_days_rate_is_answered_without_waiting_for_its_save() {
+    FakeCnbRates cnb = new(_mondays);
+    SlowSavingStore store = new(await StoreKeeping(_fridays));
+    KorunaRates rates = RatesWith(cnb, store, new FakeTimeProvider(_mondayAfternoon), new CapturedLog());
+    KorunaRate? answered = null;
+
+    try {
+      answered = await rates.Current(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+    }
+    catch (TimeoutException) {
+      // Still waiting for the held save: the answer below stays null.
+    }
+    finally {
+      store.LetTheSavesEnd();
+    }
+
+    answered.ShouldBe(_mondays, "the new rate, answered while its save is still held");
+  }
+
+  /// <summary>
   /// Nothing kept on Friday 15:00 UTC, the CNB answering Friday's rate, which is kept: the CNB is not asked again on
   /// Saturday, nor on Monday one tick before 08:00 UTC; at Monday's 08:00 UTC, the next weekday's, it is.
   /// </summary>
@@ -538,6 +565,25 @@ public sealed class KorunaRatesTests {
         _savesTried++;
 
       return SavesFail ? Task.FromException(failure) : kept.Save(rate, cancellationToken);
+    }
+  }
+
+  /// <summary>
+  /// The kept rate's store, saving slowly, in front of the in-memory one: every save waits until the test lets the saves
+  /// end (<see cref="LetTheSavesEnd"/>), then saves into the in-memory store; reads answer at once. Kept apart from
+  /// <see cref="InMemoryKorunaRateStore"/>, which the contract tests check as a store that answers at once.
+  /// </summary>
+  private sealed class SlowSavingStore(InMemoryKorunaRateStore kept) : IKorunaRateStore {
+    private readonly TaskCompletionSource _savesMayEnd = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Every save waiting, and every later one, goes on to the in-memory store.</summary>
+    public void LetTheSavesEnd() => _savesMayEnd.TrySetResult();
+
+    public Task<KorunaRate?> Read(CancellationToken cancellationToken) => kept.Read(cancellationToken);
+
+    public async Task Save(KorunaRate rate, CancellationToken cancellationToken) {
+      await _savesMayEnd.Task.WaitAsync(cancellationToken);
+      await kept.Save(rate, cancellationToken);
     }
   }
 
