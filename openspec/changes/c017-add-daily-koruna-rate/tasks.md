@@ -116,7 +116,7 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 15. [close] Slice 5 — Friday's rate is not asked for again over the weekend
 
-- [ ] 15.1 The scenario's test passes, as expected after slice 4, and is proven by a mutation: with `NextAskFrom` taking the next calendar day instead of the next weekday, it fails. Verify: green, including koruna-rate / Friday's rate is not asked for again over the weekend; the mutation's red result in `.tdd-state.md`
+- [x] 15.1 The scenario's test passes, as expected after slice 4, and is proven by a mutation: with `NextAskFrom` taking the next calendar day instead of the next weekday, it fails. Verify: green, including koruna-rate / Friday's rate is not asked for again over the weekend; the mutation's red result in `.tdd-state.md`
 
 ## 16. [unit] Slice 6 — Every request asks until a newer day's rate comes
 
