@@ -86,7 +86,7 @@ Decided by the user, 2026-11-04:
 **Constraints (binding on every bank call):**
 
 - PSU headers only on bank requests triggered directly by a signed-in user's open or refresh, with that user's real values. *(Since ADR-0008, also on the check the owner's iPhone triggers, with the phone's real values.)*
-- Never PSU headers on the background job. *(Superseded by ADR-0008: there is no scheduled job. A fallback check, if C9 keeps one, sends none.)*
+- Never PSU headers on the background job. *(Superseded by ADR-0008: there is no scheduled job. A fallback check, if C9 keeps one, sends none.)* *(2026-11-21, C9a: no fallback check was kept, c014 design.md D9.)*
 - All required headers or none.
 - No bank calls beyond what the view needs.
 - 429 and bank errors are handled gracefully.

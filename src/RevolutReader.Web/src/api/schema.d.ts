@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/arrivals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reports that a push reached this device, so the server records how long it took */
+        post: operations["RevolutReaderApiPushArrivalReportEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/push/key": {
         parameters: {
             query?: never;
@@ -234,6 +251,14 @@ export interface components {
             details: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfSystemString"];
             /** @description The kind of transaction, from the bank's type code */
             kind: components["schemas"]["RevolutReaderApiAccountTransactionKind"];
+        };
+        /** @description A push's arrival on this device, named by the read time its balance carried */
+        RevolutReaderApiPushArrivalReportRequest: {
+            /**
+             * Format: date-time
+             * @description When the server read the balance the push carried, exactly as the push gave it
+             */
+            readAt?: null | string;
         };
         /** @description The device to forget, named by its push address */
         RevolutReaderApiPushForgetSubscriptionRequest: {
@@ -434,6 +459,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevolutReaderApiSignInMeResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RevolutReaderApiSignInRefusedProblem"];
+                };
+            };
+        };
+    };
+    RevolutReaderApiPushArrivalReportEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevolutReaderApiPushArrivalReportRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["MicrosoftAspNetCoreMvcProblemDetails"];
                 };
             };
             /** @description Unauthorized */

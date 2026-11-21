@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using RevolutReader.AcceptanceTests.Dsl;
 using TUnit.AspNetCore;
 
@@ -17,6 +20,10 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <para>
 /// Storage is real: the test session's Azurite (<see cref="AzuriteStorage"/>, c010 design.md D12), with a table of each
 /// app copy's own. Every app copy gets its settings too.
+/// </para>
+/// <para>
+/// Every app copy's log lines that name their event are captured with their structured values
+/// (<see cref="CapturedLogEvents"/>, c016 design.md D7), for the scenarios whose outcome shows only in the telemetry.
 /// </para>
 /// </summary>
 public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
@@ -41,6 +48,8 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private BalanceDsl? _balance;
   private string? _checkKey;
   private CheckDsl? _check;
+  private ArrivalDsl? _arrivals;
+  private ArrivalDriver? _arrivalDriver;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
 
@@ -84,6 +93,22 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
 
   /// <summary>This test's made-up check key (<see cref="AccountCheckDriver.NewKey"/>), written into the app copy before it starts.</summary>
   private string CheckKey => _checkKey ??= AccountCheckDriver.NewKey();
+
+  /// <summary>
+  /// Push arrivals (spec push-arrivals, c016 design.md D7): the phone's reports of a push's arrival, in the browser
+  /// <see cref="SignIn"/> signs in with, on the app copy's clock; and the arrivals the app copy recorded, its
+  /// <c>PushArrived</c> lines in <see cref="LogEvents"/>.
+  /// </summary>
+  protected ArrivalDsl Arrivals => _arrivals ??= new(ArrivalDriver);
+
+  /// <summary>
+  /// The driver under <see cref="Arrivals"/>, the same browser and clock, for the guards in <c>Conventions/</c> that report
+  /// a read time of their own and look for it (<c>PushArrivalTelemetryTests</c>). Scenarios use <see cref="Arrivals"/> only.
+  /// </summary>
+  protected ArrivalDriver ArrivalDriver => _arrivalDriver ??= new(Browser, FakeMicrosoft.Clock, LogEvents);
+
+  /// <summary>The app copy's log lines that name their event, with their structured values; registered in its container before it starts.</summary>
+  private CapturedLogEvents LogEvents { get; } = new();
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();
@@ -161,5 +186,6 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
     AccountCheckDriver.Configure(builder, CheckKey);
     Azurite.Configure(builder);
     FakeMicrosoft.Configure(builder);
+    builder.ConfigureTestServices(services => services.AddSingleton<ILoggerProvider>(_ => LogEvents.Provider()));
   }
 }
