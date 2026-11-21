@@ -71,9 +71,9 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 11. [unit] Slice 5 — A push without a balance
 
-- [ ] 11.1 A declarative message with no data in its notification carries no balance, as the owner's messages
-- [ ] 11.2 A proposed notification whose data is not an object, or has no balance, carries no balance
-- [ ] 11.3 A push with no data at all, or of text that is not JSON, carries no balance
+- [x] 11.1 A declarative message with no data in its notification carries no balance, as the owner's messages
+- [x] 11.2 A proposed notification whose data is not an object, or has no balance, carries no balance
+- [x] 11.3 A push with no data at all, or of text that is not JSON, carries no balance
 
 ## 12. [close] Slice 5 — A push without a balance leaves the kept balance as it was
 

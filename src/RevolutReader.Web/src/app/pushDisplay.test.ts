@@ -419,11 +419,16 @@ function pushWithBalance(balance: unknown): unknown {
  * becomes its `data` (W3C draft, c015 design.md D2).
  */
 function proposedFor(balance: unknown): unknown {
+  return proposedWithData({ balance });
+}
+
+/** The notification proposed for a push of the account check, with this as its `data`. */
+function proposedWithData(data: unknown): unknown {
   return {
     title: PAYMENT_TITLE,
     body: PAYMENT_TEXT,
     navigate: APP_PAGE,
-    data: { balance },
+    data,
   };
 }
 
@@ -535,4 +540,87 @@ test("A balance whose amount or rate is not a number, or whose read time is no d
       { ...PUSHED, readAt: Date.parse(PUSHED.readAt) },
     ],
   ]);
+});
+
+// ---- c015: a push without a balance (group 11; design.md D2, § Error model: `pushedBalance` never throws) ----
+// A throw from `pushedBalance` fails each of these tests as surely as a balance found would.
+
+test("A declarative message with no data in its notification carries no balance, as the owner's messages", () => {
+  // The owner's message (c011 design.md D2): no "mutable", no data. Proposed, its notification's `data` is null.
+  const proposed = {
+    ...DECLARATIVE_PUSH.notification,
+    data: null,
+  };
+  const cases: [string, PushLike][] = [
+    [
+      "a browser that reads Declarative Web Push: the proposed notification, no data of the event's own",
+      pushEvent({ data: null, notification: proposed }),
+    ],
+    [
+      "a browser that reads Declarative Web Push and also hands over the push's own JSON",
+      pushEvent({ data: dataOf(DECLARATIVE_PUSH), notification: proposed }),
+    ],
+    [
+      "a browser that does not: the push's own JSON",
+      pushEvent({ data: dataOf(DECLARATIVE_PUSH) }),
+    ],
+  ];
+
+  for (const [name, event] of cases) {
+    expect(pushedBalance(event), name).toBeNull();
+  }
+});
+
+test("A proposed notification whose data is not an object, or has no balance, carries no balance", () => {
+  const unusable: [string, unknown][] = [
+    // As a Safari would give it if the message's data never reached its notification (design.md § Risks).
+    ["no data (null)", null],
+    ["data that is text", "282,60 €"],
+    ["data that is a number", 282.6],
+    ["data that is a list", [{ balance: PUSHED }]],
+    ["data with no balance", {}],
+    ["the balance's fields in the data itself, not under balance", PUSHED],
+  ];
+
+  for (const [name, data] of unusable) {
+    const notification = proposedWithData(data);
+    // With nothing usable in the event's own data (null, as the W3C draft has it): no balance at all.
+    expect(
+      pushedBalance(pushEvent({ data: null, notification })),
+      `${name}, no data of the event's own`,
+    ).toBeNull();
+    // With a balance in the push's own JSON, the balance is taken from there (design.md D2: first, then).
+    expect(
+      pushedBalance(
+        pushEvent({ data: dataOf(pushWithBalance(PUSHED)), notification }),
+      ),
+      `${name}, a balance in the push's own JSON`,
+    ).toEqual(PUSHED);
+  }
+});
+
+test("A push with no data at all, or of text that is not JSON, carries no balance", () => {
+  // As the browser's `PushMessageData.json()` does: it throws a SyntaxError for text that is not JSON.
+  const notJson: PushLike["data"] = {
+    json: () => JSON.parse("Ahoj") as unknown,
+  };
+  const cases: [string, PushLike][] = [
+    ["no data, no proposed notification", pushEvent({ data: null })],
+    [
+      "no data, a proposed notification of null",
+      pushEvent({ data: null, notification: null }),
+    ],
+    [
+      "text that is not JSON, no proposed notification",
+      pushEvent({ data: notJson }),
+    ],
+    [
+      "text that is not JSON, a proposed notification of null",
+      pushEvent({ data: notJson, notification: null }),
+    ],
+  ];
+
+  for (const [name, event] of cases) {
+    expect(pushedBalance(event), name).toBeNull();
+  }
 });
