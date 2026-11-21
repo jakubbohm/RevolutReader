@@ -50,7 +50,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 6. [close] Slice 2 — A report whose read time lies ahead records 0 seconds
 
-- [ ] 6.1 The scenario's test passes. Verify: green, including push-arrivals / A report whose read time lies ahead records 0 seconds
+- [x] 6.1 The scenario's test passes. Verify: green, including push-arrivals / A report whose read time lies ahead records 0 seconds
 
 ## 7. [wiring] Slice 3 — A report the server cannot read
 
