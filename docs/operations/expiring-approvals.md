@@ -121,7 +121,7 @@ Not expiring, but required: the Enable Banking Control Panel account (registered
 - **Where they are:**
   - **Production:** the key in Key Vault `kv-revolutreader` (`AccountCheck--Key`) and in the Shortcut on the owner's iPhone, nowhere else.
   - **The laptop:** a separate key, in the AppHost's user-secrets (`Parameters:accountcheck-key`) and the backup vault ([local-secrets.md](local-secrets.md)).
-- **Current state:** made with the guided task in [deployment.md § The account check](deployment.md#guided-task-the-check-key) (c014 tasks 42.1 and 42.2); the Shortcut is set up after C9a's deploy.
+- **Current state:** made with the guided task in [deployment.md § The account check](deployment.md#guided-task-the-check-key) (c014 tasks 42.1 and 42.2, 2026-11-21); the Shortcut is set up after C9a's deploy.
 - **Expiry:** none. Neither the key nor the Shortcut lapses.
 - **How you notice a problem:**
   - **A missing or malformed key** stops the app at start, with a message naming the setting, never a value.

@@ -90,7 +90,7 @@ Secrets that only a human can produce are put into Key Vault by hand, guided by 
 | The VAPID public key (not confidential: every browser gets it; kept next to its private half, c011 design.md D5) | `Push__VapidPublicKey`: the key the app subscribes with and the push services check the token against | `Push--VapidPublicKey` | C8a, [deployment.md § Guided task: the push keys](../operations/deployment.md#guided-task-the-push-keys) (c011 task 54.2) | 2026-11-10 |
 | The VAPID private key | `Push__VapidPrivateKey`: signs the token of every push | `Push--VapidPrivateKey` | C8a, same block | 2026-11-10 |
 | The message key | `Push__MessageKey`: lets a request through the owner's message endpoint (c011 design.md D10) | `Push--MessageKey` | C8a, same block | 2026-11-10 |
-| The check key (production's; the laptop has its own, § Local development and tests) | `AccountCheck__Key`: lets the owner's iPhone Shortcut start an account check (c014 design.md D6); the Shortcut holds the same value | `AccountCheck--Key` | C9a, [deployment.md § The account check](../operations/deployment.md#the-account-check-c9a) (c014 task 42.2) | |
+| The check key (production's; the laptop has its own, § Local development and tests) | `AccountCheck__Key`: lets the owner's iPhone Shortcut start an account check (c014 design.md D6); the Shortcut holds the same value | `AccountCheck--Key` | C9a, [deployment.md § The account check](../operations/deployment.md#the-account-check-c9a) (c014 task 42.2) | 2026-11-21 |
 
 ## Not adopted
 
