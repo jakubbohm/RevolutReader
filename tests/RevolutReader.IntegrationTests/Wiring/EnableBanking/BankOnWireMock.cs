@@ -170,9 +170,6 @@ public sealed class BankOnWireMock : IDisposable {
   /// <summary>Every request the server received so far, answered or not, in the order received.</summary>
   public IReadOnlyList<ReceivedRequest> Requests() => [.. _arrivals];
 
-  /// <summary>The server stops: nothing listens at the client's address any more.</summary>
-  public void StopsListening() => _server.Stop();
-
   /// <summary>The made-up continuation key of the page with this number (2 and up), different for every page.</summary>
   public static string KeyOfPage(int number) => $"ck-page-{number}-5e1d";
 
