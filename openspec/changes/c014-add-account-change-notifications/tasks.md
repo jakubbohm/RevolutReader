@@ -193,12 +193,12 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 33. [unit] Slice 13 — From the stored balances
 
-- [ ] 33.1 A check whose read fails notifies a change an earlier check kept, from last seen, and still answers the read's failure
-- [ ] 33.2 A check whose read fails with nothing kept sends nothing
+- [x] 33.1 A check whose read fails notifies a change an earlier check kept, from last seen, and still answers the read's failure
+- [x] 33.2 A check whose read fails with nothing kept sends nothing
 
 ## 34. [close] Slice 13 — A check whose bank read fails still sends what an earlier check found
 
-- [ ] 34.1 The scenario's test passes. Verify: green, including account-check / A check whose bank read fails still sends what an earlier check found
+- [x] 34.1 The scenario's test passes. Verify: green, including account-check / A check whose bank read fails still sends what an earlier check found
 
 ## 35. [unit] Slice 14 — Waiting and joining
 

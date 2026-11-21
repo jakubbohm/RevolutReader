@@ -10,7 +10,8 @@ namespace RevolutReader.Api.Check;
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4).</item>
-/// <item>A failed read keeps nothing new and is the read's failure (D11); with no change kept, nothing is sent.</item>
+/// <item>A failed read keeps nothing new and is the read's failure (D11). A change an earlier check kept is still notified
+/// from the stored balances, as below (D10 item 4); with none, nothing is sent.</item>
 /// <item>With balances kept, a successful read is kept as last seen, last notified as it was (D4). With no change, nothing
 /// is sent and the check answers that nothing changed. A change, with no check waiting behind (D10 item 3), is notified
 /// from the stored balances (D10 item 4) through <see cref="ChangeNotifier"/>, and last notified is written as last seen
@@ -32,21 +33,25 @@ public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore
       AccountBalance balance => kept is null
         ? await KeepTheFirst(balance, cancellationToken)
         : await KeepAndNotify(kept with { LastSeen = balance }, anotherCheckWaits, cancellationToken),
-      BankAccessExpired expired => ReadFailed(expired, kept),
-      BankRateLimited rateLimited => ReadFailed(rateLimited, kept),
-      BankUnavailable unavailable => ReadFailed(unavailable, kept),
+      BankAccessExpired expired => await ReadFailed(expired, kept, anotherCheckWaits, cancellationToken),
+      BankRateLimited rateLimited => await ReadFailed(rateLimited, kept, anotherCheckWaits, cancellationToken),
+      BankUnavailable unavailable => await ReadFailed(unavailable, kept, anotherCheckWaits, cancellationToken),
     };
 #pragma warning restore CA1508
   }
 
   /// <summary>
   /// A failed read: nothing new kept, and <paramref name="failure"/>, the read's own, is the result (D11), logged as
-  /// <see cref="CheckEnd.BankReadFailed"/> (D15). With no change kept (<paramref name="kept"/> none, or not differing),
-  /// nothing is sent.
+  /// <see cref="CheckEnd.BankReadFailed"/> (D15). A change an earlier check kept (<paramref name="kept"/> differing) is still
+  /// notified from the stored balances, unless a check waits behind (D10 item 4); with none, nothing is sent.
   /// </summary>
-  private BankResult<CheckOutcome> ReadFailed(BankResult<CheckOutcome> failure, CheckedBalances? kept) {
-    if (kept is { Changed: true })
-      throw new NotImplementedException("A failed read with a change kept comes with c014 tasks.md group 33.");
+  private async Task<BankResult<CheckOutcome>> ReadFailed(BankResult<CheckOutcome> failure, CheckedBalances? kept, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
+    if (kept is { Changed: true }) {
+      if (anotherCheckWaits())
+        throw new NotImplementedException("A change left to the check waiting behind comes with c014 tasks.md group 35.");
+
+      await Notify(kept, cancellationToken);
+    }
 
     CheckLog.CheckEnded(logger, CheckEnd.BankReadFailed);
 
@@ -78,10 +83,19 @@ public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore
     if (anotherCheckWaits())
       throw new NotImplementedException("A change left to the check waiting behind comes with c014 tasks.md group 35.");
 
-    await notifier.Send(ChangeNotification.For(balances), cancellationToken);
-    await store.Save(balances with { LastNotified = balances.LastSeen }, cancellationToken);
+    await Notify(balances, cancellationToken);
     CheckLog.CheckEnded(logger, CheckEnd.ChangeNotified);
 
     return new CheckOutcome(Changed: true);
+  }
+
+  /// <summary>
+  /// The change in <paramref name="balances"/>, the stored ones, notified to every allowed account (D5, D10 item 4); last
+  /// notified written as last seen once the sender has run, whatever it reached (D10 item 5, D12). A sender that throws
+  /// leaves last notified as it was, so the next check sends the change again.
+  /// </summary>
+  private async Task Notify(CheckedBalances balances, CancellationToken cancellationToken) {
+    await notifier.Send(ChangeNotification.For(balances), cancellationToken);
+    await store.Save(balances with { LastNotified = balances.LastSeen }, cancellationToken);
   }
 }
