@@ -73,7 +73,7 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
   - a refusal is a 403 problem description, and the endpoint never runs.
 
   A new write endpoint needs nothing of its own. It sits after authentication and authorization, before the endpoints.
-- **Bank calls** follow ADR-0001-bank-data-access § Decision (PSU headers only on user-triggered reads).
+- **Bank calls** follow ADR-0001-bank-data-access § Decision, as amended by ADR-0008-phone-triggered-check (PSU headers only on user-triggered reads and on the account check the owner's iPhone triggers).
 
 ## API contract
 
