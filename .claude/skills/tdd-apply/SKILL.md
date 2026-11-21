@@ -91,18 +91,16 @@ Arguments: `$ARGUMENTS`
 
 For each group:
 
-1. **Red.** Send the test-writer the group (at a chapter's first group, spawn a fresh test-writer with the
-   chapter brief, § Chapters; otherwise SendMessage to the chapter's test-writer). Inputs: the group's tasks,
-   the related scenarios, the design sections it needs.
+1. **Red.** Send the test-writer the group (spawned or resumed as § Chapters, step 4 says). Inputs: the group's
+   tasks, the related scenarios, the design sections it needs.
 2. **Verify red** yourself: the build passes; the group's new tests fail at runtime; all previously
    green tests are still green. If a test passes immediately, send it back to the test-writer: either the
    behaviour already exists (the test-writer says so, and the task gets ticked) or the test is too weak.
 3. Commit the test-writer's work: `test(<cNNN>): [red] <group name>`.
 4. If `review=all`: stop and present the group's tests to the human. Wait. Apply feedback via the test-writer,
    verify red again and commit the fixes as another `[red]` commit (never amend).
-5. **Green.** Send the implementer the group (at the chapter's first group for the implementer, spawn a fresh
-   implementer with the chapter brief; otherwise SendMessage to the chapter's implementer). Tell
-   the implementer which test files define the group and that it must not change them.
+5. **Green.** Send the implementer the group (spawned or resumed as § Chapters, step 4 says). Tell the implementer
+   which test files define the group and that it must not change them.
 6. **Verify green** yourself:
    - all tests pass except this change's acceptance tests that are still waiting for their wiring;
    - `git status --porcelain` and `git diff --name-only HEAD` (changes since the `[red]` commit) list no test
@@ -151,19 +149,19 @@ the design cannot be tested as written):
 
 ## 3. Wiring groups (`[wiring]`)
 
-Send to the implementer directly: endpoints, mapping, DI, migrations, the real acceptance driver methods
-(replacing the `NotImplementedException` stubs), and adapter edge-case tests in
-`tests/RevolutReader.IntegrationTests/Wiring/` (`docs/conventions/testing.md` § Integration tests). No unit tests
-are written for these.
+Send to the implementer directly (spawned or resumed as § Chapters, step 4 says): endpoints, mapping, DI,
+migrations, the real acceptance driver methods (replacing the `NotImplementedException` stubs), and adapter
+edge-case tests in `tests/RevolutReader.IntegrationTests/Wiring/` (`docs/conventions/testing.md` § Integration
+tests). No unit tests are written for these.
 Verify: the build passes, all tests pass except this change's acceptance tests whose wiring is still to come,
 and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area>`.
 
 ## 4. Close (`[close]`)
 
-1. Run all acceptance tests of this change. If one fails, find the cause and route it:
-   missing behaviour → the test-writer writes a unit test for it (a `[red]` commit) → the implementer
-   implements it (a `[green]` commit); a glue bug (route, DI registration, serialization, driver) → the
-   implementer directly. Repeat until green.
+1. Run all acceptance tests of this change. If one fails, find the cause and route it (each agent spawned or
+   resumed as § Chapters, step 4 says): missing behaviour → the test-writer writes a unit test for it (a `[red]`
+   commit) → the implementer implements it (a `[green]` commit); a glue bug (route, DI registration, serialization,
+   driver) → the implementer directly. Repeat until green.
 2. Run the full test suite and the traceability test.
 3. Optional, only if Stryker.NET is configured (RevolutReader: not adopted): run mutation testing on the files
    changed by this change and report survivors. Survivors mean weak tests; offer to send them to the test-writer.
@@ -194,19 +192,21 @@ with a fresh test-writer and implementer.
      catches a chapter planned too large.
    - Write the plan into `.tdd-state.md`, name each chapter (A, B, …) with its groups, and present it at the
      acceptance gate.
-2. **Within a chapter,** resume its test-writer and implementer with SendMessage group by group (§ 2, § 2b, § 3).
+2. **Within a chapter,** send its test-writer and implementer their work group by group (§ 2, § 2b, § 3, § 4), each
+   spawned or resumed as step 4 says.
 3. **Token budget.** Each completion notice of the test-writer or the implementer ends with its context size
    (`subagent_tokens` in its `<usage>` block). Record it in `.tdd-state.md` for that agent. When either agent
    passes **250k tokens**, end the chapter early: after the next slice's `[close]` commit (without slices, after
    the next group's commit), run the checkpoint (step 5), and the rest of the chapter becomes a new chapter with
    a fresh pair. Where a notice shows no size, chapters end only where they were planned.
-4. **A fresh agent** is spawned at the chapter's first group that needs it: the test-writer at the first red,
-   the implementer at the first green. Brief it with: the change name, the chapter and its groups, the review
-   mode, the code graph's project (§ 0 step 9), the standing rules for the test-writer and the implementer from
-   `.tdd-state.md`, a short account of what the code holds now, the design sections the chapter needs and, for
-   UI, the saved design files (§ 0 step 8). Tell it that it starts mid-change: the specs, `design.md`, the tests
-   and the commits are the source of truth, not an earlier agent's memory. The same brief replaces an agent that
-   cannot be resumed.
+4. **A fresh agent.** The test-writer and the implementer are each spawned the first time the chapter sends that
+   agent work: a red or a green (§ 2, § 2b), a wiring group (§ 3), a fix routed in a `[close]` group (§ 4 step 1)
+   or a dispute (§ Disputes). After that, each is resumed with SendMessage. Brief a fresh agent with: the change
+   name, the chapter and its groups, the review mode, the code graph's project (§ 0 step 9), the standing rules for
+   the test-writer and the implementer from `.tdd-state.md`, a short account of what the code holds now, the design
+   sections the chapter needs and, for UI, the saved design files (§ 0 step 8). Tell it that it starts mid-change:
+   the specs, `design.md`, the tests and the commits are the source of truth, not an earlier agent's memory. The
+   same brief replaces an agent that cannot be resumed.
 5. **Checkpoint at each chapter's end,** after its last commit, except the last chapter, where § 4's report
    takes its place:
    1. Run the full suite (`dotnet test` and the frontend tests) and the traceability test: everything passes
@@ -240,7 +240,7 @@ assertion, or a stub that throws.
 - After every commit, run `index_repository` on the worktree (§ 0 step 9) before you brief the test-writer or
   the implementer again.
 - Keep each chapter's test-writer and implementer alive for that chapter and resume them via SendMessage;
-  every chapter starts with a fresh pair (§ Chapters). If an agent can no longer be resumed, or SendMessage is
+  every chapter has a fresh pair (§ Chapters). If an agent can no longer be resumed, or SendMessage is
   not available, spawn a fresh one with the chapter brief (§ Chapters, step 4). Artifacts are the source of
   truth, not agent memory.
 - Their definitions set the test-writer's effort to high and the implementer's to medium
