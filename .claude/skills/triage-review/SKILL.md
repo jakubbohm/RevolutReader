@@ -57,14 +57,19 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    commits per finding, the asks and the owner's answers, the test-writer's and the implementer's agent IDs.
    **Write the agent IDs there as soon as you spawn or resume an agent.** After a compaction, re-read it before
    doing anything else.
-4. The test-writer and the implementer: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the
-   current pair, the last chapter's) and resume them with SendMessage. If one
-   cannot be resumed, or there is no state file, spawn a fresh one when it is first needed and brief it: the change,
-   the PR, that this is the review triage, and the finding at hand.
-5. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop
+4. Index the working tree in the code graph (codebase-memory-mcp; load its tools with ToolSearch first if they
+   are deferred): `index_repository` with its absolute path. Write the project's name into the state file. You
+   index it again after every commit (Rules for you). Why, and how the project is named:
+   `.claude/skills/tdd-apply/SKILL.md` § 0 step 9 and `CLAUDE.md` § Code navigation.
+5. The test-writer and the implementer: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the
+   current pair, the last chapter's) and resume them with SendMessage; your first message to each names the code
+   graph's project (step 4), so neither relies on the one the apply gave it. If one cannot be resumed, or there
+   is no `.tdd-state.md`, spawn a fresh one when it is first needed and brief it: the change, the PR, that this
+   is the review triage, the code graph's project and the finding at hand.
+6. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop
    and report: no triage on a red baseline.
-6. The diff: `git fetch origin <baseRef>` then `git diff origin/<baseRef>...HEAD > <work folder>/diff.patch`.
-7. Create a task list with one item per step; add one item per finding after § 1.
+7. The diff: `git fetch origin <baseRef>` then `git diff origin/<baseRef>...HEAD > <work folder>/diff.patch`.
+8. Create a task list with one item per step; add one item per finding after § 1.
 
 ## 1. Gather
 
@@ -175,6 +180,8 @@ implementer works at a time; never build or test while one of them is working.
   run tests (its prompts forbid it).
 - Commit only on the PR's branch, at the handoffs above, with the `[review]` tag and the finding number. Never
   push, never commit on `main`.
+- After every commit, run `index_repository` on the working tree (§ 0 step 4) before your next message to the
+  test-writer or the implementer.
 - The test-writer and the implementer run at the effort their definitions set, high and medium
   (`docs/software-factory/lessons.md` R-71). A level passed at spawn overrides it and holds across resumes, so a
   pair resumed from the apply keeps any level its last chapter was given (`.tdd-state.md` records it). Pass the
