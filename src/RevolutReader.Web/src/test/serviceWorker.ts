@@ -19,14 +19,21 @@ import type {
  *   the handler counts only its own origin's as the app;
  *   `focus()` on one brings it to the front (`focusedWindows()`); `openWindow(url)` opens a new one
  *   (`openedWindows()`), which then counts as open.
- * - A push (`deliverPush(json)`): the event carries the push's data as JSON. A browser that reads Declarative Web Push
- *   (`declarative: true`, as Safari) also puts its proposed notification on the event (`notification`) when the JSON is
- *   a declarative message, and `null` when it is not; a browser that does not (by default, as Chrome on a computer) puts
- *   nothing there. A push with no data (`deliverPushWithoutData()`) carries `data` `null`; a push of text
- *   (`deliverPushOfText(text)`) carries data whose `json()` parses the text and throws a `SyntaxError` when it is not
- *   JSON, as the browser's `PushMessageData.json()` does. A browser that reads Declarative Web Push proposes `null` for
- *   either unless the text is a declarative message. A browser that has the member but proposes nothing
- *   (`proposesNull: true`) puts `null` there on every push.
+ * - A push: `deliverPush(json)` with data whose `json()` gives the JSON; `deliverPushWithoutData()` with no data
+ *   (`null`); `deliverPushOfText(text)` with data whose `json()` parses the text and throws a `SyntaxError` when it is
+ *   not JSON, as the browser's `PushMessageData.json()` does. What the event carries depends on the browser:
+ *   - by default, one that does not read Declarative Web Push (as Chrome on a computer): the push's data, and no
+ *     `notification` member at all;
+ *   - `declarative: true`, one that reads it (as Safari): for a declarative message (`"web_push": 8030` with a
+ *     notification that has a title), as JSON or as text that parses to one, the notification it proposes
+ *     (`notification`) and no data of its own (`data` `null`); for any other push, `notification` `null` and the push's
+ *     data;
+ *   - `proposesNull: true`, one that has the member but proposes nothing (it overrides `declarative`): `notification`
+ *     `null` on every push, and the push's data.
+ * - The proposed notification (c015 design.md D2, D8, from the W3C Push API draft's "Receiving a push message"): the
+ *   message's title, body and the page it opens, and as its `data` a copy of the message's `notification.data` (`null`
+ *   when the message has none, as a `Notification`'s `data`), so that is where the push's own data reaches the handler.
+ *   The event fires for a message without `"mutable": true` too (C8b's model: the draft and WebKit's post differ there).
  * - A tap (`tapNotification(index)`) on a notification the service worker showed: the event carries it, with its data
  *   and `close()`, recorded in `closedNotifications()`.
  * Each event's handlers run, and the helper waits for the work they passed to `waitUntil`, so a failure there fails
@@ -148,20 +155,29 @@ export function installServiceWorkerStandIn(
     },
   };
 
-  /** A push with this data arrives; a browser that reads Declarative Web Push puts `proposed()` on the event (see `proposesNull`). */
+  /**
+   * A push with this data arrives; a browser that reads Declarative Web Push puts `proposed()` on the event (see
+   * `proposesNull`) and, when it proposes a notification, hands the event no data of its own (the W3C draft).
+   */
   const firePush = async (
     data: PushLike["data"],
     proposed: () => unknown,
   ): Promise<void> => {
     const work: Promise<unknown>[] = [];
+    const notification =
+      options.proposesNull === true
+        ? null
+        : options.declarative === true
+          ? proposed()
+          : undefined;
+    const declarative = notification !== undefined && notification !== null;
     const event: PushLike = {
-      data,
+      data: declarative ? null : data,
       waitUntil: (promise) => {
         work.push(promise);
       },
     };
-    if (options.proposesNull === true) event.notification = null;
-    else if (options.declarative === true) event.notification = proposed();
+    if (notification !== undefined) event.notification = notification;
     for (const listener of pushListeners) listener(event);
     await Promise.all(work);
   };
@@ -210,13 +226,14 @@ export function installServiceWorkerStandIn(
 }
 
 /**
- * The notification a browser that reads Declarative Web Push proposes for this JSON: its title, body and the page it
- * opens, when the JSON is a declarative message (`"web_push": 8030` with a notification that has a title); `null`
- * otherwise. The stand-in's own reading, independent of the app's.
+ * The notification a browser that reads Declarative Web Push proposes for this JSON: its title, body, the page it
+ * opens and its data (the message's `notification.data`, a copy, as a `Notification` hands out its `data`; `null` when
+ * the message has none), when the JSON is a declarative message (`"web_push": 8030` with a notification that has a
+ * title); `null` otherwise. The stand-in's own reading, independent of the app's.
  */
 function proposedNotification(
   json: unknown,
-): { title: string; body?: string; navigate?: string } | null {
+): { title: string; body?: string; navigate?: string; data: unknown } | null {
   if (typeof json !== "object" || json === null) return null;
   const message = json as { web_push?: unknown; notification?: unknown };
   if (message.web_push !== 8030) return null;
@@ -226,6 +243,7 @@ function proposedNotification(
     title?: unknown;
     body?: unknown;
     navigate?: unknown;
+    data?: unknown;
   };
   if (typeof notification.title !== "string") return null;
   return {
@@ -236,5 +254,9 @@ function proposedNotification(
     ...(typeof notification.navigate === "string"
       ? { navigate: notification.navigate }
       : {}),
+    data:
+      notification.data === undefined
+        ? null
+        : structuredClone(notification.data),
   };
 }

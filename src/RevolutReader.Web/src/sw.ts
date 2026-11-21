@@ -1,5 +1,7 @@
-// The app's service worker (c003 design.md D9): it keeps the build's files, so the app opens without network, and
-// shows the app's pushes (c012 design.md D9). No runtime caching: no API answer is ever kept here (Q10, ADR-0007).
+// The app's service worker (c003 design.md D9): it keeps the build's files, so the app opens without network. Its
+// caches hold only those files, never an API answer (Q10, ADR-0007 item 1). It shows the app's pushes
+// (c012 design.md D9) and keeps the balance a push brings in place of the one the phone keeps, in the app's
+// IndexedDB record (ADR-0007 item 3; c015 design.md D3, D4).
 import { clientsClaim } from "workbox-core";
 import {
   cleanupOutdatedCaches,
@@ -32,5 +34,6 @@ registerRoute(
   }),
 );
 
-// A push shows as a notification, and a tap on it opens the app (c012 design.md D9).
+// A push shows as a notification, and its balance replaces the kept one (c015 design.md D3); a tap on the
+// notification opens the app (c012 design.md D9).
 listenForPushes(self);

@@ -1,8 +1,12 @@
 /**
- * What the service worker does with a push and a tap on its notification (c012 design.md D9). Imported by `sw.ts` and by
- * the tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
- * members of the service worker's scope it uses as its own small interfaces.
+ * What the service worker does with a push and a tap on its notification (c012 design.md D9), and the balance a push
+ * brings (c015 design.md D2-D4). Imported by `sw.ts` and by the tests; compiled under both `tsconfig.app.json` (`DOM`)
+ * and `tsconfig.sw.json` (`WebWorker`), so it names the few members of the service worker's scope it uses as its own
+ * small interfaces, and imports nothing that needs `window` (c015 design.md D5).
  */
+
+import { balanceOf, type Balance } from "./balanceRecord";
+import { keepPushedBalance } from "./storedBalance";
 
 /** A Declarative Web Push message as the service worker shows it. */
 export interface DeclarativeMessage {
@@ -71,12 +75,40 @@ export interface NotificationClickLike {
 }
 
 /**
- * Listens for pushes and taps (D9): a push with the browser's own notification is left alone; otherwise its
- * declarative message is shown (title, body, navigate in data). A tap closes the notification and focuses an open
- * window of the app on the worker's origin, or opens navigate's path, query and fragment on that origin.
+ * The balance a push carries (c015 design.md D2): `balance` in the data of the browser's proposed notification when the
+ * event carries one (a mutable Declarative Web Push gives the event no data of its own, W3C draft), else, when none of
+ * the right shape is there, in the push's own JSON (`notification.data.balance`), which also covers a browser that hands
+ * over both; kept only when `balanceOf` gives one. Null when there is none or it has the wrong shape. Never throws.
+ */
+export function pushedBalance(event: PushLike): Balance | null {
+  const proposed = event.notification;
+  if (proposed !== undefined && proposed !== null) {
+    const fromProposed = balanceOf(balanceIn(proposed));
+    if (fromProposed !== null) return fromProposed;
+  }
+  const json = pushJson(event);
+  return balanceOf(isRecord(json) ? balanceIn(json.notification) : undefined);
+}
+
+/** `balance` in the `data` of a notification, proposed or in the push's JSON; undefined when there is none. */
+function balanceIn(notification: unknown): unknown {
+  if (!isRecord(notification)) return undefined;
+  const { data } = notification;
+  return isRecord(data) ? data.balance : undefined;
+}
+
+/**
+ * Listens for pushes and taps (D9): a push's balance is kept (c015 design.md D4); a push with the browser's own
+ * notification is left alone; otherwise its declarative message is shown (title, body, navigate in data). A tap closes
+ * the notification and focuses an open window of the app on the worker's origin, or opens navigate's path, query and
+ * fragment on that origin.
  */
 export function listenForPushes(worker: PushWorker): void {
   worker.addEventListener("push", (event) => {
+    // The balance first, under the event's waitUntil so the worker lives until it is written (c015 design.md D4). The
+    // write never rejects, and the message below starts in the same turn, so it never waits for the write.
+    const balance = pushedBalance(event);
+    if (balance !== null) event.waitUntil(keepPushedBalance(balance));
     // The browser read the message and shows its own notification (Declarative Web Push): leave it, so it shows once.
     if (event.notification !== undefined && event.notification !== null) return;
     const message = declarativeMessage(pushJson(event));
