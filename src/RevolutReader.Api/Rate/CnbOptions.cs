@@ -6,7 +6,10 @@ namespace RevolutReader.Api.Rate;
 public sealed class CnbOptions {
   public const string SECTION = "Cnb";
 
-  /// <summary>The API's base address: https://api.cnb.cz in production and locally; the fake's loopback address in tests.</summary>
+  /// <summary>
+  /// The API's base address: https://api.cnb.cz in production and locally; the fake's loopback address in tests. An absolute
+  /// https address, or plain http on a loopback host, checked at start by <see cref="CnbOptionsValidator"/>.
+  /// </summary>
   [Required]
   public required Uri Address { get; init; }
 
