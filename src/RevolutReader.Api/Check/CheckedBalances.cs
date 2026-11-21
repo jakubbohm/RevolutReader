@@ -7,7 +7,9 @@ namespace RevolutReader.Api.Check;
 /// the balance at the last notification; each a whole <see cref="AccountBalance"/> (amount, read time, rate).
 /// </summary>
 public sealed record CheckedBalances(AccountBalance LastSeen, AccountBalance LastNotified) {
-  /// <summary>They differ by at least a cent: |last seen − last notified| ≥ 0.01 (D4).</summary>
-  /// <remarks>A test-first stub: a property may not throw <see cref="NotImplementedException"/> (CA1065), so it throws <see cref="NotSupportedException"/> until it is built.</remarks>
-  public bool Changed => throw new NotSupportedException("Not built yet: c014 tasks.md 7.4.");
+  /// <summary>The least difference between the two amounts that is a change: a cent (D4).</summary>
+  private const decimal CENT = 0.01m;
+
+  /// <summary>They differ by at least a cent: |last seen − last notified| ≥ 0.01 (D4). Only the amounts count.</summary>
+  public bool Changed => Math.Abs(LastSeen.Amount - LastNotified.Amount) >= CENT;
 }

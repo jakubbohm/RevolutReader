@@ -60,11 +60,11 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 7. [unit] Slice 3 — The first check
 
-- [ ] 7.1 A first successful read keeps the balance as both last seen and last notified, and sends nothing
-- [ ] 7.2 A first check answers that nothing changed
-- [ ] 7.3 A first read that fails keeps nothing and is the read's failure
-- [ ] 7.4 Two balances that differ by less than a cent are no change; by a cent or more, a change
-- [ ] 7.5 A check logs what it came to, with no amount (`CheckEnded`, `FirstBalanceKept`)
+- [x] 7.1 A first successful read keeps the balance as both last seen and last notified, and sends nothing
+- [x] 7.2 A first check answers that nothing changed
+- [x] 7.3 A first read that fails keeps nothing and is the read's failure
+- [x] 7.4 Two balances that differ by less than a cent are no change; by a cent or more, a change
+- [x] 7.5 A check logs what it came to, with no amount (`CheckEnded`, `FirstBalanceKept`)
 
 ## 8. [unit] Slice 3 — One check at a time
 
