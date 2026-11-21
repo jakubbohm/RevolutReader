@@ -234,7 +234,7 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 41. [unit] Guards
 
-- [ ] 41.1 A notifying check logs no amount in any form, no email and no key (`Conventions/AccountCheckTelemetryTests`, design.md D15)
+- [x] 41.1 A notifying check logs no amount in any form, no email and no key (`Conventions/AccountCheckTelemetryTests`, design.md D15)
 
 ## 42. [wiring] Deployment
 
