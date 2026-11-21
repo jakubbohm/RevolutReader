@@ -36,9 +36,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// still gets one. <see cref="RequestsReceived"/> counts every request as it arrives, answered or not.
 /// </para>
 /// <para>
-/// Filled in by the wiring groups: <see cref="AnswerRate"/> (tasks.md 6.6), <see cref="AnswerServerError"/> (tasks.md
-/// 21.1) and <see cref="AnswerNeverInTime"/> (tasks.md 23.1); until then each throws. The default answer, the settings and
-/// the count are real now (tasks.md 1.1).
+/// Filled in by the wiring groups: <see cref="AnswerServerError"/> (tasks.md 21.1) and <see cref="AnswerNeverInTime"/>
+/// (tasks.md 23.1); until then each throws. The default answer, the settings and the count are real since tasks.md 1.1,
+/// <see cref="AnswerRate"/> since tasks.md 6.6.
 /// </para>
 /// </summary>
 public sealed class FakeCnb : IDisposable {
@@ -78,6 +78,12 @@ public sealed class FakeCnb : IDisposable {
 
   private readonly WireMockServer _server;
   private readonly ArrivalCount _arrivals;
+
+  /// <summary>
+  /// The id of the answer a test sets up: each one is set up under it, so it replaces the one before (WireMock.Net replaces
+  /// a mapping of the same id), rather than resting on which of two equal mappings WireMock.Net picks.
+  /// </summary>
+  private readonly Guid _answer = Guid.NewGuid();
 
   /// <summary>How long one ask may take (D4, D10): 2 s, as in production.</summary>
   public static TimeSpan TimeLimit { get; } = TimeSpan.FromSeconds(2);
@@ -134,10 +140,11 @@ public sealed class FakeCnb : IDisposable {
 
   /// <summary>
   /// The daily rates answer the capture with the euro at <paramref name="czkPerEur"/> koruna for <paramref name="clockDay"/>,
-  /// a date of the app copy's clock (<see cref="DailyRates"/>), above the default; it replaces the rate answered before.
-  /// Wired in tasks.md 6.6.
+  /// a date of the app copy's clock (<see cref="DailyRates"/>), above the default; it replaces the answer set up before
+  /// (the test's one answer, <see cref="_answer"/>).
   /// </summary>
-  public void AnswerRate(decimal czkPerEur, DateOnly clockDay) => throw new NotImplementedException("The fake CNB's rate answer is wired in tasks.md 6.6.");
+  public void AnswerRate(decimal czkPerEur, DateOnly clockDay) =>
+    _server.Given(DailyRatesRequest()).WithGuid(_answer).RespondWith(JsonAnswer(DailyRates(czkPerEur, clockDay)));
 
   /// <summary>
   /// The daily rates are answered with a server error (an HTTP 500) instead of a rate. Not captured: the CNB cannot be made

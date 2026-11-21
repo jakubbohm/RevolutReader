@@ -14,8 +14,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item>The CNB's answers go to <see cref="FakeCnb"/>, their day shifted onto the clock; the scenario's today is the
 /// clock's today.</item>
 /// </list>
-/// Filled in by the wiring groups (tasks.md 6.6, 13.1, 21.1, 23.1, 26.1); until then every method throws, here or in
-/// <see cref="ScenarioCalendar"/> and <see cref="FakeCnb"/>, where its step lives.
+/// Filled in by the wiring groups: the CNB's rate answers and its count since tasks.md 6.6; the rest (tasks.md 13.1, 21.1,
+/// 23.1, 26.1) throws until then, here or in <see cref="ScenarioCalendar"/> and <see cref="FakeCnb"/>, where its step lives.
 /// </summary>
 public sealed class RateDriver(FakeCnb cnb, ScenarioCalendar calendar, IServiceProvider app) {
   /// <summary>The app copy's services, for its store of the kept rate (tasks.md 13.1, 26.1).</summary>
@@ -38,15 +38,15 @@ public sealed class RateDriver(FakeCnb cnb, ScenarioCalendar calendar, IServiceP
 
   /// <summary>
   /// The CNB's latest rate is <paramref name="czkPerEur"/> koruna per euro for <paramref name="scenarioDay"/>, the day
-  /// shifted onto the clock (<see cref="FakeCnb.AnswerRate"/>). Wired in tasks.md 6.6.
+  /// shifted onto the clock (<see cref="FakeCnb.AnswerRate"/>).
   /// </summary>
-  public void CnbAnswersRate(decimal czkPerEur, DateOnly scenarioDay) => throw new NotImplementedException("The CNB's latest rate for a day is wired in tasks.md 6.6.");
+  public void CnbAnswersRate(decimal czkPerEur, DateOnly scenarioDay) => cnb.AnswerRate(czkPerEur, calendar.ToClock(scenarioDay));
 
   /// <summary>
   /// The CNB's latest rate is <paramref name="czkPerEur"/> koruna per euro for the scenario's today, the clock's today
-  /// (<see cref="FakeCnb.AnswerRate"/>). Wired in tasks.md 6.6.
+  /// when the step runs (<see cref="FakeCnb.AnswerRate"/>).
   /// </summary>
-  public void CnbAnswersRateForToday(decimal czkPerEur) => throw new NotImplementedException("The CNB's latest rate for today is wired in tasks.md 6.6.");
+  public void CnbAnswersRateForToday(decimal czkPerEur) => cnb.AnswerRate(czkPerEur, calendar.ClockToday);
 
   /// <summary>The CNB answers with a server error (<see cref="FakeCnb.AnswerServerError"/>, tasks.md 21.1).</summary>
   public void CnbAnswersAServerError() => cnb.AnswerServerError();
@@ -54,6 +54,6 @@ public sealed class RateDriver(FakeCnb cnb, ScenarioCalendar calendar, IServiceP
   /// <summary>The CNB does not answer within the 2 s limit (<see cref="FakeCnb.AnswerNeverInTime"/>, tasks.md 23.1).</summary>
   public void CnbDoesNotAnswerInTime() => cnb.AnswerNeverInTime();
 
-  /// <summary>How many requests the CNB received (<see cref="FakeCnb.RequestsReceived"/>). Wired in tasks.md 6.6.</summary>
-  public int RequestsTheCnbReceived() => throw new NotImplementedException("The CNB's count of requests is wired in tasks.md 6.6.");
+  /// <summary>How many requests the CNB received (<see cref="FakeCnb.RequestsReceived"/>).</summary>
+  public int RequestsTheCnbReceived() => cnb.RequestsReceived;
 }

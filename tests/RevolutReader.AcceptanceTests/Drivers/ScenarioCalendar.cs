@@ -10,7 +10,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// in days from it. The rules count days only, so a scenario's claims hold unchanged.
 /// <list type="bullet">
 /// <item><see cref="ToClock"/> shifts a scenario's date onto the clock (what the driver writes to the fake bank, the
-/// store and the API's query); <see cref="FromClock"/> shifts a date the app or the fake bank gave back.</item>
+/// store and the API's query); <see cref="FromClock"/> shifts a date the app or the fake bank gave back;
+/// <see cref="ClockToday"/> is the scenario's today on the clock, as it is when asked.</item>
 /// <item><see cref="PassDays"/> moves the clock by whole days, and the scenario's today with it: the mapping keeps its
 /// distance, so a date shifts the same before and after.</item>
 /// <item><see cref="TodayIs"/> names the scenario's today, before any date is shifted; until then it is the one the
@@ -28,6 +29,9 @@ public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider cl
 
   /// <summary>How many days the clock's dates are ahead of the scenario's.</summary>
   private int _daysAhead = DaysAhead(scenarioToday, clock);
+
+  /// <summary>The scenario's today on the clock: the clock's today, the UTC date of its time, as the app takes today.</summary>
+  public DateOnly ClockToday => ClockTodayOf(_clock);
 
   /// <summary>The scenario's today is <paramref name="today"/>, mapped onto the clock's today as it is now.</summary>
   public void TodayIs(DateOnly today) => _daysAhead = DaysAhead(today, _clock);
@@ -55,6 +59,8 @@ public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider cl
   }
 
   /// <summary>The days from <paramref name="scenarioDay"/> to the clock's today: the UTC date of its time, as the app takes today.</summary>
-  private static int DaysAhead(DateOnly scenarioDay, FakeTimeProvider clock) =>
-    DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber - scenarioDay.DayNumber;
+  private static int DaysAhead(DateOnly scenarioDay, FakeTimeProvider clock) => ClockTodayOf(clock).DayNumber - scenarioDay.DayNumber;
+
+  /// <summary>The UTC date of <paramref name="clock"/>'s time, as the app takes today.</summary>
+  private static DateOnly ClockTodayOf(FakeTimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
 }

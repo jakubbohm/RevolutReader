@@ -1,12 +1,13 @@
 using RevolutReader.Api.Account;
 using RevolutReader.Api.Check;
 using RevolutReader.Api.Push;
+using RevolutReader.Api.Rate;
 
 namespace RevolutReader.Api.Storage;
 
 /// <summary>
 /// The stores' registrations on Table Storage: the transactions (c010 design.md D11), the push devices (c011 design.md
-/// D11) and the account check's balances (c014 design.md D4).
+/// D11), the account check's balances (c014 design.md D4) and the kept koruna rate (c017 design.md D2).
 /// </summary>
 public static class StorageRegistration {
   /// <summary>The connection's name, read from <c>ConnectionStrings:tables</c>.</summary>
@@ -77,6 +78,25 @@ public static class StorageRegistration {
       .ValidateOnStart();
 
     builder.Services.AddSingleton<ICheckedBalanceStore, TableCheckedBalanceStore>();
+
+    return builder;
+  }
+
+  /// <summary>
+  /// The kept koruna rate's store (c017 design.md D2, D9): binds <see cref="KorunaRateStoreOptions"/> from its section,
+  /// validated on start, and <see cref="TableKorunaRateStore"/> as <see cref="IKorunaRateStore"/>, a singleton, so its table
+  /// is created once per process. Like <see cref="AddPushDeviceStore"/>, it uses the tables client
+  /// <see cref="AddTransactionStore"/> registers, so Program.cs calls it after that one.
+  /// </summary>
+  public static IHostApplicationBuilder AddKorunaRateStore(this IHostApplicationBuilder builder) {
+    ArgumentNullException.ThrowIfNull(builder);
+
+    builder.Services.AddOptions<KorunaRateStoreOptions>()
+      .BindConfiguration(KorunaRateStoreOptions.SECTION)
+      .ValidateDataAnnotations()
+      .ValidateOnStart();
+
+    builder.Services.AddSingleton<IKorunaRateStore, TableKorunaRateStore>();
 
     return builder;
   }

@@ -14,13 +14,6 @@ public sealed class ReadBalanceHandler(IBankAccount bank, IKorunaRates rates, Ti
   /// <summary>The account's currency (ISO 4217), as the bank names it.</summary>
   private const string EURO = "EUR";
 
-  /// <summary>
-  /// The handler with C13's constant rate (<see cref="KorunaRate.CzkPerEur"/>), which the app's container builds while it
-  /// registers no <see cref="IKorunaRates"/>: tasks.md 6.3 registers one, and 6.4 removes this constructor.
-  /// </summary>
-  public ReadBalanceHandler(IBankAccount bank, TimeProvider time) : this(bank, ConstantKorunaRate.Instance, time) {
-  }
-
   /// <exception cref="InvalidOperationException">The bank answered a balance in another currency than euros: a bug.</exception>
   public async Task<BankResult<AccountBalance>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
@@ -48,12 +41,5 @@ public sealed class ReadBalanceHandler(IBankAccount bank, IKorunaRates rates, Ti
       throw new InvalidOperationException("The bank answered the balance in a currency other than euros, though the account is a euro account.");
 
     return new AccountBalance(balance.Amount, readAt, rate.CzkPerEur);
-  }
-
-  /// <summary>C13's constant rate and day as <see cref="IKorunaRates"/> answers a rate; removed with its constructor in tasks.md 6.4.</summary>
-  private sealed class ConstantKorunaRate : IKorunaRates {
-    public static ConstantKorunaRate Instance { get; } = new();
-
-    public Task<Rate.KorunaRate> Current(CancellationToken cancellationToken) => Task.FromResult(new Rate.KorunaRate(KorunaRate.CzkPerEur, KorunaRate.Date));
   }
 }
