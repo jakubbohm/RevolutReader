@@ -95,6 +95,27 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
+  /// A first check whose read fails still ends with its line of what it came to (D15: every check's <c>CheckEnded</c>,
+  /// <see cref="CheckEnd.BankReadFailed"/> among its values, whether or not balances are kept): exactly one <c>CheckEnded</c>
+  /// at Information, whose one value is <see cref="CheckEnd.BankReadFailed"/>, so it carries no amount.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_first_read_that_fails_logs_BankReadFailed(string failure) {
+    CapturedLog log = new();
+
+    await (await CheckWith(Failure(failure), new InMemoryCheckedBalanceStore(), new StubPushDelivery(), log)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    LogEntry ended = log.Entries.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
+    ended.ShouldSatisfyAllConditions(
+      () => ended.Level.ShouldBe(LogLevel.Information),
+      () => ended.OwnValues().Select(static value => value.Value).ShouldBe([CheckEnd.BankReadFailed], "what the check came to, and nothing else: the bank read failed"));
+  }
+
+  /// <summary>
   /// The first check's line of what it came to is <c>CheckEnded</c> at Information, whose one value is
   /// <see cref="CheckEnd.FirstBalanceKept"/> (D15); no line of the check, the notifier or the sender holds the amount in any
   /// form (as the API writes it, as the app writes it in Czech, its koruna value) or the time it was read. The amount is
@@ -252,6 +273,67 @@ public sealed class AccountCheckTests {
       () => lines.Where(line => privateForms.Any(form => line.AllText().Contains(form, StringComparison.OrdinalIgnoreCase)))
         .ShouldBeEmpty("no line holds the balance, in any form, or a time read"));
   }
+
+  /// <summary>
+  /// Both balances kept at 45.20; the bank's read fails. The check keeps nothing new, both balances stay exactly as they
+  /// were, and its result is the read's failure, as it is (D11: answered as the balance does). Its one line of what it came
+  /// to is <c>CheckEnded</c> at Information whose one value is <see cref="CheckEnd.BankReadFailed"/> (D15), with no amount in
+  /// any line, in any form, and no time read.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_failed_read_keeps_nothing_new_and_is_the_reads_failure_logged_BankReadFailed(string failure) {
+    BankResult<Balance> answer = Failure(failure);
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 45.20m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    CapturedLog log = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(answer, store, new StubPushDelivery(), log)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    LogEntry ended = lines.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
+    string[] privateForms = [
+      "45.2", "45,2", // the kept balance, 45.20
+      "1098", "1 098", "1\u00A0098", // its koruna value at 24.3, 1 098.36
+      "2026-11-21", "11/21/2026", "21.11.2026", "8:14:03", // the time it was read
+    ];
+    CheckedBalances? after = await store.Read(CancellationToken.None);
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(answer.Value, "the read's failure, as it is"),
+      () => after.ShouldBe(before, "nothing new kept: both balances as they were"),
+      () => ended.Level.ShouldBe(LogLevel.Information),
+      () => ended.OwnValues().Select(static value => value.Value).ShouldBe([CheckEnd.BankReadFailed], "what the check came to: the bank read failed"),
+      () => lines.Where(line => privateForms.Any(form => line.AllText().Contains(form, StringComparison.OrdinalIgnoreCase)))
+        .ShouldBeEmpty("no line holds the balance, in any form, or a time read"));
+  }
+
+  /// <summary>
+  /// Both balances kept at 45.20, so they do not differ: a check whose read fails has nothing to notify, and nothing reaches
+  /// Lucie's registered phone. A failed read with a change kept is tasks.md group 33's.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_failed_read_with_nothing_to_notify_sends_nothing(string failure) {
+    StubPushDelivery delivery = new();
+
+    await (await CheckWith(Failure(failure), await StoreKeeping(lastSeen: 45.20m, lastNotified: 45.20m), delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    delivery.HandedOver.ShouldBeEmpty("nothing is sent");
+  }
+
+  /// <summary>The bank's expected failure named <paramref name="failure"/>: access expired, rate limited or unavailable.</summary>
+  private static BankResult<Balance> Failure(string failure) => failure switch {
+    "access expired" => new BankAccessExpired(),
+    "rate limited" => new BankRateLimited(),
+    "unavailable" => new BankUnavailable(),
+    _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+  };
 
   /// <summary>A store of the check's balances that keeps <paramref name="lastSeen"/> and <paramref name="lastNotified"/> EUR, both read an hour before <see cref="_now"/> at C13's rate.</summary>
   private static async Task<InMemoryCheckedBalanceStore> StoreKeeping(decimal lastSeen, decimal lastNotified) {

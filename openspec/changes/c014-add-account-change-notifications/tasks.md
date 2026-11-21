@@ -167,11 +167,11 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 27. [unit] Slice 10 — The owner's message
 
-- [ ] 27.1 A message without a balance carries neither `mutable` nor `data`
+- [x] 27.1 A message without a balance carries neither `mutable` nor `data`
 
 ## 28. [close] Slice 10 — The owner's message carries no balance
 
-- [ ] 28.1 The scenario's test passes (expected green since slice 9: the message endpoint never sets a balance). Verify: green, including push-sending / The owner's message carries no balance
+- [x] 28.1 The scenario's test passes (expected green since slice 9: the message endpoint never sets a balance). Verify: green, including push-sending / The owner's message carries no balance
 
 ## 29. [unit] Slice 11 — A failed read
 
