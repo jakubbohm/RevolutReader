@@ -120,22 +120,22 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 16. [unit] Slice 6 — Every request asks until a newer day's rate comes
 
-- [ ] 16.1 A rate for the kept day changes nothing: nothing is saved and nothing logged, and the next call asks again
-- [ ] 16.2 Callers at the same time share one ask (a held answer, two callers, one call to the CNB)
-- [ ] 16.3 A caller that stops waiting leaves the ask, and its answer, to the other callers
-- [ ] 16.4 An ask that has ended is not shared: the next caller asks anew while the rate is due
+- [x] 16.1 A rate for the kept day changes nothing: nothing is saved and nothing logged, and the next call asks again
+- [x] 16.2 Callers at the same time share one ask (a held answer, two callers, one call to the CNB)
+- [x] 16.3 A caller that stops waiting leaves the ask, and its answer, to the other callers
+- [x] 16.4 An ask that has ended is not shared: the next caller asks anew while the rate is due
 
 ## 17. [close] Slice 6 — From 08:00 UTC on Monday every request asks until Monday's rate comes
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including koruna-rate / From 08:00 UTC on Monday every request asks until Monday's rate comes
+- [x] 17.1 The scenario's test passes. Verify: green, including koruna-rate / From 08:00 UTC on Monday every request asks until Monday's rate comes
 
 ## 18. [unit] Slice 7 — An earlier day's rate
 
-- [ ] 18.1 A rate for an earlier day than the kept one is answered as the kept one, with nothing saved and nothing logged
+- [x] 18.1 A rate for an earlier day than the kept one is answered as the kept one, with nothing saved and nothing logged
 
 ## 19. [close] Slice 7 — A rate for an earlier day than the kept one is ignored
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including koruna-rate / A rate for an earlier day than the kept one is ignored
+- [x] 19.1 The scenario's test passes. Verify: green, including koruna-rate / A rate for an earlier day than the kept one is ignored
 
 ## 20. [unit] Slice 8 — A failed ask, a failing store
 
