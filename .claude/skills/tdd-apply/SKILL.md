@@ -186,7 +186,7 @@ with a fresh test-writer and implementer.
      rules): take it over, and change it only where it breaks these rules or the sizing below, saying why. A
      change proposed before that rule has no suggestion; split it yourself. The final
      `[close] Acceptance green` belongs to the last chapter. A change without slices (3 scenarios or fewer) is
-     group 1 and one chapter.
+     planned as two chapters: group 1, then every group after it.
    - Size by content, not by a count of groups: what one group adds to an agent's context has ranged from
      about 5k to 50k tokens. Chapters of four to nine slices ran well (C8a, C8b). The token budget (step 3)
      catches a chapter planned too large.
