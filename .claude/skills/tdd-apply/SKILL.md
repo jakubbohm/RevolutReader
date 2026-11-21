@@ -208,7 +208,9 @@ with a fresh test-writer and implementer.
    the test-writer and the implementer from `.tdd-state.md`, a short account of what the code holds now, the design
    sections the chapter needs and, for UI, the saved design files (§ 0 step 8). Tell it that it starts mid-change:
    the specs, `design.md`, the tests and the commits are the source of truth, not an earlier agent's memory. The
-   same brief replaces an agent that cannot be resumed.
+   same brief replaces an agent that cannot be resumed, and then also says where the chapter stands, from
+   `.tdd-state.md` and `git status`: its groups already committed, the group in progress with any uncommitted work
+   the replaced agent left in the tree, and any open dispute.
 5. **Checkpoint at each chapter's end,** after its last commit, except the last chapter, where § 4's report
    takes its place:
    1. Run the full suite (`dotnet test` and the frontend tests) and the traceability test: everything passes
