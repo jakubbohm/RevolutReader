@@ -17,9 +17,10 @@ namespace RevolutReader.Api.Check;
 /// under the request that caused them (PR #88 review, the owner's decision, 2026-11-21).</item>
 /// <item>Each check runs in its own DI scope (<see cref="IAccountCheck"/>) on
 /// <see cref="IHostApplicationLifetime.ApplicationStopping"/>, never a caller's token (D8), so a caller that leaves never
-/// stops it; only the app's stop cancels it, and its callers get that cancellation. A failed check is logged here
-/// (<see cref="CheckLog.CheckFailed"/>), since its callers may have left (D15), its callers get its exception, and it never
-/// blocks the next; a check the app's stop cancels is not logged as failed.</item>
+/// stops it; only the app's stop cancels it, and its callers get that cancellation. A failed check is logged here, once
+/// (<see cref="CheckLog.CheckFailed"/>), since its callers may have left (D15), whatever failed: building its services, its
+/// run or their disposal; its callers get its exception, and it never blocks the next; a check the app's stop cancels is
+/// not logged as failed.</item>
 /// </list>
 /// </summary>
 public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicationLifetime lifetime, ILogger<AccountCheckQueue> logger) {
@@ -120,14 +121,17 @@ public sealed class AccountCheckQueue(IServiceScopeFactory scopes, IHostApplicat
 
   /// <summary>
   /// One check for <paramref name="user"/>, in a DI scope of its own, on <paramref name="stopping"/>: its result, or its
-  /// exception, logged once here before it reaches any caller. A check the app's stop cancels is no failed check: its
-  /// cancellation reaches its callers unlogged, since a stop is the app ending, on every deploy's swap and scale to zero.
+  /// exception, logged once here before it reaches any caller. One catch around the whole check, so every failure of it is
+  /// logged exactly once (D11, D15; PR #88 review, finding 6): the scope's creation, the check's resolution from it, its
+  /// run, and the scope's disposal, also when the disposal throws after a failed run. A check the app's stop cancels is no
+  /// failed check: its cancellation reaches its callers unlogged, since a stop is the app ending, on every deploy's swap
+  /// and scale to zero.
   /// </summary>
   private async Task<BankResult<CheckOutcome>> Run(PresentUser user, CancellationToken stopping) {
-    await using AsyncServiceScope scope = scopes.CreateAsyncScope();
-    IAccountCheck check = scope.ServiceProvider.GetRequiredService<IAccountCheck>();
-
     try {
+      await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+      IAccountCheck check = scope.ServiceProvider.GetRequiredService<IAccountCheck>();
+
       return await check.Run(user, AnotherCheckWaits, stopping);
     }
     catch (Exception exception) when (exception is not OperationCanceledException || !stopping.IsCancellationRequested) {
