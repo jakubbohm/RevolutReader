@@ -218,6 +218,41 @@ public sealed class AccountCheckTests {
         .ShouldBeEmpty("no line holds an amount, in any form, a time read or an account's address"));
   }
 
+  /// <summary>
+  /// Both balances kept at 45.20, read an hour earlier; the bank holds 45.20 again. Last seen becomes the new read, whole,
+  /// with its own read time (D4: written by every successful read); last notified stays exactly as it was, with its own
+  /// earlier read time, since no notification went out (D4: the balance at the last notification). Nothing is sent, the
+  /// check answers that nothing changed, and its one line of what it came to is <c>CheckEnded</c> at Information whose one
+  /// value is <see cref="CheckEnd.Unchanged"/>, with no amount in any line, in any form, and no time read.
+  /// </summary>
+  [Test]
+  public async Task A_read_equal_to_last_notified_keeps_it_as_last_seen_sends_nothing_and_answers_that_nothing_changed() {
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 45.20m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    StubPushDelivery delivery = new();
+    CapturedLog log = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery, log)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    LogEntry ended = lines.Where(static line => line.EventName == "CheckEnded").ShouldHaveSingleItem("the check's line of what it came to: one");
+    string[] privateForms = [
+      "45.2", "45,2", // the balance, 45.20
+      "1098", "1 098", "1\u00A0098", // its koruna value at 24.3, 1 098.36
+      "2026-11-21", "11/21/2026", "21.11.2026", "9:14:03", "8:14:03", // the times the balances were read
+    ];
+    CheckedBalances after = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    after.ShouldSatisfyAllConditions(
+      () => after.LastSeen.ShouldBe(new AccountBalance(45.20m, _now, KorunaRate.CzkPerEur), "last seen: the new read, whole, with its own read time"),
+      () => after.LastNotified.ShouldBe(before.LastNotified, "last notified: as it was, its earlier read time included"),
+      () => delivery.HandedOver.ShouldBeEmpty("nothing is sent"),
+      () => result.Value.ShouldBe(new CheckOutcome(Changed: false), "the check answers that nothing changed"),
+      () => ended.Level.ShouldBe(LogLevel.Information),
+      () => ended.OwnValues().Select(static value => value.Value).ShouldBe([CheckEnd.Unchanged], "what the check came to: nothing changed"),
+      () => lines.Where(line => privateForms.Any(form => line.AllText().Contains(form, StringComparison.OrdinalIgnoreCase)))
+        .ShouldBeEmpty("no line holds the balance, in any form, or a time read"));
+  }
+
   /// <summary>A store of the check's balances that keeps <paramref name="lastSeen"/> and <paramref name="lastNotified"/> EUR, both read an hour before <see cref="_now"/> at C13's rate.</summary>
   private static async Task<InMemoryCheckedBalanceStore> StoreKeeping(decimal lastSeen, decimal lastNotified) {
     InMemoryCheckedBalanceStore store = new();
