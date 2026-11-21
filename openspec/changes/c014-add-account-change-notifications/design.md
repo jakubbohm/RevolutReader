@@ -165,7 +165,7 @@ As roadmap C9, items 1–5:
 
 - **Never an amount, a balance, a time read, an email address or a key** in the app's own lines (CLAUDE.md, ADR-0004).
 - Source-generated in `CheckLog`:
-  - `CheckEnded` (Information), with what the check came to: `FirstBalanceKept`, `Unchanged`, `ChangeLeftToTheNextCheck`, `ChangeNotified` or `BankReadFailed`;
+  - `CheckEnded` (Information), with what the check came to: `FirstBalanceKept`, `Unchanged`, `ChangeLeftToTheNextCheck`, `ChangeNotified` or `BankReadFailed`. A check whose read fails comes to `BankReadFailed` also when it still sends a change an earlier check kept, or leaves it to the check waiting behind (D10 item 4): the line agrees with its answer (D11) and keeps the bank problem visible, and `ChangeSent` shows the send (the owner, 2026-11-21);
   - `ChangeSent` (Information): accounts, and the devices reached, failed and removed, summed;
   - `CheckFailed` (Error, with the exception): a check that threw. Exceptions carry no bank data (README.md § Backend code).
 - The bank adapter's line per read and C8a's `PushSent` lines stay as they are.
