@@ -62,8 +62,8 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 9. [unit] Slice 4 — A balance of the wrong shape
 
-- [ ] 9.1 A balance without its read time is no balance, in the proposed notification and in the push's JSON
-- [ ] 9.2 A balance whose amount or rate is not a number, or whose read time is no date, is no balance
+- [x] 9.1 A balance without its read time is no balance, in the proposed notification and in the push's JSON
+- [x] 9.2 A balance whose amount or rate is not a number, or whose read time is no date, is no balance
 
 ## 10. [close] Slice 4 — A push with a balance of the wrong shape leaves the kept balance as it was
 

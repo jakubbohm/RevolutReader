@@ -486,3 +486,53 @@ test("A push with a balance is kept also where the service worker shows the noti
     { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
   ]);
 });
+
+// ---- c015: a balance of the wrong shape (group 9; design.md D2: `balanceOf` is the one shape check) ----
+
+/**
+ * The two places a push's balance is found (design.md D2), each with nothing valid in the other: the proposed
+ * notification, with no data of the event's own (the W3C draft); and the push's own JSON, with no proposed notification.
+ */
+const PLACES: [string, (balance: unknown) => PushLike][] = [
+  [
+    "in the proposed notification",
+    (balance) => pushEvent({ data: null, notification: proposedFor(balance) }),
+  ],
+  [
+    "in the push's JSON",
+    (balance) => pushEvent({ data: dataOf(pushWithBalance(balance)) }),
+  ],
+];
+
+/** Each balance below, in each place: no balance is found. */
+function expectNoBalance(balances: [string, unknown][]): void {
+  for (const [shape, balance] of balances) {
+    for (const [place, eventWith] of PLACES) {
+      expect(
+        pushedBalance(eventWith(balance)),
+        `${shape}, ${place}`,
+      ).toBeNull();
+    }
+  }
+}
+
+test("A balance without its read time is no balance, in the proposed notification and in the push's JSON", () => {
+  expectNoBalance([
+    ["no read time", { amount: PUSHED.amount, czkPerEur: PUSHED.czkPerEur }],
+    ["a null read time", { ...PUSHED, readAt: null }],
+  ]);
+});
+
+test("A balance whose amount or rate is not a number, or whose read time is no date, is no balance", () => {
+  expectNoBalance([
+    ["the amount as text", { ...PUSHED, amount: "282.60" }],
+    ["no amount", { readAt: PUSHED.readAt, czkPerEur: PUSHED.czkPerEur }],
+    ["the rate as text", { ...PUSHED, czkPerEur: "24.3" }],
+    ["no rate", { amount: PUSHED.amount, readAt: PUSHED.readAt }],
+    ["a read time that is no date", { ...PUSHED, readAt: "včera" }],
+    [
+      "a read time as a number, not a date and time",
+      { ...PUSHED, readAt: Date.parse(PUSHED.readAt) },
+    ],
+  ]);
+});
