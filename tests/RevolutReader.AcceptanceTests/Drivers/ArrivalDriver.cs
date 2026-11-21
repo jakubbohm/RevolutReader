@@ -30,7 +30,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item><b>The app's clock</b> is the app copy's <see cref="FakeTimeProvider"/>, which moves only when a test moves it,
 /// so a read time given relative to <see cref="Now"/> is that far from the server's own time when the report arrives.</item>
 /// </list>
-/// Filled in by the wiring groups (tasks.md 3.1, 7.1); until 7.1 the report with no read time throws.
+/// Filled in by the wiring groups (tasks.md 3.1, 7.1).
 /// </summary>
 public sealed class ArrivalDriver(HttpClient browser, FakeTimeProvider clock, CapturedLogEvents lines) {
   /// <summary>Where a phone reports a push's arrival (D3).</summary>
@@ -88,7 +88,7 @@ public sealed class ArrivalDriver(HttpClient browser, FakeTimeProvider clock, Ca
   public Task<ReportAnswer> ReportReadAt(DateTimeOffset readAt) => Report(new JsonObject { [READ_AT] = readAt });
 
   /// <summary><c>POST /api/push/arrivals</c> in the signed-in browser, with the JSON body <c>{}</c>: a report naming no read time.</summary>
-  public Task<ReportAnswer> ReportWithNoReadTime() => throw new NotImplementedException();
+  public Task<ReportAnswer> ReportWithNoReadTime() => Report(new JsonObject());
 
   /// <summary>
   /// The <c>DelaySeconds</c> of every <c>PushArrived</c> line the app copy wrote, in the order written. A line whose

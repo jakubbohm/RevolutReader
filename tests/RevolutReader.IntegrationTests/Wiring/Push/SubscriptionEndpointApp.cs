@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using RevolutReader.Api.Push;
@@ -17,10 +18,12 @@ using RevolutReader.UnitTests.Push;
 namespace RevolutReader.IntegrationTests.Wiring.Push;
 
 /// <summary>
-/// An app copy for the subscription endpoint's own tests (c011 design.md D9), on the shared <see cref="MadeUpSettings"/>,
+/// An app copy for the signed-in push endpoints' own tests: the subscription endpoint's (c011 design.md D9) and, since
+/// c016, the arrival endpoint's (c016 design.md D3, D7). On the shared <see cref="MadeUpSettings"/>,
 /// in environment <c>Production</c>, with <see cref="MessageEndpointApp.ALLOWED_ACCOUNT"/> as the
-/// allowlist and the known push services <c>appsettings.json</c> declares (no loopback service among them). Two things
-/// differ from a real run, neither of them the endpoint's:
+/// allowlist and the known push services <c>appsettings.json</c> declares (no loopback service among them). The event
+/// name of every log line it writes is kept (<see cref="LoggedEvents"/>), behind the app's own log level settings. Two
+/// things differ from a real run, neither of them an endpoint's:
 /// <list type="bullet">
 /// <item>The device store is the in-memory fake (<see cref="Devices"/>), which the store's contract tests hold to the
 /// Table adapter's behaviour, so a test sees what was stored without Docker.</item>
@@ -41,6 +44,9 @@ internal sealed class SubscriptionEndpointApp : WebApplicationFactory<Program> {
   /// <summary>The devices this app copy stored.</summary>
   public InMemoryPushDeviceStore Devices { get; } = new();
 
+  /// <summary>The event name of every log line this app copy wrote that names its event, in the order written.</summary>
+  public IReadOnlyList<string> LoggedEvents() => Services.GetServices<ILoggerProvider>().OfType<EventNames>().Single().Names();
+
   /// <summary>A client whose every request carries a login cookie for <paramref name="account"/>; it keeps no cookie the app sets.</summary>
   public HttpClient SignedInAs(string account) {
     ArgumentException.ThrowIfNullOrEmpty(account);
@@ -59,6 +65,7 @@ internal sealed class SubscriptionEndpointApp : WebApplicationFactory<Program> {
     builder.ConfigureTestServices(services => {
       services.RemoveAll<IPushDeviceStore>();
       services.AddSingleton<IPushDeviceStore>(Devices);
+      services.AddSingleton<ILoggerProvider>(static _ => new EventNames());
     });
   }
 
@@ -73,5 +80,42 @@ internal sealed class SubscriptionEndpointApp : WebApplicationFactory<Program> {
     ClaimsIdentity login = new([new Claim(JwtRegisteredClaimNames.Email, account)], CookieAuthenticationDefaults.AuthenticationScheme);
 
     return cookie.TicketDataFormat.Protect(new AuthenticationTicket(new ClaimsPrincipal(login), CookieAuthenticationDefaults.AuthenticationScheme));
+  }
+
+  /// <summary>A logger provider that keeps the event name of every line that names its event, from any category; the app copy's container owns it.</summary>
+  private sealed class EventNames : ILoggerProvider {
+    private readonly Lock _lock = new();
+    private readonly List<string> _names = [];
+
+    /// <summary>The names so far, in the order written.</summary>
+    public IReadOnlyList<string> Names() {
+      lock (_lock)
+        return [.. _names];
+    }
+
+    public ILogger CreateLogger(string categoryName) => new NamingLogger(this);
+
+    private void Add(string name) {
+      lock (_lock)
+        _names.Add(name);
+    }
+
+    private sealed class NamingLogger(EventNames names) : ILogger {
+      public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+      public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+      public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+        if (!string.IsNullOrEmpty(eventId.Name))
+          names.Add(eventId.Name);
+      }
+    }
+
+    #region IDisposable
+
+    public void Dispose() {
+    }
+
+    #endregion
   }
 }

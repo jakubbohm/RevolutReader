@@ -54,8 +54,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 7. [wiring] Slice 3 — A report the server cannot read
 
-- [ ] 7.1 `ArrivalReportEndpoint` refuses a report without `readAt` (missing or `null`) with FastEndpoints' validation problem naming `readAt`, and records nothing (design.md D3); `ArrivalDriver`'s report with no read time. Verify: group 1.5 runs to its assertions
-- [ ] 7.2 Wiring edge test (the implementer's, `tests/RevolutReader.IntegrationTests/Wiring/Push/`): a report whose `readAt` is `"yesterday"` answers 400 `Bad Request` as `application/problem+json` and logs no `PushArrived` line (design.md D3, D7). Verify: the test passes
+- [x] 7.1 `ArrivalReportEndpoint` refuses a report without `readAt` (missing or `null`) with FastEndpoints' validation problem naming `readAt`, and records nothing (design.md D3); `ArrivalDriver`'s report with no read time. Verify: group 1.5 runs to its assertions
+- [x] 7.2 Wiring edge test (the implementer's, `tests/RevolutReader.IntegrationTests/Wiring/Push/`): a report whose `readAt` is `"yesterday"` answers 400 `Bad Request` as `application/problem+json` and logs no `PushArrived` line (design.md D3, D7). Verify: the test passes
 
 ## 8. [close] Slice 3 — A report without a read time is refused and records nothing
 
