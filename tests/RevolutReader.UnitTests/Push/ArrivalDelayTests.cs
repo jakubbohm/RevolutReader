@@ -5,8 +5,8 @@ namespace RevolutReader.UnitTests.Push;
 
 /// <summary>
 /// The delay a report of a push's arrival records (c016 design.md D4): the server's time when the report arrives minus the
-/// read time the push's balance carried, in whole seconds, rounded down. The read times are as the API writes them into a
-/// push (UTC), the times made up.
+/// read time the push's balance carried, in whole seconds, rounded down, never below 0. The read times are as the API
+/// writes them into a push (UTC), the times made up.
 /// </summary>
 public sealed class ArrivalDelayTests {
   /// <summary>When the server read the balance a push carried (made up).</summary>
@@ -52,4 +52,29 @@ public sealed class ArrivalDelayTests {
   [Test]
   public void The_earliest_read_time_and_the_latest_server_time_still_give_a_delay() =>
     ArrivalDelay.Seconds(DateTimeOffset.MinValue, DateTimeOffset.MaxValue).ShouldBe(315_537_897_599L);
+
+  /// <summary>
+  /// Read times at least a second after the server's time, so a count that only drops the fraction (toward zero) would go
+  /// below 0: 30 seconds ahead, as the scenario's; 1.5 seconds ahead, which dropping the fraction makes -1; and the latest
+  /// read time against the earliest server time, the widest span the other way.
+  /// </summary>
+  [Test]
+  public void A_read_time_ahead_of_the_servers_time_records_0_seconds() {
+    DateTimeOffset now = _readAt;
+
+    now.ShouldSatisfyAllConditions(
+      () => ArrivalDelay.Seconds(now.AddSeconds(30), now).ShouldBe(0L, "30 seconds ahead"),
+      () => ArrivalDelay.Seconds(now.AddMilliseconds(1500), now).ShouldBe(0L, "1.5 seconds ahead"),
+      () => ArrivalDelay.Seconds(DateTimeOffset.MaxValue, DateTimeOffset.MinValue).ShouldBe(0L, "the latest read time, the earliest server time"));
+  }
+
+  /// <summary>The read time is the server's time, written in UTC and in Prague's offset (+01:00), the same instant.</summary>
+  [Test]
+  public void A_read_time_at_the_servers_own_time_records_0_seconds() {
+    DateTimeOffset now = _readAt;
+
+    now.ShouldSatisfyAllConditions(
+      () => ArrivalDelay.Seconds(now, now).ShouldBe(0L, "read in UTC"),
+      () => ArrivalDelay.Seconds(now.ToOffset(TimeSpan.FromHours(1)), now).ShouldBe(0L, "read in Prague's offset"));
+  }
 }
