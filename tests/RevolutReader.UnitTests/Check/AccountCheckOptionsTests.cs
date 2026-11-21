@@ -1,18 +1,23 @@
 using System.Buffers.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Check;
+using RevolutReader.Api.Push;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Check;
 
 /// <summary>
 /// The check's key is checked at start-up (c014 design.md D6; configuration.md § Binding): it may not still hold the
-/// declared placeholder, and it is at least 32 bytes in base64url without padding, read strictly. A failure names the
-/// setting (the section <c>AccountCheck</c> and its <c>Key</c>), never its value. Each test runs both checks the app runs at
-/// start, as the push settings' tests do: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs them, and
-/// <see cref="AccountCheckOptionsValidator"/>. Every key here is made up, generated in the test.
+/// declared placeholder, it is at least 32 bytes in base64url without padding, read strictly, and it is a key of its own,
+/// never the message key. A failure names the setting (the section <c>AccountCheck</c> and its <c>Key</c>, and for the
+/// message key <c>Push:MessageKey</c> too), never a value. Each test runs the checks the app runs at start, through the
+/// check's own registration (<see cref="AccountCheckRegistration.AddAccountCheck"/>): the settings' data annotations and
+/// <see cref="AccountCheckOptionsValidator"/>, however that validator is built. Every key here is made up, generated in the
+/// test.
 /// </summary>
 public sealed class AccountCheckOptionsTests {
   private const string PLACEHOLDER = "<secret>";
@@ -23,16 +28,20 @@ public sealed class AccountCheckOptionsTests {
   /// <summary>The check key's least size (D6): 32 random bytes.</summary>
   private const int KEY_BYTES = 32;
 
+  /// <summary>The two keys' settings, as the configuration names them (D6; c011 design.md D5).</summary>
+  private const string CHECK_KEY_SETTING = "AccountCheck:Key";
+  private const string MESSAGE_KEY_SETTING = "Push:MessageKey";
+
   /// <param name="bytes">Random bytes the key holds: the least the rule allows, and more.</param>
   [Test]
   [Arguments(32)]
   [Arguments(64)]
   public void A_check_key_of_at_least_32_bytes_in_base64url_passes_validation(int bytes) =>
-    Failures(Settings(RandomBase64Url(bytes))).ShouldBeEmpty();
+    Failures(RandomBase64Url(bytes)).ShouldBeEmpty();
 
   [Test]
   public void A_check_key_still_holding_the_placeholder_fails_validation_and_the_message_names_the_setting_only() {
-    IReadOnlyList<string> failures = Failures(Settings(PLACEHOLDER));
+    IReadOnlyList<string> failures = Failures(PLACEHOLDER);
 
     failures.ShouldContain(
       failure => NamesTheSetting(failure) && failure.Contains("placeholder", StringComparison.OrdinalIgnoreCase),
@@ -59,23 +68,76 @@ public sealed class AccountCheckOptionsTests {
       _ => throw new ArgumentOutOfRangeException(nameof(variant), variant, "Not a known case."),
     };
 
-    IReadOnlyList<string> failures = Failures(Settings(key));
+    IReadOnlyList<string> failures = Failures(key);
 
     failures.ShouldContain(failure => NamesTheSetting(failure), "a failure naming AccountCheck's Key");
     failures.ShouldAllBe(failure => !failure.Contains(key, StringComparison.Ordinal), "no failure message may contain the setting's value");
   }
 
-  private static AccountCheckOptions Settings(string key) => new() { Key = key };
+  /// <summary>
+  /// The check key is a key of its own, never the message key (spec account-check, "The check answers only with its key";
+  /// design.md D6; review finding 4 on PR #88): with <c>AccountCheck:Key</c> holding the same valid key as
+  /// <c>Push:MessageKey</c>, the check's settings fail at start, and the failure names the two settings only, never the key
+  /// or any part of it. Two different keys pass: every other test here gives the message key a key of its own.
+  /// </summary>
+  [Test]
+  public void A_check_key_equal_to_the_message_key_fails_at_start_naming_both_settings_only() {
+    string key = RandomBase64Url(KEY_BYTES);
+    using ServiceProvider services = ServicesWith(checkKey: key, messageKey: key);
 
-  /// <summary>Every failure message of the start-up checks: the data annotations, then the validator.</summary>
-  private static IReadOnlyList<string> Failures(AccountCheckOptions settings) {
-    ValidateOptionsResult[] results = [
-      new DataAnnotationValidateOptions<AccountCheckOptions>(Options.DefaultName).Validate(Options.DefaultName, settings),
-      new AccountCheckOptionsValidator().Validate(Options.DefaultName, settings),
-    ];
+    OptionsValidationException refused = Should.Throw<OptionsValidationException>(() => services.GetRequiredService<IOptions<AccountCheckOptions>>().Value);
 
-    return [.. results.Where(static result => result.Failed).SelectMany(static result => result.Failures ?? [])];
+    string[] texts = [refused.Message, .. refused.Failures];
+    refused.ShouldSatisfyAllConditions(
+      () => refused.Failures.ShouldContain(
+        static failure => failure.Contains(CHECK_KEY_SETTING, StringComparison.Ordinal) && failure.Contains(MESSAGE_KEY_SETTING, StringComparison.Ordinal),
+        "a failure naming both settings"),
+      () => texts.ShouldAllBe(text => !QuotesAnyPartOf(text, key), "no failure message may contain the key or any part of it"));
   }
+
+  /// <summary>
+  /// Every failure message of the start-up checks on <paramref name="key"/> as <c>AccountCheck:Key</c>, as the app runs them:
+  /// the settings resolved through <see cref="AccountCheckRegistration.AddAccountCheck"/>, so the data annotations and the
+  /// validator, with the message key a different made-up key. None when the settings resolve.
+  /// </summary>
+  private static IReadOnlyList<string> Failures(string key) {
+    using ServiceProvider services = ServicesWith(checkKey: key, messageKey: RandomBase64Url(KEY_BYTES));
+
+    try {
+      _ = services.GetRequiredService<IOptions<AccountCheckOptions>>().Value;
+
+      return [];
+    }
+    catch (OptionsValidationException refused) {
+      return [.. refused.Failures];
+    }
+  }
+
+  /// <summary>
+  /// The services the app's start-up checks of the check's settings run on: the configuration's <c>AccountCheck:Key</c>
+  /// <paramref name="checkKey"/> and <c>Push:MessageKey</c> <paramref name="messageKey"/>, the push settings bound from it
+  /// (as the app's push registration binds them, without their own checks, which are the push settings' tests'), and the
+  /// check's registration, <see cref="AccountCheckRegistration.AddAccountCheck"/>.
+  /// </summary>
+  private static ServiceProvider ServicesWith(string checkKey, string messageKey) {
+    IConfiguration configuration = new ConfigurationBuilder()
+      .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal) {
+        [CHECK_KEY_SETTING] = checkKey,
+        [MESSAGE_KEY_SETTING] = messageKey,
+      })
+      .Build();
+
+    ServiceCollection services = new();
+    services.AddSingleton(configuration);
+    services.AddOptions<PushOptions>().BindConfiguration(PushOptions.SECTION);
+    services.AddAccountCheck();
+
+    return services.BuildServiceProvider();
+  }
+
+  /// <summary>Whether <paramref name="text"/> holds <paramref name="key"/> or any 8 characters of it in a row.</summary>
+  private static bool QuotesAnyPartOf(string text, string key) =>
+    Enumerable.Range(0, key.Length - 7).Any(start => text.Contains(key.Substring(start, 8), StringComparison.Ordinal));
 
   /// <summary>
   /// Whether <paramref name="failure"/> names the setting: the section, <see cref="AccountCheckOptions.SECTION"/> (alone, as
