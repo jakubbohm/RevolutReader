@@ -39,9 +39,9 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 4. [close] Slice 1 — A report records how long the push took to arrive
 
-- [ ] 4.1 The scenario's test passes. Verify: green, including push-arrivals / A report records how long the push took to arrive
-- [ ] 4.2 Docs: testing.md, the arrival lines as a scenario's channel (`Drivers/ArrivalDriver` reads the app copy's `PushArrived` lines; design.md D7), and the `.claude/rules/testing.md` mirror if its harness line needs it. Verify: the paragraph names design.md D7
-- [ ] 4.3 Docs: deployment.md § The account check, a subsection "Push arrivals (c016)" after "The checks and what they came to": the three read-only queries of design.md D6 (every report; per Prague day, account and device; per notification with the reports belonging to it) and the notes beside them (D2's reading, #91's caveats, to be confirmed on the first real report). Verify: each query runs once read-only against the workspace with the owner's login and parses (no rows before the deploy)
+- [x] 4.1 The scenario's test passes. Verify: green, including push-arrivals / A report records how long the push took to arrive
+- [x] 4.2 Docs: testing.md, the arrival lines as a scenario's channel (`Drivers/ArrivalDriver` reads the app copy's `PushArrived` lines; design.md D7), and the `.claude/rules/testing.md` mirror if its harness line needs it. Verify: the paragraph names design.md D7
+- [x] 4.3 Docs: deployment.md § The account check, a subsection "Push arrivals (c016)" after "The checks and what they came to": the three read-only queries of design.md D6 (every report; per Prague day, account and device; per notification with the reports belonging to it) and the notes beside them (D2's reading, #91's caveats, to be confirmed on the first real report). Verify: each query runs once read-only against the workspace with the owner's login and parses (no rows before the deploy)
 
 ## 5. [unit] Slice 2 — A read time ahead
 

@@ -518,6 +518,41 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 - **No amount, ever:** the check's lines carry what it came to and counts only (`ChangeSent`: accounts, devices reached, failed, removed), never a balance, a time read, an email address or the key (c014 design.md D15, guarded by a test).
 - **A failed check** (storage, an unreadable bank answer) writes `An account check failed` at Error, with the exception in `AppExceptions`, and answers 500.
 
+### Push arrivals (c016)
+
+Since c016, each device's service worker reports every push that brings a balance, and the API writes one `PushArrived` line per report: `DelaySeconds`, how many whole seconds after the bank read the report reached the server, by the server's own clock (c016 design.md D1–D4; [#91](https://github.com/jakubbohm/RevolutReader/issues/91)). The line holds nothing else; its request names the account (`UserAuthenticatedId`, since C14) and the device (`ClientOS`, `ClientBrowser`), joined on `OperationId`. Three read-only queries (D6): every report, a summary per Prague day, account and device, and every notification sent with the reports belonging to it. Set the period as above, in UTC.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg  = 'rg-revolutreader'
+$workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+    --workspace-name log-revolutreader --query customerId --output tsv
+
+$from = '2026-11-21'; $to = '2026-12-06'
+$range = "TimeGenerated >= datetime($from) and TimeGenerated < datetime($to)"
+$reports = "AppTraces | where $range | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Push.RecordArrivalHandler' and Message startswith 'A push reached a device' | project OperationId, ReportedAt = TimeGenerated, DelaySeconds = tolong(Properties.DelaySeconds) | join kind=leftouter (AppRequests | where $range | where Name == 'POST /api/push/arrivals' | project OperationId, Account = UserAuthenticatedId, Device = strcat(ClientOS, ' / ', ClientBrowser)) on OperationId"
+
+# Every report, the newest first
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$reports | extend PragueTime = datetime_utc_to_local(ReportedAt, 'Europe/Prague') | order by ReportedAt desc | project Reported = format_datetime(PragueTime, 'yyyy-MM-dd HH:mm:ss'), Account, Device, DelaySeconds"
+
+# Per Prague day, account and device: reports, median and maximum delay
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "$reports | extend PragueTime = datetime_utc_to_local(ReportedAt, 'Europe/Prague') | summarize Reports = count(), MedianSeconds = percentile(DelaySeconds, 50), MaxSeconds = max(DelaySeconds) by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), Account, Device | order by Day desc, Account asc, Device asc"
+
+# Every notification sent, with the reports belonging to it (read time within 30 s before the send)
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "let sent = AppTraces | where $range | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Check.ChangeNotifier' and Message startswith 'A change was sent' | project SentAt = TimeGenerated; let matched = sent | extend Key = 1 | join kind=inner ($reports | extend ReadAt = ReportedAt - DelaySeconds * 1s, Key = 1) on Key | where ReadAt between ((SentAt - 30s) .. (SentAt + 2s)) | summarize Reports = count(), Who = make_list(strcat(Account, ' / ', Device, ' / ', DelaySeconds, ' s')) by SentAt; sent | join kind=leftouter matched on SentAt | extend PragueTime = datetime_utc_to_local(SentAt, 'Europe/Prague') | order by SentAt desc | project Sent = format_datetime(PragueTime, 'yyyy-MM-dd HH:mm:ss'), Reports = coalesce(Reports, 0), Who"
+```
+
+- **Reading a report:** a delay of seconds is a notification on time; a held one shows its hold. A report comes only from a run of the service worker, so on the iPhone a notification with no report from it means iOS did not run the worker for that push, or the report failed (D1). The desktops get the same push at once and are the control.
+- **Matching a report to its notification** is by time: no read time is logged (c014 design.md D15, unchanged), so the third query takes a report's own time minus its delay as the read time, and the check reads the bank about 1–3 s before it sends. Every account's copy of one notification has the same read time.
+- **A held push adds the server's wake-up:** a push iOS held for an hour reports to a server that has gone to sleep, so its delay includes about 20 s of wake-up (D2); next to an hour that is noise. A push on time always finds the server awake.
+- **A notification sent from an older read** (a check whose own bank read failed sends a change an earlier check kept) has that earlier read time, so its reports' delays look longer by the gap and the third query matches them to no notification. Its `CheckEnded` says `BankReadFailed` (D2).
+- **A missing report is not a missing notification:** offline, or after a login ended (the report then gets a 401, visible as such on `POST /api/push/arrivals` in `AppRequests`), the notification may still show (#91 § Caveats). On iOS a plain push, such as the owner's test messages, never reports: only pushes with a balance do. On the iPhone, the notification waits for the report's request to end, a fraction of a second when on time (D5).
+- **To be confirmed on the first real report** (the manual row after c016's deploy): the queries were written from the code before any report reached Application Insights; `ClientOS` and `ClientBrowser` were checked filled for the app's other requests on 2026-11-21 (e.g. `iOS 18.7 / Mobile Safari 27.2`). Each query ran once, read-only, on 2026-11-21 and parsed, with no rows yet. If the first query comes back empty although a device reported, look at a raw row: `AppTraces | where Message startswith 'A push reached' | project TimeGenerated, OperationId, Properties | take 5`; if `Device` is empty for the service worker's request, take it from the request's `Properties` (its user agent).
+- **The rows name people:** the email addresses are personal data, allowed in the private telemetry (ADR-0009, Decision item 6). Never copy them into an issue, a PR or any other public place.
+
 ### A check by hand
 
 **A check reads the bank as the caller,** with the caller's own address and browser name as a present user's (c014 design.md D7), and may send a real notification. So Claude runs one only on the owner's go, each time, from the owner's own machine. The key is read into a variable inside the same block and never printed.
