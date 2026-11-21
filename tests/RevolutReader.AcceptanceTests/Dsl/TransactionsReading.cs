@@ -13,7 +13,10 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// <param name="Transactions">The page's transactions, in the answer's order; <see langword="null"/> for a failure.</param>
 /// <param name="OlderBefore">The day before which older transactions are kept; <see langword="null"/> when nothing older is kept, or for a failure.</param>
 /// <param name="CzkPerEur">The koruna rate the page carries; <see langword="null"/> for a failure.</param>
-/// <param name="RateDate">The rate's date, as the answer gives it (C13's fixed date, never the scenario's calendar); <see langword="null"/> for a failure.</param>
+/// <param name="RateDate">
+/// The rate's date (c017 design.md D10): a date of the scenario's calendar, shifted back by the driver as the other dates
+/// are, from tasks.md 9.2; until then as the answer gives it. <see langword="null"/> for a failure.
+/// </param>
 /// <param name="Problem">The failure's problem description; <see langword="null"/> for a page.</param>
 public sealed record TransactionsReading(
   IReadOnlyList<TransactionSeenInApi>? Transactions,
@@ -21,6 +24,13 @@ public sealed record TransactionsReading(
   decimal? CzkPerEur,
   DateOnly? RateDate,
   ProblemDescription? Problem) {
+  /// <summary>
+  /// The rate's date exactly as the answer gives it, never shifted (c017 design.md D10): for the app's own rate, whose date
+  /// is fixed, not a date of the scenario's calendar. Outside the reading's equality, so a scenario states it apart;
+  /// <see langword="null"/> for a failure.
+  /// </summary>
+  public DateOnly? RateDateAsAnswered { get; init; }
+
   /// <summary>A page: exactly these transactions, in this order, with what it says of older ones and the rate.</summary>
   public static TransactionsReading Of(IEnumerable<TransactionSeenInApi> transactions, DateOnly? olderBefore, decimal czkPerEur, DateOnly rateDate) =>
     new([.. transactions], olderBefore, czkPerEur, rateDate, Problem: null);
@@ -48,7 +58,7 @@ public sealed record TransactionsReading(
     else
       builder.Append('[').AppendJoin(", ", Transactions).Append(']');
 
-    builder.Append(CultureInfo.InvariantCulture, $", OlderBefore = {OlderBefore}, CzkPerEur = {CzkPerEur}, RateDate = {RateDate}, Problem = {Problem}");
+    builder.Append(CultureInfo.InvariantCulture, $", OlderBefore = {OlderBefore}, CzkPerEur = {CzkPerEur}, RateDate = {RateDate}, Problem = {Problem}, RateDateAsAnswered = {RateDateAsAnswered}");
 
     return true;
   }

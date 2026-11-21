@@ -18,7 +18,7 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), the test kit of design.md D10 and § Public API sketch, the test-writer's:
+- [x] 1.1 Foundation (API), the test kit of design.md D10 and § Public API sketch, the test-writer's:
   - `Drivers/FakeCnb` on `LoopbackWireMock`, its answers built from `Drivers/CnbDaily.json` with the euro's `rate` and `validFor` replaced; by default 25.125 for the clock's date when it starts; its `Configure` writes `Cnb:Address` and `Cnb:TimeLimit` (00:00:02) for every app copy, next to `FakeBank.Configure`;
   - `Drivers/RateDriver`, `Dsl/RateDsl` as `AcceptanceTest.Rate`;
   - `ScenarioCalendar.TodayIsAt`, and `TransactionsReading.RateDateAsAnswered` (outside the reading's equality);
@@ -26,18 +26,18 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
   - stubs throw `NotImplementedException`.
 
   Verify: the build passes; every acceptance test that was green stays green (the extra settings are ignored until slice 1 declares them)
-- [ ] 1.2 Acceptance: account-balance / The balance comes with the time it was read and the koruna rate (modified: the CNB's rate 24.38)
-- [ ] 1.3 Acceptance: account-transactions / The newest transactions come live with the koruna rate (modified: the CNB's 24.38 for 2026-11-19)
-- [ ] 1.4 Acceptance: account-check / Money out is notified with the new balance (modified: the CNB's 24.6, "≈ 1 112 Kč")
-- [ ] 1.5 Acceptance: account-check / Money in is notified with the new balance (modified: the CNB's 24.6, "≈ 3 572 Kč")
-- [ ] 1.6 Acceptance: account-check / The notification carries the new balance for the phone to keep (modified: `czkPerEur` 24.6)
-- [ ] 1.7 Acceptance: koruna-rate / Monday's rate replaces Friday's and is not asked for again that day
-- [ ] 1.8 Acceptance: koruna-rate / A rate for an earlier day than the kept one is ignored
-- [ ] 1.9 Acceptance: koruna-rate / Friday's rate is not asked for again over the weekend
-- [ ] 1.10 Acceptance: koruna-rate / From 08:00 UTC on Monday every request asks until Monday's rate comes
-- [ ] 1.11 Acceptance: koruna-rate / A CNB that answers with an error leaves the kept rate
-- [ ] 1.12 Acceptance: koruna-rate / A CNB that does not answer within 2 s leaves the kept rate
-- [ ] 1.13 Acceptance: koruna-rate / With no rate kept and the CNB failing, the app's own rate of 24.47 is answered
+- [x] 1.2 Acceptance: account-balance / The balance comes with the time it was read and the koruna rate (modified: the CNB's rate 24.38)
+- [x] 1.3 Acceptance: account-transactions / The newest transactions come live with the koruna rate (modified: the CNB's 24.38 for 2026-11-19)
+- [x] 1.4 Acceptance: account-check / Money out is notified with the new balance (modified: the CNB's 24.6, "≈ 1 112 Kč")
+- [x] 1.5 Acceptance: account-check / Money in is notified with the new balance (modified: the CNB's 24.6, "≈ 3 572 Kč")
+- [x] 1.6 Acceptance: account-check / The notification carries the new balance for the phone to keep (modified: `czkPerEur` 24.6)
+- [x] 1.7 Acceptance: koruna-rate / Monday's rate replaces Friday's and is not asked for again that day
+- [x] 1.8 Acceptance: koruna-rate / A rate for an earlier day than the kept one is ignored
+- [x] 1.9 Acceptance: koruna-rate / Friday's rate is not asked for again over the weekend
+- [x] 1.10 Acceptance: koruna-rate / From 08:00 UTC on Monday every request asks until Monday's rate comes
+- [x] 1.11 Acceptance: koruna-rate / A CNB that answers with an error leaves the kept rate
+- [x] 1.12 Acceptance: koruna-rate / A CNB that does not answer within 2 s leaves the kept rate
+- [x] 1.13 Acceptance: koruna-rate / With no rate kept and the CNB failing, the app's own rate of 24.47 is answered
 
 ## 2. [unit] Slice 1 — The rate value and when one is due
 

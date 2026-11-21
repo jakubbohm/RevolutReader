@@ -15,6 +15,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// distance, so a date shifts the same before and after.</item>
 /// <item><see cref="TodayIs"/> names the scenario's today, before any date is shifted; until then it is the one the
 /// calendar was made with.</item>
+/// <item><see cref="TodayIsAt"/> names it on a weekday at a time of day, for a rule that depends on the weekday (c017
+/// design.md D10, the koruna rate's asking): the clock moves to the coming day of that weekday first.</item>
 /// </list>
 /// The mapping is a fixed number of days, set when the scenario's today is named: whatever moves the clock (this
 /// calendar, or <c>SignInDsl.DaysPass</c>), the scenario's today moves with it, and a date already written stays the
@@ -29,6 +31,15 @@ public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider cl
 
   /// <summary>The scenario's today is <paramref name="today"/>, mapped onto the clock's today as it is now.</summary>
   public void TodayIs(DateOnly today) => _daysAhead = DaysAhead(today, _clock);
+
+  /// <summary>
+  /// The scenario's today is <paramref name="scenarioDay"/> at <paramref name="utcTime"/> UTC (c017 design.md D10): the
+  /// clock moves forward to the coming day with the same weekday as <paramref name="scenarioDay"/>, at
+  /// <paramref name="utcTime"/> UTC, and the scenario's dates are mapped onto it, so their distances are multiples of 7
+  /// days and weekdays agree. Only after signing in, as <see cref="PassDays"/>: Microsoft's ID token is checked against the
+  /// real clock. Wired in tasks.md 13.1.
+  /// </summary>
+  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) => throw new NotImplementedException("The scenario calendar's weekday step is wired in tasks.md 13.1.");
 
   /// <summary>The clock's date for <paramref name="scenarioDate"/>: as many days from the clock's today as it is from the scenario's.</summary>
   public DateOnly ToClock(DateOnly scenarioDate) => scenarioDate.AddDays(_daysAhead);
