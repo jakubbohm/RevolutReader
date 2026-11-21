@@ -20,10 +20,12 @@
 
   <!-- The stores' in-memory fakes, the unit tests' own, run by the same contract tests as their Table adapters
        (Account/TransactionStoreContract.cs, c010 design.md D12; Push/PushDeviceStoreContract.cs, c011 design.md § Ports
-       and contracts): one file each, so the fake the unit tests trust is the one checked here. -->
+       and contracts; Check/CheckedBalanceStoreContract.cs, c014 design.md § Ports and contracts): one file each, so the
+       fake the unit tests trust is the one checked here. -->
   <ItemGroup>
     <Compile Include="..\RevolutReader.UnitTests\Account\InMemoryTransactionStore.cs" Link="Account\InMemoryTransactionStore.cs" />
     <Compile Include="..\RevolutReader.UnitTests\Push\InMemoryPushDeviceStore.cs" Link="Push\InMemoryPushDeviceStore.cs" />
+    <Compile Include="..\RevolutReader.UnitTests\Check\InMemoryCheckedBalanceStore.cs" Link="Check\InMemoryCheckedBalanceStore.cs" />
   </ItemGroup>
 
   <!-- The one way a test starts a WireMock.Net server, on the loopback address only (docs/conventions/testing.md § Fake
