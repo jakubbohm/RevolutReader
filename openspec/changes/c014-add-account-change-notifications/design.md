@@ -133,7 +133,7 @@ As roadmap C9, items 1–5:
 
 - **200 with exactly `{ "changed": true | false }`:** whether, after this check's read and store, *last seen* differs from *last notified*, so a notification has gone out or is left to the check waiting behind. A joined caller gets the answer of the check it joined. The Shortcut does nothing with it; it shows when the owner runs the Shortcut by hand.
 - **A failed bank read answers as `GET /api/balance` does:** 503 or 429 with C13's problem types, through `BankAnswers.From`, also when the check then sent what an earlier check kept (D10, item 4). If that send fails (the sender or the store throws), the send's failure decides the answer: the 500 below, logged once by the queue as `CheckFailed`, *last notified* left as it was (D12). As the error model says, the store's and the sender's failures throw from `AccountCheck.Run`, whatever the read did (the owner, 2026-11-21, PR #88 review finding 2).
-- **An unexpected failure** (storage, an unreadable bank answer) answers C7a's 500 problem description. *(propose)* The endpoint turns a failed check into that answer itself, so the failure is logged once, by the queue.
+- **An unexpected failure** (storage, an unreadable bank answer) answers C7a's 500 problem description. *(propose)* The endpoint turns a failed check into that answer itself, so the failure is logged once, by the queue. A check the app's stop cancels while its caller still waits answers the same 500, with no line logged (D15): the Shortcut does nothing with the answer and the next trigger catches up, so a 503 of its own would buy only a truer status for someone running the Shortcut by hand at that moment (the owner, 2026-11-21).
 
 ### D12 — Last notified is written once the sender has run (K10, item 2)
 
