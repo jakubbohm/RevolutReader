@@ -27,11 +27,10 @@ Given up: <what it costs>.
 
 ## Entries
 
-**R-1 · Speed of delivery comes before architecture in the app**
-Full version: architectural quality is the highest priority ([lessons.md R-1](lessons.md), DoseUp F-42).
-Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option. It covers the app only: software-factory work keeps the full bar ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08), 2026-11-08).
-Given up: shortcuts a longer-lived system would pay for later; R-12, R-14 and R-19 follow from this one.
-*Switch back when:* the app has to outlive its first purpose (operation well beyond the planned period), or someone else will maintain it.
+**R-1 · Speed of delivery came before architecture in the app** *(switched back 2026-11-21)*
+Switched back on 2026-11-21 (the owner): with v2 handed over (M7), the app is released and working, so speed no longer decides anything, and every change, the app's included, is held to the full bar ([lessons.md R-1](lessons.md), [workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)). The condition the entry named (the app outliving its first purpose, or another maintainer) did not come first: the reason for the speed bar, delivering within the operating window, simply ended.
+From 2026-11-04 to 2026-11-21 the app ran **speed first** ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)): Claude named every gap between "works" and "correct" and recommended the fastest sound option; software-factory work kept the full bar from 2026-11-08.
+Still in place: the cut-downs taken under it, among them R-12, R-14 and R-19, which followed from this one; each keeps its entry until a decision of its own switches it back.
 
 **R-3 · No automated releases or changelog**
 Full version: an automated changelog, semver tags and GitHub Releases ([lessons.md R-3](lessons.md), DoseUp F-32).
