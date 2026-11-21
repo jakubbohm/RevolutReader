@@ -225,12 +225,12 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 39. [wiring] Slice 15 — A caller that leaves
 
-- [ ] 39.1 The endpoint waits on the caller's token only (`WaitAsync`); a cancelled caller ends with nothing written and nothing logged as an error. `AccountCheckDriver` and `CheckDsl` for a call cancelled while the bank is held (design.md D8, D16). Verify: group 38 green
-- [ ] 39.2 Docs: ADR-0008's dated amendment (its "C9 decides" points answered by design.md D6, D8, D9; the constraint "at most one notification" naming the two accepted repeats, D10 item 5 and D13); README.md § Backend code (the check endpoint as a key-protected anonymous address; one check at a time in memory) and its `.claude/rules/` mirror. Verify: each names design.md
+- [x] 39.1 The endpoint waits on the caller's token only (`WaitAsync`); a cancelled caller ends with nothing written and nothing logged as an error. `AccountCheckDriver` and `CheckDsl` for a call cancelled while the bank is held (design.md D8, D16). Verify: group 38 green
+- [x] 39.2 Docs: ADR-0008's dated amendment (its "C9 decides" points answered by design.md D6, D8, D9; the constraint "at most one notification" naming the two accepted repeats, D10 item 5 and D13); README.md § Backend code (the check endpoint as a key-protected anonymous address; one check at a time in memory) and its `.claude/rules/` mirror. Verify: each names design.md
 
 ## 40. [close] Slice 15 — A check goes on when its caller stops waiting
 
-- [ ] 40.1 The scenario's test passes. Verify: green, including account-check / A check goes on when its caller stops waiting
+- [x] 40.1 The scenario's test passes. Verify: green, including account-check / A check goes on when its caller stops waiting
 
 ## 41. [unit] Guards
 

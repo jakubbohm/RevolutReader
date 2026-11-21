@@ -53,7 +53,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// Filled in by the wiring groups (tasks.md 3.4, 5.1, 10.2, 16.1, 36.1, 39.1); until then every method that calls the app
 /// or reads its services throws. The key and the clock are real now (tasks.md 1.1), and so are the wrong key's two calls
 /// (tasks.md 3.4), the call naming no browser, read with the exact shapes above (tasks.md 5.1), a check from a phone and
-/// the kept balances (tasks.md 10.2), and the burst (tasks.md 36.1).
+/// the kept balances (tasks.md 10.2), the burst (tasks.md 36.1), and the caller that stops waiting (tasks.md 39.1).
 /// </summary>
 public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, FakeTimeProvider clock, IServiceProvider app, string key) {
   /// <summary>The settings section the check's key is bound to (D6).</summary>
@@ -111,6 +111,12 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
 
   /// <summary>How often a burst looks at the queue's count while it waits for it.</summary>
   private static readonly TimeSpan _callersWaitingPoll = TimeSpan.FromMilliseconds(10);
+
+  /// <summary>
+  /// How long a call whose caller stopped waiting may take to end, on the real clock: the in-process server ends the call
+  /// only once its request has ended, which is at once for a request that waits on its caller's token, as the endpoint's does.
+  /// </summary>
+  private static readonly TimeSpan _callerEndsWithin = TimeSpan.FromSeconds(10);
 
   /// <summary>The wrong key and the phone <see cref="CheckWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
   private (string WrongKey, UserAtDevice Phone)? _lastWrongKeyCheck;
@@ -225,18 +231,38 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   }
 
   /// <summary>A check from <paramref name="phone"/>, whose call is cancelled while the check is still reading the bank, as the class describes.</summary>
-  public Task CheckThenStopWaitingWhileTheBankReads(UserAtDevice phone) => throw new NotImplementedException();
+  public async Task CheckThenStopWaitingWhileTheBankReads(UserAtDevice phone) {
+    ArgumentNullException.ThrowIfNull(phone);
+
+    AnswerTheDefaultBalanceBelowEverything();
+    Bank.HoldTheNextBalanceAnswer();
+
+    try {
+      using CancellationTokenSource phoneGivesUp = new();
+      Task<CheckAnswer> call = SendCheck(phone.IpAddress, phone.Browser, phoneGivesUp.Token);
+      await Bank.WaitUntilTheHeldRequestArrives();
+      await phoneGivesUp.CancelAsync();
+
+      if (await EndsInItsCancellation(call, phoneGivesUp.Token) is CheckAnswer answer)
+        throw new InvalidOperationException($"The check answered before its caller stopped waiting, though the bank's answer was held: {answer}");
+    }
+    finally {
+      // Released also when a step above failed, so no request is left waiting at the bank.
+      Bank.ReleaseTheHeldAnswer();
+    }
+  }
 
   /// <summary>
   /// <c>POST /api/account/check</c> from the phone's anonymous client with the test's check key, <c>X-Forwarded-For</c>
   /// <paramref name="ipAddress"/> and, when given, <c>User-Agent</c> <paramref name="browserName"/>; the default balance
-  /// below everything first; read as a <see cref="CheckAnswer"/> (<see cref="CheckAnswerOf"/>).
+  /// below everything first; read as a <see cref="CheckAnswer"/> (<see cref="CheckAnswerOf"/>). The call stops waiting when
+  /// <paramref name="cancellationToken"/> is cancelled, as a phone that gives up.
   /// </summary>
-  private async Task<CheckAnswer> SendCheck(string ipAddress, string? browserName) {
+  private async Task<CheckAnswer> SendCheck(string ipAddress, string? browserName, CancellationToken cancellationToken = default) {
     AnswerTheDefaultBalanceBelowEverything();
 
     using HttpRequestMessage request = CheckRequest(CHECK, Key, ipAddress, browserName);
-    using HttpResponseMessage response = await Phone.SendAsync(request);
+    using HttpResponseMessage response = await Phone.SendAsync(request, cancellationToken);
 
     return await CheckAnswerOf(response);
   }
@@ -275,6 +301,20 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
       AddAsItIs(request, USER_AGENT, browserName);
 
     return request;
+  }
+
+  /// <summary>
+  /// How <paramref name="call"/> ended once its caller stopped waiting (<paramref name="cancelled"/>): <see langword="null"/>
+  /// when it ended in that cancellation, its answer when it answered all the same. A call that has not ended within 10 s
+  /// fails the step (<see cref="TimeoutException"/>): its request still waits for the check.
+  /// </summary>
+  private static async Task<CheckAnswer?> EndsInItsCancellation(Task<CheckAnswer> call, CancellationToken cancelled) {
+    try {
+      return await call.WaitAsync(_callerEndsWithin, CancellationToken.None); // the caller's token is cancelled already: the wait is for the call's end
+    }
+    catch (OperationCanceledException) when (cancelled.IsCancellationRequested) {
+      return null;
+    }
   }
 
   /// <summary>
