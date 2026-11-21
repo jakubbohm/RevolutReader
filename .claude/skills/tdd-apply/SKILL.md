@@ -220,8 +220,10 @@ with a fresh test-writer and implementer.
       test totals, disputes, the agents' last token counts) and give a ready command:
       `/compact /tdd-apply <change>: chapter <name> is done and committed (<sha>). Re-read .tdd-state.md and
       the tdd-apply skill, then start chapter <next> with a fresh test-writer and implementer.`
-      Ask with AskUserQuestion whether to compact first and then continue, continue without compacting, or
-      stop here. End your turn and wait.
+      Tell the human to send a short message after compacting (e.g. "continue"): `/compact` does not start a turn
+      by itself. Ask with AskUserQuestion whether to compact first and then continue, continue without compacting,
+      or stop here. After "compact first" or "stop here", end your turn and wait. After "continue without
+      compacting", start chapter <next> at once, its agents spawned as step 4 says.
 
 ## Frontend groups
 
