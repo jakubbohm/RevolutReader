@@ -184,12 +184,12 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 31. [unit] Slice 12 — Notified once
 
-- [ ] 31.1 Last notified is written once the sender has run, also when a device's push failed or was gone
-- [ ] 31.2 Last notified is left as it was when the sender throws, so the next check sends the change again
+- [x] 31.1 Last notified is written once the sender has run, also when a device's push failed or was gone
+- [x] 31.2 Last notified is left as it was when the sender throws, so the next check sends the change again
 
 ## 32. [close] Slice 12 — A change is not notified again after a device's push failed
 
-- [ ] 32.1 The scenario's test passes. Verify: green, including account-check / A change is not notified again after a device's push failed
+- [x] 32.1 The scenario's test passes. Verify: green, including account-check / A change is not notified again after a device's push failed
 
 ## 33. [unit] Slice 13 — From the stored balances
 

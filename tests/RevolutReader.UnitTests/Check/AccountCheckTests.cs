@@ -275,6 +275,55 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
+  /// Both balances kept at 49.00; the bank holds 45.20; Lucie's phone's push fails, or its push service reports the phone
+  /// gone. The sender has run (the push was handed over), so last notified is written as last seen, whatever the push
+  /// service answered (D12): the phone misses that notification, and the sender never retries it (ADR-0010).
+  /// </summary>
+  /// <param name="answer">What Lucie's phone's push service answers: an error of its own, or that the phone is gone.</param>
+  [Test]
+  [Arguments("failed")]
+  [Arguments("gone")]
+  public async Task Last_notified_is_written_once_the_sender_has_run_also_when_a_devices_push_failed_or_was_gone(string answer) {
+    DeliveryOutcome outcome = answer switch {
+      "failed" => new DeliveryFailed(500),
+      "gone" => new DeviceGone(410),
+      _ => throw new ArgumentOutOfRangeException(nameof(answer), answer, "Not a known case."),
+    };
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m);
+    StubPushDelivery delivery = new StubPushDelivery().Answers(_luciesPhone, outcome);
+
+    await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
+    delivery.HandedOver.ShouldHaveSingleItem("the sender ran: Lucie's phone was handed its push");
+    (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "last notified written as last seen, whatever the push service answered");
+  }
+
+  /// <summary>
+  /// Both balances kept at 49.00; the bank holds 45.20; the sender throws, since the device table cannot be read (D12,
+  /// § Error model). The exception reaches the caller, and last notified is left as it was. Once the device table can be
+  /// read again, the next check sends the change again: one push, "Odešlo 3,80 €".
+  /// </summary>
+  [Test]
+  public async Task Last_notified_is_left_as_it_was_when_the_sender_throws_so_the_next_check_sends_the_change_again() {
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    FailingDeviceTable devices = new(await DevicesWithLuciesPhone());
+    StubPushDelivery delivery = new();
+    AccountCheck check = await CheckWith(new StubBankAccount(new Balance(45.20m, "EUR")), store, delivery, devices: devices);
+
+    InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => check.Run(_phone, _noCheckWaits, CancellationToken.None));
+    CheckedBalances afterTheFailure = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    devices.Readable = true;
+    await check.Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    thrown.ShouldSatisfyAllConditions(
+      () => thrown.ShouldBeSameAs(devices.Failure, "the sender's failure reaches the caller as it is"),
+      () => afterTheFailure.LastNotified.ShouldBe(before.LastNotified, "last notified left as it was, 49.00"),
+      () => delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push).Title).ShouldBe(["Odešlo 3,80\u00A0€"], "the next check sends the change again, once"));
+  }
+
+  /// <summary>
   /// Both balances kept at 45.20; the bank's read fails. The check keeps nothing new, both balances stay exactly as they
   /// were, and its result is the read's failure, as it is (D11: answered as the balance does). Its one line of what it came
   /// to is <c>CheckEnded</c> at Information whose one value is <see cref="CheckEnd.BankReadFailed"/> (D15), with no amount in
@@ -327,6 +376,57 @@ public sealed class AccountCheckTests {
     delivery.HandedOver.ShouldBeEmpty("nothing is sent");
   }
 
+  /// <summary>
+  /// An earlier check kept last seen at 45.20 and left last notified at 49.00, no notification having gone out for it (D10
+  /// item 4: a stop between storing and notifying, or a change left to a check that then failed); now the bank's read
+  /// fails. The change is notified from the stored balances, last seen as kept: one push, "Odešlo 3,80 €" over
+  /// "Zůstatek 45,20 € (≈ 1 098 Kč)"; last notified becomes last seen, whole; and the check's result is still the read's
+  /// failure (D11: answered as the balance does, also when it then sent what an earlier check kept). Its one line of what it
+  /// came to is <c>CheckEnded</c> with <see cref="CheckEnd.BankReadFailed"/>, as the check answers; the notification shows in
+  /// the notifier's <c>ChangeSent</c> line.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_check_whose_read_fails_notifies_a_change_an_earlier_check_kept_from_last_seen_and_still_answers_the_reads_failure(string failure) {
+    BankResult<Balance> answer = Failure(failure);
+    InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 49.00m);
+    CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
+    StubPushDelivery delivery = new();
+    CapturedLog log = new();
+
+    BankResult<CheckOutcome> result = await (await CheckWith(answer, store, delivery, log)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    CheckedBalances? after = await store.Read(CancellationToken.None);
+    IReadOnlyList<LogEntry> lines = log.Entries;
+    result.ShouldSatisfyAllConditions(
+      () => delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push))
+        .ShouldBe([("Odešlo 3,80\u00A0€", "Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)")], "one push, the change from 49.00 to the kept 45.20"),
+      () => after.ShouldBe(before with { LastNotified = before.LastSeen }, "last notified becomes last seen, whole"),
+      () => result.Value.ShouldBe(answer.Value, "the read's failure, as it is"),
+      () => lines.Where(static line => line.EventName == "CheckEnded").Select(static line => line.OwnValues().Single().Value)
+        .ShouldBe([CheckEnd.BankReadFailed], "one line of what the check came to: the bank read failed, as the check answers"),
+      () => lines.Count(static line => line.EventName == "ChangeSent").ShouldBe(1, "the notification, in the notifier's line"));
+  }
+
+  /// <summary>
+  /// Nothing kept, and the bank's read fails: there is nothing to notify from, and nothing reaches Lucie's registered phone.
+  /// </summary>
+  /// <param name="failure">The bank's expected failures (C13).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_check_whose_read_fails_with_nothing_kept_sends_nothing(string failure) {
+    StubPushDelivery delivery = new();
+
+    await (await CheckWith(Failure(failure), new InMemoryCheckedBalanceStore(), delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
+
+    delivery.HandedOver.ShouldBeEmpty("nothing is sent");
+  }
+
   /// <summary>The bank's expected failure named <paramref name="failure"/>: access expired, rate limited or unavailable.</summary>
   private static BankResult<Balance> Failure(string failure) => failure switch {
     "access expired" => new BankAccessExpired(),
@@ -370,15 +470,15 @@ public sealed class AccountCheckTests {
   /// <summary>
   /// The check under test: it reads the balance at <paramref name="bank"/> while the clock shows <see cref="_now"/>; its
   /// balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender, with the allowlist Lucie
-  /// and Petr and Lucie's phone registered, to <paramref name="delivery"/>; every log line goes to <paramref name="log"/>.
+  /// and Petr, to <paramref name="delivery"/>; the sender's device store is <paramref name="devices"/>, or one holding Lucie's
+  /// phone (<see cref="DevicesWithLuciesPhone"/>); every log line goes to <paramref name="log"/>.
   /// </summary>
-  private static async Task<AccountCheck> CheckWith(StubBankAccount bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) {
+  private static async Task<AccountCheck> CheckWith(StubBankAccount bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null, IPushDeviceStore? devices = null) {
     CapturedLog lines = log ?? new CapturedLog();
     Allowlist allowlist = Allowlist.Parse($"{LUCIE}, {PETR}");
-    InMemoryPushDeviceStore devices = new();
-    await devices.Save(_luciesPhone, CancellationToken.None);
+    IPushDeviceStore deviceStore = devices ?? await DevicesWithLuciesPhone();
 
-    SendPushHandler sender = new(devices, delivery, allowlist, Options.Create(new PushOptions {
+    SendPushHandler sender = new(deviceStore, delivery, allowlist, Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,
       VapidPrivateKey = NOT_READ_WHEN_SENDING,
       MessageKey = NOT_READ_WHEN_SENDING,
@@ -393,6 +493,14 @@ public sealed class AccountCheckTests {
       lines.For<AccountCheck>());
   }
 
+  /// <summary>C8a's in-memory device store, holding Lucie's registered phone.</summary>
+  private static async Task<InMemoryPushDeviceStore> DevicesWithLuciesPhone() {
+    InMemoryPushDeviceStore devices = new();
+    await devices.Save(_luciesPhone, CancellationToken.None);
+
+    return devices;
+  }
+
   /// <summary>A device of <paramref name="account"/> at a made-up push address, with keys as a browser makes them (random here: the stub never decrypts).</summary>
   private static PushDevice Device(string account) {
     byte[] point = RandomNumberGenerator.GetBytes(65);
@@ -403,6 +511,25 @@ public sealed class AccountCheckTests {
       Base64Url.EncodeToString(point),
       Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
       account);
+  }
+
+  /// <summary>
+  /// The sender's device table, which cannot be read (<see cref="ReadAll"/> throws <see cref="Failure"/>, as a storage
+  /// failure would) until the test makes it <see cref="Readable"/>; then it is <paramref name="devices"/>.
+  /// </summary>
+  private sealed class FailingDeviceTable(IPushDeviceStore devices) : IPushDeviceStore {
+    /// <summary>The failure every read throws while the table cannot be read; made up.</summary>
+    public InvalidOperationException Failure { get; } = new("A made-up storage failure: the device table cannot be read.");
+
+    /// <summary>Whether the table can be read; not at first.</summary>
+    public bool Readable { get; set; }
+
+    public Task<IReadOnlyList<PushDevice>> ReadAll(CancellationToken cancellationToken) =>
+      Readable ? devices.ReadAll(cancellationToken) : throw Failure;
+
+    public Task Save(PushDevice device, CancellationToken cancellationToken) => devices.Save(device, cancellationToken);
+
+    public Task Forget(string endpoint, CancellationToken cancellationToken) => devices.Forget(endpoint, cancellationToken);
   }
 
   /// <summary>
