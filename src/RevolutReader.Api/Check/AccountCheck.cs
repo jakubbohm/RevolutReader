@@ -10,10 +10,11 @@ namespace RevolutReader.Api.Check;
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4); a failed read keeps nothing and is the read's failure.</item>
-/// <item>With balances kept, a successful read is kept as last seen, last notified as it was (D4). A change, with no check
-/// waiting behind (D10 item 3), is notified from the stored balances (D10 item 4) through <see cref="ChangeNotifier"/>, and
-/// last notified is written as last seen once the sender has run (D10 item 5, D12); a sender that throws leaves it as it
-/// was. The check answers that the balance changed.</item>
+/// <item>With balances kept, a successful read is kept as last seen, last notified as it was (D4). With no change, nothing
+/// is sent and the check answers that nothing changed. A change, with no check waiting behind (D10 item 3), is notified
+/// from the stored balances (D10 item 4) through <see cref="ChangeNotifier"/>, and last notified is written as last seen
+/// once the sender has run (D10 item 5, D12); a sender that throws leaves it as it was. The check answers that the balance
+/// changed.</item>
 /// </list>
 /// What it came to is logged (<see cref="CheckLog.CheckEnded"/>), never an amount (D15).
 /// </summary>
@@ -50,14 +51,17 @@ public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore
 
   /// <summary>
   /// A successful read with balances kept: <paramref name="balances"/>, the read as last seen and last notified as it was,
-  /// kept (D4); then, unless a check waits behind, a change notified from them and last notified written as last seen
-  /// once the sender has run (D10, D12).
+  /// kept (D4); no change sends nothing; otherwise, unless a check waits behind, the change notified from them and last
+  /// notified written as last seen once the sender has run (D10, D12).
   /// </summary>
   private async Task<CheckOutcome> KeepAndNotify(CheckedBalances balances, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     await store.Save(balances, cancellationToken);
 
-    if (!balances.Changed)
-      throw new NotImplementedException("An unchanged read comes with c014 tasks.md group 20.");
+    if (!balances.Changed) {
+      CheckLog.CheckEnded(logger, CheckEnd.Unchanged);
+
+      return new CheckOutcome(Changed: false);
+    }
 
     if (anotherCheckWaits())
       throw new NotImplementedException("A change left to the check waiting behind comes with c014 tasks.md group 35.");

@@ -133,11 +133,11 @@ Run with `/tdd-apply c014-add-account-change-notifications` (roadmap C9a; the ow
 
 ## 20. [unit] Slice 7 — No change
 
-- [ ] 20.1 A read equal to last notified keeps it as last seen, sends nothing and answers that nothing changed (`CheckEnded` `Unchanged`)
+- [x] 20.1 A read equal to last notified keeps it as last seen, sends nothing and answers that nothing changed (`CheckEnded` `Unchanged`)
 
 ## 21. [close] Slice 7 — An unchanged balance sends nothing
 
-- [ ] 21.1 The scenario's test passes. Verify: green, including account-check / An unchanged balance sends nothing
+- [x] 21.1 The scenario's test passes. Verify: green, including account-check / An unchanged balance sends nothing
 
 ## 22. [unit] Slice 8 — Every allowed account
 
