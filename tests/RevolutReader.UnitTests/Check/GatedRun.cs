@@ -31,7 +31,7 @@ public sealed class GatedRun {
   /// <summary>What <c>anotherCheckWaits</c> answered when the test ended the run; <see langword="null"/> before, or when the run was cancelled.</summary>
   public bool? AnotherCheckWaitsSaid { get; private set; }
 
-  /// <summary>Ends once the run has finished, however: with a result, an exception or a cancellation.</summary>
+  /// <summary>Ends once the run has finished, and as it finished: completed with its result, faulted with its exception, or canceled.</summary>
   public Task Ended => _ended.Task;
 
   /// <summary>Lets the run end with <paramref name="result"/>; fails when the test already ended it.</summary>
@@ -53,11 +53,20 @@ public sealed class GatedRun {
     try {
       Func<BankResult<CheckOutcome>> end = await _ending.Task.WaitAsync(Token);
       AnotherCheckWaitsSaid = anotherCheckWaits();
-
-      return end();
-    }
-    finally {
+      BankResult<CheckOutcome> result = end();
       _ = _ended.TrySetResult();
+
+      return result;
+    }
+    catch (OperationCanceledException) {
+      _ = _ended.TrySetCanceled();
+
+      throw;
+    }
+    catch (Exception exception) {
+      _ = _ended.TrySetException(exception);
+
+      throw;
     }
   }
 }

@@ -207,6 +207,121 @@ public sealed class AccountCheckQueueTests {
   }
 
   /// <summary>
+  /// The check runs on the app's stopping token, never a caller's (D8). A caller stops waiting as the endpoint does, by
+  /// giving up its wait on its own token (<c>WaitAsync</c>); the queue never sees that token. The check keeps running: its
+  /// token is still the app's, not cancelled, and it has not ended; once the test ends it, it ends with its result.
+  /// </summary>
+  [Test]
+  public async Task A_check_runs_on_the_apps_stopping_token_never_a_callers_so_a_caller_that_stops_waiting_leaves_it_running() {
+    using QueueUnderTest app = new();
+    using CancellationTokenSource callerGivesUp = new();
+
+    Task<BankResult<CheckOutcome>> call = app.Queue.Check(_phone).WaitAsync(callerGivesUp.Token);
+    GatedRun run = await app.Check.WaitForRun(1);
+    await callerGivesUp.CancelAsync();
+    bool callerStoppedWaiting = await StopsWithACancellation(call);
+    bool tokenCancelledAfterTheCallerLeft = run.Token.IsCancellationRequested;
+    bool endedAfterTheCallerLeft = run.Ended.IsCompleted;
+    run.EndWith(new CheckOutcome(Changed: true));
+    await run.Ended.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+
+    run.ShouldSatisfyAllConditions(
+      () => callerStoppedWaiting.ShouldBeTrue("the caller stopped waiting"),
+      () => run.Token.ShouldBe(app.Stopping, "the check runs on the app's stopping token"),
+      () => tokenCancelledAfterTheCallerLeft.ShouldBeFalse("its token is not cancelled when the caller leaves"),
+      () => endedAfterTheCallerLeft.ShouldBeFalse("the check is still running after the caller left"),
+      () => run.Ended.IsCompletedSuccessfully.ShouldBeTrue("and it ends as the test ends it, with its result"));
+  }
+
+  /// <summary>
+  /// While the first check runs, a second call waits and a third joins it; the third stops waiting on its own token. The
+  /// waiting check and its other caller go on as they were: it starts for the second call's user, on the app's stopping
+  /// token, not cancelled, no third check starts, and the second call gets its answer.
+  /// </summary>
+  [Test]
+  public async Task A_joined_caller_that_stops_waiting_leaves_the_check_and_its_other_callers_as_they_were() {
+    using QueueUnderTest app = new();
+    using CancellationTokenSource thirdGivesUp = new();
+
+    Task<BankResult<CheckOutcome>> first = app.Queue.Check(_phone);
+    GatedRun running = await app.Check.WaitForRun(1);
+    Task<BankResult<CheckOutcome>> second = app.Queue.Check(_anotherPhone);
+    Task<BankResult<CheckOutcome>> third = app.Queue.Check(_thirdPhone).WaitAsync(thirdGivesUp.Token);
+    await thirdGivesUp.CancelAsync();
+    bool thirdStoppedWaiting = await StopsWithACancellation(third);
+    running.EndWith(new CheckOutcome(Changed: false));
+    _ = await first;
+    GatedRun waiting = await app.Check.WaitForRun(2);
+    bool waitingTokenCancelled = waiting.Token.IsCancellationRequested;
+    waiting.EndWith(new CheckOutcome(Changed: true));
+    BankResult<CheckOutcome> secondAnswer = await second;
+
+    waiting.ShouldSatisfyAllConditions(
+      () => thirdStoppedWaiting.ShouldBeTrue("the joined caller stopped waiting"),
+      () => waiting.User.ShouldBe(_anotherPhone, "the waiting check is still the second call's"),
+      () => waiting.Token.ShouldBe(app.Stopping, "on the app's stopping token"),
+      () => waitingTokenCancelled.ShouldBeFalse("not cancelled by the joined caller's leaving"),
+      () => app.Check.Runs.Count.ShouldBe(2, "no other check started"),
+      () => secondAnswer.Value.ShouldBe(new CheckOutcome(Changed: true), "the second call still gets the waiting check's answer"));
+  }
+
+  /// <summary>
+  /// The app stops while a check runs (D8: only the app stopping ends a check early): the running check's token is
+  /// cancelled, the check ends with an <see cref="OperationCanceledException"/>, and its caller gets that exception
+  /// (§ Error model: <see cref="AccountCheckQueue.Check"/> ends in <see cref="OperationCanceledException"/> when the app stops).
+  /// </summary>
+  [Test]
+  public async Task The_app_stopping_cancels_the_running_check() {
+    using QueueUnderTest app = new();
+
+    Task<BankResult<CheckOutcome>> call = app.Queue.Check(_phone);
+    GatedRun run = await app.Check.WaitForRun(1);
+    app.StopTheApp();
+    bool callerGotACancellation = await StopsWithACancellation(call.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS)));
+
+    run.ShouldSatisfyAllConditions(
+      () => run.Token.IsCancellationRequested.ShouldBeTrue("the running check's token is cancelled"),
+      () => run.Ended.IsCanceled.ShouldBeTrue("the check ended in a cancellation, an OperationCanceledException"),
+      () => callerGotACancellation.ShouldBeTrue("its caller gets the OperationCanceledException"));
+  }
+
+  /// <summary>
+  /// A check the app's stop cancels is not a failed check: no <c>CheckFailed</c> line and no line at Error. D15 makes
+  /// <c>CheckFailed</c> the line of a check that threw; a stop is the app ending, expected on every deploy's swap and every
+  /// scale to zero, and an Error line for each check in flight would read as a fault.
+  /// </summary>
+  [Test]
+  public async Task A_check_the_app_stopping_cancels_is_not_logged_as_a_failed_check() {
+    CapturedLog log = new();
+    using QueueUnderTest app = new(log);
+
+    Task<BankResult<CheckOutcome>> call = app.Queue.Check(_phone);
+    _ = await app.Check.WaitForRun(1);
+    app.StopTheApp();
+    _ = await StopsWithACancellation(call.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS)));
+
+    log.Entries.ShouldSatisfyAllConditions(
+      () => log.Entries.ShouldNotContain(static line => line.EventName == "CheckFailed", "a stop is not a failed check"),
+      () => log.Entries.ShouldNotContain(static line => line.Level == LogLevel.Error, "no line at Error for a stop"));
+  }
+
+  /// <summary>
+  /// Whether <paramref name="wait"/> ends in an <see cref="OperationCanceledException"/> (or one derived from it, as
+  /// <see cref="TaskCanceledException"/>); any other ending is <see langword="false"/>, and a <see cref="TimeoutException"/>
+  /// from a bounded wait passes on.
+  /// </summary>
+  private static async Task<bool> StopsWithACancellation(Task wait) {
+    try {
+      await wait;
+
+      return false;
+    }
+    catch (OperationCanceledException) {
+      return true;
+    }
+  }
+
+  /// <summary>
   /// The queue under test, on its own service provider, which validates scopes: <see cref="Check"/> is the
   /// <see cref="IAccountCheck"/> every scope resolves; the app keeps running (<see cref="RunningApp"/>); the queue's lines go
   /// to the given log, or nowhere.
@@ -230,6 +345,12 @@ public sealed class AccountCheckQueueTests {
     public GatedAccountCheck Check { get; } = new();
 
     public AccountCheckQueue Queue { get; }
+
+    /// <summary>The app's stopping token (<see cref="IHostApplicationLifetime.ApplicationStopping"/>), as the queue was given it.</summary>
+    public CancellationToken Stopping => _app.ApplicationStopping;
+
+    /// <summary>The app stops, as on a deploy's swap or a scale to zero: <see cref="Stopping"/> is cancelled.</summary>
+    public void StopTheApp() => _app.StopApplication();
 
     #region IDisposable
 
