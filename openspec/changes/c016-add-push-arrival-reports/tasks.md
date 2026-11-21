@@ -88,7 +88,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 14. [close] Slice 5 — A push with a balance reports its arrival on a phone that keeps no balance
 
-- [ ] 14.1 The scenario's test passes. Verify: green, including push-arrivals / A push with a balance reports its arrival on a phone that keeps no balance
+- [x] 14.1 The scenario's test passes. Verify: green, including push-arrivals / A push with a balance reports its arrival on a phone that keeps no balance
 
 ## 15. [unit] Slice 6 — No balance, no report
 
@@ -97,7 +97,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 16. [close] Slice 6 — A push without a balance reports nothing
 
-- [ ] 16.1 The scenario's test passes and is proven by a mutation: with a report sent for every push, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 16.1 The scenario's test passes and is proven by a mutation: with a report sent for every push, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 17. [unit] Slice 7 — A balance of the wrong shape
 
@@ -105,7 +105,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 18. [close] Slice 7 — A push with a balance of the wrong shape reports nothing
 
-- [ ] 18.1 The scenario's test passes and is proven by a mutation: with a report sent from the push's raw `readAt` without the shape check, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 18.1 The scenario's test passes and is proven by a mutation: with a report sent from the push's raw `readAt` without the shape check, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 19. [unit] Slice 8 — A failed report
 
@@ -115,7 +115,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 20. [close] Slice 8 — A failed report still keeps the push's balance
 
-- [ ] 20.1 The scenario's test passes and is proven by a mutation: with a report whose failure passes on, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 20.1 The scenario's test passes and is proven by a mutation: with a report whose failure passes on, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 21. [unit] Slice 9 — The notification after a failed report
 
@@ -123,7 +123,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 22. [close] Slice 9 — A failed report still shows the notification
 
-- [ ] 22.1 The scenario's test passes and is proven by a mutation: with the message shown only after a successful report, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 22.1 The scenario's test passes and is proven by a mutation: with the message shown only after a successful report, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 23. [unit] Slice 10 — Not waiting for the report
 
@@ -131,7 +131,7 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 24. [close] Slice 10 — The notification is shown without waiting for the report
 
-- [ ] 24.1 The scenario's test passes and is proven by a mutation: with the message shown after the report has ended, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 24.1 The scenario's test passes and is proven by a mutation: with the message shown after the report has ended, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 25. [close] Acceptance green
 
