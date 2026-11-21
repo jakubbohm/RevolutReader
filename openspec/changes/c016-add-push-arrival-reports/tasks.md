@@ -78,8 +78,8 @@ Run with `/tdd-apply c016-add-push-arrival-reports` (GitHub issue #91, no roadma
 
 ## 12. [close] Slice 4 — A push with a balance reports its arrival with the balance's read time
 
-- [ ] 12.1 The scenario's test passes. Verify: green, including push-arrivals / A push with a balance reports its arrival with the balance's read time
-- [ ] 12.2 Docs: testing.md § Fake push service, the service worker's stand-in (its `fetch`, handed to the fake server) and the fake server's answer to `POST /api/push/arrivals` (design.md D7). Verify: the paragraph names `src/test/serviceWorker.ts` and `src/test/server.ts`
+- [x] 12.1 The scenario's test passes. Verify: green, including push-arrivals / A push with a balance reports its arrival with the balance's read time
+- [x] 12.2 Docs: testing.md § Fake push service, the service worker's stand-in (its `fetch`, handed to the fake server) and the fake server's answer to `POST /api/push/arrivals` (design.md D7). Verify: the paragraph names `src/test/serviceWorker.ts` and `src/test/server.ts`
 
 ## 13. [unit] Slice 5 — Reporting whatever the phone keeps
 
