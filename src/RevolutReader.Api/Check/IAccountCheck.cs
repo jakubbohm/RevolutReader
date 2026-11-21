@@ -7,7 +7,8 @@ public interface IAccountCheck {
   /// <summary>
   /// Reads the balance for <paramref name="user"/>; on success keeps it as last seen (both, the first time). Then, unless
   /// <paramref name="anotherCheckWaits"/> says a check waits behind it, notifies a change from the stored balances and
-  /// writes last notified. A failed read is the result, whatever the notify step did; storage failures throw.
+  /// writes last notified. A failed read is the result, unless the catch-up send of a change an earlier check kept throws;
+  /// that failure, like every storage and sender failure, throws (D11).
   /// </summary>
   Task<BankResult<CheckOutcome>> Run(PresentUser user, Func<bool> anotherCheckWaits, CancellationToken cancellationToken);
 }

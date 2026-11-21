@@ -11,7 +11,9 @@ namespace RevolutReader.Api.Check;
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4).</item>
 /// <item>A failed read keeps nothing new and is the read's failure (D11). A change an earlier check kept is still notified
-/// from the stored balances, as below (D10 item 4), unless a check waits behind; with none, nothing is sent.</item>
+/// from the stored balances, as below (D10 item 4), unless a check waits behind; with none, nothing is sent. A catch-up
+/// whose sender or store throws makes the check throw (D11): no new balance kept, last notified as it was (D12), its log
+/// left to the queue's <see cref="CheckLog.CheckFailed"/>.</item>
 /// <item>With balances kept, a successful read is kept as last seen, last notified as it was (D4). With no change, nothing
 /// is sent and the check answers that nothing changed. A change, with no check waiting behind (D10 item 3), is notified
 /// from the stored balances (D10 item 4) through <see cref="ChangeNotifier"/>, and last notified is written as last seen
@@ -45,7 +47,9 @@ public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore
   /// A failed read: nothing new kept, and <paramref name="failure"/>, the read's own, is the result (D11), logged as
   /// <see cref="CheckEnd.BankReadFailed"/> (D15). A change an earlier check kept (<paramref name="kept"/> differing) is still
   /// notified from the stored balances, unless a check waits behind, which it is left to (D10 items 3 and 4); with none,
-  /// nothing is sent.
+  /// nothing is sent. A catch-up whose sender or store throws makes the check throw instead (D11): no new balance kept,
+  /// last notified as it was (D12), and no <see cref="CheckEnd.BankReadFailed"/> line, its log left to the queue's
+  /// <see cref="CheckLog.CheckFailed"/>.
   /// </summary>
   private async Task<BankResult<CheckOutcome>> ReadFailed(BankResult<CheckOutcome> failure, CheckedBalances? kept, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     if (kept is { Changed: true } && !anotherCheckWaits())
