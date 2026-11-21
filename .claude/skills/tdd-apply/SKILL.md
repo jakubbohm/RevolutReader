@@ -21,10 +21,12 @@ are in `CLAUDE.md` § Commands.
 
 Arguments: `$ARGUMENTS`
 - First argument: the change name (folder under `openspec/changes/`). If missing, list active changes and ask.
-- `review=` controls human gates (default `acceptance`; the user asked for `all` on C1 and C5):
-  - `acceptance`: stop for human review after the acceptance tests only.
+- `review=` controls the review stops (default `acceptance`; the user asked for `all` on C1 and C5). Whatever
+  the setting, the apply also stops at the chapter checkpoints (§ Chapters, step 5) and for disputes that go to
+  the human (§ Disputes, step 3).
+  - `acceptance`: stop for human review after the acceptance tests.
   - `all`: stop after the acceptance tests and after the test-writer finishes every unit group.
-  - `none`: no review stops (disputes still escalate, and every chapter's end still stops, see below).
+  - `none`: no review stops.
 
 ## 0. Prepare
 
