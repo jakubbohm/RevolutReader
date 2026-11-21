@@ -87,7 +87,7 @@ Run with `/tdd-apply c015-store-pushed-balance` (roadmap C9b; the owner picks th
 
 ## 14. [close] Slice 6 — A push still shows its notification when the phone's storage fails
 
-- [ ] 14.1 The scenario's test passes and is proven by a mutation: with a write whose failure passes on, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
+- [x] 14.1 The scenario's test passes and is proven by a mutation: with a write whose failure passes on, it fails. Verify: green, including the scenario; the mutation's red result in `.tdd-state.md`
 
 ## 15. [close] Slice 7 — The app opened from a push's notification shows its balance while the server wakes
 
