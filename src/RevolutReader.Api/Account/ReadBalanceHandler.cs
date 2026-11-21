@@ -1,4 +1,5 @@
 using RevolutReader.Api.Bank;
+using RevolutReader.Api.Rate;
 
 namespace RevolutReader.Api.Account;
 
@@ -11,6 +12,15 @@ namespace RevolutReader.Api.Account;
 public sealed class ReadBalanceHandler(IBankAccount bank, TimeProvider time) {
   /// <summary>The account's currency (ISO 4217), as the bank names it.</summary>
   private const string EURO = "EUR";
+
+  /// <summary>
+  /// The handler with the rates its balance carries (c017 design.md D8). A compile-only stub until tasks.md 6.4, which makes
+  /// this the only constructor and puts the rate <paramref name="rates"/> answers into the balance; until then the rate is
+  /// <see cref="KorunaRate.CzkPerEur"/> as before, and the app's container, which registers no <see cref="IKorunaRates"/>
+  /// yet, builds the handler with the constructor above.
+  /// </summary>
+  public ReadBalanceHandler(IBankAccount bank, IKorunaRates rates, TimeProvider time) : this(bank, time) {
+  }
 
   /// <exception cref="InvalidOperationException">The bank answered a balance in another currency than euros: a bug.</exception>
   public async Task<BankResult<AccountBalance>> Handle(PresentUser user, CancellationToken cancellationToken) {

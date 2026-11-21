@@ -12,6 +12,7 @@ using RevolutReader.Api.Check;
 using RevolutReader.Api.Push;
 using RevolutReader.Api.SignIn;
 using RevolutReader.UnitTests.Push;
+using RevolutReader.UnitTests.Rate;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Check;
@@ -25,7 +26,8 @@ namespace RevolutReader.UnitTests.Check;
 /// an amount.
 /// <para>
 /// The setup is design.md D16's: a hand-written stub of the bank port under a real <see cref="ReadBalanceHandler"/> on a
-/// <see cref="FakeTimeProvider"/>; the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
+/// <see cref="FakeTimeProvider"/>, its rates answering C13's rate (<see cref="FixedKorunaRates"/>, c017 design.md D10,
+/// until tasks.md 9.1 writes the rate out); the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
 /// real <see cref="SendPushHandler"/> with C8a's in-memory device store and stub delivery, whose hand-overs show what was
 /// sent. The allowlist holds Lucie and Petr; Lucie has a registered phone, so anything sent would reach it. Every log line
 /// of the check, the notifier and the sender goes to one hand-written logger. No check waits behind these ones. The
@@ -579,7 +581,7 @@ public sealed class AccountCheckTests {
     }), lines.For<SendPushHandler>());
 
     return new AccountCheck(
-      new ReadBalanceHandler(bank, new FakeTimeProvider(_now)),
+      new ReadBalanceHandler(bank, new FixedKorunaRates(new(KorunaRate.CzkPerEur, KorunaRate.Date)), new FakeTimeProvider(_now)),
       store,
       new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
       lines.For<AccountCheck>());
