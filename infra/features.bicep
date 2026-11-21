@@ -65,6 +65,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
         ...bankSecrets
         ...signInSecrets
         ...pushSecrets
+        ...accountCheckSecrets
       ]
     }
     template: {
@@ -83,6 +84,7 @@ resource app 'Microsoft.App/containerApps@2026-07-01' = {
             ...signInSettings
             ...transactionsSettings
             ...pushSettings
+            ...accountCheckSettings
           ]
           // GET /health touches neither the bank nor storage (spec service-health), and probe
           // requests are not billed. Short periods, because a wake from zero waits for both
@@ -259,6 +261,33 @@ var pushSettings = [
   {
     name: 'Push__Subject'
     value: 'https://${appName}.${environmentDefaultDomain}'
+  }
+]
+
+// ---- Account check (C9a) ----
+// The check endpoint's key, as a Key Vault reference in the same way as the push secrets (c014
+// design.md D6, D17): the Key Vault secret AccountCheck--<setting> becomes the Container Apps secret
+// accountcheck-<setting in lower case> and reaches the app as AccountCheck__<setting>, overriding
+// appsettings.json's "<secret>": the key the owner's iPhone Shortcut sends. It must exist in the
+// vault before the deploy: a reference to a missing secret stops the new revision. The check's table
+// is platform.bicep's, reached on the same tables connection as the transactions (the account
+// detail's settings above), under the app's default CheckedBalances:TableName.
+var accountCheckSecretSettings = [
+  'Key'
+]
+
+var accountCheckSecrets = [
+  for setting in accountCheckSecretSettings: {
+    name: 'accountcheck-${toLower(setting)}'
+    keyVaultUrl: '${keyVaultUri}secrets/AccountCheck--${setting}'
+    identity: appIdentityId
+  }
+]
+
+var accountCheckSettings = [
+  for setting in accountCheckSecretSettings: {
+    name: 'AccountCheck__${setting}'
+    secretRef: 'accountcheck-${toLower(setting)}'
   }
 ]
 

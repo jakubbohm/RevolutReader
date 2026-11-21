@@ -398,6 +398,146 @@ Get-Answer $wrong; Get-Answer $unknown
 - The wrong key and the unknown address both answered 404, `application/problem+json`, with the same body apart from `traceId`.
 - As a control, the right key with a message without a title answered 400 naming `title`, so the comparison can tell answers apart.
 
+## The account check (C9a)
+
+Since C9a the owner's iPhone Shortcut calls `POST /api/account/check` on every Revolut notification ([ADR-0008-phone-triggered-check](../adr/0008-phone-triggered-check.md); c014 design.md). The check reads the balance as the phone, compares it with two stored balances and, when it changed, notifies every allowed account's devices. It needs one value: **the check key**, a key of its own (never the message key), which the Shortcut sends in `X-Check-Key`. The container app reads it as a Key Vault reference (`AccountCheck--Key`, appearing to the app as `AccountCheck__Key`), so **it must be in the vault before C9a's merge**: Container Apps refuses to update the app while a reference points at a missing secret ([The first deployment](#the-first-deployment), step 5). The Shortcut itself: [iphone-shortcut.md](iphone-shortcut.md).
+
+**What the deploy adds** (c014 design.md D4, D17):
+- **The table `checkedbalances`** in `strevolutreader`, beside `transactions` and `pushdevices`: one row with the check's two balances, *last seen* and *last notified*. C7b's Storage Table Data Contributor on the storage account covers it, so there is no new role and nothing to do by hand.
+- **On the container app:** the Key Vault reference `accountcheck-key` and the setting `AccountCheck__Key` from it.
+- **The preview before the PR** (2026-11-21, [Previewing a change to the Bicep](#previewing-a-change-to-the-bicep-read-only)) showed exactly that: the table created, and on `tarjeta-papa` the secret `accountcheck-key` (→ `AccountCheck--Key`) and the setting `AccountCheck__Key` added, beside the image tag and the what-if's usual noise (unresolved `reference()` values, defaulted properties and the probes' order). The stack's validation passed.
+
+### Guided task: the check key
+
+One PowerShell 7 block makes the key, 32 random bytes in base64url without padding, and writes it where it belongs without printing it (c014 design.md D6, D17). The laptop and production get **separate values**. The production key lives only in Key Vault and in the Shortcut: a lost one is replaced in both, so it needs no backup. The laptop's goes to the AppHost's user-secrets and, like every other local secret, to the backup vault ([local-secrets.md](local-secrets.md)). The app checks the key at start and refuses to start, naming the setting and never a value, when it does not decode to at least 32 bytes.
+
+**The owner runs it**, in the owner's own PowerShell 7 window, from any folder: it writes to Key Vault, which CLAUDE.md leaves to the owner's go and Claude Code's permission check blocks for Claude anyway. First the shared part, which writes nothing, then one variant in the same window. The key reaches Key Vault through a temporary file deleted at once and the user-secrets as JSON on the standard input, so it never appears on a command line; nothing prints it, and the read-back lists names only.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+
+# 32 random bytes in base64url without padding; nothing printed
+function New-CheckKey {
+    [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function Set-VaultSecret([string] $vault, [string] $name, [string] $value) {
+    $file = New-TemporaryFile
+    try {
+        Set-Content -LiteralPath $file -Value $value -NoNewline -Encoding utf8NoBOM
+        az keyvault secret set --subscription $sub --vault-name $vault --name $name --file $file --encoding utf-8 --output none
+        if ($LASTEXITCODE -ne 0) { throw "Writing $name to $vault failed." }
+    } finally { Remove-Item -LiteralPath $file }
+}
+```
+
+**Production** (c014 task 42.2, before C9a's merge): into `kv-revolutreader` only. Needs the owner's Key Vault Secrets Officer role ([azure-prerequisites.md](azure-prerequisites.md), item 7). Then the same value goes into the Shortcut ([iphone-shortcut.md](iphone-shortcut.md)), after the deploy.
+
+```powershell
+Set-VaultSecret 'kv-revolutreader' 'AccountCheck--Key' (New-CheckKey)
+
+# Names only
+az keyvault secret list --subscription $sub --vault-name kv-revolutreader --query "[?starts_with(name, 'AccountCheck--')].name" --output tsv
+```
+
+**The laptop** (c014 task 42.1): into the AppHost's user-secrets as `Parameters:accountcheck-key` and the backup vault, which the block opens for this address only and closes again ([local-secrets.md § Opening and closing the backup vault](local-secrets.md#opening-and-closing-the-backup-vault)).
+
+```powershell
+$id     = '683c44fb-149f-4c9d-8503-0d836e0a1639'      # the AppHost's UserSecretsId
+$backup = 'jb-localdev-secrets-copy'
+$local  = [ordered]@{ 'Parameters:accountcheck-key' = (New-CheckKey) }
+$local | ConvertTo-Json -Compress | dotnet user-secrets set --id $id | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Writing the user-secrets failed.' }
+
+# The backup vault: open for this address, write (retrying while the rule takes effect), close
+$ip = ([string](Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 15)).Trim()
+az keyvault network-rule add --subscription $sub --name $backup --ip-address $ip --output none
+az keyvault update --subscription $sub --name $backup --public-network-access Enabled --output none
+try {
+    foreach ($attempt in 1..4) {
+        try {
+            foreach ($key in $local.Keys) { Set-VaultSecret $backup ('RevolutReader--AppHost--' + ($key -replace ':', '--')) $local[$key] }
+            break
+        } catch { if ($attempt -eq 4) { throw }; Start-Sleep -Seconds 30 }
+    }
+    az keyvault secret list --subscription $sub --vault-name $backup --query "[?starts_with(name, 'RevolutReader--AppHost--Parameters--accountcheck')].name" --output tsv
+} finally {
+    az keyvault update --subscription $sub --name $backup --public-network-access Disabled --output none
+    az keyvault network-rule remove --subscription $sub --name $backup --ip-address $ip --output none
+}
+
+# Names only
+(Get-Content -Raw (Join-Path $env:APPDATA "Microsoft/UserSecrets/$id/secrets.json") | ConvertFrom-Json).PSObject.Properties.Name | Where-Object { $_ -like 'Parameters:accountcheck-*' }
+$local = $null
+```
+
+**Replacing the production key** (it leaked, or the phone is replaced): run the production variant again, which writes a new version. Azure picks it up within 30 minutes and restarts the app ([Guided task: the Enable Banking values](#guided-task-the-enable-banking-values-into-key-vault)); until the Shortcut holds the new key, its checks get the unknown address's answer and nothing is read. Then put the new value into the Shortcut ([iphone-shortcut.md § Replacing the key](iphone-shortcut.md#replacing-the-key)).
+
+### After the deploy with C9a
+
+These are c014 design.md § Migration plan, step 4, in order. C9a's row in `pm/progress.md` stays `in progress` until the iPhone row is checked; a small docs PR then records it ([workflow.md § 6](../conventions/workflow.md#6-openspec)).
+
+1. **The deploy:** it runs, and the new revision starts. There is no missing secret, which would stop it.
+2. **Read-only:** the table exists, and the container app has the `accountcheck-key` secret and the `AccountCheck__Key` setting:
+
+   ```powershell
+   $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+   $rg  = 'rg-revolutreader'
+
+   az stack group show --subscription $sub --resource-group $rg --name revolutreader `
+       --query "resources[?ends_with(id, '/tables/checkedbalances')].id" --output tsv
+   az containerapp show --subscription $sub --resource-group $rg --name tarjeta-papa `
+       --query "{secrets: properties.configuration.secrets[].name, checkKey: properties.template.containers[0].env[?name=='AccountCheck__Key'].secretRef | [0]}" --output json
+   ```
+
+3. **The owner sets up the Shortcut** ([iphone-shortcut.md](iphone-shortcut.md)) and runs it by hand once: it answers `{"changed":false}`, the first check keeping the balance (c014 design.md D4).
+4. **The iPhone row** (`tests/manual-scenarios.md`, account-check): a real card payment brings the notification on the owner's iPhone, with the decided text. Claude then reads the checks' requests and their `CheckEnded` lines with the query below, read-only.
+
+### The checks and what they came to
+
+Two read-only queries: every check per Prague day with its answer's status, and what the checks came to, from their `CheckEnded` line (`FirstBalanceKept`, `Unchanged`, `ChangeNotified`, `ChangeLeftToTheNextCheck`, `BankReadFailed`; c014 design.md D15). Set the period as in [§ Bank reads](#bank-reads-that-did-not-end-as-read-c12), in UTC. A day with checks but no `ChangeNotified` had no change; a 503 or 429 is the bank's (`BankReadFailed`), and a 404 is a call without the right key.
+
+```powershell
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$rg  = 'rg-revolutreader'
+$workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+    --workspace-name log-revolutreader --query customerId --output tsv
+
+$from = '2026-11-21'; $to = '2026-11-29'
+
+# Checks per Prague day and answer
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "AppRequests | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where Name == 'POST /api/account/check' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Checks = count(), Last = format_datetime(max(PragueTime), 'yyyy-MM-dd HH:mm') by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), ResultCode | order by Day desc, ResultCode asc"
+
+# What the checks came to, per Prague day
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "AppTraces | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Check.AccountCheck' and Message startswith 'An account check ended' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Checks = count() by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), End = tostring(Properties.End) | order by Day desc, Checks desc"
+```
+
+- **To be confirmed after C9a's deploy:** written from the log line's definition (`CheckLog`) and the fields the bank-read queries confirmed, before any check reached Application Insights. If the second query comes back empty although the first shows checks, look at a raw row: `AppTraces | where Message startswith 'An account check' | project TimeGenerated, Message, Properties | take 5`.
+- **No amount, ever:** the check's lines carry what it came to and counts only (`ChangeSent`: accounts, devices reached, failed, removed), never a balance, a time read, an email address or the key (c014 design.md D15, guarded by a test).
+- **A failed check** (storage, an unreadable bank answer) writes `An account check failed` at Error, with the exception in `AppExceptions`, and answers 500.
+
+### A check by hand
+
+**A check reads the bank as the caller,** with the caller's own address and browser name as a present user's (c014 design.md D7), and may send a real notification. So Claude runs one only on the owner's go, each time, from the owner's own machine. The key is read into a variable inside the same block and never printed.
+
+```powershell
+# Production
+$sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+$app = az stack group show --subscription $sub --resource-group rg-revolutreader --name revolutreader --query outputs.appUrl.value --output tsv
+$key = az keyvault secret show --subscription $sub --vault-name kv-revolutreader --name AccountCheck--Key --query value --output tsv
+
+# Locally instead (the app under `aspire start`): the api resource's HTTPS address, as `aspire describe` lists it
+# $app = 'https://localhost:<port>'
+# $key = (Get-Content -Raw (Join-Path $env:APPDATA 'Microsoft/UserSecrets/683c44fb-149f-4c9d-8503-0d836e0a1639/secrets.json') | ConvertFrom-Json).'Parameters:accountcheck-key'
+
+Invoke-RestMethod -Method Post -Uri "$app/api/account/check" -Headers @{ 'X-Check-Key' = $key }
+$key = $null
+```
+
+It answers `{"changed":false}` when nothing changed since the last notification, `{"changed":true}` when a notification went out (or is left to a check waiting behind it), and the balance endpoint's 503 or 429 when the bank fails. **A wrong key answers as an unknown address does**, as for the message endpoint above.
+
 ## Checks
 
 Read-only:
@@ -507,15 +647,15 @@ $requests = "AppRequests | where TimeGenerated >= datetime($from) and TimeGenera
 
 # Balance reads per account and day, the newest day first
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
-    --analytics-query "$requests | where Name == 'GET /api/balance' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Reads = count(), First = min(PragueTime), Last = max(PragueTime) by Day = startofday(PragueTime), Account = UserAuthenticatedId | order by Day desc, Account asc"
+    --analytics-query "$requests | where Name == 'GET /api/balance' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Reads = count(), First = format_datetime(min(PragueTime), 'yyyy-MM-dd HH:mm'), Last = format_datetime(max(PragueTime), 'yyyy-MM-dd HH:mm') by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), Account = UserAuthenticatedId | order by Day desc, Account asc"
 
 # Every API request per account, counted by route
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
-    --analytics-query "$requests | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Requests = count(), Last = max(PragueTime) by Account = UserAuthenticatedId, Name | order by Account asc, Requests desc"
+    --analytics-query "$requests | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Requests = count(), Last = format_datetime(max(PragueTime), 'yyyy-MM-dd HH:mm') by Account = UserAuthenticatedId, Name | order by Account asc, Requests desc"
 ```
 
 - **Which requests carry an account:** the API requests of an allowed, signed-in user; the pages and files, and other visitors' requests, carry none (the exact list: [ADR-0009-application-telemetry](../adr/0009-application-telemetry.md), Decision item 7). To place a device's page loads, match them to its API requests by time and browser (`ClientBrowser`, `ClientOS`); their raw rows' `TimeGenerated` is UTC, while the queries above show Prague time.
-- **The days and times are Prague's.** Both queries turn `TimeGenerated`, which is UTC, into Prague time, summer time included, so a read just after midnight in Prague counts on that day. Only `$from` and `$to` stay UTC, because they filter `TimeGenerated` itself: midnight UTC is 01:00 in Prague in winter, 02:00 in summer.
+- **The days and times are Prague's.** Both queries turn `TimeGenerated`, which is UTC, into Prague time, summer time included, so a read just after midnight in Prague counts on that day. They print it as plain text (`format_datetime(…, 'yyyy-MM-dd HH:mm')`, c014 design.md D18): `az … --output table` would print a date-time value with a `Z`, which reads as UTC. Run as written on 2026-11-21 (read-only): both returned rows, the times as `2026-11-20 23:23`, without a `Z`. Only `$from` and `$to` stay UTC, because they filter `TimeGenerated` itself: midnight UTC is 01:00 in Prague in winter, 02:00 in summer.
 - **To be confirmed after C14's deploy:** the query was written from the exporter's code ([`TelemetryItem.cs` at 1.10.0](https://github.com/Azure/azure-sdk-for-net/blob/Azure.Monitor.OpenTelemetry.Exporter_1.10.0/sdk/monitor/Azure.Monitor.OpenTelemetry.Exporter/src/Customizations/Models/TelemetryItem.cs), read 2026-11-20) before any request carried an account. If it comes back empty although an allowed user has opened the app since, look at a raw row: `AppRequests | where Name == 'GET /api/me' | project TimeGenerated, UserAuthenticatedId, Properties | take 5`.
 - **The rows name people:** the email addresses are personal data, allowed in the private telemetry (ADR-0009, Decision item 6). Never copy them into an issue, a PR or any other public place.
 
