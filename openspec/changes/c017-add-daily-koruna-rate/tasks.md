@@ -75,8 +75,8 @@ Two slices are expected green on arrival, each accepted as a guard and proven by
 
 ## 7. [close] Slice 1 — The balance comes with the time it was read and the koruna rate
 
-- [ ] 7.1 The scenario's test passes. Verify: green, including account-balance / The balance comes with the time it was read and the koruna rate
-- [ ] 7.2 Docs: ADR-0011-koruna-rate (template in docs/adr/README.md: the CNB as an outside service, its terms read 2026-11-21 and the owner's choice not to name it, design.md D1–D5, the alternatives); configuration.md § `appsettings.json` is the inventory (`Cnb`, `KorunaRates`); testing.md § Fake CNB (design.md D10) and its mirror in `.claude/rules/testing.md` where the fakes are listed. Verify: each names design.md
+- [x] 7.1 The scenario's test passes. Verify: green, including account-balance / The balance comes with the time it was read and the koruna rate
+- [x] 7.2 Docs: ADR-0011-koruna-rate (template in docs/adr/README.md: the CNB as an outside service, its terms read 2026-11-21 and the owner's choice not to name it, design.md D1–D5, the alternatives); configuration.md § `appsettings.json` is the inventory (`Cnb`, `KorunaRates`); testing.md § Fake CNB (design.md D10) and its mirror in `.claude/rules/testing.md` where the fakes are listed. Verify: each names design.md
 
 ## 8. [unit] Slice 2 — The pages carry the rate and its day
 
