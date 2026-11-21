@@ -14,8 +14,9 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// <param name="OlderBefore">The day before which older transactions are kept; <see langword="null"/> when nothing older is kept, or for a failure.</param>
 /// <param name="CzkPerEur">The koruna rate the page carries; <see langword="null"/> for a failure.</param>
 /// <param name="RateDate">
-/// The rate's date (c017 design.md D10): a date of the scenario's calendar, shifted back by the driver as the other dates
-/// are, from tasks.md 9.2; until then as the answer gives it. <see langword="null"/> for a failure.
+/// The rate's date as a date of the scenario's calendar, shifted back by the driver as the other dates are (c017 design.md
+/// D10); <see langword="null"/> for a failure. The app's own rate's date is fixed, not the calendar's:
+/// <see cref="RateDateAsAnswered"/>.
 /// </param>
 /// <param name="Problem">The failure's problem description; <see langword="null"/> for a page.</param>
 public sealed record TransactionsReading(

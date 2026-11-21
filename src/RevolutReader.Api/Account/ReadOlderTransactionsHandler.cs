@@ -1,3 +1,5 @@
+using RevolutReader.Api.Rate;
+
 namespace RevolutReader.Api.Account;
 
 /// <summary>
@@ -7,6 +9,14 @@ namespace RevolutReader.Api.Account;
 /// D4), and the koruna rate with its date. Its type codes are not logged: only the newest page logs them (D4c).
 /// </summary>
 public sealed class ReadOlderTransactionsHandler(ITransactionStore store) {
+  /// <summary>
+  /// The handler with the rates its page carries (c017 design.md D8). A compile-only stub until tasks.md 9.1, which makes
+  /// this the only constructor and puts the rate and the day <paramref name="rates"/> answers on the page; until then the
+  /// page carries <see cref="KorunaRate.CzkPerEur"/> and <see cref="KorunaRate.Date"/> as before.
+  /// </summary>
+  public ReadOlderTransactionsHandler(ITransactionStore store, IKorunaRates rates) : this(store) {
+  }
+
   public async Task<TransactionPage> Handle(DateOnly before, CancellationToken cancellationToken) {
     OlderPage page = TransactionPaging.Older(await store.ReadAll(cancellationToken), before);
 

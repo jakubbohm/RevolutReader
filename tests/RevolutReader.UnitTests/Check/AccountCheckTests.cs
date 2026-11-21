@@ -26,8 +26,8 @@ namespace RevolutReader.UnitTests.Check;
 /// an amount.
 /// <para>
 /// The setup is design.md D16's: a hand-written stub of the bank port under a real <see cref="ReadBalanceHandler"/> on a
-/// <see cref="FakeTimeProvider"/>, its rates answering C13's rate (<see cref="FixedKorunaRates"/>, c017 design.md D10,
-/// until tasks.md 9.1 writes the rate out); the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
+/// <see cref="FakeTimeProvider"/>, its rates answering a rate written out (<see cref="FixedKorunaRates"/>, c017 design.md
+/// D10); the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
 /// real <see cref="SendPushHandler"/> with C8a's in-memory device store and stub delivery, whose hand-overs show what was
 /// sent. The allowlist holds Lucie and Petr; Lucie has a registered phone, so anything sent would reach it. Every log line
 /// of the check, the notifier and the sender goes to one hand-written logger. No check waits behind these ones. The
@@ -43,6 +43,12 @@ public sealed class AccountCheckTests {
 
   /// <summary>The push settings the sender never reads when it sends: the keys are the delivery's business.</summary>
   private const string NOT_READ_WHEN_SENDING = "made up, not read by the sender";
+
+  /// <summary>
+  /// The rate every balance here is read at, written out (c017 design.md D10): the rates' (<see cref="FixedKorunaRates"/>)
+  /// and the kept balances'; the koruna values the log tests look for are at this rate.
+  /// </summary>
+  private const decimal CZK_PER_EUR = 24.3m;
 
   /// <summary>The clock when the bank answers: the read time of every balance read here.</summary>
   private static readonly DateTimeOffset _now = new(2026, 11, 21, 9, 14, 3, TimeSpan.Zero);
@@ -66,7 +72,7 @@ public sealed class AccountCheckTests {
 
     await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
 
-    AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
+    AccountBalance read = new(45.20m, _now, CZK_PER_EUR);
     (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "the read, whole, kept as both balances");
     delivery.HandedOver.ShouldBeEmpty("the first check sends nothing");
   }
@@ -176,7 +182,7 @@ public sealed class AccountCheckTests {
     await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
 
     delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push).Title).ShouldBe(["Odešlo 3,80\u00A0€"], "the change from 49.00 to 45.20, notified once");
-    AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
+    AccountBalance read = new(45.20m, _now, CZK_PER_EUR);
     (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "last notified written as last seen: both the read, whole");
   }
 
@@ -270,7 +276,7 @@ public sealed class AccountCheckTests {
     ];
     CheckedBalances after = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
     after.ShouldSatisfyAllConditions(
-      () => after.LastSeen.ShouldBe(new AccountBalance(45.20m, _now, KorunaRate.CzkPerEur), "last seen: the new read, whole, with its own read time"),
+      () => after.LastSeen.ShouldBe(new AccountBalance(45.20m, _now, CZK_PER_EUR), "last seen: the new read, whole, with its own read time"),
       () => after.LastNotified.ShouldBe(before.LastNotified, "last notified: as it was, its earlier read time included"),
       () => delivery.HandedOver.ShouldBeEmpty("nothing is sent"),
       () => result.Value.ShouldBe(new CheckOutcome(Changed: false), "the check answers that nothing changed"),
@@ -300,7 +306,7 @@ public sealed class AccountCheckTests {
 
     await (await CheckWith(new Balance(45.20m, "EUR"), store, delivery)).Run(_phone, _noCheckWaits, CancellationToken.None);
 
-    AccountBalance read = new(45.20m, _now, KorunaRate.CzkPerEur);
+    AccountBalance read = new(45.20m, _now, CZK_PER_EUR);
     delivery.HandedOver.ShouldHaveSingleItem("the sender ran: Lucie's phone was handed its push");
     (await store.Read(CancellationToken.None)).ShouldBe(new CheckedBalances(LastSeen: read, LastNotified: read), "last notified written as last seen, whatever the push service answered");
   }
@@ -480,7 +486,7 @@ public sealed class AccountCheckTests {
     IReadOnlyList<LogEntry> lines = log.Entries;
     result.ShouldSatisfyAllConditions(
       () => delivery.HandedOver.ShouldBeEmpty("nothing is sent: the notification is left to the check waiting behind"),
-      () => after.ShouldBe(new CheckedBalances(LastSeen: new AccountBalance(45.20m, _now, KorunaRate.CzkPerEur), LastNotified: before.LastNotified), "the read kept as last seen; last notified as it was"),
+      () => after.ShouldBe(new CheckedBalances(LastSeen: new AccountBalance(45.20m, _now, CZK_PER_EUR), LastNotified: before.LastNotified), "the read kept as last seen; last notified as it was"),
       () => lines.Where(static line => line.EventName == "CheckEnded").Select(static line => line.OwnValues().Single().Value)
         .ShouldBe([CheckEnd.ChangeLeftToTheNextCheck], "one line of what the check came to: the change left to the next check"),
       () => result.Value.ShouldBe(new CheckOutcome(Changed: true), "the balance changed: last seen differs from last notified"));
@@ -529,15 +535,15 @@ public sealed class AccountCheckTests {
     _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
   };
 
-  /// <summary>A store of the check's balances that keeps <paramref name="lastSeen"/> and <paramref name="lastNotified"/> EUR, both read an hour before <see cref="_now"/> at C13's rate.</summary>
+  /// <summary>A store of the check's balances that keeps <paramref name="lastSeen"/> and <paramref name="lastNotified"/> EUR, both read an hour before <see cref="_now"/> at <see cref="CZK_PER_EUR"/>.</summary>
   private static async Task<InMemoryCheckedBalanceStore> StoreKeeping(decimal lastSeen, decimal lastNotified) {
     InMemoryCheckedBalanceStore store = new();
     DateTimeOffset earlier = _now.AddHours(-1);
 
     await store.Save(
       new CheckedBalances(
-        LastSeen: new AccountBalance(lastSeen, earlier, KorunaRate.CzkPerEur),
-        LastNotified: new AccountBalance(lastNotified, earlier, KorunaRate.CzkPerEur)),
+        LastSeen: new AccountBalance(lastSeen, earlier, CZK_PER_EUR),
+        LastNotified: new AccountBalance(lastNotified, earlier, CZK_PER_EUR)),
       CancellationToken.None);
 
     return store;
@@ -581,7 +587,7 @@ public sealed class AccountCheckTests {
     }), lines.For<SendPushHandler>());
 
     return new AccountCheck(
-      new ReadBalanceHandler(bank, new FixedKorunaRates(new(KorunaRate.CzkPerEur, KorunaRate.Date)), new FakeTimeProvider(_now)),
+      new ReadBalanceHandler(bank, new FixedKorunaRates(new(CZK_PER_EUR, new DateOnly(2026, 11, 20))), new FakeTimeProvider(_now)),
       store,
       new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
       lines.For<AccountCheck>());

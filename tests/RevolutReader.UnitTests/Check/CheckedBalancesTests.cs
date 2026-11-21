@@ -11,6 +11,9 @@ namespace RevolutReader.UnitTests.Check;
 /// rate. The amounts are made up.
 /// </summary>
 public sealed class CheckedBalancesTests {
+  /// <summary>The rate both balances were read at, written out (c017 design.md D10): any rate does, as only the amounts count.</summary>
+  private const decimal CZK_PER_EUR = 24.41m;
+
   /// <summary>When last seen was read.</summary>
   private static readonly DateTimeOffset _lastSeenReadAt = new(2026, 11, 21, 9, 14, 3, TimeSpan.Zero);
 
@@ -34,8 +37,8 @@ public sealed class CheckedBalancesTests {
   [Arguments("145.20", "45.20", true)] // money in
   public void Two_balances_that_differ_by_less_than_a_cent_are_no_change_by_a_cent_or_more_a_change(string lastSeen, string lastNotified, bool changed) {
     CheckedBalances balances = new(
-      new AccountBalance(Euros(lastSeen), _lastSeenReadAt, KorunaRate.CzkPerEur),
-      new AccountBalance(Euros(lastNotified), _lastNotifiedReadAt, KorunaRate.CzkPerEur));
+      new AccountBalance(Euros(lastSeen), _lastSeenReadAt, CZK_PER_EUR),
+      new AccountBalance(Euros(lastNotified), _lastNotifiedReadAt, CZK_PER_EUR));
 
     balances.Changed.ShouldBe(changed);
   }

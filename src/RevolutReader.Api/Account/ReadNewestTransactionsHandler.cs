@@ -1,4 +1,5 @@
 using RevolutReader.Api.Bank;
+using RevolutReader.Api.Rate;
 
 namespace RevolutReader.Api.Account;
 
@@ -16,6 +17,15 @@ namespace RevolutReader.Api.Account;
 /// as it is, and nothing is kept. The store failing is an exception: the page is not answered without its write (D5).
 /// </summary>
 public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger) {
+  /// <summary>
+  /// The handler with the rates its page carries (c017 design.md D8). A compile-only stub until tasks.md 9.1, which makes
+  /// this the only constructor and puts the rate and the day <paramref name="rates"/> answers on the page; until then the
+  /// page carries <see cref="KorunaRate.CzkPerEur"/> and <see cref="KorunaRate.Date"/> as before.
+  /// </summary>
+  public ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, IKorunaRates rates, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger)
+    : this(bank, store, time, logger) {
+  }
+
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
 
