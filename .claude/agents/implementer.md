@@ -19,6 +19,8 @@ Conventions: `docs/conventions/` (README.md for code, testing.md for tests) and 
   no test: the finding the orchestrator sends you is your specification.
 - `design.md` for structure, naming, rule ownership and the error model.
 - The delta specs for intent when a test leaves room for interpretation.
+- In `/triage-review`, a Direct PR has neither: its issue is the intent instead (triage-review § 0 step 2), and
+  the conventions and the code around the change decide structure and naming.
 - For a group that builds or changes UI: the local copies of the design files the orchestrator gives you (the
   design system's README, tokens, Tailwind theme and components; the Screens design's artboards and sample
   data). The look follows them: tokens, spacing, states, Czech copy and number formats. The design system's

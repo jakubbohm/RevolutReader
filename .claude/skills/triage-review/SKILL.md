@@ -123,8 +123,8 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
      still green. Commit `test(<scope>): [review] <id>: <summary>, red`.
      **A guard test that passes at once refutes the finding:** keep it, commit
      `test(<scope>): [review] <id>: guard, passes`, and move the finding to DECLINE with the test as its evidence.
-  3. Send the implementer the test (file and test name), the finding and the sketch; the implementer must not
-     change any test file. Verify green yourself: the full suite passes, and `git status --porcelain` and
+  3. Send the implementer the test (file and test name), the finding and the sketch (a Direct PR: also its
+     issue); the implementer must not change any test file. Verify green yourself: the full suite passes, and `git status --porcelain` and
      `git diff --name-only HEAD` list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or
      `openspec/` other than your state file (§ 0 step 3). A violation: restore the file
      (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer, resume it. Commit
