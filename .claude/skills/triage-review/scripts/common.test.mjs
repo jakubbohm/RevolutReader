@@ -5,7 +5,7 @@
 //   node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { findingsFrom, firstLine, linesInDiff, planPosts } from "./common.mjs";
+import { findingsFrom, firstLine, linesInDiff, planPosts, ranges } from "./common.mjs";
 
 // A made-up top-level review comment as the REST API returns it; a test overrides what it is about.
 function comment(id, overrides = {}) {
@@ -43,6 +43,37 @@ describe("findingsFrom", () => {
       [202],
     );
     assert.equal(resolved, 2);
+  });
+
+  test("names the resolved comments it leaves out by their numbers, in ascending order", () => {
+    // Five top-level comments, in any order; the 1st, 2nd and 4th are resolved. Their paths sort them otherwise
+    // (4th, 2nd, 1st), and the reply posted between the 2nd and the 3rd takes no number.
+    const comments = [
+      comment(826, { path: "docs/d.md" }),
+      comment(825, { path: "docs/a.md" }),
+      comment(821, { path: "src/z.mjs" }),
+      comment(824, { path: "docs/c.md" }),
+      comment(823, { in_reply_to_id: 821 }),
+      comment(822, { path: "docs/b.md" }),
+    ];
+
+    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set([821, 822, 825]));
+
+    assert.deepEqual(resolvedIds, [1, 2, 4]);
+    assert.equal(resolved, 3);
+    assert.deepEqual(
+      findings.map((f) => f.id).sort((a, b) => a - b),
+      [3, 5],
+    );
+  });
+
+  test("names no resolved comments when no thread is resolved", () => {
+    const comments = [comment(811), comment(812)];
+
+    const { resolved, resolvedIds } = findingsFrom(comments, new Set());
+
+    assert.deepEqual(resolvedIds, []);
+    assert.equal(resolved, 0);
   });
 
   test("never makes a reply a finding, and a reply takes no number", () => {
@@ -412,5 +443,23 @@ describe("planPosts", () => {
     assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 4, "docs/a.md"), `no error names finding 4 and its path: ${errors}`);
+  });
+});
+
+describe("ranges", () => {
+  test("writes a run of consecutive numbers as one range", () => {
+    assert.equal(ranges([1, 2, 3, 4, 5]), "1-5");
+  });
+
+  test("separates the runs and the single numbers with commas", () => {
+    assert.equal(ranges([1, 2, 4, 7, 8, 9]), "1-2, 4, 7-9");
+  });
+
+  test("writes a single number on its own", () => {
+    assert.equal(ranges([5]), "5");
+  });
+
+  test("writes nothing for no numbers", () => {
+    assert.equal(ranges([]), "");
   });
 });

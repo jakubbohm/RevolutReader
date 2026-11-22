@@ -143,3 +143,8 @@ export function planPosts(findings, prFiles, existingComments, headSha) {
   });
   return { errors, posts };
 }
+
+// Will return a sorted list of whole numbers as compact text, runs as ranges: [1, 2, 4, 7, 8, 9] gives "1-2, 4, 7-9".
+export function ranges(numbers) {
+  throw new Error("not implemented");
+}
