@@ -98,6 +98,11 @@ export function findingsFrom(comments, resolvedCommentIds, submittedAt) {
   return { findings, resolved: resolvedIds.length, resolvedIds };
 }
 
+// Will return findingsFrom's `submittedAt` Map from the PR's review comments and its reviews (the REST API's objects).
+export function submissionTimes(comments, reviews) {
+  throw new Error("not implemented");
+}
+
 // The first line of the trimmed text, without the "\r" of Windows line endings.
 export function firstLine(text) {
   return text.trim().split(/\r?\n/)[0];

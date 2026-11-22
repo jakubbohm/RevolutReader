@@ -1,11 +1,13 @@
-// Tests for common.mjs's pure functions: how review comments become numbered findings, a text's first line, the lines
-// of a diff a comment can attach to, and how a chat review's findings become review comments to post.
-// Nothing here calls gh or the network; the comments and files are small made-up objects shaped like the REST API's.
+// Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
+// submitted, a text's first line, the lines of a diff a comment can attach to, and how a chat review's findings
+// become review comments to post.
+// Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
+// REST API's.
 //
 //   node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { findingsFrom, firstLine, linesInDiff, planPosts, ranges } from "./common.mjs";
+import { findingsFrom, firstLine, linesInDiff, planPosts, ranges, submissionTimes } from "./common.mjs";
 
 // A made-up top-level review comment as the REST API returns it; a test overrides what it is about.
 function comment(id, overrides = {}) {
@@ -21,8 +23,9 @@ function comment(id, overrides = {}) {
   };
 }
 
-// findingsFrom's third argument is a Map from each top-level comment's id to when its review was submitted (GraphQL
-// PullRequestReview.submittedAt, an ISO 8601 time), or null while that review is pending. Replies have no entry.
+// findingsFrom's third argument is a Map from each top-level comment's id to when its review was submitted (an ISO
+// 8601 time), or null while that review is pending; replies have no entry. The gather builds it with submissionTimes
+// from the REST API's list of the PR's reviews (each review's `state` and `submitted_at`).
 
 // A made-up submission time: 2026-11-20 at `hour` o'clock UTC.
 const at = (hour) => `2026-11-20T${String(hour).padStart(2, "0")}:00:00Z`;
@@ -285,6 +288,63 @@ describe("findingsFrom", () => {
     const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.equal(findings[0].title, "Important: one");
+  });
+});
+
+describe("submissionTimes", () => {
+  // A made-up review as the REST API's list of a PR's reviews returns it; a pending one has no submission time.
+  const review = (id, state, submittedAt) => ({ id, state, submitted_at: submittedAt });
+  // A made-up top-level comment of the given review.
+  const commentOf = (id, reviewId) => comment(id, { pull_request_review_id: reviewId });
+
+  test("maps a submitted review's comment to the time its review was submitted", () => {
+    const comments = [commentOf(1601, 7001)];
+    const reviews = [review(7001, "COMMENTED", at(9))];
+
+    assert.deepEqual(submissionTimes(comments, reviews), new Map([[1601, at(9)]]));
+  });
+
+  test("maps a comment of a pending review to no time", () => {
+    const comments = [commentOf(1602, 7002)];
+    const reviews = [{ id: 7002, state: "PENDING" }];
+
+    assert.deepEqual(submissionTimes(comments, reviews), new Map([[1602, null]]));
+  });
+
+  test("gives no entry to a comment whose review is not listed", () => {
+    const comments = [commentOf(1603, 7003), commentOf(1604, 7999)];
+    const reviews = [review(7003, "COMMENTED", at(9))];
+
+    assert.deepEqual(submissionTimes(comments, reviews), new Map([[1603, at(9)]]));
+  });
+
+  test("gives no entry to a comment of a review that is neither pending nor submitted", () => {
+    const comments = [commentOf(1605, 7004), commentOf(1606, 7005)];
+    const reviews = [review(7004, "COMMENTED", at(9)), review(7005, "COMMENTED", null)];
+
+    assert.deepEqual(submissionTimes(comments, reviews), new Map([[1605, at(9)]]));
+  });
+
+  test("gives replies no entry", () => {
+    const comments = [commentOf(1611, 7006), comment(1612, { in_reply_to_id: 1611, pull_request_review_id: 7006 })];
+    const reviews = [review(7006, "COMMENTED", at(9))];
+
+    assert.deepEqual(submissionTimes(comments, reviews), new Map([[1611, at(9)]]));
+  });
+
+  test("maps every comment of one review to that review's time", () => {
+    const comments = [commentOf(1623, 7007), commentOf(1621, 7007), commentOf(1624, 7008), commentOf(1622, 7007)];
+    const reviews = [review(7007, "CHANGES_REQUESTED", at(10)), review(7008, "APPROVED", at(11))];
+
+    assert.deepEqual(
+      submissionTimes(comments, reviews),
+      new Map([
+        [1621, at(10)],
+        [1622, at(10)],
+        [1623, at(10)],
+        [1624, at(11)],
+      ]),
+    );
   });
 });
 
