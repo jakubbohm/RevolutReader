@@ -166,7 +166,14 @@ the design cannot be tested as written):
    stop and ask the human. The resolution must end up in the spec or `design.md`, not only in code, committed as
    `docs(<cNNN>): [plan] <what changed>` with only the files it changed, staged by path: any work in progress stays
    in the tree for the group's own checks.
-4. Record each dispute and its resolution in `.tdd-state.md`.
+4. A test the test-writer changed while the group is with the implementer (step 2, or after the human's answer in
+   step 3) is committed before the implementer is resumed, so that § 2 step 6 compares against it. Check first
+   that the test-writer's diff touches only test files (the paths § 2 step 6 lists) and that the changed test now
+   asserts what the spec or design excerpt says. A run proves little while the implementer's unfinished code is in
+   the tree (the test may already pass, or the code may not build yet): § 2 step 6 runs it with the rest. Commit
+   `test(<cNNN>): [red] <group name>, dispute fix` (never amend) with only the test-writer's files, staged by path:
+   the implementer's work in progress stays in the tree.
+5. Record each dispute and its resolution in `.tdd-state.md`.
 
 ## 3. Wiring groups (`[wiring]`)
 
