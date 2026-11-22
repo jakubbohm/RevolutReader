@@ -114,10 +114,11 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
 
 - **behaviour** (`needsFailingTest`):
   1. Send the test-writer the finding (its body, file:line, the investigation's evidence and sketch) and the
-     change's `design.md` and delta specs. Ask for **one guard test that reproduces it**, at the level
-     `testing.md` § Where tests live gives it: a unit test next to the rule, an integration edge test for an
-     adapter, a frontend test for browser behaviour. **Never a new acceptance scenario:** that is a spec change
-     and an ASK. The test-writer edits only test files, the DSL and the drivers the test needs.
+     change's `design.md` and delta specs (a Direct PR: its issue, § 0 step 2). Ask for **one guard test that
+     reproduces it**, at the level `testing.md` § Where tests live gives it: a unit test next to the rule, an
+     integration edge test for an adapter, a frontend test for browser behaviour. **Never a new acceptance
+     scenario:** that is a spec change and an ASK. The test-writer edits only test files, the DSL and the
+     drivers the test needs.
   2. Verify red yourself: the build passes; the new test fails at runtime, not at compile time; everything else is
      still green. Commit `test(<scope>): [review] <id>: <summary>, red`.
      **A guard test that passes at once refutes the finding:** keep it, commit
