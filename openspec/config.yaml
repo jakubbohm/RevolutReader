@@ -109,7 +109,7 @@ rules:
     - 'A change introducing a setting declares it in appsettings.json (secrets as "<secret>") and binds it to an options class validated on start (docs/conventions/configuration.md)'
     - A change needing a hand-provisioned secret includes a guided manual task for putting it into Key Vault and lists it in docs/conventions/configuration.md § Hand-provisioned secrets
     - A task adding an anonymous endpoint also adds it to the anonymous-endpoint allowlist
-    - The last tasks (in the [close] group) update pm/progress.md and, if build, test or run commands changed, CLAUDE.md
+    - The last tasks (in the [close] group) update pm/progress.md when the change implements a roadmap step (issue-only work has no row, docs/conventions/workflow.md § 9) and, if build, test or run commands changed, CLAUDE.md
 
 operations:
   apply:
@@ -119,4 +119,4 @@ operations:
   archive:
     guidance:
       - "Before archiving: the traceability test passes (every scenario of the change's delta specs is claimed exactly once) and all acceptance tests of the change pass. If not, stop and report instead of archiving. A tooling-only change (skip_specs) has no acceptance tests; the traceability test must still pass."
-      - "With the archive, leave pm/progress.md's row final for the merge (docs/conventions/workflow.md § 6): the archive link, and the status `done` once the owner says the step is done, preferably in a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy (a manual scenario on a real phone); then the row names that work and stays `in progress`. Never plan a follow-up PR that only changes the status or records routine after-deploy checks."
+      - "For a change that implements a roadmap step, leave pm/progress.md's row final for the merge with the archive (docs/conventions/workflow.md § 6; issue-only work has no row, § 9): the archive link, and the status `done` once the owner says the step is done, preferably in a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy (a manual scenario on a real phone); then the row names that work and stays `in progress`. Never plan a follow-up PR that only changes the status or records routine after-deploy checks."

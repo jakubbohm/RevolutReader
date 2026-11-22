@@ -155,7 +155,7 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
 - **Tasks finish in one sitting** (~2 h at most), each ending with the build and all tests green, **except the change's own acceptance tests:** they are written first and stay red until the change's `[close]` group.
 - **Explicit tasks:** "regenerate TS client" when the API contract changes ([README.md § API contract](README.md#api-contract)); "update Bicep + `.bicepparam`" when the AppHost resource graph or Azure topology changes; declaring every new setting in `appsettings.json` ([configuration.md](configuration.md)); a guided manual task for every hand-provisioned secret.
 - Cross-cutting decisions made inside a change become ADRs.
-- The last tasks of a change update `pm/progress.md`, and `CLAUDE.md` if build, test or run commands changed.
+- The last tasks of a change update `pm/progress.md` when it implements a roadmap step (issue-only work has no row, [§ 9](#9-project-management)), and `CLAUDE.md` if build, test or run commands changed.
 - How TDD and BDD shape specs, design and tasks, and the owner's reading routine after propose: [testing.md](testing.md).
 
 ## 7. Spikes
