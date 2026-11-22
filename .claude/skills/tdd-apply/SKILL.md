@@ -271,8 +271,9 @@ assertion, or a stub that throws.
 ## Rules for you (the orchestrator)
 
 - Never edit tests or production code yourself. The only files you edit are `tasks.md` (checkboxes),
-  `.tdd-state.md` and the close-out docs. Restoring or deleting files the implementer was not allowed to touch
-  (§ 2 step 6) is the one exception.
+  `.tdd-state.md`, the close-out docs and the delta spec or `design.md` files that a dispute the human resolved
+  (§ Disputes, step 3) needs. Restoring or deleting files the implementer was not allowed to touch (§ 2 step 6) is
+  the one exception.
 - Always run the tests yourself before accepting any report from the test-writer or the implementer. Never start
   a build or test run while either agent is still working: they share one working tree.
 - Commit only on the change branch, at the handoffs above, with the step tags from `workflow.md` § 3.
