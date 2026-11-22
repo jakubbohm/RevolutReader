@@ -349,6 +349,42 @@ public sealed class KorunaRatesTests {
   }
 
   /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB's ask failing in a way that has no status code: the one
+  /// <c>KorunaRateAskFailed</c> line reads "Asking the CNB for the koruna rate failed: " and the kind, with no status part
+  /// (review of PR #95, finding 5: it read "…, status (null)"). The prefix is the one deployment.md's query matches on.
+  /// </summary>
+  /// <param name="kind">How the ask failed, a kind without a status code.</param>
+  [Test]
+  [Arguments(CnbFailure.NoAnswerInTime)]
+  [Arguments(CnbFailure.Unreachable)]
+  [Arguments(CnbFailure.Unreadable)]
+  public async Task A_failed_ask_without_a_status_code_logs_its_kind_with_no_status_part(CnbFailure kind) {
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(new FakeCnbRates(new CnbFailed(kind)), await StoreKeeping(_fridays), new FakeTimeProvider(_mondayMorning), log);
+
+    _ = await rates.Current(CancellationToken.None);
+
+    log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_ASK_FAILED).ShouldHaveSingleItem("one KorunaRateAskFailed line")
+      .Message.ShouldBe($"Asking the CNB for the koruna rate failed: {kind}");
+  }
+
+  /// <summary>
+  /// Friday's rate kept, Monday 09:00 UTC, the CNB answering status 503: the one <c>KorunaRateAskFailed</c> line reads
+  /// "Asking the CNB for the koruna rate failed: Status, status 503" (review of PR #95, finding 5: the status's line keeps
+  /// its code).
+  /// </summary>
+  [Test]
+  public async Task A_failed_ask_with_a_status_logs_its_kind_and_its_status_code() {
+    CapturedLog log = new();
+    KorunaRates rates = RatesWith(new FakeCnbRates(new CnbFailed(CnbFailure.Status, 503)), await StoreKeeping(_fridays), new FakeTimeProvider(_mondayMorning), log);
+
+    _ = await rates.Current(CancellationToken.None);
+
+    log.Entries.Where(static entry => entry.EventName == KORUNA_RATE_ASK_FAILED).ShouldHaveSingleItem("one KorunaRateAskFailed line")
+      .Message.ShouldBe("Asking the CNB for the koruna rate failed: Status, status 503");
+  }
+
+  /// <summary>
   /// Monday's rate in the store, Tuesday 07:00 UTC, so a kept Monday's rate would not be due; the store's first read fails:
   /// the call goes on as with nothing kept, asks the CNB and answers its rate, and one <c>KorunaRateStoreFailed</c> line at
   /// Warning carries the read's failure. The next call reads the store again, and answers the kept rate without asking.
@@ -519,7 +555,7 @@ public sealed class KorunaRatesTests {
     return store;
   }
 
-  /// <summary>The service's logger, keeping every line it writes: its level, its event's name and its structured values.</summary>
+  /// <summary>The service's logger, keeping every line it writes: its level, its event's name, its structured values, its exception and its message.</summary>
   private sealed class CapturedLog : ILogger<KorunaRates> {
     private readonly Lock _lock = new();
     private readonly List<LogEntry> _entries = [];
@@ -538,7 +574,9 @@ public sealed class KorunaRatesTests {
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
       IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
-      LogEntry entry = new(logLevel, eventId.Name, [.. values], exception);
+      ArgumentNullException.ThrowIfNull(formatter);
+
+      LogEntry entry = new(logLevel, eventId.Name, [.. values], exception, formatter(state, exception));
 
       lock (_lock)
         _entries.Add(entry);
@@ -628,7 +666,7 @@ public sealed class KorunaRatesTests {
   }
 
   /// <summary>One line of the service's log.</summary>
-  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, Exception? Exception) {
+  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, Exception? Exception, string Message) {
     /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
     private const string ORIGINAL_FORMAT = "{OriginalFormat}";
 
