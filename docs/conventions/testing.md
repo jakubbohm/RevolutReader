@@ -45,7 +45,7 @@ Farley's four layers (LMAX style), in plain C#. No Gherkin and no Reqnroll: Open
 - **Never a "write tests" task:** a test is part of every behaviour task.
 - **One group per round trip** between the agents: one component, not one checkbox and not the whole change.
 - **More than 3 scenarios: slice per scenario.** All acceptance tests are still written and reviewed first; then each scenario gets its own unit, integration and wiring groups and a `[close]` group that turns its acceptance test green, before the next scenario starts. The final `[close]` runs them all.
-- **A sliced change suggests its chapters** in a short paragraph before group 1: group 1 alone, then runs of consecutive slices that touch the same code. `/tdd-apply` gives each chapter a fresh pair of agents (§ Test-first workflow) and confirms the split at the acceptance gate, so the owner sees it twice: in the reading routine after propose and at the gate.
+- **A sliced change suggests its chapters** in a short paragraph before group 1: group 1 alone, then runs of consecutive slices that touch the same code. `/tdd-apply` gives each chapter a fresh pair of agents (§ Test-first workflow) and confirms the split with the owner at the acceptance gate.
 
 ## Test-first workflow
 
