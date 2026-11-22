@@ -119,9 +119,10 @@ For each group:
    which test files define the group and that it must not change them.
 6. **Verify green** yourself:
    - all tests pass except this change's acceptance tests that are still waiting for their wiring;
-   - `git status --porcelain` and `git diff --name-only HEAD` (changes since the `[red]` commit) list no test
-     files: paths under `tests/`, `*Tests*/`, `*.Tests.csproj`, `*.test.ts(x)`, `*.spec.ts(x)`, and nothing
-     under `openspec/` other than this change's `.tdd-state.md` and `tasks.md`, which you edit yourself.
+   - `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
+     (changes since the `[red]` commit) list no test files: paths under `tests/`, `*Tests*/`, `*.Tests.csproj`,
+     `*.test.ts(x)`, `*.spec.ts(x)`, and nothing under `openspec/` other than this change's `.tdd-state.md` and
+     `tasks.md`, which you edit yourself.
      Allowed only in `[wiring]` and `[close]` groups:
      `tests/RevolutReader.AcceptanceTests/Drivers/**`; only in `[wiring]` groups:
      `tests/RevolutReader.IntegrationTests/Wiring/**`.

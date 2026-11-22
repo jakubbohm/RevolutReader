@@ -137,11 +137,11 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
      **A guard test that passes at once refutes the finding:** keep it, commit
      `test(<scope>): [review] <id>: guard, passes`, and move the finding to DECLINE with the test as its evidence.
   3. Send the implementer the test (file and test name), the finding and the sketch (a Direct PR: also its
-     issue); the implementer must not change any test file. Verify green yourself: the full suite passes, and `git status --porcelain` and
-     `git diff --name-only HEAD` list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or
-     `openspec/` other than your state file (§ 0 step 3). A violation: restore the file
-     (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer, resume it. Commit
-     `fix(<scope>): [review] <id>: <summary>`.
+     issue); the implementer must not change any test file. Verify green yourself: the full suite passes, and
+     `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
+     list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or `openspec/` other than your state
+     file (§ 0 step 3). A violation: restore the file (`git restore --source=HEAD -- <path>`; delete a new one),
+     tell the implementer, resume it. Commit `fix(<scope>): [review] <id>: <summary>`.
   4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding
      to ASK with the test-writer's test, the implementer's claim and the evidence.
 - **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
