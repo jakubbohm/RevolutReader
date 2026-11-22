@@ -678,7 +678,10 @@ export async function emptyThePhone(): Promise<void> {
   }
 }
 
-/** Closes the app: answers to its requests still under way never arrive. For `renderApp`'s `reopen`. */
+/**
+ * Closes the app: the answers its requests still under way took when they were sent never arrive, and nothing more about
+ * those requests enters the timeline. For `renderApp`'s `reopen`.
+ */
 export function closeApp(): void {
   forgetRequestsUnderWay();
 }
@@ -732,8 +735,9 @@ export function installFakeServer(): void {
 }
 
 /**
- * Answers to the requests still under way never arrive (`generation`), and the server lets go of the ones it keeps open
- * (`openRequests`): a request with no answer, say, never ends on its own.
+ * Answers to the requests still under way never arrive, and nothing more about those requests enters the timeline
+ * (`generation`); the server lets go of the ones it keeps open (`openRequests`): a request with no answer, say, never
+ * ends on its own.
  */
 function forgetRequestsUnderWay(): void {
   generation += 1;
@@ -779,6 +783,11 @@ function onThePage(url: URL): string {
     : url.href;
 }
 
+/**
+ * The phone's network and the server. Every request takes its outcome when it is sent, with a body or without: the
+ * server has answered it, or the phone is offline. A request the app has already aborted by then takes none. Once the
+ * app is closed (`closeApp`), the answer never arrives and nothing more about the request enters the timeline.
+ */
 async function fakeFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -797,18 +806,26 @@ async function fakeFetch(
     const sentIn = generation;
 
     entries.push(`request ${request}`);
-    // ---- c011: what the app sent in the body (`bodiesSent`); only a request with one waits to read it ----
+    const outcome: Outcome | null =
+      signal?.aborted === true
+        ? null
+        : online
+          ? outcomeOf(request)
+          : { kind: "failure" };
+    // ---- c011: what the app sent in the body (`bodiesSent`), read after the request took its outcome; reading it
+    // takes at least a microtask, so the app may be closed meanwhile ----
     if (init?.body != null || (isRequest && input.body !== null)) {
       const sent: SentBody = { request, contentType: null, body: undefined };
       bodies.push(sent);
       Object.assign(sent, await bodyOf(input, init));
+      if (sentIn !== generation) return new Promise<Response>(() => {});
     }
-    if (signal?.aborted === true) {
+    // Aborted when sent, or while its body was read: an outcome it took never arrives.
+    if (outcome === null || signal?.aborted === true) {
       entries.push(`aborted ${request}`);
-      throw abortReason(signal);
+      throw abortReason(signal!);
     }
 
-    const outcome: Outcome = online ? outcomeOf(request) : { kind: "failure" };
     const ending = await arrival(outcome, signal ?? undefined);
     if (sentIn !== generation) return new Promise<Response>(() => {});
 
