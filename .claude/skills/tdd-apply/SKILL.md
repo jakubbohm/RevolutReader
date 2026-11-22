@@ -163,8 +163,9 @@ the design cannot be tested as written):
 2. Forward to the culprit **only** the claim, the failing test and the relevant spec/design excerpt.
    Never forward the implementer's implementation code to the test-writer.
 3. If spec or design is silent or ambiguous, or the same dispute comes back a second time:
-   stop and ask the human. The resolution must end up in the spec or `design.md` (committed as
-   `docs(<cNNN>): [plan] <what changed>`), not only in code.
+   stop and ask the human. The resolution must end up in the spec or `design.md`, not only in code, committed as
+   `docs(<cNNN>): [plan] <what changed>` with only the files it changed, staged by path: any work in progress stays
+   in the tree for the group's own checks.
 4. Record each dispute and its resolution in `.tdd-state.md`.
 
 ## 3. Wiring groups (`[wiring]`)
