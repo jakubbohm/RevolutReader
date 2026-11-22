@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Bank;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Bank;
@@ -12,13 +13,14 @@ namespace RevolutReader.UnitTests.Bank;
 /// The Enable Banking settings are checked at start-up (c004 design.md D6, § Error model; configuration.md § Binding):
 /// every setting but the two times is required, no secret may still hold the declared placeholder, the API address must
 /// be an absolute https address (plain http only on this machine) whose path ends in "/" (a bare host's does) and that
-/// has no query or fragment, the private key must be an RSA private key in PEM form (a public key fails too), and the
-/// request timeout lies between 1 second and 2 minutes. A failure names the setting by its full name, as the operator sets
-/// it (#68), never its value: a failure of the settings' own rules starts with the name and ": ", one of the validator's
-/// checks opens its sentence with the name. Each test runs the checks the app runs at start, through the bank adapter's own
-/// registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an
-/// in-memory configuration): the settings' data annotations and <see cref="EnableBankingOptionsValidator"/>, however those
-/// checks are built. Every value here is made up; every key is generated in the test.
+/// has no query or fragment, the private key must be an RSA private key in PEM form (a public key fails too), the request
+/// timeout lies between 1 second and 2 minutes and the retry delay between 0 and 5 seconds. A failure names the setting,
+/// never its value: a failure of the settings' own rules is the standard data-annotation failure, naming the settings class
+/// and the setting (the owner's decision on #68, 2026-11-22), and one of the validator's checks opens its sentence with the
+/// setting's full name, as the operator sets it (#68). Each test runs the checks the app runs at start, through the bank
+/// adapter's own registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an in-memory configuration):
+/// the settings' data annotations and <see cref="EnableBankingOptionsValidator"/>, however those checks are built. Every
+/// value here is made up; every key is generated in the test.
 /// </summary>
 public sealed class EnableBankingOptionsTests {
   private const string PLACEHOLDER = "<secret>";
@@ -32,10 +34,15 @@ public sealed class EnableBankingOptionsTests {
   /// <summary>Distinctive, so it cannot turn up in a message by coincidence.</summary>
   private const string PLAIN_TEXT = "plain text where the key should be, 7f3a9c";
 
-  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name.</summary>
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name; a time's range says its limits.</summary>
   private const string SAYS_REQUIRED = "required";
   private const string SAYS_PLACEHOLDER = "placeholder";
-  private const string SAYS_OUT_OF_RANGE = "between";
+
+  /// <summary>The two times' limits, both allowed, as a TimeSpan setting reads (c008 design.md D1, D7).</summary>
+  private const string SHORTEST_REQUEST_TIMEOUT = "00:00:01";
+  private const string LONGEST_REQUEST_TIMEOUT = "00:02:00";
+  private const string SHORTEST_RETRY_DELAY = "00:00:00";
+  private const string LONGEST_RETRY_DELAY = "00:00:05";
 
   private static readonly Uri _apiBaseUrl = new("https://api.enablebanking.com");
 
@@ -146,37 +153,51 @@ public sealed class EnableBankingOptionsTests {
   public void A_request_timeout_of_1_second_to_2_minutes_passes_validation(string requestTimeout) =>
     Failures(Settings(requestTimeout: TimeSpan.Parse(requestTimeout, CultureInfo.InvariantCulture))).ShouldBeEmpty();
 
-  /// <summary>
-  /// A failure of the settings' own rules (#68) names the setting by its full name, as the operator sets it
-  /// (<c>EnableBanking:AccountId</c>, or <c>EnableBanking__AccountId</c> in the environment): the message starts with the
-  /// section, the setting and ": ", then says what is wrong, and never holds the value.
-  /// </summary>
-  /// <param name="setting">Each setting with a rule of its own, by its full name, broken by that rule: the address left out, a secret still holding the placeholder, a time outside its range.</param>
+  /// <param name="retryDelay">Below zero or longer than 5 seconds (c008 design.md D7), as a TimeSpan setting reads.</param>
   [Test]
-  [Arguments("EnableBanking:ApiBaseUrl")]
-  [Arguments("EnableBanking:ApplicationId")]
-  [Arguments("EnableBanking:PrivateKey")]
-  [Arguments("EnableBanking:SessionId")]
-  [Arguments("EnableBanking:AccountId")]
-  [Arguments("EnableBanking:RequestTimeout")]
-  [Arguments("EnableBanking:RetryDelay")]
-  public void An_invalid_setting_fails_validation_with_a_message_starting_with_its_full_name_never_its_value(string setting) {
-    (EnableBankingOptions Settings, string? LeftOut, string? Value, string Says) invalid = setting switch {
-      "EnableBanking:ApiBaseUrl" => (Settings(), nameof(EnableBankingOptions.ApiBaseUrl), null, SAYS_REQUIRED),
-      "EnableBanking:ApplicationId" => (Settings(applicationId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "EnableBanking:PrivateKey" => (Settings(privateKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "EnableBanking:SessionId" => (Settings(sessionId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "EnableBanking:AccountId" => (Settings(accountId: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "EnableBanking:RequestTimeout" => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", SAYS_OUT_OF_RANGE),
-      "EnableBanking:RetryDelay" => (Settings(retryDelay: TimeSpan.FromSeconds(6)), null, "00:00:06", SAYS_OUT_OF_RANGE),
+  [Arguments("-00:00:00.001")]
+  [Arguments("00:00:05.001")]
+  [Arguments("00:00:06")]
+  public void A_retry_delay_outside_0_to_5_seconds_fails_validation(string retryDelay) =>
+    Failures(Settings(retryDelay: TimeSpan.Parse(retryDelay, CultureInfo.InvariantCulture)))
+      .ShouldContain(failure => failure.Contains(nameof(EnableBankingOptions.RetryDelay), StringComparison.Ordinal), "a failure naming RetryDelay");
+
+  /// <param name="retryDelay">The shortest and the longest retry delay the rule allows: no wait, and 5 seconds.</param>
+  [Test]
+  [Arguments(SHORTEST_RETRY_DELAY)]
+  [Arguments(LONGEST_RETRY_DELAY)]
+  public void A_retry_delay_of_0_to_5_seconds_passes_validation(string retryDelay) =>
+    Failures(Settings(retryDelay: TimeSpan.Parse(retryDelay, CultureInfo.InvariantCulture))).ShouldBeEmpty();
+
+  /// <summary>
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// it names the settings class and the setting (<c>'EnableBankingOptions' members: 'AccountId'</c>), then says what is
+  /// wrong, a time outside its range by both limits, and never holds the value.
+  /// </summary>
+  /// <param name="setting">Each setting with a rule of its own, broken by that rule: the address left out, a secret still holding the placeholder, a time outside its range.</param>
+  [Test]
+  [Arguments(nameof(EnableBankingOptions.ApiBaseUrl))]
+  [Arguments(nameof(EnableBankingOptions.ApplicationId))]
+  [Arguments(nameof(EnableBankingOptions.PrivateKey))]
+  [Arguments(nameof(EnableBankingOptions.SessionId))]
+  [Arguments(nameof(EnableBankingOptions.AccountId))]
+  [Arguments(nameof(EnableBankingOptions.RequestTimeout))]
+  [Arguments(nameof(EnableBankingOptions.RetryDelay))]
+  public void An_invalid_setting_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string setting) {
+    (EnableBankingOptions Settings, string? LeftOut, string? Value, string[] Says) invalid = setting switch {
+      nameof(EnableBankingOptions.ApiBaseUrl) => (Settings(), nameof(EnableBankingOptions.ApiBaseUrl), null, [SAYS_REQUIRED]),
+      nameof(EnableBankingOptions.ApplicationId) => (Settings(applicationId: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(EnableBankingOptions.PrivateKey) => (Settings(privateKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(EnableBankingOptions.SessionId) => (Settings(sessionId: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(EnableBankingOptions.AccountId) => (Settings(accountId: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(EnableBankingOptions.RequestTimeout) => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", [SHORTEST_REQUEST_TIMEOUT, LONGEST_REQUEST_TIMEOUT]),
+      nameof(EnableBankingOptions.RetryDelay) => (Settings(retryDelay: TimeSpan.FromSeconds(6)), null, "00:00:06", [SHORTEST_RETRY_DELAY, LONGEST_RETRY_DELAY]),
       _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a setting with a rule of its own."),
     };
 
     IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
 
-    failures.ShouldContain(
-      failure => failure.StartsWith($"{setting}: ", StringComparison.Ordinal) && failure.Contains(invalid.Says, StringComparison.OrdinalIgnoreCase),
-      $"a failure starting with \"{setting}: \" that says the setting is {invalid.Says}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldHaveDataAnnotationFailure<EnableBankingOptions>(setting, invalid.Says);
 
     if (invalid.Value is { } value)
       failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
@@ -242,9 +263,9 @@ public sealed class EnableBankingOptionsTests {
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
   /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
-  /// wrong (<c>EnableBanking:PrivateKey is not …</c>), where a failure of the settings' own rules puts ": " after the name,
-  /// so only the validator's failure passes. No failure may name a setting by the settings class's name instead
-  /// (<c>EnableBankingOptions.PrivateKey</c>), which the operator cannot set.
+  /// wrong (<c>EnableBanking:PrivateKey is not …</c>), where a failure of the settings' own rules opens as the standard
+  /// data-annotation failure, so only the validator's failure passes. No failure may name a setting by the settings class's
+  /// name instead (<c>EnableBankingOptions.PrivateKey</c>), which the operator cannot set.
   /// </summary>
   /// <param name="failures">The failure messages of the start-up checks.</param>
   /// <param name="setting">The setting's full name: the section, ":" and the setting.</param>
