@@ -15,8 +15,8 @@ should decide, and record everything in the PR. Three workers do the rest:
   finding read-only and routes it;
 - **the test-writer** (`test-writer` subagent): writes the failing guard test that reproduces a finding;
   fixes test-quality findings;
-- **the implementer** (`implementer` subagent): makes a guard test pass; fixes docs and cleanup findings.
-  Never edits tests.
+- **the implementer** (`implementer` subagent): makes a guard test pass; fixes docs and cleanup findings outside
+  `openspec/`. Never edits tests.
 
 The rules this skill applies: `docs/conventions/testing.md` § Code review after the apply; the roles:
 § Test-first workflow; the `[review]` commits: `docs/conventions/workflow.md` § 3. Test and check commands:
@@ -132,8 +132,9 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
      to ASK with the test-writer's test, the implementer's claim and the evidence.
 - **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
   `test(<scope>): [review] <id>: <summary>`.
-- **docs** or **cleanup:** The implementer alone. Verify green as in step 3 of a behaviour fix.
-  Commit `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
+- **docs** or **cleanup:** The implementer alone; verify green as in step 3 of a behaviour fix. A docs finding
+  under `openspec/` is yours instead, because the implementer cannot write there: fix it and run the full
+  suite. Commit `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
 
 After each commit: tick the finding and note the commit in the state file. Only one of the test-writer and the
 implementer works at a time; never build or test while one of them is working.
@@ -146,12 +147,13 @@ implementer works at a time; never build or test while one of them is working.
    choice: **fix now** · **decline** (the owner gives the reason) · **defer**. Use AskUserQuestion with these
    options; a free-text answer is the owner's own words, re-confirm it when it matters.
 3. Act on each answer before the next question:
-   - **fix now** → § 3 as a FIX. A spec change first gets its spec or `design.md` edit, committed
-     `docs(<scope>): [plan] <what changed>`; the acceptance test change then goes to the test-writer;
+   - **fix now** → § 3 as a FIX. A spec change first gets its spec or `design.md` edit, which you make yourself
+     and commit as `docs(<scope>): [plan] <what changed>`; the acceptance test change then goes to the
+     test-writer;
    - **decline** → DECLINE, with the owner's reason as the evidence;
    - **defer** → the owner says where: a GitHub issue (`gh issue create`: the finding and the step it belongs to;
-     the issue linked in the thread), or a heads-up in the `design.md` of the step it belongs to, committed
-     `docs(<scope>): [review] <id>: heads-up for <step>`.
+     the issue linked in the thread), or a heads-up you write in the `design.md` of the step it belongs to,
+     committed `docs(<scope>): [review] <id>: heads-up for <step>`.
 4. Record every answer in the state file.
 
 ## 5. Close
@@ -174,9 +176,10 @@ implementer works at a time; never build or test while one of them is working.
 
 ## Rules for you (the orchestrator)
 
-- Never edit tests or production code yourself. The only files you edit are the state file, the findings file and
-  the close-out docs. Restoring or deleting a file the implementer was not allowed to touch (§ 3) is the one
-  exception.
+- Never edit tests or production code yourself. The only files you edit are the state file, the findings file,
+  the close-out docs and the files under `openspec/` that a docs finding (§ 3), a spec change the owner wants
+  fixed now or a heads-up (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch
+  (§ 3) is the one exception.
 - Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
   build or a test run while the test-writer or the implementer works. The workflow's agents never build or
   run tests (its prompts forbid it).
