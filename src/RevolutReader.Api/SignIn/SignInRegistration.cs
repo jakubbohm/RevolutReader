@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using RevolutReader.Api.Configuration;
 using RevolutReader.Api.Push;
 using RevolutReader.Api.Security;
 
@@ -65,7 +64,8 @@ public static class SignInRegistration {
     ArgumentNullException.ThrowIfNull(services);
 
     services.AddOptions<SignInOptions>()
-      .BindSection(SignInOptions.SECTION, new SignInOptionsAnnotations())
+      .BindConfiguration(SignInOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
     services.AddSingleton<IValidateOptions<SignInOptions>, SignInOptionsValidator>();
     // Parsed once, from settings the validator has already checked.

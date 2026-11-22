@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using RevolutReader.Api.Configuration;
 
 namespace RevolutReader.Api.Push;
 
@@ -19,7 +18,8 @@ public static class PushRegistration {
     ArgumentNullException.ThrowIfNull(services);
 
     services.AddOptions<PushOptions>()
-      .BindSection(PushOptions.SECTION, new PushOptionsAnnotations())
+      .BindConfiguration(PushOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
     services.AddSingleton<IValidateOptions<PushOptions>, PushOptionsValidator>();
 

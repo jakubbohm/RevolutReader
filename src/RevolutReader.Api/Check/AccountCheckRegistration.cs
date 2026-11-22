@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using RevolutReader.Api.Configuration;
 
 namespace RevolutReader.Api.Check;
 
@@ -19,7 +18,8 @@ public static class AccountCheckRegistration {
     ArgumentNullException.ThrowIfNull(services);
 
     services.AddOptions<AccountCheckOptions>()
-      .BindSection(AccountCheckOptions.SECTION, new AccountCheckOptionsAnnotations())
+      .BindConfiguration(AccountCheckOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
     services.AddSingleton<IValidateOptions<AccountCheckOptions>, AccountCheckOptionsValidator>();
 
