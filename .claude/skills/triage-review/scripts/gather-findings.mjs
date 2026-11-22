@@ -5,12 +5,13 @@
 //
 // Writes <work-folder>/comments.json (the API's pages as they came) and <work-folder>/findings.json (ordered by file
 // and line; the numbering is findingsFrom's in common.mjs), then prints the count, how many comments it left out
-// because their threads are resolved, and one line per finding. Run from the repository root; needs gh, logged in to
-// the repository's GitHub account. A file, not a shell block in the skill's text: a session isolated in a worktree
-// refuses a multi-line block it cannot verify (docs/software-factory/lessons.md R-37).
+// because their threads are resolved and their numbers (`LEFT OUT: 15 in resolved threads: 1-15`, for a rerun to
+// see what an interrupted round already closed), and one line per finding. Run from the repository root; needs gh,
+// logged in to the repository's GitHub account. A file, not a shell block in the skill's text: a session isolated
+// in a worktree refuses a multi-line block it cannot verify (docs/software-factory/lessons.md R-37).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fail, findingsFrom, gh, reviewThreads } from "./common.mjs";
+import { fail, findingsFrom, gh, ranges, reviewThreads } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const [pr, dir] = args;
@@ -32,9 +33,9 @@ const resolvedCommentIds = new Set(
     .filter((t) => t.isResolved)
     .map((t) => t.firstCommentId),
 );
-const { findings, resolved } = findingsFrom(JSON.parse(pages).flat(), resolvedCommentIds);
+const { findings, resolved, resolvedIds } = findingsFrom(JSON.parse(pages).flat(), resolvedCommentIds);
 writeFileSync(join(dir, "findings.json"), JSON.stringify(findings, null, 2));
 
 console.log(`FINDINGS: ${findings.length} open top-level review comments on PR ${pr}`);
-console.log(`LEFT OUT: ${resolved} in resolved threads`);
+console.log(`LEFT OUT: ${resolved} in resolved threads${resolved > 0 ? `: ${ranges(resolvedIds)}` : ""}`);
 for (const f of findings) console.log(`${f.id}\t${f.path}:${f.line}\t${f.title}`);

@@ -51,11 +51,14 @@ export function reviewThreads(pr) {
 //   round's new findings continue after the earlier rounds' and a thread left open keeps its number. A deleted
 //   top-level comment shifts the numbers of those posted after it.
 // - The findings are returned ordered by file and line.
+// - `resolved` counts the comments left out because their threads are resolved, and `resolvedIds` lists their
+//   numbers in ascending order, so a rerun can see the threads an interrupted round already closed.
 export function findingsFrom(comments, resolvedCommentIds) {
   const topLevel = comments.filter((c) => c.in_reply_to_id == null).sort((a, b) => a.id - b.id);
+  const numbered = topLevel.map((c, i) => ({ number: i + 1, c }));
+  const resolvedIds = numbered.filter(({ c }) => resolvedCommentIds.has(c.id)).map(({ number }) => number);
   const lineOf = (c) => c.line ?? c.original_line ?? 0;
-  const findings = topLevel
-    .map((c, i) => ({ number: i + 1, c }))
+  const findings = numbered
     .filter(({ c }) => !resolvedCommentIds.has(c.id))
     .sort((a, b) => (a.c.path ?? "").localeCompare(b.c.path ?? "") || lineOf(a.c) - lineOf(b.c) || a.c.id - b.c.id)
     .map(({ number, c }) => ({
@@ -68,7 +71,7 @@ export function findingsFrom(comments, resolvedCommentIds) {
       author: c.user?.login,
       url: c.html_url,
     }));
-  return { findings, resolved: topLevel.length - findings.length };
+  return { findings, resolved: resolvedIds.length, resolvedIds };
 }
 
 // The first line of the trimmed text, without the "\r" of Windows line endings.
@@ -144,7 +147,14 @@ export function planPosts(findings, prFiles, existingComments, headSha) {
   return { errors, posts };
 }
 
-// Will return a sorted list of whole numbers as compact text, runs as ranges: [1, 2, 4, 7, 8, 9] gives "1-2, 4, 7-9".
+// A sorted list of whole numbers as compact text, each run of consecutive numbers as a range: [1, 2, 4, 7, 8, 9]
+// gives "1-2, 4, 7-9", and no numbers give "".
 export function ranges(numbers) {
-  throw new Error("not implemented");
+  const runs = [];
+  for (const n of numbers) {
+    const last = runs.at(-1);
+    if (last && n === last.to + 1) last.to = n;
+    else runs.push({ from: n, to: n });
+  }
+  return runs.map(({ from, to }) => (from === to ? `${from}` : `${from}-${to}`)).join(", ");
 }

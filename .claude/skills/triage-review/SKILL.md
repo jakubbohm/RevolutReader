@@ -44,9 +44,12 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 ## 0. Prepare
 
 1. `gh pr view <PR> --json number,title,state,isDraft,headRefName,headRefOid,baseRefName,url,body`. The current
-   branch must be the PR's head branch, its HEAD the PR's head commit (`git rev-parse HEAD` equal to `headRefOid`;
-   otherwise the review saw other code than the working tree, and pushing is the owner's go), and the working tree
-   clean (`git status --porcelain` empty); otherwise stop and ask. Never work on `main`.
+   branch must be the PR's head branch and the working tree clean (`git status --porcelain` empty). HEAD must be
+   the PR's head commit (`git rev-parse HEAD` equal to `headRefOid`) or, on a rerun of an interrupted round (§ 1,
+   "After an interrupted round"), that commit followed only by this round's own `[review] <id>:` commits, those
+   numbered above the highest number the earlier rounds' summary comments list (`git log --oneline
+   <headRefOid>..HEAD`). Anything else, such as an earlier round's unpushed commits, means the review saw other code
+   than the working tree, and pushing is the owner's go. Otherwise stop and ask. Never work on `main`.
 2. Find the change: a folder `openspec/changes/<id>/`, or `openspec/changes/archive/<date>-<id>/` once archived,
    that this branch belongs to (the PR body or the branch name names it). With one, the **scope** of the commits is
    its number part (`c007`) and the **intent files** are its `proposal.md`, `design.md` and `specs/**`. Without one
@@ -109,7 +112,8 @@ where the findings are; never guess). Each then gets a thread, a number and a re
    or its line is outside the diff, names that place (`<file>:<line>`) in its body, below the first line, which the
    gather takes as its title. Correct the file and run the dry run again until the plan is right.
 3. Run it without `--dry-run`. It posts in the review's order and skips a finding already on the PR, so after a
-   failure part-way, running it again posts only the rest.
+   failure part-way, running it again posts only the rest; the round has no commit yet, so its head check still
+   passes.
 
 **The open threads:** run `node .claude/skills/triage-review/scripts/gather-findings.mjs <PR> <work folder>`
 (§ Scripts). It writes `findings.json`, one element per open finding: a top-level review comment whose thread is
@@ -119,8 +123,17 @@ unresolves it. The ids number the PR's top-level comments in the order they were
 this conversation included, so a later round's new findings continue after the earlier rounds' numbers, a thread
 left open keeps its number, and every `[review] <id>:` commit stays unique within the PR.
 
-With no open thread and no review in this conversation that is not on the PR, there is nothing to triage: say so
-and stop. Otherwise write the findings table (id · file:line · title) into the state file.
+**After an interrupted round:** § 0 step 3 counts only posted summaries, so a rerun of a round that stopped before
+its summary already has the right number. A left-out number above the highest number the earlier rounds' summary
+comments list (in round 1: any left-out number) was closed after the last summary, so by this round before it
+stopped. When its thread's reply gives the outcome (§ 5 step 2: "Fixed in", "Declined", "Deferred"), take it back
+into this round's findings table and summary with that outcome and its `[review] <id>:` commits, and do not
+triage it again (with nothing else open, go on to § 5). A thread without such a reply was resolved by hand: ask
+the owner whether to triage it (they unresolve it) or leave it. In the same session the state file says the same;
+in a new one, the threads and commits are the record (§ 0 step 3).
+
+With no open thread, no finding taken back and no review in this conversation that is not on the PR, there is
+nothing to triage: say so and stop. Otherwise write the findings table (id · file:line · title) into the state file.
 
 ## 2. Verify
 
@@ -259,8 +272,8 @@ header has the details. Their pure parts have tests beside them (`*.test.mjs`, N
   `WOULD POST: <n> <path> (file)` or `WOULD SKIP: …`, without posting.
 - **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments and threads, and writes
   `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and ordered as
-  § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads` and one
-  line per finding.
+  § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads: <numbers>`
+  (the left-out numbers as ranges, e.g. `1-15`; none: no colon) and one line per finding.
 - **`reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]`** (§ 5 step 2): posts the body file
   as a reply in the thread the comment starts and, with `yes`, resolves that thread. It checks first that the
   comment is a top-level review comment on the PR and, with `yes`, that its thread exists, so a failed check posts
