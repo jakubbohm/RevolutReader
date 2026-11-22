@@ -44,7 +44,7 @@ The CNB's terms (read 2026-11-21) allow storing and reproducing its information,
 
 ### D2 — Kept in one table row (explore 2)
 
-The kept rate is one row in the table `korunarates` (setting `KorunaRates:TableName`): partition `rate`, row `eur`, columns `CzkPerEur` (an invariant decimal string, as the check's store writes rates) and `Date` (`yyyy-MM-dd`). `KorunaRates` reads it once per process, on the first call that needs a rate, and then holds it in memory. Only this app writes the row, and at most one replica runs, so memory and table agree. During a deploy, two copies may both ask and write the same rate, which is harmless.
+The kept rate is one row in the table `korunarates` (setting `KorunaRates:TableName`): partition `rate`, row `eur`, columns `CzkPerEur` (an invariant decimal string, as the check's store writes rates) and `Date` (`yyyy-MM-dd`). `KorunaRates` reads it once per process, on the first call that needs a rate, and then holds it in memory. Only this app writes the row, and at most one replica runs, so memory and table agree. During a deploy, two copies may both ask and write the same rate, which is harmless. A new rate is saved after the answer, off the callers' path, so a slow store never holds a caller (D4). After a failed first read, the save first reads the row and writes only over an earlier day's or none (review of PR #95, findings 3 and 4).
 
 *Alternative:* memory only, the owner's option A. Every wake would ask the CNB, and a CNB outage at a wake would fall back to the old constant.
 
@@ -205,6 +205,9 @@ public sealed class CnbOptions {
   [Range(typeof(TimeSpan), "00:00:00.001", "00:00:10")] public required TimeSpan TimeLimit { get; init; }
 }
 
+// ---- Rate/CnbOptionsValidator.cs — Address absolute https, or http on a loopback host (review of PR #95, finding 1)
+public sealed class CnbOptionsValidator : IValidateOptions<CnbOptions>;
+
 // ---- Rate/IKorunaRateStore.cs — the kept rate's port (D2)
 public interface IKorunaRateStore {
   /// <summary>The rate as last saved; null when none is.</summary>
@@ -219,8 +222,12 @@ internal static partial class RateLog {
   [LoggerMessage(EventName = "KorunaRateKept", Level = LogLevel.Information, Message = "A new koruna rate was kept: {CzkPerEur} CZK per euro for {Date}")]
   public static partial void KorunaRateKept(ILogger logger, decimal czkPerEur, DateOnly date);
 
+  // One event in two forms, the status part only with a code (review of PR #95, finding 5).
+  [LoggerMessage(EventName = "KorunaRateAskFailed", Level = LogLevel.Warning, Message = "Asking the CNB for the koruna rate failed: {Kind}")]
+  public static partial void KorunaRateAskFailed(ILogger logger, CnbFailure kind);
+
   [LoggerMessage(EventName = "KorunaRateAskFailed", Level = LogLevel.Warning, Message = "Asking the CNB for the koruna rate failed: {Kind}, status {StatusCode}")]
-  public static partial void KorunaRateAskFailed(ILogger logger, CnbFailure kind, int? statusCode);
+  public static partial void KorunaRateAskFailedWithStatus(ILogger logger, CnbFailure kind, int statusCode);
 
   [LoggerMessage(EventName = "KorunaRateStoreFailed", Level = LogLevel.Warning, Message = "The kept koruna rate could not be {Operation}")]
   public static partial void KorunaRateStoreFailed(ILogger logger, string operation, Exception exception);
