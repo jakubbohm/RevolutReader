@@ -1,13 +1,21 @@
 // Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
-// submitted, a text's first line, the lines of a diff a comment can attach to, and how a chat review's findings
-// become review comments to post.
+// submitted, a text's first line, the lines of a diff a comment can attach to, how a chat review's findings become
+// review comments to post, and when the PR's last triage summary was posted.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
 // REST API's.
 //
 //   node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { findingsFrom, firstLine, linesInDiff, planPosts, ranges, submissionTimes } from "./common.mjs";
+import {
+  findingsFrom,
+  firstLine,
+  lastSummaryTime,
+  linesInDiff,
+  planPosts,
+  ranges,
+  submissionTimes,
+} from "./common.mjs";
 
 // A made-up top-level review comment as the REST API returns it; a test overrides what it is about.
 function comment(id, overrides = {}) {
@@ -433,6 +441,9 @@ describe("linesInDiff", () => {
 
 describe("planPosts", () => {
   const headSha = "0123456789abcdef0123456789abcdef01234567";
+  // planPosts' last argument: when the PR's last triage summary was posted (lastSummaryTime), or null before the
+  // first one, when every comment already on the PR counts.
+  const noSummary = null;
   // Made-up PR files: docs/a.md's new lines 1-4 and src/b.mjs's 20-22 are in the diff; docs/logo.png has no patch.
   const prFiles = [
     {
@@ -449,7 +460,7 @@ describe("planPosts", () => {
   test("posts a finding on its line when the line is in the PR's diff", () => {
     const findings = [{ path: "src/b.mjs", line: 21, body: "This constant is unused." }];
 
-    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(posts, [
@@ -463,7 +474,7 @@ describe("planPosts", () => {
   test("posts a finding without a line on its file", () => {
     const findings = [{ path: "docs/a.md", line: null, body: "The page has no heading." }];
 
-    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(posts, [
@@ -477,7 +488,7 @@ describe("planPosts", () => {
   test("posts a finding whose line is outside the PR's diff on its file", () => {
     const findings = [{ path: "docs/a.md", line: 50, body: "An unchanged line is wrong." }];
 
-    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(posts, [
@@ -491,7 +502,7 @@ describe("planPosts", () => {
   test("posts a finding on its file when the PR's file has no patch", () => {
     const findings = [{ path: "docs/logo.png", line: 1, body: "The logo is the old one." }];
 
-    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(posts, [
@@ -510,7 +521,7 @@ describe("planPosts", () => {
       { path: "docs/a.md", line: 2, body: "Finding three." },
     ];
 
-    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(
@@ -527,7 +538,7 @@ describe("planPosts", () => {
     const findings = [{ path: "docs/a.md", line: 2, body: "  Same finding.\nWith detail.\n" }];
     const existing = [comment(901, { body: "Same finding.\r\nWith detail.\r\n\r\n" })];
 
-    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.equal(posts.length, 1);
@@ -542,7 +553,7 @@ describe("planPosts", () => {
       comment(912, { in_reply_to_id: 911, body: "Said only in a reply." }),
     ];
 
-    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(
@@ -559,7 +570,7 @@ describe("planPosts", () => {
     ];
     const existing = [comment(921, { body: "First finding." }), comment(922, { body: "Second finding." })];
 
-    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(
@@ -579,13 +590,75 @@ describe("planPosts", () => {
     ];
     const existing = [comment(931, { body: "The same finding." })];
 
-    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, noSummary);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(
       posts.map((p) => [p.action, p.existingId]),
       [
         ["skip", 931],
+        ["post", undefined],
+      ],
+    );
+  });
+
+  test("posts a finding whose text an earlier round's comment has, posted before the last triage summary", () => {
+    const findings = [{ path: "docs/a.md", line: 2, body: "A finding reported again." }];
+    const existing = [comment(941, { body: "A finding reported again.", created_at: at(9) })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, at(10));
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [["post", undefined]],
+    );
+  });
+
+  test("skips a finding already posted after the last triage summary, as a rerun of the round finds it", () => {
+    const findings = [{ path: "docs/a.md", line: 2, body: "Posted by this round." }];
+    const existing = [comment(942, { body: "Posted by this round.", created_at: at(11) })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, at(10));
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [["skip", 942]],
+    );
+  });
+
+  test("before the first triage summary, skips a finding that any comment already on the PR has", () => {
+    const findings = [{ path: "docs/a.md", line: 2, body: "Posted by round one." }];
+    const existing = [comment(943, { body: "Posted by round one.", created_at: at(9) })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, noSummary);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [["skip", 943]],
+    );
+  });
+
+  test("lets only the comments posted after the last triage summary account for findings", () => {
+    // The same text twice on the PR: by an earlier round (951) and by this round before it stopped (952).
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "The same text." },
+      { path: "docs/a.md", line: 2, body: "The same text." },
+    ];
+    const existing = [
+      comment(951, { body: "The same text.", created_at: at(9) }),
+      comment(952, { body: "The same text.", created_at: at(11) }),
+    ];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, at(10));
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [
+        ["skip", 952],
         ["post", undefined],
       ],
     );
@@ -601,7 +674,7 @@ describe("planPosts", () => {
       { path: "docs/missing.md", line: 3, body: "Points at a file the PR does not change." },
     ];
 
-    const { errors } = planPosts(findings, prFiles, [], headSha);
+    const { errors } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.equal(errors.length, 1);
     assert.ok(namesFinding(errors, 2, "docs/missing.md"), `no error names finding 2 and its path: ${errors}`);
@@ -616,7 +689,7 @@ describe("planPosts", () => {
       { path: "docs/a.md", line: 3, body: "  \r\n " },
     ];
 
-    const { errors } = planPosts(findings, prFiles, [], headSha);
+    const { errors } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.equal(errors.length, 3);
     assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
@@ -634,12 +707,58 @@ describe("planPosts", () => {
       { path: "src/b.mjs", line: null, body: "Another good finding." },
     ];
 
-    const { errors } = planPosts(findings, prFiles, [], headSha);
+    const { errors } = planPosts(findings, prFiles, [], headSha, noSummary);
 
     assert.equal(errors.length, 3);
     assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 4, "docs/a.md"), `no error names finding 4 and its path: ${errors}`);
+  });
+});
+
+describe("lastSummaryTime", () => {
+  // A made-up PR comment (an issue comment) as the REST API returns it.
+  const issueComment = (id, createdAt, body) => ({
+    id,
+    body,
+    created_at: createdAt,
+    user: { login: "a-reviewer" },
+    html_url: `https://github.com/example/repo/pull/1#issuecomment-${id}`,
+  });
+
+  test("gives the time of the latest triage summary, whatever the comments' order", () => {
+    const comments = [
+      issueComment(5003, at(14), "## Review triage, round 2\n\n| # | Finding | Outcome |"),
+      issueComment(5004, at(15), "Thanks, merging after the next look."),
+      issueComment(5001, at(9), "## Review triage\n\n| # | Finding | Outcome |"),
+      issueComment(5002, at(12), "A question about round one."),
+    ];
+
+    assert.equal(lastSummaryTime(comments), at(14));
+  });
+
+  test("takes only a comment that starts with the summary heading, not one that mentions it later", () => {
+    const comments = [
+      issueComment(5011, at(9), "## Review triage\n\n| # | Finding | Outcome |"),
+      issueComment(5012, at(11), "Before the next round:\n## Review triage\nwill follow."),
+      issueComment(5013, at(12), "The Review triage of round one looks complete."),
+    ];
+
+    assert.equal(lastSummaryTime(comments), at(9));
+  });
+
+  test("takes a summary whose heading ends with a Windows line ending", () => {
+    const comments = [
+      issueComment(5021, at(9), "## Review triage\n\n| # | Finding | Outcome |"),
+      issueComment(5022, at(13), "## Review triage, round 3\r\n\r\n| # | Finding | Outcome |"),
+    ];
+
+    assert.equal(lastSummaryTime(comments), at(13));
+  });
+
+  test("gives no time when the PR has no triage summary", () => {
+    assert.equal(lastSummaryTime([]), null);
+    assert.equal(lastSummaryTime([issueComment(5031, at(9), "Looks good so far.")]), null);
   });
 });
 

@@ -186,6 +186,11 @@ export function planPosts(findings, prFiles, existingComments, headSha) {
   return { errors, posts };
 }
 
+// Will return the created_at of the latest PR issue comment whose body starts with "## Review triage", else null.
+export function lastSummaryTime(issueComments) {
+  throw new Error("not implemented");
+}
+
 // A sorted list of whole numbers as compact text, each run of consecutive numbers as a range: [1, 2, 4, 7, 8, 9]
 // gives "1-2, 4, 7-9", and no numbers give "".
 export function ranges(numbers) {
