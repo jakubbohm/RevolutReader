@@ -68,3 +68,8 @@ export function findingsFrom(comments, resolvedCommentIds) {
     }));
   return { findings, resolved: topLevel.length - findings.length };
 }
+
+// Will return the first line of the trimmed text, without the "\r" of Windows line endings.
+export function firstLine(text) {
+  throw new Error("not implemented");
+}
