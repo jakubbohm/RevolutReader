@@ -98,9 +98,19 @@ export function findingsFrom(comments, resolvedCommentIds, submittedAt) {
   return { findings, resolved: resolvedIds.length, resolvedIds };
 }
 
-// Will return findingsFrom's `submittedAt` Map from the PR's review comments and its reviews (the REST API's objects).
+// findingsFrom's `submittedAt` Map, from a PR's review comments and its reviews (the REST API's objects, joined on
+// each comment's `pull_request_review_id`): each top-level comment's id maps to when its review was submitted
+// (`submitted_at`), or to null while that review is pending. A comment whose review is not listed, or neither
+// pending nor submitted (no `submitted_at`), gets no entry, so findingsFrom refuses to number it; replies get none.
 export function submissionTimes(comments, reviews) {
-  throw new Error("not implemented");
+  const reviewsById = new Map(reviews.map((r) => [r.id, r]));
+  const submittedAt = new Map();
+  for (const c of comments.filter((c) => c.in_reply_to_id == null)) {
+    const review = reviewsById.get(c.pull_request_review_id);
+    if (review?.state === "PENDING") submittedAt.set(c.id, null);
+    else if (review?.submitted_at) submittedAt.set(c.id, review.submitted_at);
+  }
+  return submittedAt;
 }
 
 // The first line of the trimmed text, without the "\r" of Windows line endings.

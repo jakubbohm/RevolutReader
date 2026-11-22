@@ -5,16 +5,16 @@
 //
 // Writes <work-folder>/comments.json (the API's pages as they came) and <work-folder>/findings.json (ordered by file
 // and line; the numbering is findingsFrom's in common.mjs, by when each comment's review was submitted, which it reads
-// from the PR's reviews after the comments, so every review a listed comment belongs to is there), then prints the
-// count, how many comments it left out because their threads are resolved and their numbers (`LEFT OUT: 15 in
-// resolved threads: 1-15`, for a rerun to see what an interrupted round already closed), and one line per finding.
-// A comment of a pending review is left out; one whose review is not among the PR's reviews fails with ERROR. Run
-// from the repository root; needs gh, logged in to the repository's GitHub account. A file, not a shell block in the
-// skill's text: a session isolated in a worktree refuses a multi-line block it cannot verify
-// (docs/software-factory/lessons.md R-37).
+// from the PR's reviews after the comments, so every review a listed comment belongs to is there, and joins to the
+// comments with submissionTimes in common.mjs), then prints the count, how many comments it left out because their
+// threads are resolved and their numbers (`LEFT OUT: 15 in resolved threads: 1-15`, for a rerun to see what an
+// interrupted round already closed), and one line per finding. A comment of a pending review is left out; one whose
+// review is not among the PR's reviews fails with ERROR. Run from the repository root; needs gh, logged in to the
+// repository's GitHub account. A file, not a shell block in the skill's text: a session isolated in a worktree
+// refuses a multi-line block it cannot verify (docs/software-factory/lessons.md R-37).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fail, findingsFrom, gh, ranges, reviewThreads } from "./common.mjs";
+import { fail, findingsFrom, gh, ranges, reviewThreads, submissionTimes } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const [pr, dir] = args;
@@ -33,16 +33,8 @@ const pages = gh(["api", `repos/{owner}/{repo}/pulls/${pr}/comments`, "--paginat
 writeFileSync(join(dir, "comments.json"), pages);
 const comments = JSON.parse(pages).flat();
 
-// When each top-level comment's review was submitted, or null while it is pending; a comment whose review is not
-// listed, or has no submission time, gets no entry, and findingsFrom refuses to number it.
 const reviews = JSON.parse(gh(["api", `repos/{owner}/{repo}/pulls/${pr}/reviews`, "--paginate", "--slurp"])).flat();
-const reviewsById = new Map(reviews.map((r) => [r.id, r]));
-const submittedAt = new Map();
-for (const c of comments.filter((c) => c.in_reply_to_id == null)) {
-  const review = reviewsById.get(c.pull_request_review_id);
-  if (review?.state === "PENDING") submittedAt.set(c.id, null);
-  else if (review?.submitted_at) submittedAt.set(c.id, review.submitted_at);
-}
+const submittedAt = submissionTimes(comments, reviews);
 
 const resolvedCommentIds = new Set(
   reviewThreads(pr)
