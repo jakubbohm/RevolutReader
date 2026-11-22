@@ -58,9 +58,11 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    Work folder: `<scratchpad>/triage-review/<PR>/` in round 1, `<scratchpad>/triage-review/<PR>-r<n>/` in round
    n; absolute path, forward slashes. State file: `openspec/changes/<change>/.review-triage.md` (in the archive
    folder when the change is archived), where a later round adds a section `## Round <n>` at the end and leaves
-   the earlier rounds' text as it is; for a Direct PR `<work folder>/state.md`. It holds: the round, the PR, the
-   scope, the findings source, the routing per finding, the commits per finding, the asks and the owner's
-   answers, the test-writer's and the implementer's agent IDs.
+   the earlier rounds' text as it is; for a Direct PR `<work folder>/state.md`, outside the repository and never
+   committed: a Direct PR has no change folder, and its summary comments, threads and `[review]` commits are the
+   record that outlives the session. It holds: the round, the PR, the scope, the findings source, the routing per
+   finding, the commits per finding, the asks and the owner's answers, the test-writer's and the implementer's
+   agent IDs.
    **Write the agent IDs there as soon as you spawn or resume an agent.** After a compaction, re-read it before
    doing anything else.
 4. Index the working tree in the code graph (codebase-memory-mcp; load its tools with ToolSearch first if they
@@ -69,10 +71,12 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    `.claude/skills/tdd-apply/SKILL.md` § 0 step 9 and `CLAUDE.md` § Code navigation.
 5. The test-writer and the implementer: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the
    current pair, the last chapter's; in a later round, the pair the last round's state file records, when it is
-   at hand) and resume them with SendMessage; your first message to each names the code
-   graph's project (step 4), so neither relies on the one the apply gave it. If one cannot be resumed, or there
-   is no `.tdd-state.md`, spawn a fresh one when it is first needed and brief it: the change, the PR, that this
-   is the review triage, the code graph's project and the finding at hand.
+   at hand: a Direct PR's only in the session that wrote it, step 3) and resume them with SendMessage; your first
+   message to each names the code graph's project (step 4), so neither relies on the one the apply gave it. If one
+   cannot be resumed, or no file records a pair, spawn a fresh one when it is first needed and brief it: the
+   change, the PR, that this is the review triage, the code graph's project and the finding at hand. Without the
+   last round's state file, its open asks come back as open threads (§ 1) and its routing is in its summary
+   comment (§ 5 step 3).
 6. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop
    and report: no triage on a red baseline.
 7. The diff: `git fetch origin <baseRef>` then `git diff origin/<baseRef>...HEAD > <work folder>/diff.patch`.
@@ -185,8 +189,10 @@ implementer works at a time; never build or test while one of them is working.
    (in a later round `## Review triage, round <n>`: § 0 step 3 counts these headings), then the table
    `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's description has it.
    Never bank data, secrets or personal data in a thread or the summary: the repository is public.
-4. Commit the state file: `docs(<scope>): [review] triage summary`. Never push, never open a PR or mark one ready:
-   the owner does.
+4. Commit `docs(<scope>): [review] triage summary`: a change's state file with any close-out docs the round
+   changed (e.g. a memory file). A Direct PR's state file stays in the work folder (§ 0 step 3), so its commit takes
+   only the close-out docs, and is skipped when there are none. Never push, never open a PR or mark one ready: the
+   owner does.
 5. Report to the owner: the counts per outcome, the commits, what stays open, and the fix range
    `<first sha>..<last sha>` in case they want another `/code-review` on it, which a next round then triages.
 
