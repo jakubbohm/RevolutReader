@@ -21,11 +21,147 @@ function comment(id, overrides = {}) {
   };
 }
 
+// findingsFrom's third argument is a Map from each top-level comment's id to when its review was submitted (GraphQL
+// PullRequestReview.submittedAt, an ISO 8601 time), or null while that review is pending. Replies have no entry.
+
+// A made-up submission time: 2026-11-20 at `hour` o'clock UTC.
+const at = (hour) => `2026-11-20T${String(hour).padStart(2, "0")}:00:00Z`;
+
+// Each top-level comment in its own review, submitted in the order of the comments' ids: the tests whose subject is
+// not the submission time.
+function submittedInIdOrder(comments) {
+  return new Map(
+    comments
+      .filter((c) => c.in_reply_to_id == null)
+      .map((c) => [c.id, new Date(Date.UTC(2026, 10, 20) + c.id * 1000).toISOString().replace(".000Z", "Z")]),
+  );
+}
+
 describe("findingsFrom", () => {
+  test("numbers a comment whose review was submitted later after the others, even with a lower id", () => {
+    // Round 1 numbers three comments. Then a review drafted before them, so its comment has a lower id, is submitted.
+    const roundOne = [comment(1001), comment(1002), comment(1003)];
+    const roundOneSubmitted = new Map([
+      [1001, at(9)],
+      [1002, at(10)],
+      [1003, at(11)],
+    ]);
+    const roundTwo = [comment(1000), ...roundOne];
+    const roundTwoSubmitted = new Map([...roundOneSubmitted, [1000, at(12)]]);
+
+    const before = findingsFrom(roundOne, new Set(), roundOneSubmitted).findings;
+    const after = findingsFrom(roundTwo, new Set(), roundTwoSubmitted).findings;
+
+    const numbers = (findings) => findings.map((f) => [f.commentId, f.id]).sort((a, b) => a[0] - b[0]);
+    assert.deepEqual(numbers(before), [
+      [1001, 1],
+      [1002, 2],
+      [1003, 3],
+    ]);
+    assert.deepEqual(numbers(after), [
+      [1000, 4],
+      [1001, 1],
+      [1002, 2],
+      [1003, 3],
+    ]);
+  });
+
+  test("numbers the comments of one review by their ids, after the reviews submitted before it", () => {
+    // Two reviews whose comments' ids interleave: the earlier review holds 1302 and 1304, the later 1301 and 1303.
+    const comments = [comment(1303), comment(1302), comment(1301), comment(1304)];
+    const submitted = new Map([
+      [1302, at(9)],
+      [1304, at(9)],
+      [1301, at(10)],
+      [1303, at(10)],
+    ]);
+
+    const { findings } = findingsFrom(comments, new Set(), submitted);
+
+    assert.deepEqual(
+      findings.map((f) => [f.commentId, f.id]),
+      [
+        [1301, 3],
+        [1302, 1],
+        [1303, 4],
+        [1304, 2],
+      ],
+    );
+  });
+
+  test("leaves out a comment of a pending review, which takes no number from those submitted", () => {
+    const comments = [comment(1101), comment(1102), comment(1103)];
+    const submitted = new Map([
+      [1101, at(9)],
+      [1102, null],
+      [1103, at(10)],
+    ]);
+
+    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set(), submitted);
+
+    assert.deepEqual(
+      findings.map((f) => [f.commentId, f.id]),
+      [
+        [1101, 1],
+        [1103, 2],
+      ],
+    );
+    assert.equal(resolved, 0);
+    assert.deepEqual(resolvedIds, []);
+  });
+
+  test("leaves out a comment of a pending review even when its thread is resolved", () => {
+    const comments = [comment(1201), comment(1202), comment(1203)];
+    const submitted = new Map([
+      [1201, at(9)],
+      [1202, null],
+      [1203, at(10)],
+    ]);
+
+    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set([1202, 1203]), submitted);
+
+    assert.deepEqual(
+      findings.map((f) => [f.commentId, f.id]),
+      [[1201, 1]],
+    );
+    assert.equal(resolved, 1);
+    assert.deepEqual(resolvedIds, [2]);
+  });
+
+  test("fails rather than guess a number for a top-level comment whose review's submission is unknown", () => {
+    const comments = [comment(1401), comment(1402)];
+    const submitted = new Map([[1401, at(9)]]);
+
+    assert.throws(() => findingsFrom(comments, new Set(), submitted));
+  });
+
+  test("counts and names the resolved comments by their numbers in submission order", () => {
+    // 1500 has the lowest id but was submitted third; 1500 and 1501 are resolved.
+    const comments = [comment(1503), comment(1500), comment(1502), comment(1501)];
+    const submitted = new Map([
+      [1501, at(9)],
+      [1502, at(10)],
+      [1500, at(11)],
+      [1503, at(12)],
+    ]);
+
+    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set([1500, 1501]), submitted);
+
+    assert.deepEqual(resolvedIds, [1, 3]);
+    assert.equal(resolved, 2);
+    assert.deepEqual(
+      findings.map((f) => [f.commentId, f.id]),
+      [
+        [1502, 2],
+        [1503, 4],
+      ],
+    );
+  });
+
   test("numbers the top-level comments in posting order, resolved ones included", () => {
     const comments = [comment(103), comment(101), comment(102)];
 
-    const { findings } = findingsFrom(comments, new Set([101, 102]));
+    const { findings } = findingsFrom(comments, new Set([101, 102]), submittedInIdOrder(comments));
 
     assert.deepEqual(
       findings.map((f) => [f.id, f.commentId]),
@@ -36,7 +172,7 @@ describe("findingsFrom", () => {
   test("leaves out the comments whose threads are resolved and counts them", () => {
     const comments = [comment(201), comment(202), comment(203)];
 
-    const { findings, resolved } = findingsFrom(comments, new Set([201, 203]));
+    const { findings, resolved } = findingsFrom(comments, new Set([201, 203]), submittedInIdOrder(comments));
 
     assert.deepEqual(
       findings.map((f) => f.commentId),
@@ -57,7 +193,8 @@ describe("findingsFrom", () => {
       comment(822, { path: "docs/b.md" }),
     ];
 
-    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set([821, 822, 825]));
+    const submitted = submittedInIdOrder(comments);
+    const { findings, resolved, resolvedIds } = findingsFrom(comments, new Set([821, 822, 825]), submitted);
 
     assert.deepEqual(resolvedIds, [1, 2, 4]);
     assert.equal(resolved, 3);
@@ -70,7 +207,7 @@ describe("findingsFrom", () => {
   test("names no resolved comments when no thread is resolved", () => {
     const comments = [comment(811), comment(812)];
 
-    const { resolved, resolvedIds } = findingsFrom(comments, new Set());
+    const { resolved, resolvedIds } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.deepEqual(resolvedIds, []);
     assert.equal(resolved, 0);
@@ -79,7 +216,7 @@ describe("findingsFrom", () => {
   test("never makes a reply a finding, and a reply takes no number", () => {
     const comments = [comment(301), comment(302, { in_reply_to_id: 301 }), comment(303)];
 
-    const { findings, resolved } = findingsFrom(comments, new Set());
+    const { findings, resolved } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.deepEqual(
       findings.map((f) => [f.id, f.commentId]),
@@ -100,7 +237,7 @@ describe("findingsFrom", () => {
       comment(403, { path: "docs/a.md", line: 3 }),
     ];
 
-    const { findings } = findingsFrom(comments, new Set());
+    const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.deepEqual(
       findings.map((f) => [f.path, f.line, f.commentId]),
@@ -121,7 +258,7 @@ describe("findingsFrom", () => {
       comment(503, { line: null, original_line: null }),
     ];
 
-    const { findings } = findingsFrom(comments, new Set());
+    const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
     const lineOf = (commentId) => findings.find((f) => f.commentId === commentId).line;
 
     assert.equal(lineOf(501), 4);
@@ -135,7 +272,7 @@ describe("findingsFrom", () => {
       comment(602, { body: `${"x".repeat(130)}\nThe detail below it.` }),
     ];
 
-    const { findings } = findingsFrom(comments, new Set());
+    const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
     const titleOf = (commentId) => findings.find((f) => f.commentId === commentId).title;
 
     assert.equal(titleOf(601), "Short title");
@@ -145,7 +282,7 @@ describe("findingsFrom", () => {
   test("titles a finding whose body has Windows line endings without the carriage return", () => {
     const comments = [comment(701, { body: "Important: one\r\nmore" })];
 
-    const { findings } = findingsFrom(comments, new Set());
+    const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.equal(findings[0].title, "Important: one");
   });
