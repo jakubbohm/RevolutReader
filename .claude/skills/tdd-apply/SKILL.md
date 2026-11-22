@@ -112,7 +112,8 @@ For each group:
 2. **Verify red** yourself: the build passes; the group's new tests fail at runtime; all previously
    green tests are still green. If a test passes immediately, send it back to the test-writer: either the
    behaviour already exists (the test-writer says so, and the task gets ticked) or the test is too weak.
-3. Commit the test-writer's work: `test(<cNNN>): [red] <group name>`.
+3. Commit the test-writer's work: `test(<cNNN>): [red] <group name>`. The commit also takes any task ticked at
+   step 2 (its behaviour already exists), so `tasks.md` is unchanged when step 6 checks it.
 4. If `review=all`: stop and present the group's tests to the human. Wait. Apply feedback via the test-writer,
    verify red again and commit the fixes as another `[red]` commit (never amend).
 5. **Green.** Send the implementer the group (spawned or resumed as § Chapters, step 4 says). Tell the implementer
@@ -121,8 +122,8 @@ For each group:
    - all tests pass except this change's acceptance tests that are still waiting for their wiring;
    - `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
      (changes since the `[red]` commit) list no test files: paths under `tests/`, `*Tests*/`, `*.Tests.csproj`,
-     `*.test.ts(x)`, `*.spec.ts(x)`, and nothing under `openspec/` other than this change's `.tdd-state.md` and
-     `tasks.md`, which you edit yourself.
+     `*.test.ts(x)`, `*.spec.ts(x)`, and nothing under `openspec/` other than this change's `.tdd-state.md`,
+     which you edit yourself.
      Allowed only in `[wiring]` and `[close]` groups:
      `tests/RevolutReader.AcceptanceTests/Drivers/**`; only in `[wiring]` groups:
      `tests/RevolutReader.IntegrationTests/Wiring/**`.
