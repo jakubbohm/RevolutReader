@@ -344,6 +344,25 @@ describe("planPosts", () => {
     );
   });
 
+  test("lets each comment already on the PR account for one finding only", () => {
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "The same finding." },
+      { path: "docs/a.md", line: 2, body: "The same finding." },
+    ];
+    const existing = [comment(931, { body: "The same finding." })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [
+        ["skip", 931],
+        ["post", undefined],
+      ],
+    );
+  });
+
   // An error names the finding by its position in the review (1-based) and its path.
   const namesFinding = (errors, position, path) =>
     errors.some((e) => new RegExp(`\\b${position}\\b`).test(e) && e.includes(path));
@@ -375,5 +394,23 @@ describe("planPosts", () => {
     assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 5, "docs/a.md"), `no error names finding 5 and its path: ${errors}`);
+  });
+
+  test("reports each finding whose line is given but is not a positive whole number, one error per finding", () => {
+    // Each bad finding has a path of its own, so an error cannot be taken for another's.
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "A good finding." },
+      { path: "src/b.mjs", line: "12", body: "A line given as text." },
+      { path: "docs/logo.png", line: 0, body: "A line before the first." },
+      { path: "docs/a.md", line: 2.5, body: "Half a line." },
+      { path: "src/b.mjs", line: null, body: "Another good finding." },
+    ];
+
+    const { errors } = planPosts(findings, prFiles, [], headSha);
+
+    assert.equal(errors.length, 3);
+    assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
+    assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
+    assert.ok(namesFinding(errors, 4, "docs/a.md"), `no error names finding 4 and its path: ${errors}`);
   });
 });
