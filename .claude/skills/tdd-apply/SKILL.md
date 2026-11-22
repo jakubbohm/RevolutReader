@@ -23,14 +23,25 @@ Arguments: `$ARGUMENTS`
 - First argument: the change name (folder under `openspec/changes/`). If missing, list active changes and ask.
 - Whatever the settings below, the apply stops at the acceptance gate (§ 1 step 3) and for disputes that go to
   the human (§ Disputes, step 3).
-- `review=` controls the review stops (default `acceptance`; the user asked for `all` on C1 and C5):
+- `review=` controls the review stops (default `acceptance`, or on a resume the recorded mode, § 0; the user asked
+  for `all` on C1 and C5):
   - `acceptance`: the acceptance gate only.
   - `all`: also a stop after the test-writer finishes every unit and every integration group (§ 2 step 4).
-- `checkpoint=` controls the stop at each chapter checkpoint (default `stop`; § Chapters, step 5):
+- `checkpoint=` controls the stop at each chapter checkpoint (default `stop`, or on a resume the recorded mode, § 0;
+  § Chapters, step 5):
   - `stop`: stop there.
   - `continue`: no stop; start the next chapter at once.
 
 ## 0. Prepare
+
+**A change already under way** (`.tdd-state.md` exists and group 1's `[accept]` commit is on the branch, e.g. after
+"stop here" at a checkpoint) is resumed, not started over. A `review=` or `checkpoint=` given on this run wins;
+otherwise the mode recorded in `.tdd-state.md` applies, not the default. Steps 1 to 4 run as written: uncommitted
+work an earlier session left is step 3's stop-and-ask. Read `.tdd-state.md` (step 6) before step 5, whose baseline on
+a resume needs its list of acceptance tests. Steps 7 to 9 run again. Skip step 10 and § 1: the chapter plan and the
+acceptance tests are committed. Start where "Resume here" says, checked against the last commits on the branch, with
+a fresh pair, each spawned and briefed as § Chapters, step 4 says; if the session ended mid-chapter, the brief also
+says where the chapter stands, as for a replaced agent.
 
 1. Read `openspec/changes/<change>/proposal.md`, `design.md`, `tasks.md` and every delta spec under `specs/`.
 2. Run `openspec validate <change>`. If it fails, stop and report.
@@ -41,8 +52,11 @@ Arguments: `$ARGUMENTS`
 5. Run the full test suite once (`CLAUDE.md` § Commands: `dotnet test` and the frontend tests). Record the
    baseline. If anything is already red, stop and report; do not start on a red baseline. One red is
    expected: the repository traceability check reporting "Not claimed" for exactly this change's own
-   scenarios, which group 1 claims. Anything more is a red baseline. A change's `design.md` may name one
-   more accepted exception, for its first run only (c003: the frontend has no test files yet).
+   scenarios, which group 1 claims. On a resume (above), the expected red is instead this change's acceptance
+   tests still waiting for their `[close]` (with slices, those of the slices not closed yet; without slices, all
+   of them until § 4) and, if the last commit is a `[red]`, that group's new tests. Anything more is a red
+   baseline. A change's `design.md` may name one more accepted exception, for its first run only (c003: the
+   frontend has no test files yet).
 6. Create or read `openspec/changes/<change>/.tdd-state.md`. It holds: a "Resume here" section, the chapter
    plan, the agent IDs of the test-writer and the implementer per chapter (the current pair marked, each
    agent's last token count), the standing rules for the test-writer and the implementer, current group, review
@@ -229,8 +243,9 @@ with a fresh test-writer and implementer.
         the tdd-apply skill, then start chapter <next> with a fresh test-writer and implementer.`
         Tell the human to send a short message after compacting (e.g. "continue"): `/compact` does not start a
         turn by itself. Ask with AskUserQuestion whether to compact first and then continue, continue without
-        compacting, or stop here. After "compact first" or "stop here", end your turn and wait. After "continue
-        without compacting", start chapter <next> at once, its agents spawned as step 4 says.
+        compacting, or stop here. After "compact first", end your turn and wait. After "stop here", say that
+        `/tdd-apply <change>` in a new session resumes from `.tdd-state.md` (§ 0), then end your turn and wait.
+        After "continue without compacting", start chapter <next> at once, its agents spawned as step 4 says.
       - `continue`: report the chapter briefly and start chapter <next> at once, its agents spawned as step 4
         says.
 
