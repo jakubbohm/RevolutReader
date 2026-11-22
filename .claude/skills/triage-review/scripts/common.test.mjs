@@ -1,10 +1,11 @@
-// Tests for common.mjs's pure functions: how review comments become numbered findings, and a text's first line.
-// Nothing here calls gh or the network; the comments are small made-up objects shaped like the REST API's.
+// Tests for common.mjs's pure functions: how review comments become numbered findings, a text's first line, the lines
+// of a diff a comment can attach to, and how a chat review's findings become review comments to post.
+// Nothing here calls gh or the network; the comments and files are small made-up objects shaped like the REST API's.
 //
 //   node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { findingsFrom, firstLine } from "./common.mjs";
+import { findingsFrom, firstLine, linesInDiff, planPosts } from "./common.mjs";
 
 // A made-up top-level review comment as the REST API returns it; a test overrides what it is about.
 function comment(id, overrides = {}) {
@@ -130,5 +131,249 @@ describe("firstLine", () => {
 
   test("skips the blank lines and spaces before the text", () => {
     assert.equal(firstLine("\r\n\r\n  Line one\r\nLine two"), "Line one");
+  });
+});
+
+// A made-up file patch as the REST API's "list PR files" returns it: hunks only, lines joined by "\n", and no
+// final newline.
+function patch(...lines) {
+  return lines.join("\n");
+}
+
+describe("linesInDiff", () => {
+  test("gives the new version's numbers of a hunk's context and added lines, not its deleted ones", () => {
+    const lines = linesInDiff(
+      patch(
+        "@@ -10,4 +10,5 @@ A section",
+        " context a", // new 10
+        "-removed line", // old 11 only
+        "+added one", // new 11
+        "+added two", // new 12
+        " context b", // new 13
+        " context c", // new 14
+      ),
+    );
+
+    assert.deepEqual(lines, new Set([10, 11, 12, 13, 14]));
+  });
+
+  test("numbers each hunk from its own header", () => {
+    const lines = linesInDiff(
+      patch(
+        "@@ -1,3 +1,3 @@",
+        " line one", // new 1
+        "-old line two",
+        "+new line two", // new 2
+        " line three", // new 3
+        "@@ -40,3 +40,4 @@ Further down",
+        " line forty", // new 40
+        "+inserted", // new 41
+        " old forty-one", // new 42
+        " old forty-two", // new 43
+      ),
+    );
+
+    assert.deepEqual(lines, new Set([1, 2, 3, 40, 41, 42, 43]));
+  });
+
+  test("reads a hunk header without line counts", () => {
+    const lines = linesInDiff(patch("@@ -1 +1 @@", "-the only line", "+the only line, changed"));
+
+    assert.deepEqual(lines, new Set([1]));
+  });
+
+  test("gives no number to the no-newline-at-end-of-file marker", () => {
+    const lines = linesInDiff(
+      patch(
+        "@@ -1,2 +1,2 @@",
+        " first", // new 1
+        "-second",
+        "\\ No newline at end of file",
+        "+second, changed", // new 2
+        "\\ No newline at end of file",
+      ),
+    );
+
+    assert.deepEqual(lines, new Set([1, 2]));
+  });
+
+  test("gives no lines for a file without a patch, such as a binary or very large file", () => {
+    assert.deepEqual(linesInDiff(undefined), new Set());
+    assert.deepEqual(linesInDiff(""), new Set());
+  });
+});
+
+describe("planPosts", () => {
+  const headSha = "0123456789abcdef0123456789abcdef01234567";
+  // Made-up PR files: docs/a.md's new lines 1-4 and src/b.mjs's 20-22 are in the diff; docs/logo.png has no patch.
+  const prFiles = [
+    {
+      filename: "docs/a.md",
+      patch: patch("@@ -1,3 +1,4 @@ Title", " line one", "+line two", " line three", " line four"),
+    },
+    {
+      filename: "src/b.mjs",
+      patch: patch("@@ -20,2 +20,3 @@ function b", " const x = 1;", "+const y = 2;", " return x + y;"),
+    },
+    { filename: "docs/logo.png" },
+  ];
+
+  test("posts a finding on its line when the line is in the PR's diff", () => {
+    const findings = [{ path: "src/b.mjs", line: 21, body: "This constant is unused." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts, [
+      {
+        action: "post",
+        request: { body: "This constant is unused.", commit_id: headSha, path: "src/b.mjs", line: 21, side: "RIGHT" },
+      },
+    ]);
+  });
+
+  test("posts a finding without a line on its file", () => {
+    const findings = [{ path: "docs/a.md", line: null, body: "The page has no heading." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts, [
+      {
+        action: "post",
+        request: { body: "The page has no heading.", commit_id: headSha, path: "docs/a.md", subject_type: "file" },
+      },
+    ]);
+  });
+
+  test("posts a finding whose line is outside the PR's diff on its file", () => {
+    const findings = [{ path: "docs/a.md", line: 50, body: "An unchanged line is wrong." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts, [
+      {
+        action: "post",
+        request: { body: "An unchanged line is wrong.", commit_id: headSha, path: "docs/a.md", subject_type: "file" },
+      },
+    ]);
+  });
+
+  test("posts a finding on its file when the PR's file has no patch", () => {
+    const findings = [{ path: "docs/logo.png", line: 1, body: "The logo is the old one." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts, [
+      {
+        action: "post",
+        request: { body: "The logo is the old one.", commit_id: headSha, path: "docs/logo.png", subject_type: "file" },
+      },
+    ]);
+  });
+
+  test("plans one post per finding, in the findings' order", () => {
+    // The reverse of the order by path, so a sort by file would show.
+    const findings = [
+      { path: "src/b.mjs", line: 22, body: "Finding one." },
+      { path: "docs/logo.png", line: null, body: "Finding two." },
+      { path: "docs/a.md", line: 2, body: "Finding three." },
+    ];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.request.path, p.request.body]),
+      [
+        ["post", "src/b.mjs", "Finding one."],
+        ["post", "docs/logo.png", "Finding two."],
+        ["post", "docs/a.md", "Finding three."],
+      ],
+    );
+  });
+
+  test("skips a finding already posted as a top-level comment, whatever its line endings and outer spaces", () => {
+    const findings = [{ path: "docs/a.md", line: 2, body: "  Same finding.\nWith detail.\n" }];
+    const existing = [comment(901, { body: "Same finding.\r\nWith detail.\r\n\r\n" })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+
+    assert.deepEqual(errors, []);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].action, "skip");
+    assert.equal(posts[0].existingId, 901);
+  });
+
+  test("posts a finding whose text is on the PR only as a reply", () => {
+    const findings = [{ path: "docs/a.md", line: 2, body: "Said only in a reply." }];
+    const existing = [
+      comment(911, { body: "A different finding." }),
+      comment(912, { in_reply_to_id: 911, body: "Said only in a reply." }),
+    ];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => p.action),
+      ["post"],
+    );
+  });
+
+  test("after a part-way failure, plans to post only the findings not yet on the PR", () => {
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "First finding." },
+      { path: "src/b.mjs", line: 21, body: "Second finding." },
+      { path: "src/b.mjs", line: 22, body: "Second finding, and more." },
+    ];
+    const existing = [comment(921, { body: "First finding." }), comment(922, { body: "Second finding." })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId, p.request.body]),
+      [
+        ["skip", 921, "First finding."],
+        ["skip", 922, "Second finding."],
+        ["post", undefined, "Second finding, and more."],
+      ],
+    );
+  });
+
+  // An error names the finding by its position in the review (1-based) and its path.
+  const namesFinding = (errors, position, path) =>
+    errors.some((e) => new RegExp(`\\b${position}\\b`).test(e) && e.includes(path));
+
+  test("reports a finding whose file the PR does not change, by its position and path", () => {
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "A good finding." },
+      { path: "docs/missing.md", line: 3, body: "Points at a file the PR does not change." },
+    ];
+
+    const { errors } = planPosts(findings, prFiles, [], headSha);
+
+    assert.equal(errors.length, 1);
+    assert.ok(namesFinding(errors, 2, "docs/missing.md"), `no error names finding 2 and its path: ${errors}`);
+  });
+
+  test("reports each finding with an empty, blank or missing body, one error per finding", () => {
+    const findings = [
+      { path: "docs/a.md", line: 1, body: "A good finding." },
+      { path: "src/b.mjs", line: 21, body: "" },
+      { path: "docs/logo.png", line: null },
+      { path: "docs/a.md", line: 2, body: "Another good finding." },
+      { path: "docs/a.md", line: 3, body: "  \r\n " },
+    ];
+
+    const { errors } = planPosts(findings, prFiles, [], headSha);
+
+    assert.equal(errors.length, 3);
+    assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
+    assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
+    assert.ok(namesFinding(errors, 5, "docs/a.md"), `no error names finding 5 and its path: ${errors}`);
   });
 });

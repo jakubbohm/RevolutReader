@@ -73,3 +73,13 @@ export function findingsFrom(comments, resolvedCommentIds) {
 export function firstLine(text) {
   return text.trim().split(/\r?\n/)[0];
 }
+
+// Will return the Set of RIGHT-side line numbers a line comment can attach to, from a PR file's unified-diff patch.
+export function linesInDiff(patch) {
+  throw new Error("not implemented");
+}
+
+// Will return { errors, posts }: a chat review's findings as review comments to post, or to skip when already posted.
+export function planPosts(findings, prFiles, existingComments, headSha) {
+  throw new Error("not implemented");
+}
