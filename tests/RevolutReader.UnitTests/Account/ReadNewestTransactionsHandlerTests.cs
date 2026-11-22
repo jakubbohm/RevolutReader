@@ -4,19 +4,23 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using RevolutReader.Api.Account;
 using RevolutReader.Api.Bank;
+using RevolutReader.UnitTests.Rate;
 using Shouldly;
+using KorunaRate = RevolutReader.Api.Rate.KorunaRate;
 
 namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
 /// The newest page (c010 design.md D1, D2, D10): the live transactions dated from 31 days before today, pending ones
 /// included and marked, newest day first and in the bank's order within a day (spec: "newest first and in the bank's order
-/// within a day"), with the koruna rate and its date, and <c>olderBefore</c> naming the
+/// within a day"), with the koruna rate and its day as the rates answer them, asked before the bank answers (c017 design.md
+/// D4, D8), and <c>olderBefore</c> naming the
 /// window's first day only when the store keeps something older. The bank is read as the present user handed in; a bank
 /// failure comes back as it is, and nothing is kept. Today is the UTC date of the clock (D3).
 /// <para>
 /// The bank is a hand-written stub of the port (<see cref="StubBankAccount"/>): it answers one fixed result whatever day
-/// it is asked from, and records who each read was for. The store is <see cref="InMemoryTransactionStore"/>; the clock a
+/// it is asked from, records who each read was for, and can hold its answer. The store is
+/// <see cref="InMemoryTransactionStore"/>; the rates <see cref="FixedKorunaRates"/>; the clock a
 /// <see cref="FakeTimeProvider"/>. Today is 2026-11-20 unless a test says otherwise, so the window starts on 2026-10-20.
 /// What later rules decide is left alone here: where the live read starts (the stub ignores the day it is asked from),
 /// the shown details and the kind (every transaction's details are a line that does not repeat its counterparty, and its
@@ -41,6 +45,9 @@ public sealed class ReadNewestTransactionsHandlerTests {
   private static readonly DateOnly _october19 = new(2026, 10, 19);
 
   private static readonly PresentUser _lucieOnHerPhone = new(IPAddress.Parse("203.0.113.7"), "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X)");
+
+  /// <summary>The rate the rates answer (<see cref="FixedKorunaRates"/>): the spec's 24.38 koruna per euro, for 2026-11-19.</summary>
+  private static readonly KorunaRate _rate = new(24.38m, new DateOnly(2026, 11, 19));
 
   // The window
 
@@ -117,16 +124,43 @@ public sealed class ReadNewestTransactionsHandlerTests {
     page.Transactions.Select(static transaction => (transaction.Date, transaction.Pending)).ShouldBe([(_november19, true), (_november18, false)]);
   }
 
-  /// <summary>C13's rate and the day it is for, written out: 24.3 koruna per euro, 2026-11-08.</summary>
+  /// <summary>The rates' rate and day, written out (c017 design.md D8): 24.38 koruna per euro, for 2026-11-19.</summary>
   [Test]
-  public async Task The_newest_page_carries_the_koruna_rate_and_its_date() {
+  public async Task The_newest_page_carries_the_rate_and_the_day_the_koruna_rates_answer() {
     StubBankAccount bank = new(Lists(Settled(_november18, -12.30m)));
 
     TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore());
 
     page.ShouldSatisfyAllConditions(
-      () => page.CzkPerEur.ShouldBe(24.3m),
-      () => page.RateDate.ShouldBe(new DateOnly(2026, 11, 8)));
+      () => page.CzkPerEur.ShouldBe(24.38m),
+      () => page.RateDate.ShouldBe(new DateOnly(2026, 11, 19)));
+  }
+
+  /// <summary>
+  /// Both the bank's answer and the rate are held, so neither can come before the other is asked: the handler, once
+  /// called, has asked for the rate while the bank has not answered and read the bank while the rate has not come (c017
+  /// design.md D4: the rate is asked first and awaited last).
+  /// </summary>
+  [Test]
+  public async Task The_rate_is_asked_before_the_bank_answers_the_newest_page() {
+    StubBankAccount bank = new(Lists(Settled(_november18, -12.30m)));
+    FixedKorunaRates rates = new(_rate);
+    bank.HoldTheAnswer();
+    rates.HoldTheAnswer();
+
+    Task<BankResult<TransactionPage>> handling = Handler(bank, new InMemoryTransactionStore(), rates: rates).Handle(_lucieOnHerPhone, CancellationToken.None);
+
+    try {
+      bank.ShouldSatisfyAllConditions(
+        () => rates.TimesAsked.ShouldBe(1, "the rate is asked while the bank has not answered"),
+        () => bank.TriggersReceived.ShouldHaveSingleItem("the bank is read while the rate has not come"));
+    }
+    finally {
+      rates.ReleaseTheAnswer();
+      bank.ReleaseTheAnswer();
+    }
+
+    (await handling).Value.ShouldBeOfType<TransactionPage>("the newest page, once both have come");
   }
 
   /// <summary>
@@ -422,8 +456,14 @@ public sealed class ReadNewestTransactionsHandlerTests {
     (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("what the store keeps after the read");
   }
 
-  private static ReadNewestTransactionsHandler Handler(IBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) =>
-    new(bank, store, clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
+  /// <summary>The handler under test; its rates answer <see cref="_rate"/> unless a test hands in its own.</summary>
+  private static ReadNewestTransactionsHandler Handler(
+    IBankAccount bank,
+    ITransactionStore store,
+    TimeProvider? clock = null,
+    ILogger<ReadNewestTransactionsHandler>? logger = null,
+    FixedKorunaRates? rates = null) =>
+    new(bank, store, rates ?? new FixedKorunaRates(_rate), clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 
   /// <summary>The newest page for <see cref="_lucieOnHerPhone"/>; a failure fails the test.</summary>
   private static async Task<TransactionPage> NewestPage(StubBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) {
@@ -466,11 +506,14 @@ public sealed class ReadNewestTransactionsHandlerTests {
 
   /// <summary>
   /// The bank port, answering every transactions read with <paramref name="answer"/>, whatever day it is asked from, and
-  /// recording who each read was for. The handler never reads the balance.
+  /// recording who each read was for and the day it asked from, as the read starts. Its answer can be held
+  /// (<see cref="HoldTheAnswer"/>) until the test releases it (<see cref="ReleaseTheAnswer"/>). The handler never reads the
+  /// balance.
   /// </summary>
   private sealed class StubBankAccount(BankResult<Transactions> answer) : IBankAccount {
     private readonly List<ReadTrigger> _triggers = [];
     private readonly List<DateOnly> _fromDates = [];
+    private TaskCompletionSource? _held;
 
     /// <summary>Who each transactions read was for, in order.</summary>
     public IReadOnlyList<ReadTrigger> TriggersReceived => _triggers;
@@ -478,14 +521,23 @@ public sealed class ReadNewestTransactionsHandlerTests {
     /// <summary>The day each transactions read asked from, in order.</summary>
     public IReadOnlyList<DateOnly> FromDatesReceived => _fromDates;
 
+    /// <summary>Reads from now on wait for <see cref="ReleaseTheAnswer"/> before they answer.</summary>
+    public void HoldTheAnswer() => _held ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Every held read answers now.</summary>
+    public void ReleaseTheAnswer() => _held?.TrySetResult();
+
     public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) =>
       throw new InvalidOperationException("The transactions handler never reads the balance.");
 
-    public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
+    public async Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) {
       _triggers.Add(trigger);
       _fromDates.Add(from);
 
-      return Task.FromResult(answer);
+      if (_held is not null)
+        await _held.Task.WaitAsync(cancellationToken);
+
+      return answer;
     }
   }
 

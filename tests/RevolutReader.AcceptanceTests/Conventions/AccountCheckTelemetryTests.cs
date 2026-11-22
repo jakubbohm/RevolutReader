@@ -15,9 +15,10 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// with registered phones, the check sent with the check key, the bank read for the phone as a present user and the change
 /// pushed to both phones. Nothing the app copy logs during the whole test holds:
 /// <list type="bullet">
-/// <item>an amount, in any form: the balance kept, the new balance, the change and the new balance's koruna value, with a
-/// dot or a decimal comma, with an ordinary or a no-break space between thousands (a U+2212 minus is caught by the digits
-/// after it);</item>
+/// <item>an amount, in any form: the balance kept, the new balance, the change and the new balance's koruna value (at the
+/// rate the notification carries, the one the app copy answered: the fake CNB's, c017 design.md D10), with a dot or a
+/// decimal comma, with an ordinary or a no-break space between thousands (a U+2212 minus is caught by the digits after
+/// it);</item>
 /// <item>a time a balance was read (the new read's and the kept balances');</item>
 /// <item>an email address of the allowlist;</item>
 /// <item>the check key, the message key, the VAPID pair or a phone's keys.</item>
@@ -66,8 +67,9 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
     DateTimeOffset readAt = Check.Now;
 
     (await Check.PhoneAsksForACheck()).ShouldBe(CheckAnswer.BalanceChanged, "the check notified the change");
-    Push.Received(luciesPhone).ShouldHaveSingleItem("Lucie's phone got the notification");
+    PushReceived notification = Push.Received(luciesPhone).ShouldHaveSingleItem("Lucie's phone got the notification");
     Push.Received(petrsPhone).ShouldHaveSingleItem("Petr's phone got the notification");
+    decimal czkPerEur = notification.Balance.ShouldNotBeNull("the notification carries the new balance").CzkPerEur.ShouldNotBeNull("with the rate the app copy answered");
 
     string[] guarded = [CHECK_ENDED, CHANGE_SENT, PUSH_SENT];
     guarded.Except(_logs.EventNames(), StringComparer.Ordinal).ShouldBeEmpty("lines not written, so the guard would not read them");
@@ -78,7 +80,7 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
       .. AmountForms("the kept balance", KEPT),
       .. AmountForms("the new balance", READ),
       .. AmountForms("the change", KEPT - READ),
-      .. KorunaForms("the new balance's koruna value", READ * 24.3m),
+      .. KorunaForms("the new balance's koruna value", READ * czkPerEur),
       .. TimeForms("the new read's time", readAt),
       .. TimeForms("the kept balances' time", readAt.AddHours(-1)),
       ("Lucie's email", Visitor.Lucie.Email),
