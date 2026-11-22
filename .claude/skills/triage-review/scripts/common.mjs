@@ -46,15 +46,39 @@ export function reviewThreads(pr) {
 }
 
 // The open findings among a PR's review comments (the REST API's comment objects, any order).
-// - A finding is a top-level comment (not a reply) whose thread is not resolved.
-// - Its id numbers the PR's top-level comments in the order they were posted, resolved ones included, so a later
-//   round's new findings continue after the earlier rounds' and a thread left open keeps its number. A deleted
-//   top-level comment shifts the numbers of those posted after it.
+// - `submittedAt` maps each top-level comment's id to when its review was submitted (an ISO 8601 time), or to null
+//   while that review is pending; replies need no entry.
+// - A finding is a top-level comment (not a reply) of a submitted review whose thread is not resolved.
+// - Its id numbers the PR's top-level comments in the order they were posted: by when their reviews were submitted,
+//   then by comment id, resolved ones included. Not by id alone: a comment gets its id when its review's draft is
+//   written, so a review drafted early and submitted late would slot in below numbers an earlier round used. So a
+//   later round's new findings continue after the earlier rounds' and a thread left open keeps its number. A
+//   comment of a pending review takes no number, resolved or not. A deleted top-level comment shifts the numbers of
+//   those posted after it.
+// - A top-level comment whose submission time is unknown (no entry, or not a time) throws rather than take a guessed
+//   number, which could name another finding than an earlier round's commits do.
 // - The findings are returned ordered by file and line.
 // - `resolved` counts the comments left out because their threads are resolved, and `resolvedIds` lists their
 //   numbers in ascending order, so a rerun can see the threads an interrupted round already closed.
-export function findingsFrom(comments, resolvedCommentIds) {
-  const topLevel = comments.filter((c) => c.in_reply_to_id == null).sort((a, b) => a.id - b.id);
+export function findingsFrom(comments, resolvedCommentIds, submittedAt) {
+  const unknown = [];
+  const posted = [];
+  for (const c of comments.filter((c) => c.in_reply_to_id == null)) {
+    const time = submittedAt.get(c.id);
+    if (time === null) continue; // its review is pending
+    const ms = typeof time === "string" ? Date.parse(time) : NaN;
+    if (Number.isNaN(ms)) unknown.push(c.id);
+    else posted.push({ c, ms });
+  }
+  if (unknown.length > 0) {
+    throw new Error(
+      `cannot number the top-level review comment${unknown.length > 1 ? "s" : ""} ${unknown.join(", ")}: ` +
+        "the time its review was submitted is unknown, and a guessed number could clash with one an earlier round " +
+        "used. Its review is not among the PR's reviews, e.g. it was submitted, discarded or deleted while the " +
+        "gather ran, or is still pending: submit or discard any pending review on the PR, then run the gather again.",
+    );
+  }
+  const topLevel = posted.sort((a, b) => a.ms - b.ms || a.c.id - b.c.id).map(({ c }) => c);
   const numbered = topLevel.map((c, i) => ({ number: i + 1, c }));
   const resolvedIds = numbered.filter(({ c }) => resolvedCommentIds.has(c.id)).map(({ number }) => number);
   const lineOf = (c) => c.line ?? c.original_line ?? 0;

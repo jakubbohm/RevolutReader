@@ -141,7 +141,9 @@ not resolved, ordered by file and line. It prints the count, how many it left ou
 thread is left out, whether an earlier round resolved it or the owner did by hand; to bring one back, the owner
 unresolves it. The ids number the PR's top-level comments in the order they were posted, the ones posted from
 this conversation included, so a later round's new findings continue after the earlier rounds' numbers, a thread
-left open keeps its number, and every `[review] <id>:` commit stays unique within the PR.
+left open keeps its number, and every `[review] <id>:` commit stays unique within the PR. Posted means submitted:
+the order is when each comment's review was submitted, so a review drafted early and submitted late still comes
+after the earlier rounds' numbers, and a comment of a pending review is left out until its review is submitted.
 
 **After an interrupted round:** § 0 step 3 counts only posted summaries, so a rerun of a round that stopped before
 its summary already has the right number. Every finding the round handled before it stopped has its reply and a
@@ -310,10 +312,11 @@ header has the details. Their pure parts have tests beside them (`*.test.mjs`, N
   top-level comment is skipped. Prints `POSTED: <n> <comment id> <url>` or `SKIPPED: <n> already posted as
   comment <id>` per finding. `--dry-run` makes the same checks and prints `WOULD POST: <n> <path>:<line>`,
   `WOULD POST: <n> <path> (file)` or `WOULD SKIP: …`, without posting.
-- **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments and threads, and writes
-  `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and ordered as
-  § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads: <numbers>`
-  (the left-out numbers as ranges, e.g. `1-15`; none: no colon) and one line per finding.
+- **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments, reviews and threads, and
+  writes `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and
+  ordered as § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads:
+  <numbers>` (the left-out numbers as ranges, e.g. `1-15`; none: no colon) and one line per finding. A top-level
+  comment whose review is not among the PR's reviews fails it with `ERROR:` rather than take a guessed number.
 - **`reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]`** (§ Replies): posts the body file
   as a reply in the thread the comment starts and, with `yes`, resolves that thread. It checks first that the
   comment is a top-level review comment on the PR and, with `yes`, that its thread exists, so a failed check posts
