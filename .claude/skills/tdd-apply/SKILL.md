@@ -25,7 +25,7 @@ Arguments: `$ARGUMENTS`
   the human (§ Disputes, step 3).
 - `review=` controls the review stops (default `acceptance`; the user asked for `all` on C1 and C5):
   - `acceptance`: the acceptance gate only.
-  - `all`: also a stop after the test-writer finishes every unit group (§ 2 step 4).
+  - `all`: also a stop after the test-writer finishes every unit and every integration group (§ 2 step 4).
 - `checkpoint=` controls the stop at each chapter checkpoint (default `stop`; § Chapters, step 5):
   - `stop`: stop there.
   - `continue`: no stop; start the next chapter at once.
@@ -117,7 +117,8 @@ For each group:
 
 ## 2b. Integration groups (`[integration]`), after all unit groups
 
-Same red → verify → commit → green → verify → commit loop as unit groups, with these differences:
+Same red → verify → commit → green → verify → commit loop as unit groups, with the review stop of § 2 step 4,
+and with these differences:
 
 1. The test-writer writes one abstract contract test class per port plus two concrete subclasses:
    one bound to the in-memory fake, one bound to the real adapter.
