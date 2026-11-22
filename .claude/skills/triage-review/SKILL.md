@@ -123,15 +123,16 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
      **A guard test that passes at once refutes the finding:** keep it, commit
      `test(<scope>): [review] <id>: guard, passes`, and move the finding to DECLINE with the test as its evidence.
   3. Send the implementer the test (file and test name), the finding and the sketch; the implementer must not
-     change any test file. Verify green yourself: the full suite passes, and `git diff --name-only HEAD` lists
-     nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or `openspec/` other than your state
-     file (§ 0 step 3). A violation: restore the file (`git restore --source=HEAD -- <path>`), tell the
-     implementer, resume it. Commit `fix(<scope>): [review] <id>: <summary>`.
+     change any test file. Verify green yourself: the full suite passes, and `git status --porcelain` and
+     `git diff --name-only HEAD` list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or
+     `openspec/` other than your state file (§ 0 step 3). A violation: restore the file
+     (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer, resume it. Commit
+     `fix(<scope>): [review] <id>: <summary>`.
   4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding
      to ASK with the test-writer's test, the implementer's claim and the evidence.
 - **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
   `test(<scope>): [review] <id>: <summary>`.
-- **docs** or **cleanup:** The implementer alone. Verify the suite is green and the diff touches no test file.
+- **docs** or **cleanup:** The implementer alone. Verify green as in step 3 of a behaviour fix.
   Commit `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
 
 After each commit: tick the finding and note the commit in the state file. Only one of the test-writer and the
@@ -174,7 +175,8 @@ implementer works at a time; never build or test while one of them is working.
 ## Rules for you (the orchestrator)
 
 - Never edit tests or production code yourself. The only files you edit are the state file, the findings file and
-  the close-out docs. Restoring a file the implementer was not allowed to change is the one exception.
+  the close-out docs. Restoring or deleting a file the implementer was not allowed to touch (§ 3) is the one
+  exception.
 - Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
   build or a test run while the test-writer or the implementer works. The workflow's agents never build or
   run tests (its prompts forbid it).
