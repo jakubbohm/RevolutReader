@@ -5,7 +5,7 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Configuration;
 
 /// <summary>
-/// A TimeSpan setting's range (#68, the owner's decision of 2026-11-22): both limits are allowed and a value one tick
+/// A TimeSpan setting's range (#97, the owner's decision of 2026-11-22): both limits are allowed and a value one tick
 /// outside fails; a missing value passes, as with <c>[Range]</c>, since refusing it is <see cref="RequiredAttribute"/>'s;
 /// a failure names the member it validates, as its only member, and both limits in its message, never the value. It
 /// stands in for <c>[Range(typeof(TimeSpan), …)]</c>, whose attribute converts its text limits on first use without a lock
@@ -97,7 +97,7 @@ public sealed class TimeSpanRangeAttributeTests {
   /// <summary>
   /// Why this test exists: the attribute this one replaces, <c>RangeAttribute(Type, string, string)</c>, converts its text
   /// limits on first use without a lock (dotnet/runtime#110917), so app copies starting at the same time failed their
-  /// settings check at random, an <see cref="InvalidCastException"/> or a wrong answer (#68). Here every round gives
+  /// settings check at random, an <see cref="InvalidCastException"/> or a wrong answer (#97). Here every round gives
   /// <see cref="THREADS"/> threads an attribute nobody has used yet and releases them onto it at the same moment; every
   /// answer must be the right one, and none may throw. A thousand rounds take a fraction of a second.
   /// </summary>

@@ -15,9 +15,9 @@ namespace RevolutReader.UnitTests.Check;
 /// The check's key is checked at start-up (c014 design.md D6; configuration.md § Binding): it is required, it may not still
 /// hold the declared placeholder, it is at least 32 bytes in base64url without padding, read strictly, and it is a key of
 /// its own, never the message key. A failure names the setting, never a value: a failure of the setting's own rules is the
-/// standard data-annotation failure, naming the settings class and its <c>Key</c> (the owner's decision on #68,
+/// standard data-annotation failure, naming the settings class and its <c>Key</c> (the owner's decision on #97,
 /// 2026-11-22), and one of the validator's checks names it by its full name, as the operator sets it (<c>AccountCheck:Key</c>,
-/// and for the message key <c>Push:MessageKey</c> too; #68). Each test runs the checks the app runs at start, through the
+/// and for the message key <c>Push:MessageKey</c> too; #97). Each test runs the checks the app runs at start, through the
 /// check's own registration (<see cref="AccountCheckRegistration.AddAccountCheck"/>): the settings' data annotations and
 /// <see cref="AccountCheckOptionsValidator"/>, however that validator is built. Every key here is made up, generated in the
 /// test.
@@ -60,7 +60,7 @@ public sealed class AccountCheckOptionsTests {
       "a failure saying that AccountCheck's Key is required");
 
   /// <summary>
-  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
   /// it names the settings class and the setting, <c>'AccountCheckOptions' members: 'Key'</c>, then says what is wrong, and
   /// never holds the value. The validator's own failures open with <c>AccountCheck:Key is …</c> instead.
   /// </summary>
@@ -169,7 +169,7 @@ public sealed class AccountCheckOptionsTests {
 
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
-  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
   /// wrong (<c>AccountCheck:Key is not …</c>), where a failure of the setting's own rules opens as the standard
   /// data-annotation failure, so only the validator's failure passes; a second setting the same failure is about is named
   /// in full further on. No failure may name a setting by a settings class's name instead (<c>AccountCheckOptions.Key</c>,

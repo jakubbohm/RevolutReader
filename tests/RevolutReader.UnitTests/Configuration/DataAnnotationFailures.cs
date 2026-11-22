@@ -4,7 +4,7 @@ namespace RevolutReader.UnitTests.Configuration;
 
 /// <summary>
 /// The failure of a settings class's own rules, its data annotations, as the standard check writes it (the owner's
-/// decision on #68, 2026-11-22; configuration.md § Binding): <c>DataAnnotation validation failed for 'AccountCheckOptions'
+/// decision on #97, 2026-11-22; configuration.md § Binding): <c>DataAnnotation validation failed for 'AccountCheckOptions'
 /// members: 'Key' with the error: 'The Key field is required.'.</c> It names the setting by its settings class and its
 /// member, each in quotes, then says what is wrong. The settings tests check a rule's failure with it; a hand-written
 /// check's failure opens with the setting's full name instead (<c>AccountCheck:Key is …</c>) and is checked by each test.

@@ -28,7 +28,7 @@ Sections stay short on purpose: a rule gets its detail from the change that firs
 - `Directory.Build.props` (created in C1): `Nullable` and `ImplicitUsings` enabled, `TreatWarningsAsErrors`, `AnalysisLevel latest-all`, `EnforceCodeStyleInBuild`, `GenerateDocumentationFile` (needed for IDE0005 on build; CS1591 is not gated).
 - Analyzer packages: `Microsoft.CodeAnalysis.BannedApiAnalyzers` (time discipline below) and `Roslynator.Analyzers`, scoped to RCS1002.
 - **Every disabled or downgraded rule carries a comment saying why**, next to the setting in `.editorconfig`. Path-specific exemptions are added by the change that first needs them.
-- **Central package management:** every package version lives in `Directory.Packages.props`; the SDK is pinned exactly in `global.json` (both created in C1). Transitive pinning is on (#68): an entry also sets that package's version wherever it comes in indirectly, so a package can be pinned above what a library accepts, with a comment naming the bug it avoids and the test that guards it (lesson [R-101](../software-factory/lessons.md)).
+- **Central package management:** every package version lives in `Directory.Packages.props`; the SDK is pinned exactly in `global.json` (both created in C1). Transitive pinning is on (#97): an entry also sets that package's version wherever it comes in indirectly, so a package can be pinned above what a library accepts, with a comment naming the bug it avoids and the test that guards it (lesson [R-101](../software-factory/lessons.md)).
 
 ## C# style beyond tooling
 

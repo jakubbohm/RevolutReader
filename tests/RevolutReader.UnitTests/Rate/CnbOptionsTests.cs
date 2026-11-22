@@ -12,8 +12,8 @@ namespace RevolutReader.UnitTests.Rate;
 /// The CNB settings are checked at start-up (c017 design.md D1, D4; configuration.md § Binding): the address is required
 /// and is an absolute https address, or plain http on a loopback host (the test fakes'); the time limit lies between 1
 /// millisecond and 10 seconds. A failure names the setting, never its value: a failure of the settings' own rules is the
-/// standard data-annotation failure, naming the settings class and the setting (the owner's decision on #68, 2026-11-22),
-/// and the validator's address check opens its sentence with the setting's full name, as the operator sets it (#68). Each
+/// standard data-annotation failure, naming the settings class and the setting (the owner's decision on #97, 2026-11-22),
+/// and the validator's address check opens its sentence with the setting's full name, as the operator sets it (#97). Each
 /// test runs the checks the app runs at start, through the koruna rate's own registration
 /// (<see cref="RateRegistration.AddKorunaRates"/>, from an in-memory configuration): the settings' data annotations and
 /// <see cref="CnbOptionsValidator"/>, however those checks are built. The addresses are made up, but for production's own,
@@ -75,7 +75,7 @@ public sealed class CnbOptionsTests {
   /// <summary>
   /// An address the CNB's client could not ask is refused at start (review of PR #95, finding 1): only an absolute https
   /// address, or plain http on a loopback host, is one the client can use. The validator's failure names the setting by
-  /// its full name, as the operator sets it (<c>Cnb:Address</c>, or <c>Cnb__Address</c> in the environment, #68), never
+  /// its full name, as the operator sets it (<c>Cnb:Address</c>, or <c>Cnb__Address</c> in the environment, #97), never
   /// by the settings class's name, and never holds the value.
   /// </summary>
   /// <param name="address">Not an absolute https address, nor plain http on a loopback host (D1).</param>
@@ -103,7 +103,7 @@ public sealed class CnbOptionsTests {
       .ShouldHaveDataAnnotationFailure<CnbOptions>(nameof(CnbOptions.TimeLimit), SHORTEST_TIME_LIMIT, LONGEST_TIME_LIMIT);
 
   /// <summary>
-  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
   /// it names the settings class and the setting (<c>'CnbOptions' members: 'TimeLimit'</c>), then says what is wrong, the
   /// time limit outside its range by both limits, and never holds the value.
   /// </summary>
@@ -175,7 +175,7 @@ public sealed class CnbOptionsTests {
 
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own check naming <paramref name="setting"/>
-  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
   /// wrong (<c>Cnb:Address is not …</c>), where a failure of the settings' own rules opens as the standard data-annotation
   /// failure, so only the validator's failure passes. No failure may name a setting by the settings class's name instead
   /// (<c>CnbOptions.Address</c>), which the operator cannot set.

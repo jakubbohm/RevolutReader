@@ -81,7 +81,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["src/test/setup.ts"],
-    // Gives the test kit's own check (src/test/server.test.ts, #68) a `gc()` to force a garbage collection in the test
+    // Gives the test kit's own check (src/test/server.test.ts, #97) a `gc()` to force a garbage collection in the test
     // workers; only that test calls it.
     execArgv: ["--expose-gc"],
   },

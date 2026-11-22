@@ -5,7 +5,7 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Push;
 
 /// <summary>
-/// The known push services' own guard (c011 design.md D9; #68): an entry of <c>Push:Services</c> that is not a push service
+/// The known push services' own guard (c011 design.md D9; #97): an entry of <c>Push:Services</c> that is not a push service
 /// pattern stops <see cref="KnownPushServices"/> from being made, rather than let it match nothing unnoticed, and the
 /// message names the entry by its full name, as the operator sets it (<c>Push:Services:&lt;name&gt;</c>), never its value.
 /// In the app the start-up check refuses such an entry first (<see cref="PushOptionsValidator"/>), so the guard never fires

@@ -26,7 +26,7 @@ import { realTurn } from "./clock";
  *
  * The fake server keeps every open request until it ends, as a browser's network stack does. Node's `Request` follows
  * the app's abort signal only through a `WeakRef`, so once nothing keeps the `Request` itself, a garbage collection cuts
- * that link and the app's later abort never reaches the request, which then never ends (#68). `resetFakeServer` (and
+ * that link and the app's later abort never reaches the request, which then never ends (#97). `resetFakeServer` (and
  * `closeApp`) lets go of the requests that never ended, such as one left with no answer.
  *
  * The answers to the transactions (c010 design.md D10, § Public API sketch: the test kit) sit in their own blocks,
@@ -496,7 +496,7 @@ let generation = 0;
 /**
  * The requests still open. Node's `Request` follows its caller's abort signal only while something keeps the `Request`;
  * the fake server keeps each one until it ends, as a browser's network stack does, so a garbage collection mid-wait
- * never cuts the app's abort off (#68, DOM standard § 3.2.1).
+ * never cuts the app's abort off (#97, DOM standard § 3.2.1).
  */
 let openRequests = new Set<object>();
 

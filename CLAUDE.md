@@ -21,7 +21,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | Fix formatting / check it | `dotnet format whitespace RevolutReader.slnx` / add `--verify-no-changes` |
 | Frontend install | `npm --prefix src/RevolutReader.Web ci` |
 | Frontend tests / one file | `npm --prefix src/RevolutReader.Web test` / add `-- src/scenarios/<capability>.test.ts(x)` |
-| Frontend tests under memory pressure (by hand, never in CI: for a test that fails only in full runs, [testing.md § Where tests live](docs/conventions/testing.md#where-tests-live); the whole suite takes about 14 minutes, one file from a second to about a minute; run in #68, 2026-11-21) | `npm --prefix src/RevolutReader.Web run test:gc-pressure` / add `-- <file>` |
+| Frontend tests under memory pressure (by hand, never in CI: for a test that fails only in full runs, [testing.md § Where tests live](docs/conventions/testing.md#where-tests-live); the whole suite takes about 14 minutes, one file from a second to about a minute; run in #97, 2026-11-21) | `npm --prefix src/RevolutReader.Web run test:gc-pressure` / add `-- <file>` |
 | Frontend checks | `npm --prefix src/RevolutReader.Web run lint` · `run typecheck` · `run format:check` (fix: `run format`) |
 | Frontend build | `npm --prefix src/RevolutReader.Web run build` |
 | Regenerate the API client (after changing an endpoint's contract; once per machine first `npm --prefix tools/api-client ci`) | `npm --prefix tools/api-client run regenerate`: the export check writes `src/RevolutReader.Api/openapi.json`, then the TypeScript types `src/RevolutReader.Web/src/api/schema.d.ts`; commit both (CI fails when either is stale). Run in C6, 2026-11-08 |

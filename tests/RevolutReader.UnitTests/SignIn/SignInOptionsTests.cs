@@ -12,8 +12,8 @@ namespace RevolutReader.UnitTests.SignIn;
 /// required, neither secret may still hold the declared placeholder, and the allowlist must hold at least one entry, no
 /// empty entry, and only email addresses (text, one <c>@</c>, text). A failure names the setting, never the addresses or
 /// the placeholder: a failure of the settings' own rules is the standard data-annotation failure, naming the settings class
-/// and the setting (the owner's decision on #68, 2026-11-22), and the validator's allowlist check opens its sentence with
-/// the setting's full name, as the operator sets it (#68). Each test runs the checks the app runs at start, through
+/// and the setting (the owner's decision on #97, 2026-11-22), and the validator's allowlist check opens its sentence with
+/// the setting's full name, as the operator sets it (#97). Each test runs the checks the app runs at start, through
 /// sign-in's own registration (<see cref="SignInRegistration.AddSignIn"/>, from an in-memory configuration): the settings'
 /// data annotations and <see cref="SignInOptionsValidator"/>, however those checks are built. Every value here is made up.
 /// </summary>
@@ -104,7 +104,7 @@ public sealed class SignInOptionsTests {
     Failures(Settings(allowedEmails: allowedEmails)).ShouldBeEmpty();
 
   /// <summary>
-  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
   /// it names the settings class and the setting (<c>'SignInOptions' members: 'ClientSecret'</c>), then says what is wrong,
   /// and never holds the value.
   /// </summary>
@@ -177,7 +177,7 @@ public sealed class SignInOptionsTests {
 
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own check naming <paramref name="setting"/>
-  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
   /// wrong (<c>SignIn:AllowedEmails is not …</c>), where a failure of the settings' own rules opens as the standard
   /// data-annotation failure, so only the validator's failure passes, also beside the required rule's failure for an empty
   /// list. No failure may name a setting by the settings class's name instead (<c>SignInOptions.AllowedEmails</c>), which

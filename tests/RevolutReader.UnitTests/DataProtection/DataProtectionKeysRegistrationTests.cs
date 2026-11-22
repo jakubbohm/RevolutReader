@@ -22,7 +22,7 @@ namespace RevolutReader.UnitTests.DataProtection;
 /// <item>both addresses without <c>AZURE_CLIENT_ID</c> (empty or missing): refused at registration, the message naming
 /// both addresses and <c>AZURE_CLIENT_ID</c>.</item>
 /// </list>
-/// A message names settings by their full names, as the operator sets them (#68), never their values: it opens with
+/// A message names settings by their full names, as the operator sets them (#97), never their values: it opens with
 /// <c>DataProtection:KeysBlobUri</c>, names <c>DataProtection:KeyVaultKeyUri</c> further on, and <c>AZURE_CLIENT_ID</c>,
 /// a top-level setting, as it is. An empty setting, as <c>appsettings.json</c> declares each of them, counts as not set.
 /// The tests use the settings' real names, so they pin the names too.
@@ -146,7 +146,7 @@ public sealed class DataProtectionKeysRegistrationTests {
 
   /// <summary>
   /// Asserts that <paramref name="message"/> names both key addresses by their full names, as the operator sets them
-  /// (#68): it opens with <c>DataProtection:KeysBlobUri</c> and goes straight on, names <c>DataProtection:KeyVaultKeyUri</c>
+  /// (#97): it opens with <c>DataProtection:KeysBlobUri</c> and goes straight on, names <c>DataProtection:KeyVaultKeyUri</c>
   /// further on, and never names either address apart from its section (<c>the DataProtection settings KeysBlobUri and
   /// KeyVaultKeyUri</c>). The rest of the sentence is the message's own.
   /// </summary>

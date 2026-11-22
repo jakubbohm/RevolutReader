@@ -5,7 +5,7 @@ import { answerWith, noAnswerYet, timeline } from "./server";
 // The test kit's own checks: the fake server (./server.ts) behaves as the app's tests rely on, also where Node and a
 // browser differ.
 
-// Why this test exists (#68): the app's API client wraps every call in a `Request` that follows the app's abort signal.
+// Why this test exists (#97): the app's API client wraps every call in a `Request` that follows the app's abort signal.
 // In Node that link lasts only while something keeps the `Request` itself: a garbage collection that finds nothing
 // keeping it cuts the link, and the app's later abort (its 60 s limit) never reaches the request, which then never ends.
 // A browser keeps the link. So the fake server must keep every open request until it ends. This test leaves a request

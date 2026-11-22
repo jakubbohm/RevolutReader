@@ -16,8 +16,8 @@ namespace RevolutReader.UnitTests.Bank;
 /// has no query or fragment, the private key must be an RSA private key in PEM form (a public key fails too), the request
 /// timeout lies between 1 second and 2 minutes and the retry delay between 0 and 5 seconds. A failure names the setting,
 /// never its value: a failure of the settings' own rules is the standard data-annotation failure, naming the settings class
-/// and the setting (the owner's decision on #68, 2026-11-22), and one of the validator's checks opens its sentence with the
-/// setting's full name, as the operator sets it (#68). Each test runs the checks the app runs at start, through the bank
+/// and the setting (the owner's decision on #97, 2026-11-22), and one of the validator's checks opens its sentence with the
+/// setting's full name, as the operator sets it (#97). Each test runs the checks the app runs at start, through the bank
 /// adapter's own registration (<see cref="EnableBankingRegistration.AddEnableBanking"/>, from an in-memory configuration):
 /// the settings' data annotations and <see cref="EnableBankingOptionsValidator"/>, however those checks are built. Every
 /// value here is made up; every key is generated in the test.
@@ -170,7 +170,7 @@ public sealed class EnableBankingOptionsTests {
     Failures(Settings(retryDelay: TimeSpan.Parse(retryDelay, CultureInfo.InvariantCulture))).ShouldBeEmpty();
 
   /// <summary>
-  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
   /// it names the settings class and the setting (<c>'EnableBankingOptions' members: 'AccountId'</c>), then says what is
   /// wrong, a time outside its range by both limits, and never holds the value.
   /// </summary>
@@ -262,7 +262,7 @@ public sealed class EnableBankingOptionsTests {
 
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
-  /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
   /// wrong (<c>EnableBanking:PrivateKey is not …</c>), where a failure of the settings' own rules opens as the standard
   /// data-annotation failure, so only the validator's failure passes. No failure may name a setting by the settings class's
   /// name instead (<c>EnableBankingOptions.PrivateKey</c>), which the operator cannot set.

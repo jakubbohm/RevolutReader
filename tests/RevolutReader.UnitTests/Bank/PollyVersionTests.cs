@@ -7,7 +7,7 @@ using Shouldly;
 namespace RevolutReader.UnitTests.Bank;
 
 /// <summary>
-/// The Polly the bank client's retries run on (#68). Polly checks a strategy's options with DataAnnotations, and
+/// The Polly the bank client's retries run on (#97). Polly checks a strategy's options with DataAnnotations, and
 /// <c>RangeAttribute(Type, string, string)</c>, which it puts on TimeSpan members, sets itself up lazily without a lock
 /// (dotnet/runtime#110917): two pipelines built at the same time could fail that check at random. Polly 8.5.1 runs the
 /// check under a lock (App-vNext/Polly#2412). Microsoft.Extensions.Http.Resilience accepts any Polly from 8.4.2 up, and
@@ -35,7 +35,7 @@ public sealed class PollyVersionTests {
     // Every Polly 8 release has the assembly version 8.0.0.0, and the file version adds a build number, so only the
     // informational version is the package's own: "8.4.2+<commit>".
     string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-    informationalVersion.ShouldNotBeNull($"{package} carries no informational version, so its package version cannot be read (#68)");
+    informationalVersion.ShouldNotBeNull($"{package} carries no informational version, so its package version cannot be read (#97)");
 
     // Semantic versioning: the build metadata after "+" does not count, and a prerelease such as 8.5.1-beta comes before 8.5.1.
     string version = informationalVersion.Split('+')[0];
@@ -43,6 +43,6 @@ public sealed class PollyVersionTests {
     Version release = Version.Parse(releaseAndPrerelease[0]);
     bool isThreadSafe = release > _firstThreadSafeRelease || (release == _firstThreadSafeRelease && releaseAndPrerelease.Length == 1);
 
-    isThreadSafe.ShouldBeTrue($"{package} {version} is loaded; {_firstThreadSafeRelease} or later is needed (#68)");
+    isThreadSafe.ShouldBeTrue($"{package} {version} is loaded; {_firstThreadSafeRelease} or later is needed (#97)");
   }
 }

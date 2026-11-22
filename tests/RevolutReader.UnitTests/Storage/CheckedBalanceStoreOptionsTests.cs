@@ -13,7 +13,7 @@ namespace RevolutReader.UnitTests.Storage;
 /// table name is required and must be one Table Storage accepts, 3 to 63 letters and digits starting with a letter
 /// (letters as Table Storage counts them, A to Z only), so a wrong name stops the app at start instead of failing the
 /// first check. A failure of the setting's own rules is the standard data-annotation failure, naming the settings class
-/// and the setting, never its value (the owner's decision on #68, 2026-11-22). Each test registers the store as the app
+/// and the setting, never its value (the owner's decision on #97, 2026-11-22). Each test registers the store as the app
 /// does (<see cref="StorageRegistration.AddCheckedBalanceStore"/>; reading its settings needs no tables client, which the
 /// transaction store's registration adds) and reads the settings as the app's services give them, which runs the checks
 /// registered for them.
@@ -58,7 +58,7 @@ public sealed class CheckedBalanceStoreOptionsTests {
     SettingsAfterRegistering(DEFAULT_TABLE_NAME).TableName.ShouldBe(DEFAULT_TABLE_NAME);
 
   /// <summary>
-  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
   /// it names the settings class and the setting (<c>'CheckedBalanceStoreOptions' members: 'TableName'</c>), then says what
   /// is wrong, and never holds the value.
   /// </summary>
