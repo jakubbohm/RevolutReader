@@ -2,7 +2,7 @@
 
 **Status:** Accepted (the owner's decisions in c017's explore, 2026-11-21) · **Date:** 2026-11-21 · **Roadmap:** none (work after the initial development: [issue #39](https://github.com/jakubbohm/RevolutReader/issues/39)) · **Questions:** none
 
-> The design trail: [c017 design.md D1–D5](../../openspec/changes/c017-add-daily-koruna-rate/design.md), which records the explore's decisions and is their home. Sources were read on 2026-11-21.
+> The design trail: [c017 design.md D1–D5](../../openspec/changes/archive/2026-11-22-c017-add-daily-koruna-rate/design.md), which records the explore's decisions and is their home. Sources were read on 2026-11-21.
 
 ## Context
 
