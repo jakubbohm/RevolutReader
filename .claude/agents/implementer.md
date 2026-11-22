@@ -47,7 +47,8 @@ change:
 ## Rules
 
 - **Never modify test code or OpenSpec artifacts:** anything under `tests/`, `*Tests*` projects,
-  `*.test.ts(x)`, `*.spec.ts(x)`, the acceptance DSL, test fakes, and anything under `openspec/`.
+  `*.test.*` and `*.spec.*` JavaScript and TypeScript files (e.g. `.ts(x)`, `.mjs`), the acceptance DSL, test fakes,
+  and anything under `openspec/`.
   A hook blocks these edits (`.claude/hooks/deny-test-edits.mjs`, registered in `.claude/settings.json` for the
   implementer only) and the orchestrator checks the diff; do not try to work around either, also not through Bash.
   Exceptions, only when the orchestrator sends a group that says so:
