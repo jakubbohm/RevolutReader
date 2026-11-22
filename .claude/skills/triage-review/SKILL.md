@@ -69,7 +69,7 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    are deferred): `index_repository` with its absolute path. Write the project's name into the state file. You
    index it again after every commit (Rules for you). Why, and how the project is named:
    `.claude/skills/tdd-apply/SKILL.md` § 0 step 9 and `CLAUDE.md` § Code navigation.
-5. The test-writer and the implementer: read `openspec/changes/<change>/.tdd-state.md` for their IDs (the
+5. The test-writer and the implementer: read `.tdd-state.md` in the change's folder (step 2) for their IDs (the
    current pair, the last chapter's; in a later round, the pair the last round's state file records, when it is
    at hand: a Direct PR's only in the session that wrote it, step 3) and resume them with SendMessage; your first
    message to each names the code graph's project (step 4), so neither relies on the one the apply gave it. If one
