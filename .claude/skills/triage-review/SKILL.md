@@ -36,7 +36,7 @@ Arguments: `$ARGUMENTS`
 |---|---|---|
 | **FIX** | verified real; the fix is local (only files the PR touches or the finding names; no new dependency, setting, Bicep change, API contract change or spec change) and not large | § 3: the guard test, then the fix, one `[review]` commit each; the thread gets the commit and is resolved |
 | **DECLINE** | verified not real, with concrete evidence you checked yourself | the thread gets the evidence and is resolved |
-| **ASK** | everything else: a disputed verdict, unclear, a spec change, a contract change, a fix outside the PR's files, a large fix, an implementer dispute, a finding the workflow returned no result for | § 4: the owner decides fix, decline or defer; the thread gets the decision |
+| **ASK** | everything else: a disputed verdict, unclear, a spec change, a contract change, a fix outside the PR's files, a large fix, an implementer dispute, a finding the workflow returned no result for | § 4: the owner decides fix, decline or defer (an implementer dispute at once, § 3 step 4); the thread gets the decision |
 
 When unsure, ASK. Never decline on the review's word, on the workflow's word or on your own impression: only with
 evidence at a file:line, a test name or a recorded decision that you opened.
@@ -158,10 +158,10 @@ unresolve it) or leave it. An open thread whose number has commits in `<headRefO
 this round's through) is not verified again but resumes where its commits stop: after a `[plan] <id>:` commit, the
 owner chose fix now, so at § 3 step 1, the test-writer; after a `…, red` commit, at § 3 step 3, the implementer
 (§ 0 step 6 lets that test fail); after any other, the finding was handled and only its reply is owed: post it
-(§ Replies) and take it back as above. Only the other open threads go to § 2; with none, go on to § 3 with the
-resumed findings, or to § 5 when there are none either. A change's state file is in the repository and says the
-same in any session; a Direct PR's lives only in the session that wrote it, so in a new one the threads and
-commits are the record (§ 0 step 3).
+(§ Replies; after a `guard removed` commit, its text from that commit's body, § 3 step 4) and take it back as
+above. Only the other open threads go to § 2; with none, go on to § 3 with the resumed findings, or to § 5 when
+there are none either. A change's state file is in the repository and says the same in any session; a Direct
+PR's lives only in the session that wrote it, so in a new one the threads and commits are the record (§ 0 step 3).
 
 With no open thread, no finding taken back and no review in this conversation that is not on the PR, there is
 nothing to triage: say so and stop. Otherwise write the findings table (id · file:line · title) into the state file.
@@ -211,8 +211,28 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
      `.ts(x)`, `.mjs`) or `openspec/` other than your state file (§ 0 step 3). A violation: restore the file
      (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer, resume it. Commit
      `fix(<scope>): [review] <id>: <summary>`.
-  4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding
-     to ASK with the test-writer's test, the implementer's claim and the evidence.
+  4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone, and do not go on to
+     the next finding, since every later check of a green suite depends on that test. The finding is an ASK, asked
+     at once:
+     - Set the implementer's work aside: `git diff HEAD -- <paths> > <work folder>/blocked-<id>.patch` for the
+       files it changed, and a copy of each new file under `<work folder>/blocked-<id>/` (the paths:
+       `git status --porcelain --untracked-files=all`, except your state file). Then restore them (`git restore
+       --source=HEAD -- <path>`; delete a new one) until `git status --porcelain` lists only your state file: the
+       tree is the `red` commit again. Note the patch and the folder in the state file.
+     - Put the finding to the owner as § 4 step 2 does, ahead of § 4's order: the test-writer's test, the
+       implementer's claim, the evidence, both sides, whether the test stands, and your recommendation. The round
+       waits for the answer; record it in the state file.
+     - Act on it before the next finding. **Fix now:** the test first. A wrong test goes to the test-writer, and
+       its change is verified as in step 2 and committed `test(<scope>): [review] <id>: <summary>, red`; for a test
+       that stands, the implementer is told so. Then step 3: resume the implementer, which may start from the
+       saved patch. **Decline** or **defer:** take the guard test out in a commit of its own, so the suite is green
+       again: `git revert --no-commit <sha>` for each of the finding's `red` commits, newest first, committed
+       `test(<scope>): [review] <id>: guard removed, declined` (or `deferred`; not git's own `Revert "…, red"`,
+       which a rerun would read as a `red` commit, § 1). Its body is the thread's reply in full (§ Replies), with
+       the owner's reason or where the finding is deferred, so a rerun that finds only this commit posts the reply
+       from it (§ 1). A deferral to an issue therefore creates the issue first (§ 4 step 3), naming the test, its
+       `red` commit and the claim, and the body gives its number; a heads-up, naming the same, comes after this
+       commit in its own (§ 4 step 3). Then reply and resolve the thread (§ Replies).
 - **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
   `test(<scope>): [review] <id>: <summary>`.
 - **docs** or **cleanup:** The implementer alone; verify green as in step 3 of a behaviour fix. A docs finding
@@ -226,7 +246,8 @@ build or test while one of them is working.
 
 ## 4. Ask round
 
-1. Overview first: one table of the ASK findings (id · title · why it is asked · your recommendation).
+1. Overview first: one table of the ASK findings not asked yet (id · title · why it is asked · your
+   recommendation); a blocked fix was asked at once (§ 3 step 4).
 2. Then one finding at a time (the owner's standing preference, memory `decisions-one-by-one`): the finding in two
    or three sentences, both sides when the verdict was disputed, the trade-off, your recommendation, and the
    choice: **fix now** · **decline** (the owner gives the reason) · **defer**. Use AskUserQuestion with these
@@ -276,7 +297,9 @@ build or test while one of them is working.
 - Never edit tests or production code yourself. The only files you edit are the state file, the chat findings
   file (§ 1), the reply and summary body files in the work folder (§ Replies, § 5 step 3), the close-out docs and
   the files under `openspec/` that a docs finding (§ 3), a spec change the owner wants fixed now or a heads-up
-  (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch (§ 3) is the one exception.
+  (§ 4) needs. The exceptions: restoring or deleting a file the implementer was not allowed to touch (§ 3), and
+  for a blocked fix, setting the implementer's work aside and, when the owner declines or defers the finding,
+  reverting its guard test (§ 3 step 4).
 - Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
   build or a test run while the test-writer or the implementer works. The workflow's agents never build or
   run tests (its prompts forbid it).
