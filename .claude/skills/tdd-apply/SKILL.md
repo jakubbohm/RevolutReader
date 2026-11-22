@@ -1,7 +1,7 @@
 ---
 name: tdd-apply
 description: Implement an OpenSpec change test-first by orchestrating the test-writer and implementer subagents. Use instead of /opsx:apply.
-argument-hint: <change-name> [review=acceptance|all|none]
+argument-hint: <change-name> [review=acceptance|all] [checkpoint=stop|continue]
 disable-model-invocation: true
 ---
 
@@ -21,12 +21,14 @@ are in `CLAUDE.md` § Commands.
 
 Arguments: `$ARGUMENTS`
 - First argument: the change name (folder under `openspec/changes/`). If missing, list active changes and ask.
-- `review=` controls the review stops (default `acceptance`; the user asked for `all` on C1 and C5). Whatever
-  the setting, the apply also stops at the chapter checkpoints (§ Chapters, step 5) and for disputes that go to
+- Whatever the settings below, the apply stops at the acceptance gate (§ 1 step 3) and for disputes that go to
   the human (§ Disputes, step 3).
-  - `acceptance`: stop for human review after the acceptance tests.
-  - `all`: stop after the acceptance tests and after the test-writer finishes every unit group.
-  - `none`: no review stops.
+- `review=` controls the review stops (default `acceptance`; the user asked for `all` on C1 and C5):
+  - `acceptance`: the acceptance gate only.
+  - `all`: also a stop after the test-writer finishes every unit group (§ 2 step 4).
+- `checkpoint=` controls the stop at each chapter checkpoint (default `stop`; § Chapters, step 5):
+  - `stop`: stop there.
+  - `continue`: no stop; start the next chapter at once.
 
 ## 0. Prepare
 
@@ -44,9 +46,9 @@ Arguments: `$ARGUMENTS`
 6. Create or read `openspec/changes/<change>/.tdd-state.md`. It holds: a "Resume here" section, the chapter
    plan, the agent IDs of the test-writer and the implementer per chapter (the current pair marked, each
    agent's last token count), the standing rules for the test-writer and the implementer, current group, review
-   mode, the list of this change's acceptance tests, open disputes, the last commit per step. **Write the agent
-   IDs there as soon as you spawn each agent.** If your context is compacted, re-read this file before doing
-   anything else.
+   and checkpoint modes, the list of this change's acceptance tests, open disputes, the last commit per step.
+   **Write the agent IDs there as soon as you spawn each agent.** If your context is compacted, re-read this
+   file before doing anything else.
 7. Create a task list mirroring the groups in `tasks.md`.
 8. If the change builds or changes UI, `design.md` names the design-system parts and Screens design artboards
    it implements (`docs/conventions/workflow.md` § 8). The test-writer and the implementer cannot open Claude
@@ -219,14 +221,17 @@ with a fresh test-writer and implementer.
    2. Rewrite `.tdd-state.md` for resuming: "Resume here" names the next chapter and its first group; what the
       code holds now, briefly per area; the standing rules for the test-writer and the implementer; the retired
       pair marked with their last token counts. Commit it: `docs(<cNNN>): [chapter] <name>'s state`.
-   3. Stop, in every review mode: only the human can compact your context. Report the chapter (groups done,
-      test totals, disputes, the agents' last token counts) and give a ready command:
-      `/compact /tdd-apply <change>: chapter <name> is done and committed (<sha>). Re-read .tdd-state.md and
-      the tdd-apply skill, then start chapter <next> with a fresh test-writer and implementer.`
-      Tell the human to send a short message after compacting (e.g. "continue"): `/compact` does not start a turn
-      by itself. Ask with AskUserQuestion whether to compact first and then continue, continue without compacting,
-      or stop here. After "compact first" or "stop here", end your turn and wait. After "continue without
-      compacting", start chapter <next> at once, its agents spawned as step 4 says.
+   3. Then, as `checkpoint=` says:
+      - `stop`: stop, because only the human can compact your context. Report the chapter (groups done, test
+        totals, disputes, the agents' last token counts) and give a ready command:
+        `/compact /tdd-apply <change>: chapter <name> is done and committed (<sha>). Re-read .tdd-state.md and
+        the tdd-apply skill, then start chapter <next> with a fresh test-writer and implementer.`
+        Tell the human to send a short message after compacting (e.g. "continue"): `/compact` does not start a
+        turn by itself. Ask with AskUserQuestion whether to compact first and then continue, continue without
+        compacting, or stop here. After "compact first" or "stop here", end your turn and wait. After "continue
+        without compacting", start chapter <next> at once, its agents spawned as step 4 says.
+      - `continue`: report the chapter briefly and start chapter <next> at once, its agents spawned as step 4
+        says.
 
 ## Frontend groups
 
