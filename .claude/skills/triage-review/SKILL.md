@@ -73,9 +73,9 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 
 ## 1. Gather
 
-**`source=pr`:** run script A with the PR number and the work folder. It writes `findings.json`, one element per
-top-level review comment ordered by file and line with ids 1..n, and prints the count and the list. Zero findings
-and `source` not forced: say so and switch to `chat`.
+**`source=pr`:** run `node .claude/skills/triage-review/scripts/gather-findings.mjs <PR> <work folder>`
+(§ Scripts). It writes `findings.json`, one element per top-level review comment ordered by file and line with ids
+1..n, and prints the count and the list. Zero findings and `source` not forced: say so and switch to `chat`.
 
 **`source=chat`:** write `findings.json` yourself from the review's reply in this conversation:
 
@@ -163,13 +163,14 @@ implementer works at a time; never build or test while one of them is working.
    --verify-no-changes`, the frontend `run lint`, `run typecheck` and `run format:check`; `az bicep lint --file
    infra/main.bicep` if `infra/` changed; the API-client drift check if any endpoint changed (it should not have:
    that is an ASK).
-2. Threads (`source=pr`): for every finding with a `commentId`, one reply through script B: FIX → "Fixed in
-   `<sha>`: <summary>; guard test `<name>`"; DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by
-   the owner: <reason>"; deferred → "Deferred to <issue or step>". Resolve the FIX, DECLINE and deferred threads;
-   leave an undecided ASK's thread open.
-3. One summary comment on the PR through script C: the table `# · Finding · Outcome · Evidence or commit`, the
-   counts, and the checks run, as PR #26's description has it. Never bank data, secrets or personal data in a
-   thread or the summary: the repository is public.
+2. Threads (`source=pr`): for every finding with a `commentId`, write the reply to a file in the work folder and
+   post it with `reply-finding.mjs` (§ Scripts): FIX → "Fixed in `<sha>`: <summary>; guard test `<name>`";
+   DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by the owner: <reason>"; deferred → "Deferred
+   to <issue or step>". Resolve the FIX, DECLINE and deferred threads (`yes`); leave an undecided ASK's thread
+   open (`no`).
+3. One summary comment on the PR, `gh pr comment <PR> --body-file <file>`: the table
+   `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's description has it.
+   Never bank data, secrets or personal data in a thread or the summary: the repository is public.
 4. Commit the state file: `docs(<scope>): [review] triage summary`. Never push, never open a PR or mark one ready:
    the owner does.
 5. Report to the owner: the counts per outcome, the commits, what stays open, and the fix range
@@ -194,67 +195,22 @@ implementer works at a time; never build or test while one of them is working.
   Agent tool's `effort` only when the owner asks for another level, and record that in the state file.
 - Do not use `isolation: "worktree"` for the test-writer or the implementer: one working tree, as in `/tdd-apply`.
 - Never put bank data or secrets into anything you send, commit, post or record.
-- Scripts run verbatim, each as one Bash tool call with the placeholders filled in; never translated to PowerShell.
+- Run the scripts as they are (§ Scripts), each as one Bash tool call; never rewrite, inline or translate one to
+  PowerShell. A script that prints `ERROR:` says what failed: fix that cause (e.g. `gh` not logged in) or stop
+  and report, never work around the script.
 
 ## Scripts
 
-Placeholders: `<pr>`, `<work-folder>` (absolute, forward slashes), `<comment-id>`, `<body-file>`, `<resolve>`
-(`yes` or `no`). Each script needs `gh` logged in to the repository's GitHub account and `node` on the path.
+Two Node scripts in `.claude/skills/triage-review/scripts/`, run from the repository root as
+`node .claude/skills/triage-review/scripts/<script> <arguments>`. Both need `gh` logged in to the repository's
+GitHub account. They are files, not shell blocks in this text, because a session isolated in a worktree refuses a
+multi-line block it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's header has the details.
 
-### A — gather the findings from the PR's review threads
-
-```sh
-gather_findings() {
-  pr='<pr>'; dir='<work-folder>'
-  mkdir -p "$dir" || { printf 'ERROR: cannot create %s\n' "$dir"; exit 1; }
-  gh api "repos/{owner}/{repo}/pulls/$pr/comments" --paginate --slurp > "$dir/comments.json" \
-    || { printf 'ERROR: gh api failed for PR %s\n' "$pr"; exit 1; }
-  node -e '
-    const fs = require("fs");
-    const [input, output, pr] = process.argv.slice(1);
-    const pages = JSON.parse(fs.readFileSync(input, "utf8"));
-    const comments = pages.flat().filter(c => c.in_reply_to_id == null);
-    const lineOf = c => c.line ?? c.original_line ?? 0;
-    comments.sort((a, b) => (a.path ?? "").localeCompare(b.path ?? "") || lineOf(a) - lineOf(b) || a.id - b.id);
-    const findings = comments.map((c, i) => ({
-      id: i + 1, commentId: c.id, path: c.path, line: c.line ?? c.original_line ?? null,
-      title: c.body.split("\n")[0].slice(0, 120), body: c.body, author: c.user?.login, url: c.html_url,
-    }));
-    fs.writeFileSync(output, JSON.stringify(findings, null, 2));
-    console.log(`FINDINGS: ${findings.length} top-level review comments on PR ${pr}`);
-    for (const f of findings) console.log(`${f.id}\t${f.path}:${f.line}\t${f.title}`);
-  ' "$dir/comments.json" "$dir/findings.json" "$pr"
-}
-gather_findings
-```
-
-### B — reply in a finding's thread, and resolve it
-
-```sh
-reply_finding() {
-  pr='<pr>'; comment_id='<comment-id>'; body_file='<body-file>'; resolve='<resolve>'
-  url=$(gh api -X POST "repos/{owner}/{repo}/pulls/$pr/comments/$comment_id/replies" -F body=@"$body_file" --jq .html_url) \
-    || { printf 'ERROR: the reply to comment %s failed\n' "$comment_id"; exit 1; }
-  printf 'REPLIED: %s\n' "$url"
-  [ "$resolve" = "yes" ] || exit 0
-  owner=$(gh repo view --json owner --jq .owner.login); repo=$(gh repo view --json name --jq .name)
-  thread=$(gh api graphql -F owner="$owner" -F repo="$repo" -F pr="$pr" -f query='
-    query($owner: String!, $repo: String!, $pr: Int!) {
-      repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
-        reviewThreads(first: 100) { nodes { id isResolved comments(first: 1) { nodes { databaseId } } } } } } }' \
-    --jq ".data.repository.pullRequest.reviewThreads.nodes[] | select(.comments.nodes[0].databaseId == $comment_id) | .id")
-  [ -n "$thread" ] || { printf 'ERROR: no review thread starts with comment %s\n' "$comment_id"; exit 1; }
-  resolved=$(gh api graphql -F id="$thread" \
-    -f query='mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { isResolved } } }' \
-    --jq '.data.resolveReviewThread.thread.isResolved')
-  [ "$resolved" = "true" ] && printf 'RESOLVED: thread %s\n' "$thread" \
-    || { printf 'ERROR: could not resolve thread %s\n' "$thread"; exit 1; }
-}
-reply_finding
-```
-
-### C — the summary comment
-
-```sh
-gh pr comment '<pr>' --body-file '<body-file>'
-```
+- **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments and writes `comments.json`
+  (the API's pages as they came) and `findings.json` (one element per top-level comment, ordered by file and line,
+  ids 1..n) into the work folder. Prints `FINDINGS: <n> …` and one line per finding.
+- **`reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]`** (§ 5 step 2): posts the body file
+  as a reply in the thread the comment starts and, with `yes`, resolves that thread. It checks first that the
+  comment is a top-level review comment on the PR and, with `yes`, that its thread exists, so a failed check posts
+  nothing; a thread already resolved stays resolved. Prints `REPLIED: <url>` and `RESOLVED: thread <id>`.
+  `--dry-run` makes the same checks and prints what it would post, without posting.
