@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Check;
 using RevolutReader.Api.Push;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Check;
@@ -13,10 +14,10 @@ namespace RevolutReader.UnitTests.Check;
 /// <summary>
 /// The check's key is checked at start-up (c014 design.md D6; configuration.md § Binding): it is required, it may not still
 /// hold the declared placeholder, it is at least 32 bytes in base64url without padding, read strictly, and it is a key of
-/// its own, never the message key. A failure names the setting (the section <c>AccountCheck</c> and its <c>Key</c>, and for
-/// the message key <c>Push:MessageKey</c> too), never a value; a failure of the setting's own rules, and one of the
-/// validator's checks, names it by its full name, as the operator sets it (#68). Each test runs the checks the app runs at
-/// start, through the
+/// its own, never the message key. A failure names the setting, never a value: a failure of the setting's own rules is the
+/// standard data-annotation failure, naming the settings class and its <c>Key</c> (the owner's decision on #68,
+/// 2026-11-22), and one of the validator's checks names it by its full name, as the operator sets it (<c>AccountCheck:Key</c>,
+/// and for the message key <c>Push:MessageKey</c> too; #68). Each test runs the checks the app runs at start, through the
 /// check's own registration (<see cref="AccountCheckRegistration.AddAccountCheck"/>): the settings' data annotations and
 /// <see cref="AccountCheckOptionsValidator"/>, however that validator is built. Every key here is made up, generated in the
 /// test.
@@ -59,16 +60,15 @@ public sealed class AccountCheckOptionsTests {
       "a failure saying that AccountCheck's Key is required");
 
   /// <summary>
-  /// A failure of the setting's own rules (#68) names it by its full name, as the operator sets it (<c>AccountCheck:Key</c>,
-  /// or <c>AccountCheck__Key</c> in the environment): the message starts with the section, the setting and ": ", then says
-  /// what is wrong, and never holds the value. The validator's own failures say <c>AccountCheck:Key is …</c>, so only the
-  /// rule's failure starts this way.
+  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// it names the settings class and the setting, <c>'AccountCheckOptions' members: 'Key'</c>, then says what is wrong, and
+  /// never holds the value. The validator's own failures open with <c>AccountCheck:Key is …</c> instead.
   /// </summary>
   /// <param name="broken">How the key breaks its own rules: left out, or still holding the placeholder.</param>
   [Test]
   [Arguments("left out")]
   [Arguments("still the placeholder")]
-  public void An_invalid_check_key_fails_validation_with_a_message_starting_with_its_full_name_never_its_value(string broken) {
+  public void An_invalid_check_key_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string broken) {
     (string? Key, string Says) invalid = broken switch {
       "left out" => (null, "required"),
       "still the placeholder" => (PLACEHOLDER, "placeholder"),
@@ -77,9 +77,7 @@ public sealed class AccountCheckOptionsTests {
 
     IReadOnlyList<string> failures = Failures(invalid.Key);
 
-    failures.ShouldContain(
-      failure => failure.StartsWith($"{CHECK_KEY_SETTING}: ", StringComparison.Ordinal) && failure.Contains(invalid.Says, StringComparison.OrdinalIgnoreCase),
-      $"a failure starting with \"{CHECK_KEY_SETTING}: \" that says the setting is {invalid.Says}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldHaveDataAnnotationFailure<AccountCheckOptions>(nameof(AccountCheckOptions.Key), invalid.Says);
     failures.ShouldAllBe(failure => !failure.Contains(PLACEHOLDER, StringComparison.Ordinal), "no failure message may contain the setting's value");
   }
 
@@ -172,10 +170,10 @@ public sealed class AccountCheckOptionsTests {
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
   /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
-  /// wrong (<c>AccountCheck:Key is not …</c>), where a failure of the setting's own rules puts ": " after the name, so only
-  /// the validator's failure passes; a second setting the same failure is about is named in full further on. No failure may
-  /// name a setting by a settings class's name instead (<c>AccountCheckOptions.Key</c>, <c>PushOptions.MessageKey</c>),
-  /// which the operator cannot set.
+  /// wrong (<c>AccountCheck:Key is not …</c>), where a failure of the setting's own rules opens as the standard
+  /// data-annotation failure, so only the validator's failure passes; a second setting the same failure is about is named
+  /// in full further on. No failure may name a setting by a settings class's name instead (<c>AccountCheckOptions.Key</c>,
+  /// <c>PushOptions.MessageKey</c>), which the operator cannot set.
   /// </summary>
   /// <param name="failures">The failure messages of the start-up checks.</param>
   /// <param name="setting">The full name that opens the failure: the section, ":" and the setting.</param>

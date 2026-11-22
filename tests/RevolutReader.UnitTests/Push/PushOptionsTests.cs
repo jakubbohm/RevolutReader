@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Push;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Push;
@@ -16,9 +17,10 @@ namespace RevolutReader.UnitTests.Push;
 /// key is the 65-byte uncompressed P-256 point and the private key the 32-byte scalar, each in base64url, and the two are
 /// one pair; the message key is at least 32 bytes; <c>Subject</c> is an absolute https address with no path beyond "/", no
 /// query and no fragment; there is at least one known push service and every one is a valid pattern; the request timeout
-/// lies between 1 and 60 seconds. A failure names the setting (and the entry) by its full name, as the operator sets it
-/// (#68), never its value: a failure of the settings' own rules starts with the name and ": ", one of the validator's
-/// checks opens its sentence with the name. Each test runs the checks the app runs at start, through push's own
+/// lies between 1 and 60 seconds. A failure names the setting, never its value: a failure of the settings' own rules is the
+/// standard data-annotation failure, naming the settings class and the setting (the owner's decision on #68, 2026-11-22),
+/// and one of the validator's checks opens its sentence with the setting's (and the entry's) full name, as the operator
+/// sets it (#68). Each test runs the checks the app runs at start, through push's own
 /// registration (<see cref="PushRegistration.AddPush"/>, from an in-memory configuration): the settings' data annotations
 /// and <see cref="PushOptionsValidator"/>, however those checks are built. Every value here is made up; every key is
 /// generated in the test.
@@ -29,10 +31,13 @@ public sealed class PushOptionsTests {
   /// <summary>The settings' section, as the configuration names it (D5), written out, so a renamed setting fails here.</summary>
   private const string SECTION = "Push";
 
-  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name.</summary>
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name; the timeout's range says its limits.</summary>
   private const string SAYS_REQUIRED = "required";
   private const string SAYS_PLACEHOLDER = "placeholder";
-  private const string SAYS_OUT_OF_RANGE = "between";
+
+  /// <summary>The request timeout's limits, both allowed, as a TimeSpan setting reads (D13).</summary>
+  private const string SHORTEST_REQUEST_TIMEOUT = "00:00:01";
+  private const string LONGEST_REQUEST_TIMEOUT = "00:01:00";
 
   /// <summary>Distinctive, so it cannot turn up in a message by coincidence.</summary>
   private const string PLAIN_TEXT = "plain text where the key should be, 3e81b7";
@@ -294,34 +299,32 @@ public sealed class PushOptionsTests {
     Failures(Settings(services: DeclaredServices())).ShouldBeEmpty();
 
   /// <summary>
-  /// A failure of the settings' own rules (#68) names the setting by its full name, as the operator sets it
-  /// (<c>Push:MessageKey</c>, or <c>Push__MessageKey</c> in the environment): the message starts with the section, the
-  /// setting and ": ", then says what is wrong, and never holds the value.
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #68, 2026-11-22):
+  /// it names the settings class and the setting (<c>'PushOptions' members: 'MessageKey'</c>), then says what is wrong, the
+  /// timeout outside its range by both limits, and never holds the value.
   /// </summary>
-  /// <param name="setting">Each setting with a rule of its own that a configuration can break, by its full name, broken by that rule: a secret still holding the placeholder, the address or the push services left out, the timeout outside its range.</param>
+  /// <param name="setting">Each setting with a rule of its own that a configuration can break, broken by that rule: a secret still holding the placeholder, the address or the push services left out, the timeout outside its range.</param>
   [Test]
-  [Arguments("Push:VapidPublicKey")]
-  [Arguments("Push:VapidPrivateKey")]
-  [Arguments("Push:MessageKey")]
-  [Arguments("Push:Subject")]
-  [Arguments("Push:Services")]
-  [Arguments("Push:RequestTimeout")]
-  public void An_invalid_setting_fails_validation_with_a_message_starting_with_its_full_name_never_its_value(string setting) {
-    (PushOptions Settings, string? LeftOut, string? Value, string Says) invalid = setting switch {
-      "Push:VapidPublicKey" => (Settings(vapidPublicKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "Push:VapidPrivateKey" => (Settings(vapidPrivateKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "Push:MessageKey" => (Settings(messageKey: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
-      "Push:Subject" => (Settings(), nameof(PushOptions.Subject), null, SAYS_REQUIRED),
-      "Push:Services" => (Settings(), nameof(PushOptions.Services), null, SAYS_REQUIRED),
-      "Push:RequestTimeout" => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", SAYS_OUT_OF_RANGE),
+  [Arguments(nameof(PushOptions.VapidPublicKey))]
+  [Arguments(nameof(PushOptions.VapidPrivateKey))]
+  [Arguments(nameof(PushOptions.MessageKey))]
+  [Arguments(nameof(PushOptions.Subject))]
+  [Arguments(nameof(PushOptions.Services))]
+  [Arguments(nameof(PushOptions.RequestTimeout))]
+  public void An_invalid_setting_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string setting) {
+    (PushOptions Settings, string? LeftOut, string? Value, string[] Says) invalid = setting switch {
+      nameof(PushOptions.VapidPublicKey) => (Settings(vapidPublicKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.VapidPrivateKey) => (Settings(vapidPrivateKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.MessageKey) => (Settings(messageKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.Subject) => (Settings(), nameof(PushOptions.Subject), null, [SAYS_REQUIRED]),
+      nameof(PushOptions.Services) => (Settings(), nameof(PushOptions.Services), null, [SAYS_REQUIRED]),
+      nameof(PushOptions.RequestTimeout) => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", [SHORTEST_REQUEST_TIMEOUT, LONGEST_REQUEST_TIMEOUT]),
       _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a setting with a rule of its own."),
     };
 
     IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
 
-    failures.ShouldContain(
-      failure => failure.StartsWith($"{setting}: ", StringComparison.Ordinal) && failure.Contains(invalid.Says, StringComparison.OrdinalIgnoreCase),
-      $"a failure starting with \"{setting}: \" that says the setting is {invalid.Says}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldHaveDataAnnotationFailure<PushOptions>(setting, invalid.Says);
 
     if (invalid.Value is { } value)
       failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
@@ -442,9 +445,10 @@ public sealed class PushOptionsTests {
   /// <summary>
   /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
   /// by its full name, as the operator sets it (#68): the message opens with the name and goes straight on to say what is
-  /// wrong (<c>Push:Subject is not …</c>), where a failure of the settings' own rules puts ": " after the name, so only the
-  /// validator's failure passes; a second setting the same failure is about is named in full further on. No failure may
-  /// name a setting by the settings class's name instead (<c>PushOptions.Subject</c>), which the operator cannot set.
+  /// wrong (<c>Push:Subject is not …</c>), where a failure of the settings' own rules opens as the standard data-annotation
+  /// failure, so only the validator's failure passes; a second setting the same failure is about is named in full further
+  /// on. No failure may name a setting by the settings class's name instead (<c>PushOptions.Subject</c>), which the operator
+  /// cannot set.
   /// </summary>
   /// <param name="failures">The failure messages of the start-up checks.</param>
   /// <param name="setting">The full name that opens the failure: the section, ":" and the setting (and ":" and the entry, for a known push service).</param>
