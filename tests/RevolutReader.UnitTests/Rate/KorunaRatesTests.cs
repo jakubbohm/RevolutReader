@@ -410,6 +410,46 @@ public sealed class KorunaRatesTests {
       () => storeFailed.ShouldHaveSingleItem("one KorunaRateStoreFailed line").Exception.ShouldBeSameAs(store.Failure, "the save's failure"));
   }
 
+  /// <summary>
+  /// Tuesday's rate in the store, Tuesday 15:00 UTC, the store's first read failing, and the CNB answering Monday's, as a
+  /// stale copy in front of it might (D6): the call asks the CNB, as with nothing kept, but the store keeps Tuesday's, since
+  /// only a later day's rate replaces the kept one (D2; spec koruna-rate); and the next call answers Tuesday's (review of
+  /// PR #95, finding 3).
+  /// </summary>
+  [Test]
+  public async Task After_a_failed_read_a_rate_for_an_earlier_day_than_the_stores_does_not_replace_it() {
+    KorunaRate tuesdays = new(24.55m, new DateOnly(2026, 11, 24));
+    InMemoryKorunaRateStore kept = await StoreKeeping(tuesdays);
+    UnreliableStore store = new(kept, StoreFailure("the storage's own failure"));
+    store.FailTheNextRead();
+    KorunaRates rates = RatesWith(new FakeCnbRates(_mondays), store, new FakeTimeProvider(new DateTimeOffset(2026, 11, 24, 15, 0, 0, TimeSpan.Zero)), new CapturedLog());
+
+    _ = await rates.Current(CancellationToken.None);
+    KorunaRate? inTheStore = await kept.Read(CancellationToken.None);
+    KorunaRate next = await rates.Current(CancellationToken.None);
+
+    inTheStore.ShouldSatisfyAllConditions(
+      () => inTheStore.ShouldBe(tuesdays, "the store keeps Tuesday's: Monday's is for an earlier day"),
+      () => next.ShouldBe(tuesdays, "the next call's rate, the store's later one"));
+  }
+
+  /// <summary>
+  /// Nothing in the store, Monday 15:00 UTC, the store's first read failing, and the CNB answering Monday's: the store keeps
+  /// Monday's after the call. A failed read stops no save of a rate the store has nothing later than (review of PR #95,
+  /// finding 3).
+  /// </summary>
+  [Test]
+  public async Task After_a_failed_read_a_rate_the_CNB_answers_is_saved_when_the_store_holds_none() {
+    InMemoryKorunaRateStore kept = new();
+    UnreliableStore store = new(kept, StoreFailure("the storage's own failure"));
+    store.FailTheNextRead();
+    KorunaRates rates = RatesWith(new FakeCnbRates(_mondays), store, new FakeTimeProvider(_mondayAfternoon), new CapturedLog());
+
+    _ = await rates.Current(CancellationToken.None);
+
+    (await kept.Read(CancellationToken.None)).ShouldBe(_mondays, "the CNB's rate, saved");
+  }
+
   // Nothing kept (D5)
 
   /// <summary>
