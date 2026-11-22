@@ -41,6 +41,22 @@ Arguments: `$ARGUMENTS`
 When unsure, ASK. Never decline on the review's word, on the workflow's word or on your own impression: only with
 evidence at a file:line, a test name or a recorded decision that you opened.
 
+## Replies
+
+Each finding's thread gets its reply, and is resolved, as soon as the finding is handled, never saved up for the
+close: the threads are then the complete record of a round that stops part-way, also for a Direct PR, whose state
+file is lost with its session, and a rerun takes their outcomes back (§ 1, "After an interrupted round"). Write the
+reply to a file in the work folder and post it in the thread of the finding's `commentId` with `reply-finding.mjs`
+(§ Scripts), with `yes`, which resolves the thread; then note it in the state file.
+
+- FIX → "Fixed in `<sha>`: <summary>; guard test `<name>`", right after the finding's last commit (§ 3);
+- DECLINE → "Declined: <evidence>", right after you checked its evidence (§ 2 step 1), or for a guard test that
+  passes at once, right after its `guard, passes` commit (§ 3 step 2);
+- the owner's decline → "Declined by the owner: <reason>", right after the answer (§ 4 step 3);
+- deferred → "Deferred to <issue or step>", right after the issue or the heads-up commit exists (§ 4 step 3).
+
+An ASK still undecided at the close gets its reply then, with `no`, and its thread stays open (§ 5 step 2).
+
 ## 0. Prepare
 
 1. `gh pr view <PR> --json number,title,state,isDraft,headRefName,headRefOid,baseRefName,url,body`. The current
@@ -67,8 +83,8 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    the earlier rounds' text as it is; for a Direct PR `<work folder>/state.md`, outside the repository and never
    committed: a Direct PR has no change folder, and its summary comments, threads and `[review]` commits are the
    record that outlives the session. It holds: the round, the PR, the scope, the findings source, the routing per
-   finding, the commits per finding, the asks and the owner's answers, the test-writer's and the implementer's
-   agent IDs.
+   finding, the commits and the reply per finding, the asks and the owner's answers, the test-writer's and the
+   implementer's agent IDs.
    **Write the agent IDs there as soon as you spawn or resume an agent.** After a compaction, re-read it before
    doing anything else.
 4. Index the working tree in the code graph (codebase-memory-mcp; load its tools with ToolSearch first if they
@@ -84,7 +100,10 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    last round's state file, its open asks come back as open threads (§ 1) and its routing is in its summary
    comment (§ 5 step 3).
 6. Baseline: run the full suite once (`dotnet test` and the frontend tests). Record it. If anything is red, stop
-   and report: no triage on a red baseline.
+   and report: no triage on a red baseline. The one exception is a rerun of a round that stopped between a
+   finding's guard test and its fix (§ 1, "After an interrupted round"): exactly the tests added by this round's
+   `test(<scope>): [review] <id>: <summary>, red` commits that have no `fix(<scope>): [review] <id>:` commit yet
+   may fail, and nothing else.
 7. The diff: `git fetch origin <baseRef>` then `git diff origin/<baseRef>...HEAD > <work folder>/diff.patch`.
 8. Create a task list with one item per step; add one item per finding after § 1.
 
@@ -125,13 +144,21 @@ this conversation included, so a later round's new findings continue after the e
 left open keeps its number, and every `[review] <id>:` commit stays unique within the PR.
 
 **After an interrupted round:** § 0 step 3 counts only posted summaries, so a rerun of a round that stopped before
-its summary already has the right number. A left-out number above the highest number the earlier rounds' summary
-comments list (in round 1: any left-out number) was closed after the last summary, so by this round before it
-stopped. When its thread's reply gives the outcome (§ 5 step 2: "Fixed in", "Declined", "Deferred"), take it back
-into this round's findings table and summary with that outcome and its `[review] <id>:` commits, and do not
-triage it again (with nothing else open, go on to § 5). A thread without such a reply was resolved by hand: ask
-the owner whether to triage it (they unresolve it) or leave it. In the same session the state file says the same;
-in a new one, the threads and commits are the record (§ 0 step 3).
+its summary already has the right number. Every finding the round handled before it stopped has its reply and a
+resolved thread (§ Replies). A left-out number above the highest number the earlier rounds' summary comments list
+(in round 1: any left-out number) was closed after the last summary, so by this round before it stopped. When its
+thread's reply gives the outcome ("Fixed in", "Declined", "Deferred"), take it back into this round's findings
+table and summary with that outcome and its `[review] <id>:` and `[plan] <id>:` commits (a finding fixed now after
+a spec change has a `[plan] <id>:` commit too, § 4 step 3), and neither triage it again nor reply to it a second
+time (§ 5 step 2). A thread without such a reply was resolved by hand: ask the owner whether to triage it (they
+unresolve it) or leave it. An open thread whose number has commits in `<headRefOid>..HEAD` (§ 0 step 1 lets only
+this round's through) is not verified again but resumes where its commits stop: after a `[plan] <id>:` commit, the
+owner chose fix now, so at § 3 step 1, the test-writer; after a `…, red` commit, at § 3 step 3, the implementer
+(§ 0 step 6 lets that test fail); after any other, the finding was handled and only its reply is owed: post it
+(§ Replies) and take it back as above. Only the other open threads go to § 2; with none, go on to § 3 with the
+resumed findings, or to § 5 when there are none either. A change's state file is in the repository and says the
+same in any session; a Direct PR's lives only in the session that wrote it, so in a new one the threads and
+commits are the record (§ 0 step 3).
 
 With no open thread, no finding taken back and no review in this conversation that is not on the PR, there is
 nothing to triage: say so and stop. Otherwise write the findings table (id · file:line · title) into the state file.
@@ -151,11 +178,13 @@ the reason, the investigation and the refutation) and `missing` (findings withou
 Before acting on anything:
 
 1. **Check every DECLINE yourself:** open the cited file:line, test or decision. Evidence you cannot see, or that
-   does not cover the finding, turns it into ASK; record why.
+   does not cover the finding, turns it into ASK; record why. Evidence that holds: reply and resolve its thread now
+   (§ Replies).
 2. **Check every FIX's shape:** the listed files are in the diff or the finding; no spec behaviour, no contract
    change. Anything off turns it into ASK.
 3. Record the routing in the state file and show it to the owner in one table (id · title · outcome · one-line
-   reason). Do not wait for an answer: FIX and DECLINE are this skill's job, ASK is § 4. Continue with § 3.
+   reason). Do not wait for an answer: FIX and DECLINE are this skill's job, and the DECLINEs are answered in
+   their threads already (step 1); ASK is § 4. Continue with § 3.
 
 ## 3. Fix round, one finding at a time
 
@@ -187,8 +216,10 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
   under `openspec/` is yours instead, because the implementer cannot write there: fix it and run the full
   suite. Commit `docs(<scope>): [review] <id>: <summary>` or `refactor(<scope>): [review] <id>: <summary>`.
 
-After each commit: tick the finding and note the commit in the state file. Only one of the test-writer and the
-implementer works at a time; never build or test while one of them is working.
+After each commit: tick the finding and note the commit in the state file. After a finding's last commit (its
+`fix`, its `guard, passes`, or a test-quality, docs or cleanup fix's one commit), reply in its thread and resolve
+it before the next finding (§ Replies). Only one of the test-writer and the implementer works at a time; never
+build or test while one of them is working.
 
 ## 4. Ask round
 
@@ -203,11 +234,13 @@ implementer works at a time; never build or test while one of them is working.
      any work in progress stays in the tree for § 3's checks. After the archive (a round that came after it
      anyway), the spec edit goes to the main spec in `openspec/specs/`, a `design.md` edit to the archived
      change's, and the archive folder stays where it is (workflow.md § 6). The acceptance test change then goes to
-     the test-writer;
-   - **decline** → DECLINE, with the owner's reason as the evidence;
+     the test-writer. Its thread gets its reply after its last commit, as in § 3;
+   - **decline** → DECLINE, with the owner's reason as the evidence; reply and resolve its thread right away
+     (§ Replies);
    - **defer** → the owner says where: a GitHub issue (`gh issue create`: the finding and the step it belongs to;
      the issue linked in the thread), or a heads-up you write in the `design.md` of the step it belongs to,
-     committed `docs(<scope>): [review] <id>: heads-up for <step>`.
+     committed `docs(<scope>): [review] <id>: heads-up for <step>`. Once the issue or the commit exists, reply and
+     resolve its thread (§ Replies).
 4. Record every answer in the state file.
 
 ## 5. Close
@@ -217,11 +250,12 @@ implementer works at a time; never build or test while one of them is working.
    infra/main.bicep` if `infra/` changed; the triage scripts' tests (`CLAUDE.md` § Commands) if
    `.claude/skills/triage-review/scripts/` changed; the API-client drift check if any endpoint changed (it should
    not have: that is an ASK).
-2. Threads: every finding has one (§ 1). For each, write the reply to a file in the work folder and post it in
-   the thread of its `commentId` with `reply-finding.mjs` (§ Scripts): FIX → "Fixed in `<sha>`: <summary>; guard
-   test `<name>`"; DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by the owner: <reason>";
-   deferred → "Deferred to <issue or step>". Resolve the FIX, DECLINE and deferred threads (`yes`); leave an
-   undecided ASK's thread open (`no`).
+2. Threads: the handled findings are answered already (§ Replies). Post the replies still owed, an undecided
+   ASK's, with `no`, so its thread stays open. Then check the threads themselves, which outlive the session: run
+   `gather-findings.mjs` again with `<work folder>/close` as its folder, so the round's `findings.json` stays as
+   it is; of this round's findings, its open list must show exactly the undecided ASKs. Post the reply of any
+   other that is still open. The findings § 1 took back after an interrupted round get no second reply: their
+   threads already carry their outcome and stay resolved; they appear only in the summary (step 3).
 3. One summary comment on the PR, `gh pr comment <PR> --body-file <file>`: first the heading `## Review triage`
    (in a later round `## Review triage, round <n>`: § 0 step 3 counts these headings), then the table
    `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's description has it.
@@ -237,9 +271,9 @@ implementer works at a time; never build or test while one of them is working.
 ## Rules for you (the orchestrator)
 
 - Never edit tests or production code yourself. The only files you edit are the state file, the chat findings
-  file (§ 1), the close-out docs and the files under `openspec/` that a docs finding (§ 3), a spec change the owner
-  wants fixed now or a heads-up (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch
-  (§ 3) is the one exception.
+  file (§ 1), the reply and summary body files in the work folder (§ Replies, § 5 step 3), the close-out docs and
+  the files under `openspec/` that a docs finding (§ 3), a spec change the owner wants fixed now or a heads-up
+  (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch (§ 3) is the one exception.
 - Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
   build or a test run while the test-writer or the implementer works. The workflow's agents never build or
   run tests (its prompts forbid it).
@@ -280,7 +314,7 @@ header has the details. Their pure parts have tests beside them (`*.test.mjs`, N
   `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and ordered as
   § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads: <numbers>`
   (the left-out numbers as ranges, e.g. `1-15`; none: no colon) and one line per finding.
-- **`reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]`** (§ 5 step 2): posts the body file
+- **`reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]`** (§ Replies): posts the body file
   as a reply in the thread the comment starts and, with `yes`, resolves that thread. It checks first that the
   comment is a top-level review comment on the PR and, with `yes`, that its thread exists, so a failed check posts
   nothing; a thread already resolved stays resolved. Prints `REPLIED: <url>` and `RESOLVED: thread <id>`.

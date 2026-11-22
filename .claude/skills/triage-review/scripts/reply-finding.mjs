@@ -1,4 +1,4 @@
-// /triage-review § 5 step 2: replies in the review thread that a finding's comment starts and, with `yes`, resolves
+// /triage-review § Replies: replies in the review thread that a finding's comment starts and, with `yes`, resolves
 // that thread.
 //
 //   node .claude/skills/triage-review/scripts/reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]
