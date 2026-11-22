@@ -48,9 +48,10 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 2. Find the change: a folder `openspec/changes/<id>/`, or `openspec/changes/archive/<date>-<id>/` once archived,
    that this branch belongs to (the PR body or the branch name names it). With one, the **scope** of the commits is
    its number part (`c007`) and the **intent files** are its `proposal.md`, `design.md` and `specs/**`. Without one
-   this is a Direct PR: the scope is its roadmap step in lower case (`c13`, workflow.md § 3), and the intent is the
-   issue the PR closes (`gh issue view <n> --json title,body`, saved to the work folder) plus the step's section
-   in `pm/roadmap.md`.
+   this is a Direct PR: the scope is its roadmap step in lower case (`c13`) or, for work that lives only in a
+   GitHub issue, `i` and the issue number (`i67`; workflow.md § 3). The intent is the issue the PR closes or is
+   part of (`gh issue view <n> --json title,body`, saved to the work folder), plus the step's section in
+   `pm/roadmap.md` when it has one.
 3. The round: 1, or later when `/code-review` ran again on the PR after an earlier triage. Each triage leaves one
    summary comment headed `## Review triage` (§ 5 step 3); the round is their count plus one:
    `gh pr view <PR> --json comments --jq '[.comments[].body | select(startswith("## Review triage"))] | length'`.
