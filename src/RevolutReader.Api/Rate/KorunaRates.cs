@@ -11,7 +11,9 @@ namespace RevolutReader.Api.Rate;
 /// (<see cref="RateLog.KorunaRateKept"/>, D7) and answered, and saved in the store after the answer, off the callers' path
 /// (<see cref="SaveInTheBackground"/>), so the shared ask ends within the CNB's time limit whatever the store takes; one
 /// for the kept day or an earlier one changes nothing, the kept one is answered, and nothing is logged (D2, D6, D7), so the
-/// next call asks again while the rate is due.</item>
+/// next call asks again while the rate is due. After a failed first read the save first reads the row, and writes only
+/// when the row is missing or for an earlier day, so an earlier day's rate never replaces the store's (review of PR #95,
+/// finding 3).</item>
 /// <item>Never fails for the CNB or the store (D5): a failed ask answers the kept rate, or the app's own when none is kept;
 /// a store that fails is logged (<see cref="RateLog.KorunaRateStoreFailed"/>), its read counting as nothing kept, its write
 /// ignored. A save cut off when the app stops is harmless: the next process reads the older row and asks again. Only the
@@ -45,11 +47,9 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
   }
 
   /// <summary>
-  /// The kept rate: read from the store on this instance's first call that reads it, the one held in memory after it. A
-  /// read that fails, in whatever way, is logged and counts as nothing kept, and the next call reads again (D5); only the
-  /// caller's own cancellation passes on. A read never replaces a rate held meanwhile for the same or a later day: of two
-  /// first calls at the same time the read that ends first counts, and after a failed read the rate an ask kept stays
-  /// unless the store's is for a later day.
+  /// The kept rate: read from the store on this instance's first call that reads it and learned (<see cref="LearnTheRow"/>),
+  /// the one held in memory after it. A read that fails, in whatever way, is logged and counts as nothing kept, and the next
+  /// call reads again (D5); only the caller's own cancellation passes on.
   /// </summary>
   private async Task<KorunaRate?> Kept(CancellationToken cancellationToken) {
     lock (_lock) {
@@ -71,9 +71,20 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
     }
 #pragma warning restore CA1031
 
+    return LearnTheRow(read);
+  }
+
+  /// <summary>
+  /// The store's row (<paramref name="row"/>, <see langword="null"/> for none), read successfully, learned once per
+  /// instance: while the store counts as unread, memory takes the row's rate only when it holds none or the row is for a
+  /// later day, and the store counts as read. A read never replaces a rate held meanwhile for the same or a later day (a
+  /// rate an ask kept after a failed read); once the store counts as read, a later read changes nothing, so of two first
+  /// reads at the same time the one that ends first counts. Answers the rate held after it.
+  /// </summary>
+  private KorunaRate? LearnTheRow(KorunaRate? row) {
     lock (_lock) {
       if (!_keptWasRead) {
-        _kept = _kept is { } held && (read is null || held.Date >= read.Date) ? held : read;
+        _kept = _kept is { } held && (row is null || held.Date >= row.Date) ? held : row;
         _keptWasRead = true;
       }
 
@@ -111,7 +122,9 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
   /// answered at once, when nothing is kept or it is for a later day than the kept rate (D2, D7); otherwise the kept rate,
   /// with nothing saved and nothing logged: the kept day's rate again, or an earlier day's, which only a stale copy in front
   /// of the CNB could send (D6). The save is not awaited: the shared ask every caller awaits ends with the CNB's answer,
-  /// within its time limit, never held by a slow store (D4; review of PR #95, finding 4).
+  /// within its time limit, never held by a slow store (D4; review of PR #95, finding 4). After a failed first read, memory
+  /// knows no kept rate to compare with, so the save compares with the store's row first and writes only over an earlier
+  /// day's or none (<see cref="SaveInTheBackground"/>; review of PR #95, finding 3); this call still answers the CNB's rate.
   /// </summary>
   private KorunaRate KeptOrNewer(KorunaRate answered) {
     lock (_lock) {
@@ -129,12 +142,46 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
 
   /// <summary>
   /// The one place the kept rate is saved: <paramref name="rate"/> into the store, on no caller's token, after its answer
-  /// and off the callers' path. Started from <see cref="KeptOrNewer"/> and not awaited there, so a store whose save ends at
-  /// once has saved before the call returns, and a slow one holds no caller. It never faults: a save that fails, in whatever
-  /// way, is logged and ignored, the rate still held and answered (D5). A save cut off when the app stops is harmless too:
-  /// the next process reads the older row and asks again.
+  /// and off the callers' path. Started from <see cref="KeptOrNewer"/> and not awaited there, so a store that answers at
+  /// once has saved before the call returns, and a slow one holds no caller.
+  /// <list type="bullet">
+  /// <item>While this instance has not read the store successfully (its first read failed), the row is read first and
+  /// learned as <see cref="Kept"/> learns it (<see cref="LearnTheRow"/>), and the rate is written only when the row is
+  /// missing or for an earlier day: the rule that only a later day's rate replaces the kept one holds for the store too,
+  /// not only for memory (D2, D6; review of PR #95, finding 3). The next calls then answer the row's rate when it is the
+  /// later one. A read that fails here is logged and the save skipped: the rate stays held and answered, and a later
+  /// process reads the older row and asks again (D5).</item>
+  /// <item>Once the store was read, the rate is written as it is: memory already held the row's, and the rate is later.</item>
+  /// </list>
+  /// It never faults: a read or save that fails, in whatever way, is logged and ignored, the rate still held and answered
+  /// (D5). A save cut off when the app stops is harmless too: the next process reads the older row and asks again.
   /// </summary>
   private async Task SaveInTheBackground(KorunaRate rate) {
+    bool storeWasRead;
+
+    lock (_lock)
+      storeWasRead = _keptWasRead;
+
+    if (!storeWasRead) {
+      KorunaRate? row;
+
+      try {
+        row = await store.Read(CancellationToken.None);
+      }
+#pragma warning disable CA1031 // A store that fails to read, in whatever way, never fails a request and never faults unobserved (D5): the read runs on no caller's token, so no failure of it is a caller's cancellation.
+      catch (Exception exception) {
+        RateLog.KorunaRateStoreFailed(logger, READ, exception);
+
+        return;
+      }
+#pragma warning restore CA1031
+
+      _ = LearnTheRow(row);
+
+      if (row is not null && row.Date >= rate.Date)
+        return;
+    }
+
     try {
       await store.Save(rate, CancellationToken.None);
     }
