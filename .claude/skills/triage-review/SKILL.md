@@ -143,9 +143,9 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
   3. Send the implementer the test (file and test name), the finding and the sketch (a Direct PR: also its
      issue); the implementer must not change any test file. Verify green yourself: the full suite passes, and
      `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
-     list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)` or `openspec/` other than your state
-     file (§ 0 step 3). A violation: restore the file (`git restore --source=HEAD -- <path>`; delete a new one),
-     tell the implementer, resume it. Commit `fix(<scope>): [review] <id>: <summary>`.
+     list nothing under `tests/`, `*Tests*/`, `*.test.ts(x)`, `*.spec.ts(x)`, `*.test.mjs` or `openspec/` other
+     than your state file (§ 0 step 3). A violation: restore the file (`git restore --source=HEAD -- <path>`;
+     delete a new one), tell the implementer, resume it. Commit `fix(<scope>): [review] <id>: <summary>`.
   4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone. Move the finding
      to ASK with the test-writer's test, the implementer's claim and the evidence.
 - **test-quality:** The test-writer alone fixes the test. Verify the suite is green. Commit
@@ -178,8 +178,9 @@ implementer works at a time; never build or test while one of them is working.
 
 1. Full suite and checks: `dotnet test`, the frontend tests, `dotnet format whitespace RevolutReader.slnx
    --verify-no-changes`, the frontend `run lint`, `run typecheck` and `run format:check`; `az bicep lint --file
-   infra/main.bicep` if `infra/` changed; the API-client drift check if any endpoint changed (it should not have:
-   that is an ASK).
+   infra/main.bicep` if `infra/` changed; the triage scripts' tests (`CLAUDE.md` § Commands) if
+   `.claude/skills/triage-review/scripts/` changed; the API-client drift check if any endpoint changed (it should
+   not have: that is an ASK).
 2. Threads (`source=pr`): for every finding with a `commentId`, write the reply to a file in the work folder and
    post it with `reply-finding.mjs` (§ Scripts): FIX → "Fixed in `<sha>`: <summary>; guard test `<name>`";
    DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by the owner: <reason>"; deferred → "Deferred
@@ -225,7 +226,9 @@ Two Node scripts in `.claude/skills/triage-review/scripts/`, run from the reposi
 `node .claude/skills/triage-review/scripts/<script> <arguments>`; `common.mjs` beside them holds what both use (the
 `gh` calls, the PR's review threads, the numbering). Both need `gh` logged in to the repository's GitHub account.
 They are files, not shell blocks in this text, because a session isolated in a worktree refuses a multi-line block
-it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's header has the details.
+it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's header has the details. Their pure parts
+have tests beside them (`*.test.mjs`, Node's own runner, never calling `gh`; the command is in `CLAUDE.md`
+§ Commands), which CI runs (R-98).
 
 - **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments and threads, and writes
   `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and ordered as

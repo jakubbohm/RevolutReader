@@ -11,7 +11,7 @@
 // the skill's text: a session isolated in a worktree refuses a multi-line block it cannot verify
 // (docs/software-factory/lessons.md R-37).
 import { readFileSync } from "node:fs";
-import { fail, gh, reviewThreads, run } from "./common.mjs";
+import { fail, firstLine, gh, reviewThreads, run } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -47,8 +47,7 @@ const thread = resolve === "yes" ? reviewThreads(pr).find((t) => t.firstCommentI
 if (resolve === "yes" && !thread) fail(`no review thread starts with comment ${commentId}; nothing posted`);
 
 if (dryRun) {
-  const firstLine = body.trim().split("\n")[0];
-  console.log(`WOULD REPLY: to comment ${commentId} on PR ${pr}, ${body.length} characters: ${firstLine}`);
+  console.log(`WOULD REPLY: to comment ${commentId} on PR ${pr}, ${body.length} characters: ${firstLine(body)}`);
   if (thread) console.log(`WOULD RESOLVE: thread ${thread.id}${thread.isResolved ? " (already resolved)" : ""}`);
   process.exit(0);
 }

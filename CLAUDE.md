@@ -4,7 +4,7 @@ A read-only PWA in which the owner's daughter sees the balance and transactions 
 
 ## Commands
 
-Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06; the image rows in C4, 2026-11-06; the bank check rows in C5, 2026-11-07; the history import row in C7b, 2026-11-09, against a throwaway Azurite).
+Run from the repository root; PowerShell 7 and Bash take them as written (each run once in C1, 2026-11-05; the frontend rows in C3, 2026-11-06; the image rows in C4, 2026-11-06; the bank check rows in C5, 2026-11-07; the history import row in C7b, 2026-11-09, against a throwaway Azurite; the triage scripts' row for #67, 2026-11-22).
 
 | Purpose | Command |
 |---|---|
@@ -23,6 +23,7 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 | Frontend tests / one file | `npm --prefix src/RevolutReader.Web test` / add `-- src/scenarios/<capability>.test.ts(x)` |
 | Frontend checks | `npm --prefix src/RevolutReader.Web run lint` · `run typecheck` · `run format:check` (fix: `run format`) |
 | Frontend build | `npm --prefix src/RevolutReader.Web run build` |
+| Triage scripts' tests (the triage-review skill's Node scripts; Node's own runner, no install; CI runs them in its `frontend` job) | `node --test ".claude/skills/triage-review/scripts/*.test.mjs"` |
 | Regenerate the API client (after changing an endpoint's contract; once per machine first `npm --prefix tools/api-client ci`) | `npm --prefix tools/api-client run regenerate`: the export check writes `src/RevolutReader.Api/openapi.json`, then the TypeScript types `src/RevolutReader.Web/src/api/schema.d.ts`; commit both (CI fails when either is stale). Run in C6, 2026-11-08 |
 | App icons and launch images | `npm --prefix src/RevolutReader.Web run icons`: by hand, only when `public/app-icon.svg` or the launch-screen design changes; commit the PNGs and paste the launch tags it prints into `index.html` |
 | Run the app | `aspire start` / `aspire stop` (Claude: through the aspire skills, never `dotnet run` on the AppHost). The app opens at the `web` resource's HTTPS address (Vite, forwarding `/api` and, since C7a, `/health` to the API; HTTPS since C6, for the `__Host-` login cookie); the API's own address serves no pages (C3). The API waits for its secret parameters, the four `enablebanking-*`, the two `signin-*` and, since C8a, the three `push-*` and, since C9a, `accountcheck-key` ([local-secrets.md](docs/operations/local-secrets.md)), and since C7b for Azurite, the storage emulator, which needs Docker running. From a git worktree add `--isolated` (run in C6, 2026-11-08) |

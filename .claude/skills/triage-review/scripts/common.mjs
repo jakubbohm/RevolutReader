@@ -61,7 +61,7 @@ export function findingsFrom(comments, resolvedCommentIds) {
       commentId: c.id,
       path: c.path,
       line: c.line ?? c.original_line ?? null,
-      title: c.body.split("\n")[0].slice(0, 120),
+      title: firstLine(c.body).slice(0, 120),
       body: c.body,
       author: c.user?.login,
       url: c.html_url,
@@ -69,7 +69,7 @@ export function findingsFrom(comments, resolvedCommentIds) {
   return { findings, resolved: topLevel.length - findings.length };
 }
 
-// Will return the first line of the trimmed text, without the "\r" of Windows line endings.
+// The first line of the trimmed text, without the "\r" of Windows line endings.
 export function firstLine(text) {
-  throw new Error("not implemented");
+  return text.trim().split(/\r?\n/)[0];
 }

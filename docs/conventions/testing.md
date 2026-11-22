@@ -122,6 +122,7 @@ tests/
 └─ manual-scenarios.md                scenarios checked by hand at handover
 
 src/RevolutReader.Web/src/            the frontend's tests sit next to its code (below)
+.claude/skills/triage-review/scripts/ the triage scripts' tests sit next to them (below)
 ```
 
 - **One project per test layer, named after the layer** (as DoseUp). `dotnet test` runs everything; CI selects a layer by project, never by tags on tests.
@@ -140,6 +141,7 @@ src/RevolutReader.Web/src/            the frontend's tests sit next to its code 
   - **Times shown** are relative to the test clock (`ago(2 * MINUTE)` → "před 2 min"), so no time zone is needed.
   - **The phone's storage** is `fake-indexeddb` (`setup.ts`), the same browser API, so the app's storage code runs unchanged. It is emptied in place before every test, not replaced, since the app's idb-keyval store keeps its connection open. `phoneKeeps(…)` and `keptBalance()` set and read the stored balance. Since C9b, `phoneStorageBusy()` holds a `readwrite` transaction open on the balance's store, so the app's own write starts but cannot finish until the function it returns frees the store (c015 design.md D4: the message is shown without waiting for the write). Free it in a `finally`, or the next test's emptying waits behind it.
   - **The fake server** (`server.ts`) answers each address with the test's answers in order, the last repeating; `after(ms, answer)` delays one on the test clock; requests honour their `AbortSignal` (`aborted …` in the timeline). It also answers `GET /health`, models `goOffline()`/`goOnline()` and `leaveApp()`/`returnToApp()`, and answers a balance no scenario names when a test sets none, as the backend's `BankDsl.DEFAULT_BALANCE` (lesson R-15). `renderApp`'s `reopen()` closes the app and opens it again; `timesSent(request)` counts what it sent.
+- **The triage scripts' tests sit next to them** as `*.test.mjs` in `.claude/skills/triage-review/scripts/`, run with Node's own runner (`node --test`, no dependency; the owner, 2026-11-22, [lessons.md R-98](../software-factory/lessons.md)). Only their pure parts are tested, on made-up comment objects: nothing calls `gh` or the network. CI runs them in its `frontend` job; the command is in [CLAUDE.md § Commands](../../CLAUDE.md#commands).
 
 ## Every scenario has exactly one test: the traceability check
 
