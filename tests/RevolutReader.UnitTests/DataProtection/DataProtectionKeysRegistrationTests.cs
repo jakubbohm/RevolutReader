@@ -20,10 +20,12 @@ namespace RevolutReader.UnitTests.DataProtection;
 /// both reached with that identity;</item>
 /// <item>exactly one address set: refused at registration, the message naming both addresses;</item>
 /// <item>both addresses without <c>AZURE_CLIENT_ID</c> (empty or missing): refused at registration, the message naming
-/// <c>AZURE_CLIENT_ID</c> and the section.</item>
+/// both addresses and <c>AZURE_CLIENT_ID</c>.</item>
 /// </list>
-/// A message names settings, never their values. An empty setting, as <c>appsettings.json</c> declares each of them,
-/// counts as not set. The tests use the settings' real names, so they pin the names too.
+/// A message names settings by their full names, as the operator sets them (#97), never their values: it opens with
+/// <c>DataProtection:KeysBlobUri</c>, names <c>DataProtection:KeyVaultKeyUri</c> further on, and <c>AZURE_CLIENT_ID</c>,
+/// a top-level setting, as it is. An empty setting, as <c>appsettings.json</c> declares each of them, counts as not set.
+/// The tests use the settings' real names, so they pin the names too.
 /// <para>
 /// The choice shows in Data Protection's key management options: the key repository and the key encryptor. Either way
 /// the application name is pinned (<c>RevolutReader</c>), so every revision of the app reads the same keys and a deploy
@@ -97,8 +99,7 @@ public sealed class DataProtectionKeysRegistrationTests {
     string message = Should.Throw<Exception>(() => new ServiceCollection().AddDataProtectionKeys(configuration), "refused at registration").Message;
 
     message.ShouldSatisfyAllConditions(
-      () => message.ShouldContain(KEYS_BLOB_URI_NAME, Case.Sensitive),
-      () => message.ShouldContain(KEY_VAULT_KEY_URI_NAME, Case.Sensitive),
+      () => ShouldNameBothAddressesInFull(message),
       () => message.ShouldNotContain(_keysBlob.Host, Case.Insensitive),
       () => message.ShouldNotContain(_keyVaultKey.Host, Case.Insensitive),
       () => message.ShouldNotContain(MADE_UP_CLIENT_ID, Case.Insensitive));
@@ -107,7 +108,7 @@ public sealed class DataProtectionKeysRegistrationTests {
   [Test]
   [Arguments("empty, as appsettings.json declares it")]
   [Arguments("missing")]
-  public void Both_key_addresses_set_without_AZURE_CLIENT_ID_are_refused_and_the_message_names_it_not_the_values(string azureClientIdIs) {
+  public void Both_key_addresses_set_without_AZURE_CLIENT_ID_are_refused_and_the_message_names_it_and_both_addresses_not_the_values(string azureClientIdIs) {
     IConfiguration configuration = azureClientIdIs switch {
       "empty, as appsettings.json declares it" => Configuration(keysBlobUri: _keysBlob.AbsoluteUri, keyVaultKeyUri: _keyVaultKey.AbsoluteUri, azureClientId: string.Empty),
       "missing" => Configuration(keysBlobUri: _keysBlob.AbsoluteUri, keyVaultKeyUri: _keyVaultKey.AbsoluteUri, azureClientId: null),
@@ -118,7 +119,8 @@ public sealed class DataProtectionKeysRegistrationTests {
 
     message.ShouldSatisfyAllConditions(
       () => message.ShouldContain(AZURE_CLIENT_ID, Case.Sensitive),
-      () => message.ShouldContain(SECTION, Case.Sensitive),
+      () => message.ShouldNotContain($":{AZURE_CLIENT_ID}", caseSensitivity: Case.Sensitive, customMessage: "AZURE_CLIENT_ID is a top-level setting, named as it is, under no section"),
+      () => ShouldNameBothAddressesInFull(message),
       () => message.ShouldNotContain(_keysBlob.Host, Case.Insensitive),
       () => message.ShouldNotContain(_keyVaultKey.Host, Case.Insensitive));
   }
@@ -140,6 +142,24 @@ public sealed class DataProtectionKeysRegistrationTests {
       settings[AZURE_CLIENT_ID] = azureClientId;
 
     return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+  }
+
+  /// <summary>
+  /// Asserts that <paramref name="message"/> names both key addresses by their full names, as the operator sets them
+  /// (#97): it opens with <c>DataProtection:KeysBlobUri</c> and goes straight on, names <c>DataProtection:KeyVaultKeyUri</c>
+  /// further on, and never names either address apart from its section (<c>the DataProtection settings KeysBlobUri and
+  /// KeyVaultKeyUri</c>). The rest of the sentence is the message's own.
+  /// </summary>
+  private static void ShouldNameBothAddressesInFull(string message) {
+    string keysBlobUri = $"{SECTION}:{KEYS_BLOB_URI_NAME}";
+    string keyVaultKeyUri = $"{SECTION}:{KEY_VAULT_KEY_URI_NAME}";
+    string withoutTheFullNames = message.Replace(keysBlobUri, string.Empty, StringComparison.Ordinal).Replace(keyVaultKeyUri, string.Empty, StringComparison.Ordinal);
+
+    message.ShouldSatisfyAllConditions(
+      () => message.ShouldStartWith($"{keysBlobUri} ", customMessage: $"the message opens with {keysBlobUri}", caseSensitivity: Case.Sensitive),
+      () => message.ShouldContain(keyVaultKeyUri, Case.Sensitive),
+      () => withoutTheFullNames.ShouldNotContain(KEYS_BLOB_URI_NAME, caseSensitivity: Case.Sensitive, customMessage: $"{KEYS_BLOB_URI_NAME} is named only in full, as {keysBlobUri}"),
+      () => withoutTheFullNames.ShouldNotContain(KEY_VAULT_KEY_URI_NAME, caseSensitivity: Case.Sensitive, customMessage: $"{KEY_VAULT_KEY_URI_NAME} is named only in full, as {keyVaultKeyUri}"));
   }
 
   /// <summary>Data Protection's key management options and its own options, as the app would get them after registering with this configuration.</summary>

@@ -1,6 +1,6 @@
 - [Memory lives in-repo](memory-in-repo.md) — auto-memory redirected to .claude/memory via settings.local.json; canary at the global default location
 - [Decide one by one](decisions-one-by-one.md) — present multi-item rounds one item at a time; persist each yes before the next, except linked questions: write only after the whole round is agreed
-- [Factory gets the full version](factory-gets-full-version.md) — two bars: the app may cut corners for speed, software-factory work never; notes during the project, the perfect solution at the handover
+- [Factory gets the full version](factory-gets-full-version.md) — since 2026-11-21 speed is no priority, for the app either: precision and a systematic, mature solution everywhere, never the fastest and never a workaround that only gets past the problem; earlier decisions stay revisable (before: the app could cut corners for speed, the factory never)
 - [Simplicity vs maturity is the user's call](simplicity-vs-maturity-is-users-call.md) — show both sides of every such trade-off; never pick or narrow the options on the user's behalf
 - [A step's PR carries its done status](step-pr-carries-status.md) — about the PR, not a commit: ask "is the step done?" before marking it ready; own commit, pushed with the rest (review fixes wait for the archive, one push); a later PR only for real post-PR work (a phone check)
 - [Continue announced steps](continue-announced-steps.md) — after one agreed step, go on to the next already-agreed one; stop only for new decisions or unapproved outward actions
@@ -20,4 +20,5 @@
 - [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up
 - [gh api --slurp excludes --jq](gh-api-slurp-excludes-jq.md) — slurped pages go to a file and are shaped with node; --jq alone runs per page
 - [Workflow script syntax check](workflow-script-syntax-check.md) — wrap the body in an async function before node --check; a saved workflow appears in the skill list by its meta.name
+- [No backlinks on upstream issues](no-upstream-backlinks.md) — never owner/repo#n or a github.com issue URL of another repo in GitHub text (issues, PRs, comments, commit messages); use redirect.github.com; nothing outside the repo without a go; deleting the issue removes a backlink, deleting a comment doesn't, a PR can't be deleted
 - [npm ci vs a locked oxlint](npm-ci-locked-oxlint.md) — run npm ci only when the lockfile changed; the editor's oxlint LSP locks a binary and npm ci fails with node_modules wiped; npm install restores

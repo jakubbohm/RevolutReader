@@ -1,18 +1,31 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.SignIn;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.SignIn;
 
 /// <summary>
-/// The sign-in settings are checked at start-up (c007 design.md D8, D11; configuration.md § Binding): neither secret may
-/// still hold the declared placeholder, and the allowlist must hold at least one entry, no empty entry, and only email
-/// addresses (text, one <c>@</c>, text). A failure names the setting, never the addresses or the placeholder. Each test
-/// runs both checks the app runs at start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs them, and
-/// <see cref="SignInOptionsValidator"/>. Every value here is made up.
+/// The sign-in settings are checked at start-up (c007 design.md D8, D11; configuration.md § Binding): every setting is
+/// required, neither secret may still hold the declared placeholder, and the allowlist must hold at least one entry, no
+/// empty entry, and only email addresses (text, one <c>@</c>, text). A failure names the setting, never the addresses or
+/// the placeholder: a failure of the settings' own rules is the standard data-annotation failure, naming the settings class
+/// and the setting (the owner's decision on #97, 2026-11-22), and the validator's allowlist check opens its sentence with
+/// the setting's full name, as the operator sets it (#97). Each test runs the checks the app runs at start, through
+/// sign-in's own registration (<see cref="SignInRegistration.AddSignIn"/>, from an in-memory configuration): the settings'
+/// data annotations and <see cref="SignInOptionsValidator"/>, however those checks are built. Every value here is made up.
 /// </summary>
 public sealed class SignInOptionsTests {
   private const string PLACEHOLDER = "<secret>";
+
+  /// <summary>The settings' section, as the configuration names it (D8, D11), written out, so a renamed setting fails here.</summary>
+  private const string SECTION = "SignIn";
+
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name.</summary>
+  private const string SAYS_REQUIRED = "required";
+  private const string SAYS_PLACEHOLDER = "placeholder";
   private const string MADE_UP_CLIENT_ID = "c0070000-0000-4000-8000-00000000c001";
   private const string MADE_UP_CLIENT_SECRET = "made-up-client-secret-c007";
   private const string LUCIE = "lucie@example.com";
@@ -34,18 +47,32 @@ public sealed class SignInOptionsTests {
     IReadOnlyList<string> failures = Failures(settings);
 
     failures.ShouldContain(
-      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains("placeholder", StringComparison.OrdinalIgnoreCase),
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_PLACEHOLDER, StringComparison.OrdinalIgnoreCase),
       $"a failure saying that {setting} still holds the placeholder");
     failures.ShouldAllBe(failure => !failure.Contains(PLACEHOLDER, StringComparison.Ordinal), "no failure message may contain the setting's value");
   }
+
+  /// <summary>
+  /// A setting left out of the configuration is required: the failure names it and says so. For the allowlist, the
+  /// validator's own check fails too; the required rule's failure is still there.
+  /// </summary>
+  /// <param name="setting">Each sign-in setting.</param>
+  [Test]
+  [Arguments(nameof(SignInOptions.Authority))]
+  [Arguments(nameof(SignInOptions.ClientId))]
+  [Arguments(nameof(SignInOptions.ClientSecret))]
+  [Arguments(nameof(SignInOptions.AllowedEmails))]
+  public void A_missing_sign_in_setting_fails_validation_naming_it_as_required(string setting) =>
+    Failures(Settings(), leftOut: setting).ShouldContain(
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_REQUIRED, StringComparison.OrdinalIgnoreCase),
+      $"a failure saying that {setting} is required");
 
   [Test]
   [Arguments("")]
   [Arguments("   ")]
   [Arguments(",")]
   public void An_allowlist_without_any_address_fails_validation(string allowedEmails) =>
-    Failures(Settings(allowedEmails: allowedEmails))
-      .ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(Failures(Settings(allowedEmails: allowedEmails)), "SignIn:AllowedEmails");
 
   [Test]
   [Arguments($"{LUCIE},,{JANA}")]
@@ -54,7 +81,7 @@ public sealed class SignInOptionsTests {
   public void An_allowlist_with_an_empty_entry_between_commas_fails_validation(string allowedEmails) {
     IReadOnlyList<string> failures = Failures(Settings(allowedEmails: allowedEmails));
 
-    failures.ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(failures, "SignIn:AllowedEmails");
     failures.ShouldAllBe(failure => !NamesAnAddress(failure, LUCIE, JANA), "no failure message may contain an address (D8)");
   }
 
@@ -66,7 +93,7 @@ public sealed class SignInOptionsTests {
   public void An_allowlist_entry_that_is_not_an_email_address_fails_validation_and_the_message_does_not_contain_the_entry(string entry) {
     IReadOnlyList<string> failures = Failures(Settings(allowedEmails: $"{JANA}, {entry}"));
 
-    failures.ShouldContain(failure => failure.Contains(nameof(SignInOptions.AllowedEmails), StringComparison.Ordinal), "a failure naming AllowedEmails");
+    ShouldNameInFull(failures, "SignIn:AllowedEmails");
     failures.ShouldAllBe(failure => !NamesAnAddress(failure, entry, JANA), "no failure message may contain the entry, or any other address (D8)");
   }
 
@@ -76,6 +103,34 @@ public sealed class SignInOptionsTests {
   public void Complete_sign_in_settings_pass_validation(string allowedEmails) =>
     Failures(Settings(allowedEmails: allowedEmails)).ShouldBeEmpty();
 
+  /// <summary>
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
+  /// it names the settings class and the setting (<c>'SignInOptions' members: 'ClientSecret'</c>), then says what is wrong,
+  /// and never holds the value.
+  /// </summary>
+  /// <param name="setting">Each sign-in setting, broken by its own rule: the two public ones left out, the two secrets still holding the placeholder.</param>
+  [Test]
+  [Arguments(nameof(SignInOptions.Authority))]
+  [Arguments(nameof(SignInOptions.ClientId))]
+  [Arguments(nameof(SignInOptions.ClientSecret))]
+  [Arguments(nameof(SignInOptions.AllowedEmails))]
+  public void An_invalid_setting_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string setting) {
+    (SignInOptions Settings, string? LeftOut, string? Value, string Says) invalid = setting switch {
+      nameof(SignInOptions.Authority) => (Settings(), nameof(SignInOptions.Authority), null, SAYS_REQUIRED),
+      nameof(SignInOptions.ClientId) => (Settings(), nameof(SignInOptions.ClientId), null, SAYS_REQUIRED),
+      nameof(SignInOptions.ClientSecret) => (Settings(clientSecret: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      nameof(SignInOptions.AllowedEmails) => (Settings(allowedEmails: PLACEHOLDER), null, PLACEHOLDER, SAYS_PLACEHOLDER),
+      _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a sign-in setting."),
+    };
+
+    IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
+
+    failures.ShouldHaveDataAnnotationFailure<SignInOptions>(setting, invalid.Says);
+
+    if (invalid.Value is { } value)
+      failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
+  }
+
   /// <summary>Complete, valid settings, except for the values given.</summary>
   private static SignInOptions Settings(string? clientSecret = null, string? allowedEmails = null) => new() {
     Authority = _authority,
@@ -84,14 +139,59 @@ public sealed class SignInOptionsTests {
     AllowedEmails = allowedEmails ?? LUCIE,
   };
 
-  /// <summary>Every failure message of the start-up checks: the data annotations, then the validator.</summary>
-  private static IReadOnlyList<string> Failures(SignInOptions settings) {
-    ValidateOptionsResult[] results = [
-      new DataAnnotationValidateOptions<SignInOptions>(Options.DefaultName).Validate(Options.DefaultName, settings),
-      new SignInOptionsValidator().Validate(Options.DefaultName, settings),
-    ];
+  /// <summary>
+  /// Every failure message of the start-up checks on <paramref name="settings"/>, as the app runs them: the settings
+  /// written to the configuration under their real names, all but <paramref name="leftOut"/>, then bound and checked
+  /// through <see cref="SignInRegistration.AddSignIn"/>, so the data annotations and the validator. None when the settings
+  /// resolve.
+  /// </summary>
+  /// <param name="settings">The settings to write to the configuration.</param>
+  /// <param name="leftOut">A setting's name (the property's) to leave out of the configuration, or <see langword="null"/>.</param>
+  private static IReadOnlyList<string> Failures(SignInOptions settings, string? leftOut = null) {
+    Dictionary<string, string?> values = new(StringComparer.Ordinal) {
+      [$"{SECTION}:Authority"] = settings.Authority.OriginalString,
+      [$"{SECTION}:ClientId"] = settings.ClientId,
+      [$"{SECTION}:ClientSecret"] = settings.ClientSecret,
+      [$"{SECTION}:AllowedEmails"] = settings.AllowedEmails,
+    };
 
-    return [.. results.Where(static result => result.Failed).SelectMany(static result => result.Failures ?? [])];
+    if (leftOut is not null && !values.Remove($"{SECTION}:{leftOut}"))
+      throw new ArgumentOutOfRangeException(nameof(leftOut), leftOut, "Not a setting the configuration holds.");
+
+    IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    ServiceCollection services = new();
+    services.AddSingleton(configuration);
+    services.AddSignIn();
+
+    using ServiceProvider provider = services.BuildServiceProvider();
+
+    try {
+      _ = provider.GetRequiredService<IOptions<SignInOptions>>().Value;
+
+      return [];
+    }
+    catch (OptionsValidationException refused) {
+      return [.. refused.Failures];
+    }
+  }
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own check naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>SignIn:AllowedEmails is not …</c>), where a failure of the settings' own rules opens as the standard
+  /// data-annotation failure, so only the validator's failure passes, also beside the required rule's failure for an empty
+  /// list. No failure may name a setting by the settings class's name instead (<c>SignInOptions.AllowedEmails</c>), which
+  /// the operator cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The setting's full name: the section, ":" and the setting.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal),
+      $"a failure opening with \"{setting} \"; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(SignInOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by the settings class's name");
   }
 
   private static bool NamesAnAddress(string message, params string[] addresses) =>

@@ -29,13 +29,14 @@ public sealed class KnownPushServices(IOptions<PushOptions> options) {
 
   /// <summary>
   /// Every known service's pattern. A pattern that does not parse is a configuration the start-up check must refuse, so it
-  /// stops here too, naming the entry, never its value, rather than match nothing unnoticed.
+  /// stops here too, naming the entry by its full name, as the operator sets it (<c>Push:Services:&lt;name&gt;</c>), never
+  /// its value, rather than match nothing unnoticed.
   /// </summary>
   private static PushServicePattern[] Patterns(IOptions<PushOptions> options) {
     ArgumentNullException.ThrowIfNull(options);
 
     return [.. options.Value.Services.Select(static entry => PushServicePattern.TryParse(entry.Value, out PushServicePattern? pattern)
       ? pattern
-      : throw new InvalidOperationException($"The known push service \"{entry.Key}\" (Push:Services) is not a push service pattern."))];
+      : throw new InvalidOperationException($"{PushOptions.SECTION}:{nameof(PushOptions.Services)}:{entry.Key} is not a push service pattern."))];
   }
 }

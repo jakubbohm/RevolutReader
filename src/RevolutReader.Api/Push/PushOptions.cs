@@ -28,6 +28,6 @@ public sealed class PushOptions {
   public required IReadOnlyDictionary<string, string> Services { get; init; }
 
   /// <summary>How long one push request waits for its answer (D13).</summary>
-  [Range(typeof(TimeSpan), "00:00:01", "00:01:00")]
+  [TimeSpanRange("00:00:01", "00:01:00")]
   public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(10);
 }

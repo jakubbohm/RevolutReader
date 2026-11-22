@@ -3,23 +3,41 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Push;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Push;
 
 /// <summary>
-/// The push settings are checked at start-up (c011 design.md D5, D9, D13; configuration.md § Binding): none of the three
-/// secrets may still hold the declared placeholder; the VAPID public key is the 65-byte uncompressed P-256 point and the
-/// private key the 32-byte scalar, each in base64url, and the two are one pair; the message key is at least 32 bytes;
-/// <c>Subject</c> is an absolute https address with no path beyond "/", no query and no fragment; every known push service
-/// is a valid pattern; the request timeout lies between 1 and 60 seconds. A failure names the setting, never its value.
-/// Each test runs both checks the app runs at start: the settings' data annotations, as <c>ValidateDataAnnotations</c> runs
-/// them, and <see cref="PushOptionsValidator"/>. Every value here is made up; every key is generated in the test.
+/// The push settings are checked at start-up (c011 design.md D5, D9, D13; configuration.md § Binding): every setting but
+/// the request timeout is required; none of the three secrets may still hold the declared placeholder; the VAPID public
+/// key is the 65-byte uncompressed P-256 point and the private key the 32-byte scalar, each in base64url, and the two are
+/// one pair; the message key is at least 32 bytes; <c>Subject</c> is an absolute https address with no path beyond "/", no
+/// query and no fragment; there is at least one known push service and every one is a valid pattern; the request timeout
+/// lies between 1 and 60 seconds. A failure names the setting, never its value: a failure of the settings' own rules is the
+/// standard data-annotation failure, naming the settings class and the setting (the owner's decision on #97, 2026-11-22),
+/// and one of the validator's checks opens its sentence with the setting's (and the entry's) full name, as the operator
+/// sets it (#97). Each test runs the checks the app runs at start, through push's own
+/// registration (<see cref="PushRegistration.AddPush"/>, from an in-memory configuration): the settings' data annotations
+/// and <see cref="PushOptionsValidator"/>, however those checks are built. Every value here is made up; every key is
+/// generated in the test.
 /// </summary>
 public sealed class PushOptionsTests {
   private const string PLACEHOLDER = "<secret>";
+
+  /// <summary>The settings' section, as the configuration names it (D5), written out, so a renamed setting fails here.</summary>
+  private const string SECTION = "Push";
+
+  /// <summary>What each kind of failure of the settings' own rules says, besides the setting's name; the timeout's range says its limits.</summary>
+  private const string SAYS_REQUIRED = "required";
+  private const string SAYS_PLACEHOLDER = "placeholder";
+
+  /// <summary>The request timeout's limits, both allowed, as a TimeSpan setting reads (D13).</summary>
+  private const string SHORTEST_REQUEST_TIMEOUT = "00:00:01";
+  private const string LONGEST_REQUEST_TIMEOUT = "00:01:00";
 
   /// <summary>Distinctive, so it cannot turn up in a message by coincidence.</summary>
   private const string PLAIN_TEXT = "plain text where the key should be, 3e81b7";
@@ -99,9 +117,48 @@ public sealed class PushOptionsTests {
     IReadOnlyList<string> failures = Failures(settings);
 
     failures.ShouldContain(
-      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains("placeholder", StringComparison.OrdinalIgnoreCase),
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_PLACEHOLDER, StringComparison.OrdinalIgnoreCase),
       $"a failure saying that {setting} still holds the placeholder");
     failures.ShouldAllBe(failure => !QuotesAny(failure, PLACEHOLDER, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
+  }
+
+  /// <summary>
+  /// A setting left out of the configuration is required: the failure names it and says so. For the keys and the address,
+  /// the validator's own check fails too; the required rule's failure is still there. Leaving out the known push services
+  /// leaves out every entry.
+  /// </summary>
+  /// <param name="setting">Each setting with no default.</param>
+  [Test]
+  [Arguments(nameof(PushOptions.VapidPublicKey))]
+  [Arguments(nameof(PushOptions.VapidPrivateKey))]
+  [Arguments(nameof(PushOptions.MessageKey))]
+  [Arguments(nameof(PushOptions.Subject))]
+  [Arguments(nameof(PushOptions.Services))]
+  public void A_missing_push_setting_fails_validation_naming_it_as_required(string setting) =>
+    Failures(Settings(), leftOut: setting).ShouldContain(
+      failure => failure.Contains(setting, StringComparison.Ordinal) && failure.Contains(SAYS_REQUIRED, StringComparison.OrdinalIgnoreCase),
+      $"a failure saying that {setting} is required");
+
+  /// <summary>
+  /// An empty list of known push services fails validation, naming the setting (D9: at least one entry). No configuration
+  /// binds to an empty list (the binder leaves the setting out when <c>Push:Services</c> has no entry, and the required
+  /// rule fails), so this test runs the checks push's registration adds on the settings themselves: every
+  /// <see cref="IValidateOptions{TOptions}"/> of <see cref="PushOptions"/> that <see cref="PushRegistration.AddPush"/>
+  /// registers, as the options factory runs them, whatever their kind.
+  /// </summary>
+  [Test]
+  public void An_empty_list_of_known_push_services_fails_validation_naming_the_setting() {
+    PushOptions settings = Settings(services: new Dictionary<string, string>(StringComparer.Ordinal));
+    using ServiceProvider provider = ServicesWith(Configuration(settings));
+
+    IReadOnlyList<string> failures = [
+      .. provider.GetServices<IValidateOptions<PushOptions>>()
+        .Select(validator => validator.Validate(Options.DefaultName, settings))
+        .Where(static result => result.Failed)
+        .SelectMany(static result => result.Failures ?? []),
+    ];
+
+    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.Services), StringComparison.Ordinal), "a failure naming Services");
   }
 
   /// <param name="notAPoint">A value that is not the 65-byte uncompressed P-256 point in base64url (D5).</param>
@@ -124,7 +181,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.VapidPublicKey), StringComparison.Ordinal), "a failure naming VapidPublicKey");
+    ShouldNameInFull(failures, "Push:VapidPublicKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -146,7 +203,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.VapidPrivateKey), StringComparison.Ordinal), "a failure naming VapidPrivateKey");
+    ShouldNameInFull(failures, "Push:VapidPrivateKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -159,9 +216,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(
-      failure => failure.Contains(nameof(PushOptions.VapidPublicKey), StringComparison.Ordinal) && failure.Contains(nameof(PushOptions.VapidPrivateKey), StringComparison.Ordinal),
-      "a failure naming both halves");
+    ShouldNameInFull(failures, "Push:VapidPublicKey", alsoNaming: "Push:VapidPrivateKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -174,7 +229,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(settings);
 
-    failures.ShouldContain(failure => failure.Contains(nameof(PushOptions.MessageKey), StringComparison.Ordinal), "a failure naming MessageKey");
+    ShouldNameInFull(failures, "Push:MessageKey");
     failures.ShouldAllBe(failure => !QuotesAny(failure, settings.VapidPublicKey, settings.VapidPrivateKey, settings.MessageKey), "no failure message may contain a setting's value");
   }
 
@@ -188,8 +243,7 @@ public sealed class PushOptionsTests {
   [Arguments("app.example.net")] // no scheme: binds as a relative address
   [Arguments("mailto:push@example.net")] // a contact the push services accept, but not the app's address
   public void A_subject_that_is_not_an_https_origin_fails_validation(string subject) =>
-    Failures(Settings(subject: new Uri(subject, UriKind.RelativeOrAbsolute)))
-      .ShouldContain(failure => failure.Contains(nameof(PushOptions.Subject), StringComparison.Ordinal), "a failure naming Subject");
+    ShouldNameInFull(Failures(Settings(subject: new Uri(subject, UriKind.RelativeOrAbsolute))), "Push:Subject");
 
   /// <param name="requestTimeout">Shorter than 1 second or longer than 60 (D13), as a TimeSpan setting reads.</param>
   [Test]
@@ -230,9 +284,7 @@ public sealed class PushOptionsTests {
 
     IReadOnlyList<string> failures = Failures(Settings(services: services));
 
-    failures.ShouldContain(
-      failure => failure.Contains(nameof(PushOptions.Services), StringComparison.Ordinal) && failure.Contains(entry, StringComparison.Ordinal),
-      "a failure naming the Services setting and the entry");
+    ShouldNameInFull(failures, $"Push:Services:{entry}");
     failures.ShouldAllBe(failure => !QuotesAny(failure, pattern), "no failure message may contain the entry's value");
     string[] validEntries = [.. _services.Keys];
     failures.ShouldAllBe(failure => !QuotesAny(failure, validEntries), "no failure names an entry that is valid");
@@ -245,6 +297,38 @@ public sealed class PushOptionsTests {
   [Test]
   public void The_known_push_services_declared_in_appsettings_json_pass_validation() =>
     Failures(Settings(services: DeclaredServices())).ShouldBeEmpty();
+
+  /// <summary>
+  /// A failure of the settings' own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
+  /// it names the settings class and the setting (<c>'PushOptions' members: 'MessageKey'</c>), then says what is wrong, the
+  /// timeout outside its range by both limits, and never holds the value.
+  /// </summary>
+  /// <param name="setting">Each setting with a rule of its own that a configuration can break, broken by that rule: a secret still holding the placeholder, the address or the push services left out, the timeout outside its range.</param>
+  [Test]
+  [Arguments(nameof(PushOptions.VapidPublicKey))]
+  [Arguments(nameof(PushOptions.VapidPrivateKey))]
+  [Arguments(nameof(PushOptions.MessageKey))]
+  [Arguments(nameof(PushOptions.Subject))]
+  [Arguments(nameof(PushOptions.Services))]
+  [Arguments(nameof(PushOptions.RequestTimeout))]
+  public void An_invalid_setting_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string setting) {
+    (PushOptions Settings, string? LeftOut, string? Value, string[] Says) invalid = setting switch {
+      nameof(PushOptions.VapidPublicKey) => (Settings(vapidPublicKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.VapidPrivateKey) => (Settings(vapidPrivateKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.MessageKey) => (Settings(messageKey: PLACEHOLDER), null, PLACEHOLDER, [SAYS_PLACEHOLDER]),
+      nameof(PushOptions.Subject) => (Settings(), nameof(PushOptions.Subject), null, [SAYS_REQUIRED]),
+      nameof(PushOptions.Services) => (Settings(), nameof(PushOptions.Services), null, [SAYS_REQUIRED]),
+      nameof(PushOptions.RequestTimeout) => (Settings(requestTimeout: TimeSpan.FromMinutes(5)), null, "00:05:00", [SHORTEST_REQUEST_TIMEOUT, LONGEST_REQUEST_TIMEOUT]),
+      _ => throw new ArgumentOutOfRangeException(nameof(setting), setting, "Not a setting with a rule of its own."),
+    };
+
+    IReadOnlyList<string> failures = Failures(invalid.Settings, invalid.LeftOut);
+
+    failures.ShouldHaveDataAnnotationFailure<PushOptions>(setting, invalid.Says);
+
+    if (invalid.Value is { } value)
+      failures.ShouldAllBe(failure => !failure.Contains(value, StringComparison.Ordinal), "no failure message may contain the setting's value");
+  }
 
   /// <summary>Complete, valid settings, except for the values given.</summary>
   private static PushOptions Settings(
@@ -262,14 +346,67 @@ public sealed class PushOptionsTests {
       RequestTimeout = requestTimeout ?? _requestTimeout,
     };
 
-  /// <summary>Every failure message of the start-up checks: the data annotations, then the validator.</summary>
-  private static IReadOnlyList<string> Failures(PushOptions settings) {
-    ValidateOptionsResult[] results = [
-      new DataAnnotationValidateOptions<PushOptions>(Options.DefaultName).Validate(Options.DefaultName, settings),
-      new PushOptionsValidator().Validate(Options.DefaultName, settings),
-    ];
+  /// <summary>
+  /// Every failure message of the start-up checks on <paramref name="settings"/>, as the app runs them: the settings
+  /// written to the configuration under their real names, all but <paramref name="leftOut"/>, then bound and checked
+  /// through <see cref="PushRegistration.AddPush"/>, so the data annotations and the validator. None when the settings
+  /// resolve.
+  /// </summary>
+  /// <param name="settings">The settings to write to the configuration.</param>
+  /// <param name="leftOut">A setting's name (the property's) to leave out of the configuration, with all its entries, or <see langword="null"/>.</param>
+  private static IReadOnlyList<string> Failures(PushOptions settings, string? leftOut = null) {
+    Dictionary<string, string?> values = Configuration(settings);
 
-    return [.. results.Where(static result => result.Failed).SelectMany(static result => result.Failures ?? [])];
+    if (leftOut is not null) {
+      string setting = $"{SECTION}:{leftOut}";
+      string[] keys = [.. values.Keys.Where(key => key == setting || key.StartsWith($"{setting}:", StringComparison.Ordinal))];
+
+      if (keys.Length == 0)
+        throw new ArgumentOutOfRangeException(nameof(leftOut), leftOut, "Not a setting the configuration holds.");
+
+      foreach (string key in keys)
+        values.Remove(key);
+    }
+
+    using ServiceProvider provider = ServicesWith(values);
+
+    try {
+      _ = provider.GetRequiredService<IOptions<PushOptions>>().Value;
+
+      return [];
+    }
+    catch (OptionsValidationException refused) {
+      return [.. refused.Failures];
+    }
+  }
+
+  /// <summary>
+  /// <paramref name="settings"/> as the configuration holds them, under their real names: a key per setting, and one per
+  /// known push service, <c>Push:Services:&lt;name&gt;</c>; the address as written, the timeout as a TimeSpan setting reads.
+  /// </summary>
+  private static Dictionary<string, string?> Configuration(PushOptions settings) {
+    Dictionary<string, string?> values = new(StringComparer.Ordinal) {
+      [$"{SECTION}:VapidPublicKey"] = settings.VapidPublicKey,
+      [$"{SECTION}:VapidPrivateKey"] = settings.VapidPrivateKey,
+      [$"{SECTION}:MessageKey"] = settings.MessageKey,
+      [$"{SECTION}:Subject"] = settings.Subject.OriginalString,
+      [$"{SECTION}:RequestTimeout"] = settings.RequestTimeout.ToString("c", CultureInfo.InvariantCulture),
+    };
+
+    foreach (KeyValuePair<string, string> service in settings.Services)
+      values[$"{SECTION}:Services:{service.Key}"] = service.Value;
+
+    return values;
+  }
+
+  /// <summary>The services the app's start-up checks of the push settings run on: <paramref name="values"/> as the configuration, and push's registration, <see cref="PushRegistration.AddPush"/>.</summary>
+  private static ServiceProvider ServicesWith(IReadOnlyDictionary<string, string?> values) {
+    IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+    ServiceCollection services = new();
+    services.AddSingleton(configuration);
+    services.AddPush();
+
+    return services.BuildServiceProvider();
   }
 
   /// <summary>
@@ -304,6 +441,27 @@ public sealed class PushOptionsTests {
   }
 
   private static string RandomBase64Url(int bytes) => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(bytes));
+
+  /// <summary>
+  /// Asserts that <paramref name="failures"/> hold a failure of the validator's own checks naming <paramref name="setting"/>
+  /// by its full name, as the operator sets it (#97): the message opens with the name and goes straight on to say what is
+  /// wrong (<c>Push:Subject is not …</c>), where a failure of the settings' own rules opens as the standard data-annotation
+  /// failure, so only the validator's failure passes; a second setting the same failure is about is named in full further
+  /// on. No failure may name a setting by the settings class's name instead (<c>PushOptions.Subject</c>), which the operator
+  /// cannot set.
+  /// </summary>
+  /// <param name="failures">The failure messages of the start-up checks.</param>
+  /// <param name="setting">The full name that opens the failure: the section, ":" and the setting (and ":" and the entry, for a known push service).</param>
+  /// <param name="alsoNaming">The full name of a second setting the same failure names, or <see langword="null"/>.</param>
+  private static void ShouldNameInFull(IReadOnlyList<string> failures, string setting, string? alsoNaming = null) {
+    failures.ShouldContain(
+      failure => failure.StartsWith($"{setting} ", StringComparison.Ordinal)
+        && (alsoNaming == null || failure.Contains(alsoNaming, StringComparison.Ordinal)),
+      $"a failure opening with \"{setting} \"{(alsoNaming is null ? "" : $" that names \"{alsoNaming}\" too")}; the failures were: {string.Join(" | ", failures)}");
+    failures.ShouldAllBe(
+      failure => !failure.Contains($"{nameof(PushOptions)}.", StringComparison.Ordinal),
+      "no failure may name a setting by the settings class's name");
+  }
 
   /// <summary>Whether <paramref name="message"/> contains any of <paramref name="values"/>.</summary>
   private static bool QuotesAny(string message, params string[] values) =>

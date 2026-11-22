@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Storage;
+using RevolutReader.UnitTests.Configuration;
 using Shouldly;
 
 namespace RevolutReader.UnitTests.Storage;
@@ -11,9 +12,11 @@ namespace RevolutReader.UnitTests.Storage;
 /// The <c>Transactions</c> section is checked on start (c010 design.md D11): its table name must be one Table Storage
 /// accepts, 3 to 63 letters and digits starting with a letter (letters as Table Storage counts them, A to Z only), so
 /// each acceptance test can use a table of its own and a wrong name stops the app at start instead of failing the first
-/// request. Each test registers the store as the app does (<see cref="StorageRegistration.AddTransactionStore"/>, with a
-/// tables connection set) and reads the settings as the app's services give them, which runs the checks registered for
-/// them. The connection is Azurite's well-known shorthand for its local account, no secret; nothing here reaches it.
+/// request. A failure of the setting's own rules is the standard data-annotation failure, naming the settings class and
+/// the setting, never its value (the owner's decision on #97, 2026-11-22). Each test registers the store as the app does
+/// (<see cref="StorageRegistration.AddTransactionStore"/>, with a tables connection set) and reads the settings as the
+/// app's services give them, which runs the checks registered for them. The connection is Azurite's well-known shorthand
+/// for its local account, no secret; nothing here reaches it.
 /// </summary>
 public sealed class TransactionStoreOptionsTests {
   private const string TABLES_CONNECTION = "ConnectionStrings:tables";
@@ -53,13 +56,42 @@ public sealed class TransactionStoreOptionsTests {
   public void The_default_table_name_passes_validation() =>
     SettingsAfterRegistering(DEFAULT_TABLE_NAME).TableName.ShouldBe(DEFAULT_TABLE_NAME);
 
-  /// <summary>The <c>Transactions</c> settings as the app's services give them after registering the store with this table name.</summary>
-  private static TransactionStoreOptions SettingsAfterRegistering(string tableName) {
+  /// <summary>
+  /// A failure of the setting's own rules is the standard data-annotation failure (the owner's decision on #97, 2026-11-22):
+  /// it names the settings class and the setting (<c>'TransactionStoreOptions' members: 'TableName'</c>), then says what is
+  /// wrong, and never holds the value.
+  /// </summary>
+  /// <param name="broken">How the table name breaks its own rules: left out, or not a name Table Storage accepts.</param>
+  [Test]
+  [Arguments("left out")]
+  [Arguments("with a hyphen")]
+  public void An_invalid_table_name_fails_validation_with_a_message_naming_its_settings_class_and_member_never_its_value(string broken) {
+    (string? Name, string Says) invalid = broken switch {
+      "left out" => (null, "required"),
+      "with a hyphen" => ("trans-actions", "3 to 63"),
+      _ => throw new ArgumentOutOfRangeException(nameof(broken), broken, "Not a known case."),
+    };
+
+    OptionsValidationException failure = Should.Throw<OptionsValidationException>(() => SettingsAfterRegistering(invalid.Name), "the table name fails validation");
+
+    failure.Failures.ShouldHaveDataAnnotationFailure<TransactionStoreOptions>(nameof(TransactionStoreOptions.TableName), invalid.Says);
+
+    if (invalid.Name is { } name)
+      failure.Failures.ShouldAllBe(message => !message.Contains(name, StringComparison.Ordinal), "no failure message may contain the setting's value");
+  }
+
+  /// <summary>
+  /// The <c>Transactions</c> settings as the app's services give them after registering the store with this table name;
+  /// <see langword="null"/> leaves the name out of the configuration.
+  /// </summary>
+  private static TransactionStoreOptions SettingsAfterRegistering(string? tableName) {
     HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
-    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
-      [TABLES_CONNECTION] = LOCAL_EMULATOR,
-      [TABLE_NAME] = tableName,
-    });
+    Dictionary<string, string?> settings = new() { [TABLES_CONNECTION] = LOCAL_EMULATOR };
+
+    if (tableName is not null)
+      settings[TABLE_NAME] = tableName;
+
+    builder.Configuration.AddInMemoryCollection(settings);
     builder.AddTransactionStore();
 
     using IHost app = builder.Build();

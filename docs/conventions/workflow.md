@@ -239,7 +239,9 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 
 ### The quality bar (2026-11-08)
 
-The app may take shortcuts for speed ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)). The software factory never does: it always gets the best solution, the design and practice a very mature software architect would choose for a real, long-lived system. Speed is never a reason to give it less. Software-factory work is:
+**Since 2026-11-21, one bar for the app too.** The app is released and working (v2 handed over, M7), so speed of delivery no longer decides anything: every change to the app is held to the same bar as software-factory work ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)). Recommend a systematic, mature solution: never the fastest, and never a workaround that only gets past the problem at hand. Simplicity versus maturity stays the user's call. Until then the app could take shortcuts for speed; the cut-downs it took keep their entries in [divergences.md](../software-factory/divergences.md) until a decision of their own switches them back ([lessons.md R-1](../software-factory/lessons.md)).
+
+The software factory has never taken a shortcut: it always gets the best solution, the design and practice a very mature software architect would choose for a real, long-lived system. Speed is never a reason to give it less. Software-factory work is:
 
 - everything in `docs/software-factory/`: the lessons, the inventory and the handover process;
 - the handover package and what it delivers to the factory;
