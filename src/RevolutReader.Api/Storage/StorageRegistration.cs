@@ -1,6 +1,5 @@
 using RevolutReader.Api.Account;
 using RevolutReader.Api.Check;
-using RevolutReader.Api.Configuration;
 using RevolutReader.Api.Push;
 
 namespace RevolutReader.Api.Storage;
@@ -34,7 +33,8 @@ public static class StorageRegistration {
       throw new InvalidOperationException(NO_CONNECTION);
 
     builder.Services.AddOptions<TransactionStoreOptions>()
-      .BindSection(TransactionStoreOptions.SECTION, new TransactionStoreOptionsAnnotations())
+      .BindConfiguration(TransactionStoreOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
 
     builder.AddAzureTableServiceClient(TABLES, static settings => settings.DisableHealthChecks = true);
@@ -53,7 +53,8 @@ public static class StorageRegistration {
     ArgumentNullException.ThrowIfNull(builder);
 
     builder.Services.AddOptions<PushDeviceStoreOptions>()
-      .BindSection(PushDeviceStoreOptions.SECTION, new PushDeviceStoreOptionsAnnotations())
+      .BindConfiguration(PushDeviceStoreOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
 
     builder.Services.AddSingleton<IPushDeviceStore, TablePushDeviceStore>();
@@ -71,7 +72,8 @@ public static class StorageRegistration {
     ArgumentNullException.ThrowIfNull(builder);
 
     builder.Services.AddOptions<CheckedBalanceStoreOptions>()
-      .BindSection(CheckedBalanceStoreOptions.SECTION, new CheckedBalanceStoreOptionsAnnotations())
+      .BindConfiguration(CheckedBalanceStoreOptions.SECTION)
+      .ValidateDataAnnotations()
       .ValidateOnStart();
 
     builder.Services.AddSingleton<ICheckedBalanceStore, TableCheckedBalanceStore>();
