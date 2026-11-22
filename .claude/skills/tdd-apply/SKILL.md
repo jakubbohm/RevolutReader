@@ -180,8 +180,9 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
 
 1. Run all acceptance tests of this change. If one fails, find the cause and route it (each agent spawned or
    resumed as § Chapters, step 4 says): missing behaviour → the test-writer writes a unit test for it (a `[red]`
-   commit) → the implementer implements it (a `[green]` commit); a glue bug (route, DI registration, serialization,
-   driver) → the implementer directly. Repeat until green.
+   commit) → the implementer implements it (a `[green]` commit), both verified as § 2 steps 2 and 6 say for a unit
+   group; a glue bug (route, DI registration, serialization, driver) → the implementer directly, its fix verified
+   as § 2 step 6 says for a `[close]` group. Repeat until green.
 2. Run the full test suite and the traceability test.
 3. Optional, only if Stryker.NET is configured (RevolutReader: not adopted): run mutation testing on the files
    changed by this change and report survivors. Survivors mean weak tests; offer to send them to the test-writer.
