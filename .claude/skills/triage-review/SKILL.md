@@ -44,7 +44,8 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 ## 0. Prepare
 
 1. `gh pr view <PR> --json number,title,state,isDraft,headRefName,headRefOid,baseRefName,url,body`. The current
-   branch must be the PR's head branch and the working tree clean (`git status --porcelain` empty). HEAD must be
+   branch must be the PR's head branch and the working tree clean: `git status --porcelain` empty, or listing only
+   the change's own state file (step 3), which an interrupted round leaves untracked or modified. HEAD must be
    the PR's head commit (`git rev-parse HEAD` equal to `headRefOid`) or, on a rerun of an interrupted round (§ 1,
    "After an interrupted round"), that commit followed only by this round's own `[review] <id>:` commits, those
    numbered above the highest number the earlier rounds' summary comments list (`git log --oneline
