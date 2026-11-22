@@ -140,20 +140,24 @@ export function linesInDiff(patch) {
 }
 
 // Plans posting a review's findings from the conversation (`{ path, line, body }`, in the review's order) as review
-// comments on the PR, given the PR's files and review comments (the REST API's objects) and its head commit.
+// comments on the PR, given the PR's files and review comments (the REST API's objects), its head commit, and when
+// its last triage summary was posted (lastSummaryTime; null before the first summary).
 // - Returns { errors, posts }: one error per finding that cannot be posted, naming its position in the review
 //   (1-based) and its path; with any error, nothing may be posted. A finding's path must be a file the PR changes,
 //   its body must have text, and its line must be null or a positive whole number.
 // - One post per valid finding, in the review's order: `{ action: "post", request }`, where the request goes on the
 //   finding's line (RIGHT side) when the line is in the PR's diff, else on its file (`subject_type: "file"`).
-// - A finding whose body is already a top-level review comment's (line endings and outer spaces aside) is
-//   `{ action: "skip", existingId, request }`: so a run that failed part-way can run again. Each comment
-//   accounts for one finding only.
-export function planPosts(findings, prFiles, existingComments, headSha) {
+// - A finding whose body is already a top-level review comment's (line endings and outer spaces aside), posted after
+//   the last triage summary (before the first summary: any), is `{ action: "skip", existingId, request }`: so a run
+//   that failed part-way can run again. Each comment accounts for one finding only. A comment from before the last
+//   summary does not count: an earlier round closed it, and a new report of the same text is a finding of its own,
+//   which the gather would otherwise leave out with that closed thread.
+export function planPosts(findings, prFiles, existingComments, headSha, lastSummaryAt) {
   const filesByName = new Map(prFiles.map((f) => [f.filename, f]));
   const normalized = (text) => text.replace(/\r\n/g, "\n").trim();
+  const sinceSummary = (c) => lastSummaryAt == null || Date.parse(c.created_at) > Date.parse(lastSummaryAt);
   const unclaimed = existingComments
-    .filter((c) => c.in_reply_to_id == null && typeof c.body === "string")
+    .filter((c) => c.in_reply_to_id == null && typeof c.body === "string" && sinceSummary(c))
     .sort((a, b) => a.id - b.id);
   const errors = [];
   const posts = [];
@@ -186,9 +190,16 @@ export function planPosts(findings, prFiles, existingComments, headSha) {
   return { errors, posts };
 }
 
-// Will return the created_at of the latest PR issue comment whose body starts with "## Review triage", else null.
+// When the PR's last triage summary was posted: the `created_at` of the latest of its issue comments (the REST API's
+// objects, any order) whose body starts with the heading "## Review triage" (any round's), else null. A comment that
+// only mentions the heading further down is no summary.
 export function lastSummaryTime(issueComments) {
-  throw new Error("not implemented");
+  let latest = null;
+  for (const c of issueComments) {
+    if (typeof c.body !== "string" || !c.body.startsWith("## Review triage")) continue;
+    if (latest === null || Date.parse(c.created_at) > Date.parse(latest)) latest = c.created_at;
+  }
+  return latest;
 }
 
 // A sorted list of whole numbers as compact text, each run of consecutive numbers as a range: [1, 2, 4, 7, 8, 9]

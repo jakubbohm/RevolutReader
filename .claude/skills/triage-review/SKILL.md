@@ -131,9 +131,10 @@ where the findings are; never guess). Each then gets a thread, a number and a re
    PR's diff, else on its file. A finding that does not land on its real place, because it moved to another file
    or its line is outside the diff, names that place (`<file>:<line>`) in its body, below the first line, which the
    gather takes as its title. Correct the file and run the dry run again until the plan is right.
-3. Run it without `--dry-run`. It posts in the review's order and skips a finding already on the PR, so after a
-   failure part-way, running it again posts only the rest; the round has no commit yet, so its head check still
-   passes.
+3. Run it without `--dry-run`. It posts in the review's order and skips a finding this round already posted (a
+   comment with the same text, posted after the PR's last summary comment), so after a failure part-way, running
+   it again posts only the rest; the round has no commit yet, so its head check still passes. An earlier round's
+   comment with the same text does not count: that round closed it, so the new report gets a thread of its own.
 
 **The open threads:** run `node .claude/skills/triage-review/scripts/gather-findings.mjs <PR> <work folder>`
 (§ Scripts). It writes `findings.json`, one element per open finding: a top-level review comment whose thread is
@@ -309,9 +310,10 @@ header has the details. Their pure parts have tests beside them (`*.test.mjs`, N
   PR's diff, else on its file. It checks first that the local HEAD is the PR's head commit (else the line numbers
   would point at another version) and that every finding has a body, a file the PR changes and a line that is null
   or a line number, so a failed check lists every problem and posts nothing; a finding already posted as a
-  top-level comment is skipped. Prints `POSTED: <n> <comment id> <url>` or `SKIPPED: <n> already posted as
-  comment <id>` per finding. `--dry-run` makes the same checks and prints `WOULD POST: <n> <path>:<line>`,
-  `WOULD POST: <n> <path> (file)` or `WOULD SKIP: …`, without posting.
+  top-level comment after the PR's last `## Review triage` summary (before the first: any) is skipped. Prints
+  `POSTED: <n> <comment id> <url>` or `SKIPPED: <n> already posted as comment <id>` per finding. `--dry-run` makes
+  the same checks and prints `WOULD POST: <n> <path>:<line>`, `WOULD POST: <n> <path> (file)` or `WOULD SKIP: …`,
+  without posting.
 - **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments, reviews and threads, and
   writes `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and
   ordered as § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads:
