@@ -45,6 +45,7 @@
   | `[green]` | the implementer made that group pass | `feat` / `fix` | orchestrator |
   | `[wire]` | plumbing: endpoints, DI, drivers, adapter edge-case tests | `feat` | orchestrator |
   | `[close]` | all acceptance tests of the change pass; close-out docs | `feat` / `test` | orchestrator |
+  | `[chapter]` | a chapter's checkpoint in `/tdd-apply`: `.tdd-state.md` rewritten for resuming | `docs` | orchestrator |
   | `[review]` | one handoff of a code-review finding's fix after the PR's review (`/triage-review`): the finding's guard test by the test-writer, failing (`test`); the implementer's fix (`fix`); a test-only finding by the test-writer (`test`); a docs or cleanup finding by the implementer (`docs` / `refactor`); the triage summary and state file (`docs`). The summary starts with the finding's number | `test` / `fix` / `docs` / `refactor` | orchestrator |
   | `[apply]` | one task group of a tooling-only change, applied directly (§ 6) | by content: `ci`, `docs`, `chore` | Claude, at the end of each group |
   | `[archive]` | delta specs merged, change moved to the archive | `docs` | Claude, when the user approves the archive |

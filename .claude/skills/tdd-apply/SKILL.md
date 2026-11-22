@@ -218,7 +218,7 @@ with a fresh test-writer and implementer.
       except the acceptance tests of later chapters.
    2. Rewrite `.tdd-state.md` for resuming: "Resume here" names the next chapter and its first group; what the
       code holds now, briefly per area; the standing rules for the test-writer and the implementer; the retired
-      pair marked with their last token counts. Commit it: `docs(<cNNN>): [close] chapter <name>'s state`.
+      pair marked with their last token counts. Commit it: `docs(<cNNN>): [chapter] <name>'s state`.
    3. Stop, in every review mode: only the human can compact your context. Report the chapter (groups done,
       test totals, disputes, the agents' last token counts) and give a ready command:
       `/compact /tdd-apply <change>: chapter <name> is done and committed (<sha>). Re-read .tdd-state.md and
