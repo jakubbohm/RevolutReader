@@ -1067,6 +1067,6 @@ RevolutReader (c016 design.md D5, 2026-11-21): **under `waitUntil`, no limit of 
 *Generalizes:* in a push handler, choose deliberately between a notification that waits and work that may be lost — **when the data matters less than the notification's timing, a short limit of its own or no `waitUntil` is the better trade**.
 
 **R-97 · Where does work after the initial plan live?** *(New — relates to R-85)* · *Topic:* G. Delivery
-RevolutReader (workflow.md § 9, 2026-11-21): **in GitHub issues only: no roadmap step and no progress row; the issue holds the goal, the change and its PR name it, and the PR that finishes it closes it.** The roadmap and its progress file stay the record of the initial plan; an issue already holds a later item's goal and links its change and PR.
-*Setup produces:* the rule in the workflow conventions and the project instructions.
+RevolutReader (workflow.md § 9, 2026-11-21): **in GitHub issues only: no roadmap step and no progress row; the issue holds the goal, the change and its PR name it, and the PR that finishes it closes it.** The roadmap and its progress file stay the record of the initial plan; an issue already holds a later item's goal and links its change and PR. A Direct PR for such work scopes its step-tagged commits with the issue number, `i67` (2026-11-22, first in PR #93).
+*Setup produces:* the rule in the workflow conventions and the project instructions, and the `i<issue>` commit scope in the Git conventions.
 *Generalizes:* a roadmap for the initial plan, issues for what follows — **a long-lived product with its own planning cycles keeps a living roadmap instead**.
