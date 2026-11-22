@@ -1,5 +1,5 @@
-// /triage-review § 1 (source=pr): gathers a pull request's open review findings, one per top-level review comment
-// whose thread is not resolved.
+// /triage-review § 1: gathers a pull request's open review findings, one per top-level review comment whose thread
+// is not resolved.
 //
 //   node .claude/skills/triage-review/scripts/gather-findings.mjs <pr> <work-folder>
 //

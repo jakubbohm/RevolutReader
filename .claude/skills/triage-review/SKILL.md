@@ -25,9 +25,10 @@ The rules this skill applies: `docs/conventions/testing.md` § Code review after
 Arguments: `$ARGUMENTS`
 - First argument: the PR number. If missing, take the current branch's PR (`gh pr view --json number`); if there
   is none, stop and ask.
-- `source=` says where the findings are (default `pr`): `pr` reads the PR's review threads, which is what
-  `/code-review --comment` posts; `chat` takes them from the review's reply in this conversation. With `pr` and
-  no threads, fall back to `chat` and say so.
+- `source=` says where the review's findings are (default `pr`): `pr` reads the PR's review threads, which is what
+  `/code-review --comment` posts, and also takes a review in this conversation whose findings are not on the PR;
+  `chat` says the findings are in the review's reply in this conversation. Findings from the conversation are
+  posted to the PR first, so every finding is a thread (§ 1).
 
 ## Outcomes
 
@@ -42,9 +43,10 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 
 ## 0. Prepare
 
-1. `gh pr view <PR> --json number,title,state,isDraft,headRefName,baseRefName,url,body`. The current branch must
-   be the PR's head branch and the working tree clean (`git status --porcelain` empty); otherwise stop and ask.
-   Never work on `main`.
+1. `gh pr view <PR> --json number,title,state,isDraft,headRefName,headRefOid,baseRefName,url,body`. The current
+   branch must be the PR's head branch, its HEAD the PR's head commit (`git rev-parse HEAD` equal to `headRefOid`;
+   otherwise the review saw other code than the working tree, and pushing is the owner's go), and the working tree
+   clean (`git status --porcelain` empty); otherwise stop and ask. Never work on `main`.
 2. Find the change: a folder `openspec/changes/<id>/`, or `openspec/changes/archive/<date>-<id>/` once archived,
    that this branch belongs to (the PR body or the branch name names it). With one, the **scope** of the commits is
    its number part (`c007`) and the **intent files** are its `proposal.md`, `design.md` and `specs/**`. Without one
@@ -84,25 +86,41 @@ evidence at a file:line, a test name or a recorded decision that you opened.
 
 ## 1. Gather
 
-**`source=pr`:** run `node .claude/skills/triage-review/scripts/gather-findings.mjs <PR> <work folder>`
+The findings live in the PR's review threads, one per top-level review comment, which is what `/code-review
+--comment` posts.
+
+**A review only in this conversation:** when this conversation holds a `/code-review` reply whose findings are not
+on the PR (it ran without `--comment`), or `source=chat` is given, post its findings to the PR first, whatever
+threads an earlier round left open (`source=chat` with no review in this conversation: say so and ask the owner
+where the findings are; never guess). Each then gets a thread, a number and a reply like any other finding:
+
+1. Write them to `<work folder>/chat-findings.json`, in the review's order; never drop or merge one:
+
+   ```json
+   [{ "path": "<file>", "line": 42, "body": "<the finding verbatim>" }]
+   ```
+
+   `body` is the finding verbatim: its first line the severity and a one-line summary, as `/code-review --comment`
+   writes them, then the failure scenario. `line` is the line in the PR's new version, or `null` for the whole
+   file. A finding on a file the PR does not change goes on the changed file it concerns.
+2. Run `node .claude/skills/triage-review/scripts/post-findings.mjs <PR> <work folder>/chat-findings.json
+   --dry-run` (§ Scripts) and check the plan it prints, one line per finding: on its line when the line is in the
+   PR's diff, else on its file. A finding that does not land on its real place, because it moved to another file
+   or its line is outside the diff, names that place (`<file>:<line>`) in its body, below the first line, which the
+   gather takes as its title. Correct the file and run the dry run again until the plan is right.
+3. Run it without `--dry-run`. It posts in the review's order and skips a finding already on the PR, so after a
+   failure part-way, running it again posts only the rest.
+
+**The open threads:** run `node .claude/skills/triage-review/scripts/gather-findings.mjs <PR> <work folder>`
 (§ Scripts). It writes `findings.json`, one element per open finding: a top-level review comment whose thread is
 not resolved, ordered by file and line. It prints the count, how many it left out, and the list. A resolved
 thread is left out, whether an earlier round resolved it or the owner did by hand; to bring one back, the owner
-unresolves it. The ids number the PR's top-level comments in the order they were posted, so a later round's new
-findings continue after the earlier rounds' numbers, a thread left open keeps its number, and every
-`[review] <id>:` commit stays unique within the PR. Zero findings and `source` not forced: say so and switch to
-`chat`.
+unresolves it. The ids number the PR's top-level comments in the order they were posted, the ones posted from
+this conversation included, so a later round's new findings continue after the earlier rounds' numbers, a thread
+left open keeps its number, and every `[review] <id>:` commit stays unique within the PR.
 
-**`source=chat`:** write `findings.json` yourself from the review's reply in this conversation:
-
-```json
-[{ "id": 1, "path": "<file>", "line": 0, "title": "<one line>", "body": "<the finding verbatim: the claim and the failure scenario>", "commentId": null }]
-```
-
-Keep every finding in the review's order; never drop or merge one. Number them from 1, or in a later round from
-one past the highest number the earlier rounds used (their summary comments list them).
-
-Then write the findings table (id · file:line · title) into the state file.
+With no open thread and no review in this conversation that is not on the PR, there is nothing to triage: say so
+and stop. Otherwise write the findings table (id · file:line · title) into the state file.
 
 ## 2. Verify
 
@@ -181,11 +199,11 @@ implementer works at a time; never build or test while one of them is working.
    infra/main.bicep` if `infra/` changed; the triage scripts' tests (`CLAUDE.md` § Commands) if
    `.claude/skills/triage-review/scripts/` changed; the API-client drift check if any endpoint changed (it should
    not have: that is an ASK).
-2. Threads (`source=pr`): for every finding with a `commentId`, write the reply to a file in the work folder and
-   post it with `reply-finding.mjs` (§ Scripts): FIX → "Fixed in `<sha>`: <summary>; guard test `<name>`";
-   DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by the owner: <reason>"; deferred → "Deferred
-   to <issue or step>". Resolve the FIX, DECLINE and deferred threads (`yes`); leave an undecided ASK's thread
-   open (`no`).
+2. Threads: every finding has one (§ 1). For each, write the reply to a file in the work folder and post it in
+   the thread of its `commentId` with `reply-finding.mjs` (§ Scripts): FIX → "Fixed in `<sha>`: <summary>; guard
+   test `<name>`"; DECLINE → "Declined: <evidence>"; the owner's decline → "Declined by the owner: <reason>";
+   deferred → "Deferred to <issue or step>". Resolve the FIX, DECLINE and deferred threads (`yes`); leave an
+   undecided ASK's thread open (`no`).
 3. One summary comment on the PR, `gh pr comment <PR> --body-file <file>`: first the heading `## Review triage`
    (in a later round `## Review triage, round <n>`: § 0 step 3 counts these headings), then the table
    `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's description has it.
@@ -199,9 +217,9 @@ implementer works at a time; never build or test while one of them is working.
 
 ## Rules for you (the orchestrator)
 
-- Never edit tests or production code yourself. The only files you edit are the state file, the findings file,
-  the close-out docs and the files under `openspec/` that a docs finding (§ 3), a spec change the owner wants
-  fixed now or a heads-up (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch
+- Never edit tests or production code yourself. The only files you edit are the state file, the chat findings
+  file (§ 1), the close-out docs and the files under `openspec/` that a docs finding (§ 3), a spec change the owner
+  wants fixed now or a heads-up (§ 4) needs. Restoring or deleting a file the implementer was not allowed to touch
   (§ 3) is the one exception.
 - Verify before trusting: the workflow's evidence, the test-writer's red, the implementer's green. Never start a
   build or a test run while the test-writer or the implementer works. The workflow's agents never build or
@@ -217,19 +235,28 @@ implementer works at a time; never build or test while one of them is working.
 - Do not use `isolation: "worktree"` for the test-writer or the implementer: one working tree, as in `/tdd-apply`.
 - Never put bank data or secrets into anything you send, commit, post or record.
 - Run the scripts as they are (§ Scripts), each as one Bash tool call; never rewrite, inline or translate one to
-  PowerShell. A script that prints `ERROR:` says what failed: fix that cause (e.g. `gh` not logged in) or stop
-  and report, never work around the script.
+  PowerShell, and never post a finding or a reply to the PR another way. A script that prints `ERROR:` says what
+  failed: fix that cause (e.g. `gh` not logged in, or a finding in `chat-findings.json` on a file the PR does not
+  change) or stop and report, never work around the script.
 
 ## Scripts
 
-Two Node scripts in `.claude/skills/triage-review/scripts/`, run from the repository root as
-`node .claude/skills/triage-review/scripts/<script> <arguments>`; `common.mjs` beside them holds what both use (the
-`gh` calls, the PR's review threads, the numbering). Both need `gh` logged in to the repository's GitHub account.
-They are files, not shell blocks in this text, because a session isolated in a worktree refuses a multi-line block
-it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's header has the details. Their pure parts
-have tests beside them (`*.test.mjs`, Node's own runner, never calling `gh`; the command is in `CLAUDE.md`
-§ Commands), which CI runs (R-98).
+Three Node scripts in `.claude/skills/triage-review/scripts/`, run from the repository root as
+`node .claude/skills/triage-review/scripts/<script> <arguments>`; `common.mjs` beside them holds what they share
+(the `gh` calls, the PR's review threads, the numbering, the plan for posting findings). All three need `gh` logged
+in to the repository's GitHub account. They are files, not shell blocks in this text, because a session isolated
+in a worktree refuses a multi-line block it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's
+header has the details. Their pure parts have tests beside them (`*.test.mjs`, Node's own runner, never calling
+`gh`; the command is in `CLAUDE.md` § Commands), which CI runs (R-98).
 
+- **`post-findings.mjs <pr> <chat-findings-file> [--dry-run]`** (§ 1): posts a review's findings from this
+  conversation as review comments on the PR, in the file's order: on the finding's line when the line is in the
+  PR's diff, else on its file. It checks first that the local HEAD is the PR's head commit (else the line numbers
+  would point at another version) and that every finding has a body, a file the PR changes and a line that is null
+  or a line number, so a failed check lists every problem and posts nothing; a finding already posted as a
+  top-level comment is skipped. Prints `POSTED: <n> <comment id> <url>` or `SKIPPED: <n> already posted as
+  comment <id>` per finding. `--dry-run` makes the same checks and prints `WOULD POST: <n> <path>:<line>`,
+  `WOULD POST: <n> <path> (file)` or `WOULD SKIP: …`, without posting.
 - **`gather-findings.mjs <pr> <work-folder>`** (§ 1): reads the PR's review comments and threads, and writes
   `comments.json` (the API's pages as they came) and `findings.json` (the open findings, numbered and ordered as
   § 1 says) into the work folder. Prints `FINDINGS: <n> open …`, `LEFT OUT: <n> in resolved threads` and one

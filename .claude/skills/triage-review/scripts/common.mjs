@@ -1,5 +1,6 @@
-// Shared by the triage-review scripts (gather-findings.mjs, reply-finding.mjs): the gh calls, the PR's review
-// threads, and how review comments become numbered findings.
+// Shared by the triage-review scripts (post-findings.mjs, gather-findings.mjs, reply-finding.mjs): the gh calls, the
+// PR's review threads, how review comments become numbered findings, and how a review's findings from the
+// conversation become review comments to post.
 import { spawnSync } from "node:child_process";
 
 export function fail(message) {
@@ -7,9 +8,10 @@ export function fail(message) {
   process.exit(1);
 }
 
-// Runs gh and returns spawnSync's result, for a caller that handles a failure itself.
-export function run(args) {
-  return spawnSync("gh", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, windowsHide: true });
+// Runs gh and returns spawnSync's result, for a caller that handles a failure itself. `input`, when given, is
+// written to gh's standard input (e.g. a request body for `--input -`).
+export function run(args, input) {
+  return spawnSync("gh", args, { encoding: "utf8", input, maxBuffer: 256 * 1024 * 1024, windowsHide: true });
 }
 
 // Runs gh and returns its trimmed output; a failure ends the script with ERROR.
@@ -74,12 +76,70 @@ export function firstLine(text) {
   return text.trim().split(/\r?\n/)[0];
 }
 
-// Will return the Set of RIGHT-side line numbers a line comment can attach to, from a PR file's unified-diff patch.
+// The line numbers a review comment can attach to on the RIGHT side (the PR's new version), from one PR file's
+// unified-diff patch as the REST API's "list PR files" returns it: every hunk's context and added lines. Deleted
+// lines and the "\ No newline at end of file" marker take no number. A file without a patch (a binary or very large
+// file) gives an empty Set.
 export function linesInDiff(patch) {
-  throw new Error("not implemented");
+  const lines = new Set();
+  let next = 0; // the new version's number of the hunk's next context or added line
+  let left = 0; // how many of the hunk's new-version lines are still to come
+  for (const text of (patch ?? "").split("\n")) {
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(text);
+    if (hunk) {
+      next = Number(hunk[1]);
+      left = hunk[2] === undefined ? 1 : Number(hunk[2]);
+    } else if (left > 0 && (text.startsWith(" ") || text.startsWith("+"))) {
+      lines.add(next++);
+      left--;
+    }
+  }
+  return lines;
 }
 
-// Will return { errors, posts }: a chat review's findings as review comments to post, or to skip when already posted.
+// Plans posting a review's findings from the conversation (`{ path, line, body }`, in the review's order) as review
+// comments on the PR, given the PR's files and review comments (the REST API's objects) and its head commit.
+// - Returns { errors, posts }: one error per finding that cannot be posted, naming its position in the review
+//   (1-based) and its path; with any error, nothing may be posted. A finding's path must be a file the PR changes,
+//   its body must have text, and its line must be null or a positive whole number.
+// - One post per valid finding, in the review's order: `{ action: "post", request }`, where the request goes on the
+//   finding's line (RIGHT side) when the line is in the PR's diff, else on its file (`subject_type: "file"`).
+// - A finding whose body is already a top-level review comment's (line endings and outer spaces aside) is
+//   `{ action: "skip", existingId, request }`: so a run that failed part-way can run again. Each comment
+//   accounts for one finding only.
 export function planPosts(findings, prFiles, existingComments, headSha) {
-  throw new Error("not implemented");
+  const filesByName = new Map(prFiles.map((f) => [f.filename, f]));
+  const normalized = (text) => text.replace(/\r\n/g, "\n").trim();
+  const unclaimed = existingComments
+    .filter((c) => c.in_reply_to_id == null && typeof c.body === "string")
+    .sort((a, b) => a.id - b.id);
+  const errors = [];
+  const posts = [];
+  findings.forEach((finding, i) => {
+    const { path, line, body } = finding ?? {};
+    const file = filesByName.get(path);
+    const problems = [];
+    if (!file) problems.push(path ? "the PR does not change this file" : "no path");
+    if (typeof body !== "string" || !body.trim()) problems.push("no body");
+    if (line != null && !(Number.isInteger(line) && line > 0)) {
+      problems.push(`line ${JSON.stringify(line)} is neither null nor a line number`);
+    }
+    if (problems.length > 0) {
+      errors.push(`finding ${i + 1} (${path || "no path"}): ${problems.join("; ")}`);
+      return;
+    }
+
+    const request =
+      line != null && linesInDiff(file.patch).has(line)
+        ? { body, commit_id: headSha, path, line, side: "RIGHT" }
+        : { body, commit_id: headSha, path, subject_type: "file" };
+    const posted = unclaimed.findIndex((c) => normalized(c.body) === normalized(body));
+    if (posted === -1) {
+      posts.push({ action: "post", request });
+    } else {
+      posts.push({ action: "skip", existingId: unclaimed[posted].id, request });
+      unclaimed.splice(posted, 1);
+    }
+  });
+  return { errors, posts };
 }
