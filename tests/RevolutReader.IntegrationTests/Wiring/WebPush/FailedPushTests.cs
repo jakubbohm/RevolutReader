@@ -54,7 +54,7 @@ public sealed class FailedPushTests {
 
   /// <summary>
   /// A push service nothing answers at is a failure with no status. The port is held bound and not listening for the whole
-  /// test, so no other test's server can take it while this one connects (issue #68's lesson).
+  /// test, so no other test's server can take it while this one connects (issue #97's lesson).
   /// </summary>
   [Test]
   public async Task No_connection_is_DeliveryFailed_with_no_status() {

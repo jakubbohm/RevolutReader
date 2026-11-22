@@ -14,15 +14,17 @@ public static class DataProtectionKeysRegistration {
   /// </summary>
   private const string AZURE_CLIENT_ID = "AZURE_CLIENT_ID";
 
+  /// <summary>The two key addresses by their full names, as the operator sets them (configuration.md § Binding).</summary>
+  private const string KEYS_BLOB_URI = $"{DataProtectionKeysOptions.SECTION}:{nameof(DataProtectionKeysOptions.KeysBlobUri)}";
+  private const string KEY_VAULT_KEY_URI = $"{DataProtectionKeysOptions.SECTION}:{nameof(DataProtectionKeysOptions.KeyVaultKeyUri)}";
+
   private const string ONE_ADDRESS =
-    $"Only one of the {DataProtectionKeysOptions.SECTION} settings {nameof(DataProtectionKeysOptions.KeysBlobUri)} and "
-    + $"{nameof(DataProtectionKeysOptions.KeyVaultKeyUri)} is set: set both (production, by Bicep) or neither (locally, "
-    + "ASP.NET's default key folder).";
+    $"{KEYS_BLOB_URI} and {KEY_VAULT_KEY_URI} are set together or not at all, but only one of them is set: set both "
+    + "(production, by Bicep) or neither (locally, ASP.NET's default key folder).";
 
   private const string NO_IDENTITY =
-    $"The {DataProtectionKeysOptions.SECTION} settings {nameof(DataProtectionKeysOptions.KeysBlobUri)} and "
-    + $"{nameof(DataProtectionKeysOptions.KeyVaultKeyUri)} are set, but {AZURE_CLIENT_ID} is not: the app reaches the keys "
-    + $"blob and the Key Vault key with its managed identity, whose client ID {AZURE_CLIENT_ID} must hold.";
+    $"{KEYS_BLOB_URI} and {KEY_VAULT_KEY_URI} are set, but {AZURE_CLIENT_ID} is not: the app reaches the keys blob and the "
+    + $"Key Vault key with its managed identity, whose client ID {AZURE_CLIENT_ID} must hold.";
 
   /// <summary>
   /// Data Protection with its application name pinned, and its keys where the configuration says (D7): the two addresses
@@ -34,7 +36,8 @@ public static class DataProtectionKeysRegistration {
   /// <item>Both addresses and <c>AZURE_CLIENT_ID</c>: the keys blob in Blob Storage, encrypted by the Key Vault key, both
   /// reached with that user-assigned managed identity.</item>
   /// <item>One address without the other, or both without <c>AZURE_CLIENT_ID</c>: this throws, at registration, with a
-  /// message that names the settings, never their values.</item>
+  /// message that names the settings by their full names, as the operator sets them (<c>DataProtection:KeysBlobUri</c>),
+  /// never their values.</item>
   /// </list>
   /// Nothing calls Azure while registering. ASP.NET's own start-up service then reads the keys once, before the server
   /// listens (on a scale-to-zero app, at every wake); a failure there is logged as an error and retried when the keys are

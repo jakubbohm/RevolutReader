@@ -11,13 +11,17 @@ namespace RevolutReader.AcceptanceTests.Dsl;
 /// <para>
 /// Defaults: a check comes from <see cref="DefaultPhone"/>, whose address and browser name differ from those of every phone
 /// a scenario names; a request naming no browser and one with a wrong key come from that phone too, so only the missing
-/// browser or the key can make them fail. Kept balances are at the app's rate (<see cref="CZK_PER_EUR"/>), last seen read an
-/// hour before the app's clock, last notified with it when the two are equal (as a notification writes it) and two hours
-/// before otherwise, so a notification that carried a kept read time instead of its own read's is told apart.
+/// browser or the key can make them fail. Kept balances are at the rate they were read at (<see cref="CZK_PER_EUR"/>),
+/// last seen read an hour before the app's clock, last notified with it when the two are equal (as a notification writes
+/// it) and two hours before otherwise, so a notification that carried a kept read time instead of its own read's is told
+/// apart.
 /// </para>
 /// </summary>
 public sealed class CheckDsl(AccountCheckDriver driver) {
-  /// <summary>The app's rate, koruna per euro (the API's <c>KorunaRate</c>, as the account-balance scenarios state it): the rate kept balances were read at.</summary>
+  /// <summary>
+  /// The rate the kept balances were read at, koruna per euro: a stored value, kept with each read as an earlier check
+  /// left it (c017 design.md D10), not the rate the app answers now, which comes from the fake CNB.
+  /// </summary>
   private const decimal CZK_PER_EUR = 24.3m;
 
   /// <summary>How long before the app's clock a kept last seen was read.</summary>

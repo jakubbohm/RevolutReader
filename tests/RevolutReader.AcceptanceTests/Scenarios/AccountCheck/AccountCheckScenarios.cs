@@ -59,12 +59,13 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await SignIn.HasSignedIn(Visitor.Lucie);
     await Push.HasRegistered(phone);
     Bank.HasAvailableBalance(45.20m, "EUR");
+    Rate.TheCnbsLatestRateIs(24.6m);
 
     CheckAnswer answer = await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
     notification.Title.ShouldBe("Odešlo 3,80\u00A0€");
-    notification.Text.ShouldBe("Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)");
+    notification.Text.ShouldBe("Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0112\u00A0Kč)");
     notification.Navigate.ShouldBe(Push.AppAddressOf("/"));
     answer.ShouldBe(CheckAnswer.BalanceChanged);
   }
@@ -76,12 +77,13 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await SignIn.HasSignedIn(Visitor.Lucie);
     await Push.HasRegistered(phone);
     Bank.HasAvailableBalance(145.20m, "EUR");
+    Rate.TheCnbsLatestRateIs(24.6m);
 
     await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
     notification.Title.ShouldBe("Přišlo 100,00\u00A0€");
-    notification.Text.ShouldBe("Zůstatek 145,20\u00A0€ (≈\u00A03\u00A0528\u00A0Kč)");
+    notification.Text.ShouldBe("Zůstatek 145,20\u00A0€ (≈\u00A03\u00A0572\u00A0Kč)");
   }
 
   [Test, Scenario("account-check", "An unchanged balance sends nothing")]
@@ -123,12 +125,13 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await SignIn.HasSignedIn(Visitor.Lucie);
     await Push.HasRegistered(phone);
     Bank.HasAvailableBalance(45.20m, "EUR");
+    Rate.TheCnbsLatestRateIs(24.6m);
 
     await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
     notification.MarkedForServiceWorker.ShouldBeTrue("marked for the app's service worker");
-    notification.Balance.ShouldBe(BalanceReading.Of(45.20m, readAt: Check.Now, czkPerEur: 24.3m));
+    notification.Balance.ShouldBe(BalanceReading.Of(45.20m, readAt: Check.Now, czkPerEur: 24.6m));
   }
 
   [Test, Scenario("account-check", "A failed bank read sends nothing and answers as the balance does")]

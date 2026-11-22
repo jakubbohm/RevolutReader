@@ -263,7 +263,7 @@ Three Node scripts in `.claude/skills/triage-review/scripts/`, run from the repo
 in to the repository's GitHub account. They are files, not shell blocks in this text, because a session isolated
 in a worktree refuses a multi-line block it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's
 header has the details. Their pure parts have tests beside them (`*.test.mjs`, Node's own runner, never calling
-`gh`; the command is in `CLAUDE.md` § Commands), which CI runs (R-98).
+`gh`; the command is in `CLAUDE.md` § Commands), which CI runs (R-103).
 
 - **`post-findings.mjs <pr> <chat-findings-file> [--dry-run]`** (§ 1): posts a review's findings from this
   conversation as review comments on the PR, in the file's order: on the finding's line when the line is in the

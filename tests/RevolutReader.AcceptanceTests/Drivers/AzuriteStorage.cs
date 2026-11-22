@@ -14,8 +14,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <para>
 /// Every app copy gets its settings (<see cref="Configure"/>), so the app starts whether or not the test reads the
 /// transactions: <c>ConnectionStrings:tables</c> is the container's connection string, and
-/// <c>Transactions:TableName</c>, <c>PushDevices:TableName</c> (C8a) and <c>CheckedBalances:TableName</c> (C9a) each a
-/// table of the app copy's own, so tests stay apart without cleanup.
+/// <c>Transactions:TableName</c>, <c>PushDevices:TableName</c> (C8a), <c>CheckedBalances:TableName</c> (C9a) and
+/// <c>KorunaRates:TableName</c> (c017) each a table of the app copy's own, so tests stay apart without cleanup.
 /// </para>
 /// <para>
 /// Without Docker it stops with a message saying so (testing.md: Docker-dependent tests stop with a message, never skip).
@@ -32,6 +32,9 @@ public sealed class AzuriteStorage : IAsyncInitializer, IAsyncDisposable {
 
   /// <summary>The table the account check keeps its two balances in (c014 design.md D4, D16).</summary>
   private const string CHECKED_BALANCES_TABLE_NAME = "CheckedBalances:TableName";
+
+  /// <summary>The table the app keeps the koruna rate in (c017 design.md D2, D10).</summary>
+  private const string KORUNA_RATES_TABLE_NAME = "KorunaRates:TableName";
 
   private AzuriteContainer? _container;
 
@@ -54,10 +57,10 @@ public sealed class AzuriteStorage : IAsyncInitializer, IAsyncDisposable {
   /// <summary>
   /// Writes the stores' settings into the app copy, so they win over <c>appsettings.json</c>: this container's connection
   /// string, and for each store a table name no other app copy uses: the transactions', since C8a the push devices' (c011
-  /// design.md D7, D11) and since C9a the account check's (c014 design.md D16). As host settings (<c>UseSetting</c>), which
-  /// the factory hands to the app's builder before
-  /// Program.cs runs: Program.cs checks the connection while it registers the store (c010 design.md D11), and a
-  /// configuration source added with <c>ConfigureAppConfiguration</c> only arrives when the app is built, after that check.
+  /// design.md D7, D11), since C9a the account check's (c014 design.md D16) and since c017 the kept koruna rate's (c017
+  /// design.md D10). As host settings (<c>UseSetting</c>), which the factory hands to the app's builder before Program.cs
+  /// runs: Program.cs checks the connection while it registers the store (c010 design.md D11), and a configuration source
+  /// added with <c>ConfigureAppConfiguration</c> only arrives when the app is built, after that check.
   /// </summary>
   public void Configure(IWebHostBuilder builder) {
     ArgumentNullException.ThrowIfNull(builder);
@@ -66,6 +69,7 @@ public sealed class AzuriteStorage : IAsyncInitializer, IAsyncDisposable {
     builder.UseSetting(TABLE_NAME, UniqueTableName());
     builder.UseSetting(PUSH_DEVICES_TABLE_NAME, UniqueTableName());
     builder.UseSetting(CHECKED_BALANCES_TABLE_NAME, UniqueTableName());
+    builder.UseSetting(KORUNA_RATES_TABLE_NAME, UniqueTableName());
   }
 
   /// <summary>A valid table name (3 to 63 letters and digits, starting with a letter, D11) no other app copy uses: <c>t</c> and a new GUID's 32 hex digits.</summary>

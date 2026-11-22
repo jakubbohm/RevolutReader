@@ -27,11 +27,10 @@ Given up: <what it costs>.
 
 ## Entries
 
-**R-1 · Speed of delivery comes before architecture in the app**
-Full version: architectural quality is the highest priority ([lessons.md R-1](lessons.md), DoseUp F-42).
-Here ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules), 2026-11-04): **speed first** — a short-lived tool; Claude still says when "works" and "correct" differ and recommends the fastest sound option. It covers the app only: software-factory work keeps the full bar ([workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08), 2026-11-08).
-Given up: shortcuts a longer-lived system would pay for later; R-12, R-14 and R-19 follow from this one.
-*Switch back when:* the app has to outlive its first purpose (operation well beyond the planned period), or someone else will maintain it.
+**R-1 · Speed of delivery came before architecture in the app** *(switched back 2026-11-21)*
+Switched back on 2026-11-21 (the owner): with v2 handed over (M7), the app is released and working, so speed no longer decides anything, and every change, the app's included, is held to the full bar ([lessons.md R-1](lessons.md), [workflow.md § 10 — The quality bar](../conventions/workflow.md#the-quality-bar-2026-11-08)). The condition the entry named (the app outliving its first purpose, or another maintainer) did not come first: the reason for the speed bar, delivering within the operating window, simply ended.
+From 2026-11-04 to 2026-11-21 the app ran **speed first** ([CLAUDE.md § Working rules](../../CLAUDE.md#working-rules)): Claude named every gap between "works" and "correct" and recommended the fastest sound option; software-factory work kept the full bar from 2026-11-08.
+Still in place: the cut-downs taken under it, among them R-12, R-14 and R-19, which followed from this one; each keeps its entry until a decision of its own switches it back.
 
 **R-3 · No automated releases or changelog**
 Full version: an automated changelog, semver tags and GitHub Releases ([lessons.md R-3](lessons.md), DoseUp F-32).
@@ -189,3 +188,9 @@ Full version: the check claims the notification before sending it, with a condit
 Here (c014 design.md D13, the owner, 2026-11-21): **one row of stored balances, saved whole, last write wins.** The app runs one instance; two run at once only while a deploy swaps revisions, and the old one's checks are cancelled as soon as it is told to stop. A duplicate needs a payment's notification inside that window.
 Given up: a change landing during a deploy's swap may be notified twice, with the same text (next to the accepted repeat after a stop between the notification and its record, R-91).
 *Switch back when:* the app runs more than one instance, or a repeated notification starts to matter. The switch is the claim column in `ICheckedBalanceStore` and both adapters, with its contract tests and the check's claim step (about half a day).
+
+**R-98 · The daily rate's schedule in UTC with no holiday list, and its source not named**
+Full version: ask the publisher on its own schedule in its own time zone (14:30 Prague time), skip its non-working days with a holiday calendar, and state the source as its terms ask ([lessons.md R-98](lessons.md)).
+Here ([ADR-0011-koruna-rate](../adr/0011-koruna-rate.md), c017 design.md D1, D3, the owner, 2026-11-21): **the next ask is from 08:00 UTC on the first day from Monday to Friday after the kept rate's day; Czech public holidays count as working days; the app does not name the Czech National Bank as the rate's source.** The asks between 08:00 UTC and the publication only return the kept rate, alongside the request's slower bank read; the container image has no time-zone data; and the app is private, for two people.
+Given up: on a working morning and on a Czech holiday every request asks the CNB again (about 40 ms, alongside the bank read) until a newer rate comes; in summer 08:00 UTC is 10:00 in Prague, so the first ask is an hour later; and the CNB's terms ("Source: the CNB") are not followed.
+*Switch back when:* the app is shown to anyone beyond its two users (name the source then), or the extra asks start to cost something (a rate limit, a fee). The switch is `RateAsking.NextAskFrom` with a time zone and a holiday list (the image's `-extra` variant for the time-zone data), and a line of text where the rate is shown.

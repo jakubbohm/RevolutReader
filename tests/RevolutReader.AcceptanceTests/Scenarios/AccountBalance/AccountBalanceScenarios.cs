@@ -10,8 +10,9 @@ public sealed class AccountBalanceScenarios : AcceptanceTest {
   public async Task The_balance_comes_with_the_time_it_was_read_and_the_koruna_rate() {
     await SignIn.HasSignedIn(Visitor.Lucie);
     Bank.HasAvailableBalance(286.40m, "EUR");
+    Rate.TheCnbsLatestRateIs(24.38m);
 
-    (await Balance.AsksForTheBalance()).ShouldBe(BalanceReading.Of(286.40m, readAt: Balance.Now, czkPerEur: 24.3m));
+    (await Balance.AsksForTheBalance()).ShouldBe(BalanceReading.Of(286.40m, readAt: Balance.Now, czkPerEur: 24.38m));
   }
 
   [Test, Scenario("account-balance", "The bank sees the signed-in user's address and browser")]

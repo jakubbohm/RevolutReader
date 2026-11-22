@@ -24,6 +24,11 @@ import { realTurn } from "./clock";
  * `timePasses`; an answer without `after` arrives on `timePasses(0)`. Without the test clock, answers arrive on their
  * own and `findBy…` waits for them, as in the scenarios from before C7a.
  *
+ * The fake server keeps every open request until it ends, as a browser's network stack does. Node's `Request` follows
+ * the app's abort signal only through a `WeakRef`, so once nothing keeps the `Request` itself, a garbage collection cuts
+ * that link and the app's later abort never reaches the request, which then never ends (#97). `resetFakeServer` (and
+ * `closeApp`) lets go of the requests that never ended, such as one left with no answer.
+ *
  * The answers to the transactions (c010 design.md D10, § Public API sketch: the test kit) sit in their own blocks,
  * marked "c010", and use the vocabulary above (`Trouble`, `Delayed`, `Answers`, `after`, the bank problems,
  * `KORUNA_RATE`), merged by hand at the join (c010 design.md D13).
@@ -488,6 +493,12 @@ let entries: string[] = [];
  * never reaches the next test or launch.
  */
 let generation = 0;
+/**
+ * The requests still open. Node's `Request` follows its caller's abort signal only while something keeps the `Request`;
+ * the fake server keeps each one until it ends, as a browser's network stack does, so a garbage collection mid-wait
+ * never cuts the app's abort off (#97, DOM standard § 3.2.1).
+ */
+let openRequests = new Set<object>();
 
 /** Sets the server's answers for this test. */
 export function answerWith(answers: ServerAnswers): void {
@@ -667,14 +678,17 @@ export async function emptyThePhone(): Promise<void> {
   }
 }
 
-/** Closes the app: answers to its requests still under way never arrive. For `renderApp`'s `reopen`. */
+/**
+ * Closes the app: the answers its requests still under way took when they were sent never arrive, and nothing more about
+ * those requests enters the timeline. For `renderApp`'s `reopen`.
+ */
 export function closeApp(): void {
-  generation += 1;
+  forgetRequestsUnderWay();
 }
 
 /** Forgets this test's answers, timeline, network and screen. */
 export function resetFakeServer(): void {
-  generation += 1;
+  forgetRequestsUnderWay();
   whoIsSignedIn = [];
   signOut = [];
   balanceAnswers = [];
@@ -720,6 +734,16 @@ export function installFakeServer(): void {
   });
 }
 
+/**
+ * Answers to the requests still under way never arrive, and nothing more about those requests enters the timeline
+ * (`generation`); the server lets go of the ones it keeps open (`openRequests`): a request with no answer, say, never
+ * ends on its own.
+ */
+function forgetRequestsUnderWay(): void {
+  generation += 1;
+  openRequests = new Set();
+}
+
 function inOrder<Answer>(
   answers: Answers<Answer> | undefined,
 ): readonly Delayed<Answer>[] {
@@ -759,46 +783,66 @@ function onThePage(url: URL): string {
     : url.href;
 }
 
+/**
+ * The phone's network and the server. Every request takes its outcome when it is sent, with a body or without: the
+ * server has answered it, or the phone is offline. A request the app has already aborted by then takes none. Once the
+ * app is closed (`closeApp`), the answer never arrives and nothing more about the request enters the timeline.
+ */
 async function fakeFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const isRequest = input instanceof Request;
-  const url = new URL(isRequest ? input.url : String(input), page);
-  const method = (
-    init?.method ?? (isRequest ? input.method : "GET")
-  ).toUpperCase();
-  const signal = init?.signal ?? (isRequest ? input.signal : undefined);
-  const request = `${method} ${onThePage(url)}`;
-  const sentIn = generation;
+  // Kept until this call ends, by any path (`openRequests`): a record per call, so a `Request` sent twice is kept twice.
+  const open = { input, init };
+  openRequests.add(open);
+  try {
+    const isRequest = input instanceof Request;
+    const url = new URL(isRequest ? input.url : String(input), page);
+    const method = (
+      init?.method ?? (isRequest ? input.method : "GET")
+    ).toUpperCase();
+    const signal = init?.signal ?? (isRequest ? input.signal : undefined);
+    const request = `${method} ${onThePage(url)}`;
+    const sentIn = generation;
 
-  entries.push(`request ${request}`);
-  // ---- c011: what the app sent in the body (`bodiesSent`); only a request with one waits to read it ----
-  if (init?.body != null || (isRequest && input.body !== null)) {
-    const sent: SentBody = { request, contentType: null, body: undefined };
-    bodies.push(sent);
-    Object.assign(sent, await bodyOf(input, init));
-  }
-  if (signal?.aborted === true) {
-    entries.push(`aborted ${request}`);
-    throw abortReason(signal);
-  }
+    entries.push(`request ${request}`);
+    const outcome: Outcome | null =
+      signal?.aborted === true
+        ? null
+        : online
+          ? outcomeOf(request)
+          : { kind: "failure" };
+    // ---- c011: what the app sent in the body (`bodiesSent`), read after the request took its outcome; reading it
+    // takes at least a microtask, so the app may be closed meanwhile ----
+    if (init?.body != null || (isRequest && input.body !== null)) {
+      const sent: SentBody = { request, contentType: null, body: undefined };
+      bodies.push(sent);
+      Object.assign(sent, await bodyOf(input, init));
+      if (sentIn !== generation) return new Promise<Response>(() => {});
+    }
+    // Aborted when sent, or while its body was read: an outcome it took never arrives.
+    if (outcome === null || signal?.aborted === true) {
+      entries.push(`aborted ${request}`);
+      throw abortReason(signal!);
+    }
 
-  const outcome: Outcome = online ? outcomeOf(request) : { kind: "failure" };
-  const ending = await arrival(outcome, signal ?? undefined);
-  if (sentIn !== generation) return new Promise<Response>(() => {});
+    const ending = await arrival(outcome, signal ?? undefined);
+    if (sentIn !== generation) return new Promise<Response>(() => {});
 
-  if (ending === "aborted") {
-    entries.push(`aborted ${request}`);
-    throw abortReason(signal!);
-  }
-  if (outcome.kind !== "answer") {
-    entries.push(`failure ${request}`);
-    throw new TypeError("Failed to fetch");
-  }
+    if (ending === "aborted") {
+      entries.push(`aborted ${request}`);
+      throw abortReason(signal!);
+    }
+    if (outcome.kind !== "answer") {
+      entries.push(`failure ${request}`);
+      throw new TypeError("Failed to fetch");
+    }
 
-  entries.push(`answer ${request}`);
-  return outcome.response();
+    entries.push(`answer ${request}`);
+    return outcome.response();
+  } finally {
+    openRequests.delete(open);
+  }
 }
 
 /** A request's content type and body (c011): the body parsed as JSON, or its text as sent when it is not JSON. */

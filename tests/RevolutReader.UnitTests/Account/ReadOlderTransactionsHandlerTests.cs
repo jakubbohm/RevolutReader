@@ -1,31 +1,37 @@
 using RevolutReader.Api.Account;
+using RevolutReader.UnitTests.Rate;
 using Shouldly;
+using KorunaRate = RevolutReader.Api.Rate.KorunaRate;
 
 namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
 /// An older page (c010 design.md D1, D10): the kept transactions before a day, from the store alone, with the koruna rate
-/// and its date as the newest page carries them. The handler is given a store and nothing else: it has no
-/// bank to read, and the page it answers can only come from what the store keeps. The store is
-/// <see cref="InMemoryTransactionStore"/>. The kinds, the shown details and the log are other slices' rules and are left
-/// alone here; the rate and its date are written out, as the contract. The transactions are made up.
+/// and its day as the rates answer them (c017 design.md D8). The handler is given a store and the rates and nothing else:
+/// it has no bank to read, and the page it answers can only come from what the store keeps. The store is
+/// <see cref="InMemoryTransactionStore"/>, the rates <see cref="FixedKorunaRates"/>. The kinds, the shown details and the
+/// log are other slices' rules and are left alone here; the rate and its day are written out, as the contract. The
+/// transactions are made up.
 /// </summary>
 public sealed class ReadOlderTransactionsHandlerTests {
   private static readonly DateOnly _november19 = new(2026, 11, 19);
   private static readonly DateOnly _november18 = new(2026, 11, 18);
   private static readonly DateOnly _november17 = new(2026, 11, 17);
 
-  /// <summary>C13's rate and the day it is for, written out: 24.3 koruna per euro, 2026-11-08.</summary>
+  /// <summary>The rate the rates answer: the spec's 24.38 koruna per euro, for 2026-11-19.</summary>
+  private static readonly KorunaRate _rate = new(24.38m, new DateOnly(2026, 11, 19));
+
+  /// <summary>The rates' rate and day, written out (c017 design.md D8): 24.38 koruna per euro, for 2026-11-19.</summary>
   [Test]
-  public async Task An_older_page_carries_the_koruna_rate_and_its_date() {
+  public async Task An_older_page_carries_the_rate_and_the_day_the_koruna_rates_answer() {
     InMemoryTransactionStore store = new();
     await store.Keep([Kept("e-1", _november18, 0, -12.30m)], CancellationToken.None);
 
     TransactionPage page = await Handler(store).Handle(_november19, CancellationToken.None);
 
     page.ShouldSatisfyAllConditions(
-      () => page.CzkPerEur.ShouldBe(24.3m),
-      () => page.RateDate.ShouldBe(new DateOnly(2026, 11, 8)));
+      () => page.CzkPerEur.ShouldBe(24.38m),
+      () => page.RateDate.ShouldBe(new DateOnly(2026, 11, 19)));
   }
 
   /// <summary>
@@ -67,7 +73,8 @@ public sealed class ReadOlderTransactionsHandlerTests {
     page.Transactions.ShouldHaveSingleItem().Counterparty.ShouldBeNull();
   }
 
-  private static ReadOlderTransactionsHandler Handler(ITransactionStore store) => new(store);
+  /// <summary>The handler under test, its rates answering <see cref="_rate"/>.</summary>
+  private static ReadOlderTransactionsHandler Handler(ITransactionStore store) => new(store, new FixedKorunaRates(_rate));
 
   /// <summary>A settled transaction the store keeps, with a known type code and a line of details that does not repeat its counterparty.</summary>
   private static KeptTransaction Kept(string reference, DateOnly date, int position, decimal amount) =>

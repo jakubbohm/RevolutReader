@@ -7,15 +7,15 @@ The account's transactions: the API that reads the newest ones live for the sign
 ## Requirements
 
 ### Requirement: The API answers the newest transactions live
-`GET /api/transactions` SHALL read the account's transactions from the bank when asked and answer those dated from 31 days before today, pending ones included, newest first and in the bank's order within a day, with exactly `transactions`, `olderBefore` (the day before which older ones are kept, else null), `czkPerEur` and `rateDate`. Each transaction SHALL carry exactly `date`, `amount`, `currency`, `pending`, `counterparty`, `details` and `kind`.
+`GET /api/transactions` SHALL read the account's transactions from the bank when asked and answer those dated from 31 days before today, pending ones included, newest first and in the bank's order within a day, with exactly `transactions`, `olderBefore` (the day before which older ones are kept, else null), `czkPerEur` and `rateDate` (the koruna rate and the day it is for, spec koruna-rate). Each transaction SHALL carry exactly `date`, `amount`, `currency`, `pending`, `counterparty`, `details` and `kind`.
 
 #### Scenario: The newest transactions come live with the koruna rate
-- **GIVEN** today is 2026-11-20 and Lucie is signed in
+- **GIVEN** today is 2026-11-20, the CNB's latest rate is 24.38 CZK per euro for 2026-11-19, and Lucie is signed in
 - **AND** the bank lists a pending card payment of 8.90 EUR to "Kavárna Na Rohu" on 2026-11-19
 - **AND** a booked card payment of 12.30 EUR to "Pekárna U Lípy" on 2026-11-18, with the detail "Praha 2"
 - **WHEN** she asks the API for her transactions
 - **THEN** it answers the pending card payment of -8.90 EUR on 2026-11-19, then the settled one of -12.30 EUR on 2026-11-18 with the detail "Praha 2", each with its counterparty
-- **AND** nothing older kept, the koruna rate 24.3 and its date 2026-11-08
+- **AND** nothing older kept, the koruna rate 24.38 and its date 2026-11-19
 
 ### Requirement: The live read reaches back to what is kept
 The live read SHALL start at the earlier of 31 days before today and the newest day of the kept transactions, but never more than 89 days before today, so that a pause in use leaves no gap in the history while the bank still serves it. With nothing kept, it SHALL start 89 days before today.
