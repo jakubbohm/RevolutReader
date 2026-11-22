@@ -1,11 +1,11 @@
 // Memory pressure for the frontend's tests: a full garbage collection every 5 ms in every Vitest worker this file is
-// preloaded into. A diagnostic run by hand, never in CI or `npm test` (lesson R-98, docs/software-factory/lessons.md).
+// preloaded into. A diagnostic run by hand, never in CI or `npm test` (lesson R-99, docs/software-factory/lessons.md).
 //
 // Why: a test can depend, without showing it, on something only a weak reference keeps, such as the link from the
-// app's abort signal to Node's `Request` (R-98). It then fails only when a collection lands while it waits: now and
+// app's abort signal to Node's `Request` (R-99). It then fails only when a collection lands while it waits: now and
 // then in a full run, where memory pressure brings one, and never when run alone. A collection every few milliseconds
 // makes such a failure show on every run, so a test that fails only in full runs is reproduced here first, and a fix is
-// proven here. The kit's self-test (server.test.ts) guards the case R-98 found in every normal run. V8's own
+// proven here. The kit's self-test (server.test.ts) guards the case R-99 found in every normal run. V8's own
 // `--gc-interval` does nothing in Node's release builds, hence the timer.
 //
 // Running it, from this project's folder (from the repository root, add `--prefix src/RevolutReader.Web` after `npm`):

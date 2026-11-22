@@ -15,8 +15,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// c003 design.md D6); Enable Banking is the test's own fake bank (<see cref="Drivers.FakeBank"/>, c004 design.md D6);
 /// Microsoft's sign-in is the test's own fake Microsoft (<see cref="Drivers.FakeMicrosoft"/>, c007 design.md D6), which
 /// also brings the ephemeral cookie keys and the app copy's clock; the push services are the test's own fake push service
-/// (<see cref="Drivers.FakePushService"/>, c011 design.md D7). Every app copy gets all three fakes' settings, and a made-up
-/// check key of its own (<see cref="AccountCheckDriver.Configure"/>, c014 design.md D16).
+/// (<see cref="Drivers.FakePushService"/>, c011 design.md D7); the CNB is the test's own fake CNB
+/// (<see cref="Drivers.FakeCnb"/>, c017 design.md D10), so no test reaches the real one. Every app copy gets all four
+/// fakes' settings, and a made-up check key of its own (<see cref="AccountCheckDriver.Configure"/>, c014 design.md D16).
 /// <para>
 /// Storage is real: the test session's Azurite (<see cref="AzuriteStorage"/>, c010 design.md D12), with a table of each
 /// app copy's own. Every app copy gets its settings too.
@@ -30,6 +31,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private HttpClient? _http;
   private HttpClient? _browser;
   private FakeBank? _fakeBank;
+  private FakeCnb? _fakeCnb;
   private FakeMicrosoft? _fakeMicrosoft;
   private FakePushService? _fakePushService;
   private PushDsl? _push;
@@ -50,6 +52,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private CheckDsl? _check;
   private ArrivalDsl? _arrivals;
   private ArrivalDriver? _arrivalDriver;
+  private RateDsl? _rate;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
 
@@ -107,8 +110,12 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   /// </summary>
   protected ArrivalDriver ArrivalDriver => _arrivalDriver ??= new(Browser, FakeMicrosoft.Clock, LogEvents);
 
-  /// <summary>The app copy's log lines that name their event, with their structured values; registered in its container before it starts.</summary>
-  private CapturedLogEvents LogEvents { get; } = new();
+  /// <summary>
+  /// The app copy's log lines that name their event, with their categories and structured values; registered in its
+  /// container before it starts. Open to the guards in <c>Conventions/</c> that read the app copy's own lines
+  /// (<c>KorunaRateTelemetryTests</c>, c017 design.md D12). Scenarios read them through a DSL only (<see cref="Arrivals"/>).
+  /// </summary>
+  protected CapturedLogEvents LogEvents { get; } = new();
 
   /// <summary>An anonymous caller of this test's app copy; created on first use, disposed after the test.</summary>
   private HttpClient Http => _http ??= Factory.CreateClient();
@@ -118,6 +125,18 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
 
   /// <summary>This test's fake bank; started when the app copy is configured, so before it starts; stopped after the test.</summary>
   private FakeBank FakeBank => _fakeBank ??= FakeBank.Start();
+
+  /// <summary>
+  /// The koruna rate (spec koruna-rate, c017 design.md D10): the scenario's weekday and time on the same calendar as
+  /// <see cref="Transactions"/>, the rate kept in the app copy's own store, and this test's fake CNB.
+  /// </summary>
+  protected RateDsl Rate => _rate ??= new(new RateDriver(FakeCnb, Calendar, Services));
+
+  /// <summary>
+  /// This test's fake CNB, answering by default for the app copy's clock's date when it starts; started when the app copy
+  /// is configured, so before it starts; stopped after the test.
+  /// </summary>
+  private FakeCnb FakeCnb => _fakeCnb ??= FakeCnb.Start(FakeMicrosoft.Clock);
 
   /// <summary>This test's fake Microsoft; started when the app copy is configured, so before it starts; stopped after the test.</summary>
   private FakeMicrosoft FakeMicrosoft => _fakeMicrosoft ??= FakeMicrosoft.Start();
@@ -171,6 +190,9 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   public void StopFakeBank() => _fakeBank?.Dispose();
 
   [After(Test)]
+  public void StopFakeCnb() => _fakeCnb?.Dispose();
+
+  [After(Test)]
   public void StopFakeMicrosoft() => _fakeMicrosoft?.Dispose();
 
   [After(Test)]
@@ -182,6 +204,7 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
     builder.UseEnvironment(Environments.Production);
     builder.UseWebRoot(StandInPages.Folder);
     FakeBank.Configure(builder);
+    FakeCnb.Configure(builder);
     FakePushService.Configure(builder);
     AccountCheckDriver.Configure(builder, CheckKey);
     Azurite.Configure(builder);

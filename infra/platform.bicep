@@ -226,13 +226,22 @@ resource checkedBalancesTable 'Microsoft.Storage/storageAccounts/tableServices/t
   name: 'checkedbalances'
 }
 
+// The kept koruna rate (c017 design.md D2): one row, the Czech National Bank's latest euro rate and
+// its day, one public number. Removing this table from the stack deletes it, and the app keeps the
+// CNB's rate again at its next ask (c017 design.md § Migration plan, step 3). Its name is the app's
+// default KorunaRates:TableName.
+resource korunaRatesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'korunarates'
+}
+
 // Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
 // tables, and creates its table when it is missing on first use. On the account rather than the one
 // table, because no doc says a role on the one table allows that creation; the account scope does.
 // It reaches the account's tables and nothing else (no blobs), and the app is their only user; it
-// covers C8a's and C9a's tables above too, so neither adds a role (c010 design.md D11, the user,
-// 2026-11-09; c011 design.md D12; c014 design.md D17). One of the roles the deploy identity may assign
-// (docs/operations/azure-prerequisites.md, step 5).
+// covers C8a's, C9a's and c017's tables above too, so none adds a role (c010 design.md D11, the user,
+// 2026-11-09; c011 design.md D12; c014 design.md D17; c017 design.md § Migration plan). One of the
+// roles the deploy identity may assign (docs/operations/azure-prerequisites.md, step 5).
 var storageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 
 resource appKeepsTransactions 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

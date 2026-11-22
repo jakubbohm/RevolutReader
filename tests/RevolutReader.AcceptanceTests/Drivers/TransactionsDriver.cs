@@ -26,8 +26,10 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// with exactly <c>transactions</c>, <c>olderBefore</c> (a date or <c>null</c>), <c>czkPerEur</c> and <c>rateDate</c>,
 /// and each transaction exactly <c>date</c>, <c>amount</c>, <c>currency</c> (<c>EUR</c>), <c>pending</c>,
 /// <c>counterparty</c> (a string or <c>null</c>), <c>details</c> (strings) and <c>kind</c> (a string); dates read as
-/// <c>yyyy-MM-dd</c>. <c>date</c> and <c>olderBefore</c> are shifted back to the scenario's calendar; <c>rateDate</c> is
-/// C13's fixed date, not a date of the calendar, and stays as answered. A problem as <c>BalanceDriver</c>'s:
+/// <c>yyyy-MM-dd</c>. <c>date</c>, <c>olderBefore</c> and <c>rateDate</c> are shifted back to the scenario's calendar
+/// (c017 design.md D10); <c>rateDate</c> is also given exactly as answered, outside the reading's equality
+/// (<see cref="TransactionsReading.RateDateAsAnswered"/>), for the app's own rate, whose date is fixed, not the calendar's.
+/// A problem as <c>BalanceDriver</c>'s:
 /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (RFC
 /// 9110's read as <see langword="null"/>), and the status its case belongs to, by the driver's own table:
 /// <see cref="ProblemDescription.BadRequest"/> 400, <see cref="ProblemDescription.BankAccessExpired"/> 503,
@@ -253,7 +255,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
     if (!DateOrNull(answer, OLDER_BEFORE, out DateOnly? olderBefore) || Number(answer, CZK_PER_EUR) is not decimal czkPerEur || Date(answer, RATE_DATE) is not DateOnly rateDate)
       return null;
 
-    return TransactionsReading.Of(transactions, olderBefore is DateOnly day ? calendar.FromClock(day) : null, czkPerEur, rateDate);
+    return TransactionsReading.Of(transactions, olderBefore is DateOnly day ? calendar.FromClock(day) : null, czkPerEur, calendar.FromClock(rateDate)) with { RateDateAsAnswered = rateDate };
   }
 
   /// <summary>A transaction, when it is an object of exactly its seven members, in euros, as the class describes; its date shifted back. Otherwise <see langword="null"/>.</summary>

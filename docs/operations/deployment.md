@@ -15,7 +15,7 @@ Everything below is in the resource group `rg-revolutreader` (Germany West Centr
 | Application Insights | `appi-revolutreader` (C12), workspace-based on `log-revolutreader`, local authentication off: only an identity with Monitoring Metrics Publisher on it can write. The deployed app sends its logs and traces there, not its metrics; the resource keeps its own default cap. Its connection string reaches the app as `APPLICATIONINSIGHTS_CONNECTION_STRING` ([configuration.md § Telemetry settings](../conventions/configuration.md#telemetry-settings)) |
 | Key Vault | `kv-revolutreader`, `https://kv-revolutreader.vault.azure.net/` (Azure roles, soft delete 90 days, no purge protection). Public network access stays on: the app reads its secrets at every deploy and every 30 minutes, and Container Apps is not one of the "trusted Microsoft services" allowed past a closed vault (Microsoft Learn, read 2026-11-07). Closing it would need the environment rebuilt with its own network and a private endpoint, which changes the app's address. Kept by the owner, 2026-11-07: only the app's identity and the owner have a role on it, and anyone with the owner's login could reopen it anyway |
 | The app's identity | `id-revolutreader-app` (user-assigned), Key Vault Secrets User on the vault; since C12 Monitoring Metrics Publisher on Application Insights; from C6 also Storage Blob Data Contributor on the container `dataprotection` and Key Vault Crypto User on the key `dataprotection`; from C7b Storage Table Data Contributor on the storage account ([The transactions table](#the-transactions-table-c7b)); client ID `f24d2909-ecb2-45d2-a230-d9551f472ded` (reaches the app as `AZURE_CLIENT_ID`, for telemetry and, from C6, the cookie keys, from C7b the table), principal (object) ID `d4f00927-dcd1-4bc3-8b25-985f9d456fe0` |
-| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start. Since C7b also the table `transactions`, which keeps the settled transactions, the days older than the bank's 90 among them once the history is imported. Its endpoint, `platform.bicep`'s output `tableEndpoint` (not a stack output), reaches the app as `ConnectionStrings__tables`. Removing the table from the Bicep deletes it with its rows ([Rolling back](#rolling-back)). Since C8a also the table `pushdevices`: one row per device that receives pushes, its push address and keys and the account it registered under (c011 design.md D11); only subscriptions, which the devices make again ([Push (C8a)](#push-c8a)) |
+| Storage account (C6) | `strevolutreader` (StorageV2, Standard_LRS, shared-key access off, no public blob access, TLS 1.2, public network on and guarded by roles), with the private container `dataprotection`. The login cookie's keys live in the blob `dataprotection/keys.xml` (the stack's output `keysBlobUri`), created by the app on its first start. Since C7b also the table `transactions`, which keeps the settled transactions, the days older than the bank's 90 among them once the history is imported. Its endpoint, `platform.bicep`'s output `tableEndpoint` (not a stack output), reaches the app as `ConnectionStrings__tables`. Removing the table from the Bicep deletes it with its rows ([Rolling back](#rolling-back)). Since C8a also the table `pushdevices`: one row per device that receives pushes, its push address and keys and the account it registered under (c011 design.md D11); only subscriptions, which the devices make again ([Push (C8a)](#push-c8a)). Since c017 also the table `korunarates`: one row, the kept koruna rate, one public number that the app asks the CNB for again ([The koruna rate (c017)](#the-koruna-rate-c017)) |
 | The cookie keys' key (C6) | the RSA key `dataprotection` in `kv-revolutreader` (wrap and unwrap only); the stack's output `keyVaultKeyUri` is its versionless address, so a rotated key version is picked up. The app reaches the blob and the key as its identity (the setting `AZURE_CLIENT_ID`, c007 design.md D7) |
 | Container Apps environment | `cae-revolutreader` (workload profiles, Consumption only) |
 | Container app | `tarjeta-papa` |
@@ -578,6 +578,45 @@ $key = $null
 ```
 
 It answers `{"changed":false}` when nothing changed since the last notification, `{"changed":true}` when a notification went out (or is left to a check waiting behind it), and the balance endpoint's 503 or 429 when the bank fails. **A wrong key answers as an unknown address does**, as for the message endpoint above.
+
+## The koruna rate (c017)
+
+Since c017 the koruna value next to every euro amount uses the Czech National Bank's (CNB) daily rate ([ADR-0011-koruna-rate](../adr/0011-koruna-rate.md)). The app keeps the latest rate in one row of the table `korunarates` (partition `rate`, row `eur`: `CzkPerEur` and `Date`), and asks `api.cnb.cz` again, inside the requests that answer a rate, from 08:00 UTC on the next weekday until a rate for a later day comes (c017 design.md D2–D5).
+
+- **Nothing is provisioned by hand.** The deploy adds the table (`infra/platform.bicep`), under the app's existing table role. No secret, setting or role in Azure: the CNB's address and the 2 s limit come from `appsettings.json` ([configuration.md](../conventions/configuration.md)). Outbound HTTPS is allowed by the Container Apps environment by default.
+- **After the deploy** (routine checks, no PR; c017 design.md § Migration plan, step 2): open the app. The transaction sheet shows "orientační kurz z" with the CNB's latest day (on a weekend, Friday's), and Application Insights holds one `KorunaRateKept` line and no `KorunaRateAskFailed` (the query below). Read-only, the table is in the stack:
+
+  ```powershell
+  $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+  $rg  = 'rg-revolutreader'
+
+  az stack group show --subscription $sub --resource-group $rg --name revolutreader `
+      --query "resources[?ends_with(id, '/tables/korunarates')].id" --output tsv
+  ```
+
+- **The rate's lines, per Prague day** (read-only, D7): `KorunaRateKept` (Information) about once per working day, with the rate and its day; `KorunaRateAskFailed` (Warning) for every failed ask, with its kind (`NoAnswerInTime`, `Unreachable`, `Status` with the code, `Unreadable`); `KorunaRateStoreFailed` (Warning) when the kept row could not be read or written. An ask that returns the rate already kept writes nothing. Set the period as in [§ Bank reads](#bank-reads-that-did-not-end-as-read-c12), in UTC.
+
+  ```powershell
+  $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
+  $rg  = 'rg-revolutreader'
+  $workspace = az monitor log-analytics workspace show --subscription $sub --resource-group $rg `
+      --workspace-name log-revolutreader --query customerId --output tsv
+
+  $from = '2026-11-21'; $to = '2026-12-06'
+  $lines = "AppTraces | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Rate.KorunaRates' | extend Event = case(Message startswith 'A new koruna rate was kept', 'KorunaRateKept', Message startswith 'Asking the CNB for the koruna rate failed', 'KorunaRateAskFailed', Message startswith 'The kept koruna rate could not be', 'KorunaRateStoreFailed', 'other'), PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague')"
+
+  # Per Prague day and line: how many, the last one, the kinds of failed asks
+  az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+      --analytics-query "$lines | summarize Lines = count(), Last = format_datetime(max(PragueTime), 'yyyy-MM-dd HH:mm'), Kinds = make_set_if(tostring(Properties.Kind), isnotempty(tostring(Properties.Kind))) by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), Event | order by Day desc, Event asc"
+
+  # Every rate kept, the newest first
+  az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+      --analytics-query "$lines | where Event == 'KorunaRateKept' | order by TimeGenerated desc | project Kept = format_datetime(PragueTime, 'yyyy-MM-dd HH:mm:ss'), CzkPerEur = tostring(Properties.CzkPerEur), Date = tostring(Properties.Date)"
+  ```
+
+- **Reading it:** a working day after the first deploy has one `KorunaRateKept`, in the afternoon (Prague time), after the CNB publishes; a weekend or a Czech holiday has none. A run of `KorunaRateAskFailed` means the CNB cannot be read: the app keeps answering its last rate, so nothing is broken but the rate's freshness. `Status` 404 or `Unreadable` on every ask means the CNB changed its API, and the fix is a small change to `CnbClient` (c017 design.md § Risks). The rate is public data, so the lines carry it in full; they carry nothing personal.
+- **To be confirmed on the first deploy:** the query was written from the log lines' definition (`RateLog`) before any line reached Application Insights. If it comes back empty although the sheet shows a new day, look at a raw row: `AppTraces | where Message has 'koruna rate' | project TimeGenerated, Message, Properties | take 5`.
+- **Rolling back** is the usual redeploy of the previous commit ([§ Rolling back](#rolling-back)); the table stays and is harmless, and a later stack without it removes it.
 
 ## Checks
 

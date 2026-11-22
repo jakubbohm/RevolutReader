@@ -9,7 +9,8 @@ namespace RevolutReader.IntegrationTests.Wiring;
 /// starts on <c>appsettings.json</c> without its <c>"&lt;secret&gt;"</c> placeholders. The keys are generated per call,
 /// never printed. Every app copy of the wiring tests that runs on made-up settings builds them here: the OpenAPI export
 /// (<c>OpenApiExport</c>), <c>MessageEndpointApp</c>, <c>SubscriptionEndpointApp</c> and <c>CheckEndpointApp</c>. A
-/// change that adds a setting checked at start adds a made-up value to <see cref="For"/>.
+/// change that adds a setting checked at start adds a made-up value to <see cref="For"/>. Since c017 it also points the
+/// CNB's address at a loopback port nothing listens on (D10), so no app copy here reaches the real CNB.
 /// </summary>
 internal static class MadeUpSettings {
   /// <summary>An uncompressed elliptic-curve point's first byte (SEC 1, § 2.3.3).</summary>
@@ -20,6 +21,9 @@ internal static class MadeUpSettings {
 
   /// <summary>The check key's size (c014 design.md D6).</summary>
   private const int CHECK_KEY_BYTES = 32;
+
+  /// <summary>The CNB's address: plain http on a loopback port nothing listens on (the discard port), as the check endpoint's app copy does the bank's.</summary>
+  private const string UNREACHED_CNB_ADDRESS = "http://127.0.0.1:9/";
 
   /// <summary>A made-up message key, as the owner's block makes one: 32 random bytes in base64url.</summary>
   public static string MessageKey() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(MESSAGE_KEY_BYTES));
@@ -54,6 +58,9 @@ internal static class MadeUpSettings {
       ["Push:MessageKey"] = messageKey ?? MessageKey(),
       // The account check's key (c014 design.md D6), 32 random bytes in base64url without padding, never the message key.
       ["AccountCheck:Key"] = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(CHECK_KEY_BYTES)),
+      // Not a secret, but never appsettings.json's real CNB (c017 design.md D10): a loopback port nothing listens on, so no
+      // app copy of these tests ever reaches api.cnb.cz.
+      ["Cnb:Address"] = UNREACHED_CNB_ADDRESS,
     };
   }
 }
