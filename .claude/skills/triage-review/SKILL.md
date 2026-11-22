@@ -198,7 +198,9 @@ implementer works at a time; never build or test while one of them is working.
 3. Act on each answer before the next question:
    - **fix now** → § 3 as a FIX. A spec change first gets its spec or `design.md` edit, which you make yourself
      and commit as `docs(<scope>): [plan] <what changed>` with only the files it changed, staged by path: any work
-     in progress stays in the tree for § 3's checks. The acceptance test change then goes to the test-writer;
+     in progress stays in the tree for § 3's checks. After the archive (a round that came after it anyway), the
+     spec edit goes to the main spec in `openspec/specs/`, a `design.md` edit to the archived change's, and the
+     archive folder stays where it is (workflow.md § 6). The acceptance test change then goes to the test-writer;
    - **decline** → DECLINE, with the owner's reason as the evidence;
    - **defer** → the owner says where: a GitHub issue (`gh issue create`: the finding and the step it belongs to;
      the issue linked in the thread), or a heads-up you write in the `design.md` of the step it belongs to,
@@ -226,7 +228,8 @@ implementer works at a time; never build or test while one of them is working.
    only the close-out docs, and is skipped when there are none. Never push, never open a PR or mark one ready: the
    owner does.
 5. Report to the owner: the counts per outcome, the commits, what stays open, and the fix range
-   `<first sha>..<last sha>` in case they want another `/code-review` on it, which a next round then triages.
+   `<first sha>..<last sha>` in case they want another `/code-review` on it, which a next round then triages; for a
+   change, such a round comes before `/opsx:archive` (workflow.md § 6).
 
 ## Rules for you (the orchestrator)
 
