@@ -96,7 +96,7 @@ public sealed class CapturedLogTexts {
 /// </summary>
 public sealed class CapturedLogEvents {
   private readonly Lock _lock = new();
-  private readonly List<(string EventName, IReadOnlyDictionary<string, object?> Values)> _lines = [];
+  private readonly List<(string Category, string EventName, IReadOnlyDictionary<string, object?> Values)> _lines = [];
 
   /// <summary>The structured values of every line of the event <paramref name="eventName"/>, in the order written.</summary>
   public IReadOnlyList<IReadOnlyDictionary<string, object?>> ValuesOf(string eventName) {
@@ -106,19 +106,49 @@ public sealed class CapturedLogEvents {
       return [.. _lines.Where(line => string.Equals(line.EventName, eventName, StringComparison.Ordinal)).Select(static line => line.Values)];
   }
 
+  /// <summary>
+  /// Every line whose logger's category starts with <paramref name="categoryPrefix"/>, as <c>category: event</c>, in the
+  /// order written: for the guards in <c>Conventions/</c> that check a component writes no line of its own (c017 design.md
+  /// D7: the HTTP client factory's lines of the CNB's client).
+  /// </summary>
+  public IReadOnlyList<string> LinesOfCategoriesStartingWith(string categoryPrefix) {
+    ArgumentException.ThrowIfNullOrEmpty(categoryPrefix);
+
+    lock (_lock) {
+      return [
+        .. _lines.Where(line => line.Category.StartsWith(categoryPrefix, StringComparison.Ordinal)).Select(static line => $"{line.Category}: {line.EventName}"),
+      ];
+    }
+  }
+
+  /// <summary>
+  /// Every line one of whose structured values, written as text, holds <paramref name="text"/>, as <c>category: event</c>,
+  /// in the order written: for the guards in <c>Conventions/</c> that look for a value no line may hold.
+  /// </summary>
+  public IReadOnlyList<string> LinesHolding(string text) {
+    ArgumentException.ThrowIfNullOrEmpty(text);
+
+    lock (_lock) {
+      return [
+        .. _lines.Where(line => line.Values.Values.Any(value => value?.ToString()?.Contains(text, StringComparison.Ordinal) == true))
+          .Select(static line => $"{line.Category}: {line.EventName}"),
+      ];
+    }
+  }
+
   /// <summary>A logger provider writing into this capture; the app copy's container owns it.</summary>
   public ILoggerProvider Provider() => new CapturingLoggerProvider(this);
 
-  /// <summary>One line: its event's name and its own structured values (the message template's, <c>{OriginalFormat}</c> among them).</summary>
-  private void Add(string eventName, IReadOnlyDictionary<string, object?> values) {
+  /// <summary>One line: its logger's category, its event's name and its own structured values (the message template's, <c>{OriginalFormat}</c> among them).</summary>
+  private void Add(string category, string eventName, IReadOnlyDictionary<string, object?> values) {
     lock (_lock)
-      _lines.Add((eventName, values));
+      _lines.Add((category, eventName, values));
   }
 
   private sealed class CapturingLoggerProvider(CapturedLogEvents lines) : ILoggerProvider {
-    public ILogger CreateLogger(string categoryName) => new CapturingLogger(lines);
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(lines, categoryName);
 
-    private sealed class CapturingLogger(CapturedLogEvents lines) : ILogger {
+    private sealed class CapturingLogger(CapturedLogEvents lines, string category) : ILogger {
       public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
       public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
@@ -131,7 +161,7 @@ public sealed class CapturedLogEvents {
           ? pairs.GroupBy(static pair => pair.Key, StringComparer.Ordinal).ToDictionary(static group => group.Key, static group => group.Last().Value, StringComparer.Ordinal)
           : new(StringComparer.Ordinal);
 
-        lines.Add(eventId.Name, values);
+        lines.Add(category, eventId.Name, values);
       }
     }
 

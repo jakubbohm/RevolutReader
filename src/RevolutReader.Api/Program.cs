@@ -7,6 +7,7 @@ using RevolutReader.Api.DataProtection;
 using RevolutReader.Api.Hosting;
 using RevolutReader.Api.Pages;
 using RevolutReader.Api.Push;
+using RevolutReader.Api.Rate;
 using RevolutReader.Api.SignIn;
 using RevolutReader.Api.Storage;
 using RevolutReader.ServiceDefaults;
@@ -27,6 +28,10 @@ builder.AddTransactionStore();
 builder.AddPushDeviceStore();
 // On the same tables client (c014 design.md D4).
 builder.AddCheckedBalanceStore();
+// On the same tables client (c017 design.md D2, D9).
+builder.AddKorunaRateStore();
+// The koruna rate the answers carry, kept in the store above (c017 design.md D2–D4, D9).
+builder.Services.AddKorunaRates();
 builder.Services.AddTransactions();
 builder.Services.AddPush();
 builder.Services.AddAccountCheck();

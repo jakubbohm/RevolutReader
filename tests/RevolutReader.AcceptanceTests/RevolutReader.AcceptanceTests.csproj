@@ -25,4 +25,9 @@
     <None Update="Drivers\StandInPages\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The CNB's real answer, the fake CNB's base (c017 design.md D10, § Bootstrap). -->
+  <ItemGroup>
+    <None Update="Drivers\CnbDaily.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

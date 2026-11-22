@@ -9,6 +9,7 @@ public sealed class AccountTransactionsScenarios : AcceptanceTest {
   [Test, Scenario("account-transactions", "The newest transactions come live with the koruna rate")]
   public async Task The_newest_transactions_come_live_with_the_koruna_rate() {
     Transactions.TodayIs(new DateOnly(2026, 11, 20));
+    Rate.TheCnbsLatestRateIs(24.38m, new DateOnly(2026, 11, 19));
     await SignIn.HasSignedIn(Visitor.Lucie);
     Transactions.BankLists(
       TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 19), to: "Kavárna Na Rohu"),
@@ -20,8 +21,8 @@ public sealed class AccountTransactionsScenarios : AcceptanceTest {
         TransactionSeenInApi.Settled(-12.30m, on: new DateOnly(2026, 11, 18), counterparty: "Pekárna U Lípy", details: new Lines("Praha 2")),
       ],
       olderBefore: null,
-      czkPerEur: 24.3m,
-      rateDate: new DateOnly(2026, 11, 8)));
+      czkPerEur: 24.38m,
+      rateDate: new DateOnly(2026, 11, 19)));
   }
 
   [Test, Scenario("account-transactions", "The live read covers the last 31 days")]
