@@ -193,12 +193,15 @@ public sealed class KorunaRates(ICnbRates cnb, IKorunaRateStore store, TimeProvi
   }
 
   /// <summary>
-  /// A failed ask (D5): logged with its kind, and the status code for a status (D7); answered with the kept rate, or with
-  /// <see cref="KorunaRate.AppsOwn"/> when none is kept, which is never kept, so the next call asks again. Not retried: the
-  /// next call asks again while the rate is due.
+  /// A failed ask (D5): logged with its kind, and the status code when it carries one, a status's (D7; no status part
+  /// otherwise, review of PR #95, finding 5); answered with the kept rate, or with <see cref="KorunaRate.AppsOwn"/> when none
+  /// is kept, which is never kept, so the next call asks again. Not retried: the next call asks again while the rate is due.
   /// </summary>
   private KorunaRate AfterAFailedAsk(CnbFailed failed) {
-    RateLog.KorunaRateAskFailed(logger, failed.Kind, failed.StatusCode);
+    if (failed.StatusCode is int statusCode)
+      RateLog.KorunaRateAskFailedWithStatus(logger, failed.Kind, statusCode);
+    else
+      RateLog.KorunaRateAskFailed(logger, failed.Kind);
 
     lock (_lock)
       return _kept ?? KorunaRate.AppsOwn;
