@@ -38,7 +38,7 @@
 
   | Step | Commit | Type | Committed by |
   |---|---|---|---|
-  | `[plan]` | change artifacts created or changed (propose, new, continue, ff; a spec or design fix after a dispute; a spec change the owner wants fixed now in a review triage, after the archive in the main spec, § 6) | `docs` | Claude, when the user approves the artifacts |
+  | `[plan]` | change artifacts created or changed (propose, new, continue, ff; a spec or design fix after a dispute; a spec change the owner wants fixed now in a review triage, tagged `[plan] <id>:` with the finding's number like a `[review]` commit, after the archive in the main spec, § 6) | `docs` | Claude, when the user approves the artifacts |
   | `[setup]` | once per stack, before its first `/tdd-apply`, so the loop starts from a green build: C1 the solution, projects and build rules; C3 the frontend project and its tools | `build` | Claude, after the user approves the artifacts |
   | `[accept]` | the change's acceptance tests, failing | `test` | orchestrator, after the user's review |
   | `[red]` | one group's failing tests by the test-writer (also its fixes after a dispute) | `test` | orchestrator |

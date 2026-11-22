@@ -47,10 +47,10 @@ evidence at a file:line, a test name or a recorded decision that you opened.
    branch must be the PR's head branch and the working tree clean: `git status --porcelain` empty, or listing only
    the change's own state file (step 3), which an interrupted round leaves untracked or modified. HEAD must be
    the PR's head commit (`git rev-parse HEAD` equal to `headRefOid`) or, on a rerun of an interrupted round (§ 1,
-   "After an interrupted round"), that commit followed only by this round's own `[review] <id>:` commits, those
-   numbered above the highest number the earlier rounds' summary comments list (`git log --oneline
-   <headRefOid>..HEAD`). Anything else, such as an earlier round's unpushed commits, means the review saw other code
-   than the working tree, and pushing is the owner's go. Otherwise stop and ask. Never work on `main`.
+   "After an interrupted round"), that commit followed only by this round's own `[review] <id>:` and `[plan] <id>:`
+   commits (§ 4 step 3), those numbered above the highest number the earlier rounds' summary comments list (`git log
+   --oneline <headRefOid>..HEAD`). Anything else, such as an earlier round's unpushed commits, means the review saw
+   other code than the working tree, and pushing is the owner's go. Otherwise stop and ask. Never work on `main`.
 2. Find the change: a folder `openspec/changes/<id>/`, or `openspec/changes/archive/<date>-<id>/` once archived,
    that this branch belongs to (the PR body or the branch name names it). With one, the **scope** of the commits is
    its number part (`c007`) and the **intent files** are its `proposal.md`, `design.md` and `specs/**`. Without one
@@ -199,10 +199,11 @@ implementer works at a time; never build or test while one of them is working.
    options; a free-text answer is the owner's own words, re-confirm it when it matters.
 3. Act on each answer before the next question:
    - **fix now** → § 3 as a FIX. A spec change first gets its spec or `design.md` edit, which you make yourself
-     and commit as `docs(<scope>): [plan] <what changed>` with only the files it changed, staged by path: any work
-     in progress stays in the tree for § 3's checks. After the archive (a round that came after it anyway), the
-     spec edit goes to the main spec in `openspec/specs/`, a `design.md` edit to the archived change's, and the
-     archive folder stays where it is (workflow.md § 6). The acceptance test change then goes to the test-writer;
+     and commit as `docs(<scope>): [plan] <id>: <what changed>` with only the files it changed, staged by path:
+     any work in progress stays in the tree for § 3's checks. After the archive (a round that came after it
+     anyway), the spec edit goes to the main spec in `openspec/specs/`, a `design.md` edit to the archived
+     change's, and the archive folder stays where it is (workflow.md § 6). The acceptance test change then goes to
+     the test-writer;
    - **decline** → DECLINE, with the owner's reason as the evidence;
    - **defer** → the owner says where: a GitHub issue (`gh issue create`: the finding and the step it belongs to;
      the issue linked in the thread), or a heads-up you write in the `design.md` of the step it belongs to,
