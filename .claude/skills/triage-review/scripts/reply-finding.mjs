@@ -10,13 +10,8 @@
 // Run from the repository root; needs gh, logged in to the repository's GitHub account. A file, not a shell block in
 // the skill's text: a session isolated in a worktree refuses a multi-line block it cannot verify
 // (docs/software-factory/lessons.md R-37).
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-
-const fail = (message) => {
-  console.error(`ERROR: ${message}`);
-  process.exit(1);
-};
+import { fail, gh, reviewThreads, run } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -36,34 +31,6 @@ if (
   process.exit(2);
 }
 
-function gh(ghArgs) {
-  const r = spawnSync("gh", ghArgs, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, windowsHide: true });
-  if (r.status !== 0) fail(`gh ${ghArgs.slice(0, 2).join(" ")} failed: ${(r.stderr || r.error?.message || "").trim()}`);
-  return r.stdout.trim();
-}
-
-// The thread whose first comment is the finding's comment, paging through the PR's review threads.
-function findThread() {
-  const [owner, repo] = gh(["repo", "view", "--json", "owner,name", "--jq", '.owner.login + "/" + .name']).split("/");
-  const query = `query($owner: String!, $repo: String!, $pr: Int!, $after: String) {
-    repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
-      reviewThreads(first: 100, after: $after) {
-        pageInfo { hasNextPage endCursor }
-        nodes { id isResolved comments(first: 1) { nodes { databaseId } } } } } } }`;
-  let after = null;
-  for (;;) {
-    const page = ["api", "graphql", "-f", `owner=${owner}`, "-f", `repo=${repo}`, "-F", `pr=${pr}`];
-    page.push("-f", `query=${query}`);
-    if (after) page.push("-f", `after=${after}`);
-    const threads = JSON.parse(gh(page)).data?.repository?.pullRequest?.reviewThreads;
-    if (!threads) fail(`PR ${pr} not found`);
-    const thread = threads.nodes.find((t) => t.comments.nodes[0]?.databaseId === Number(commentId));
-    if (thread) return thread;
-    if (!threads.pageInfo.hasNextPage) return null;
-    after = threads.pageInfo.endCursor;
-  }
-}
-
 let body;
 try {
   body = readFileSync(bodyFile, "utf8");
@@ -76,7 +43,7 @@ const comment = JSON.parse(gh(["api", `repos/{owner}/{repo}/pulls/comments/${com
 if (!comment.pull_request_url?.endsWith(`/pulls/${pr}`)) fail(`comment ${commentId} is not on PR ${pr}`);
 if (comment.in_reply_to_id != null) fail(`comment ${commentId} is a reply; give the thread's first comment`);
 
-const thread = resolve === "yes" ? findThread() : null;
+const thread = resolve === "yes" ? reviewThreads(pr).find((t) => t.firstCommentId === Number(commentId)) : null;
 if (resolve === "yes" && !thread) fail(`no review thread starts with comment ${commentId}; nothing posted`);
 
 if (dryRun) {
@@ -86,16 +53,8 @@ if (dryRun) {
   process.exit(0);
 }
 
-const url = gh([
-  "api",
-  "-X",
-  "POST",
-  `repos/{owner}/{repo}/pulls/${pr}/comments/${commentId}/replies`,
-  "-F",
-  `body=@${bodyFile}`,
-  "--jq",
-  ".html_url",
-]);
+const replies = `repos/{owner}/{repo}/pulls/${pr}/comments/${commentId}/replies`;
+const url = gh(["api", "-X", "POST", replies, "-F", `body=@${bodyFile}`, "--jq", ".html_url"]);
 console.log(`REPLIED: ${url}`);
 if (!thread) process.exit(0);
 
@@ -104,10 +63,14 @@ if (thread.isResolved) {
   process.exit(0);
 }
 const mutation = "mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { isResolved } } }";
-const resolveArgs = ["api", "graphql", "-f", `id=${thread.id}`, "-f", `query=${mutation}`];
-resolveArgs.push("--jq", ".data.resolveReviewThread.thread.isResolved");
-const r = spawnSync("gh", resolveArgs, { encoding: "utf8", windowsHide: true });
-if (r.status !== 0 || r.stdout.trim() !== "true") {
+const r = run(["api", "graphql", "-f", `id=${thread.id}`, "-f", `query=${mutation}`]);
+let resolved = false;
+try {
+  resolved = r.status === 0 && JSON.parse(r.stdout).data?.resolveReviewThread?.thread?.isResolved === true;
+} catch {
+  // not JSON: reported below
+}
+if (!resolved) {
   // The reply is posted: running the script again would post it twice. Resolve the thread on its own instead.
   fail(
     `the reply is posted, but thread ${thread.id} could not be resolved: ${(r.stderr || r.stdout || "").trim()}. ` +
