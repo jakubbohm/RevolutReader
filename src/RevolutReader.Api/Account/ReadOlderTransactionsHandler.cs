@@ -2,6 +2,8 @@ using RevolutReader.Api.Rate;
 
 namespace RevolutReader.Api.Account;
 
+// c018 group 18's stub: firstSeen is read in group 19's wiring (D9), which removes this pragma.
+#pragma warning disable CS9113
 /// <summary>
 /// An older page from the store only (c010 design.md D1, D10); never reads the bank. The store's rows, the page
 /// <see cref="TransactionPaging.Older"/> cuts from them before the given day, each kept transaction shown as settled with
@@ -10,7 +12,8 @@ namespace RevolutReader.Api.Account;
 /// awaited after it, so the two run alongside (c017 design.md D4, D8). Its type codes are not logged: only the newest page
 /// logs them (D4c).
 /// </summary>
-public sealed class ReadOlderTransactionsHandler(ITransactionStore store, IKorunaRates rates) {
+public sealed class ReadOlderTransactionsHandler(ITransactionStore store, IFirstSeenStore firstSeen, IKorunaRates rates) {
+#pragma warning restore CS9113
   public async Task<TransactionPage> Handle(DateOnly before, CancellationToken cancellationToken) {
     Task<KorunaRate> rate = rates.Current(cancellationToken);
     OlderPage page = TransactionPaging.Older(await store.ReadAll(cancellationToken), before);
