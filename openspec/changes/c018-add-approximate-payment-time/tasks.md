@@ -299,7 +299,7 @@ Conventions for the run:
 ## 42. [close] Acceptance green
 
 - [x] 42.1 All 15 scenario tests of this change pass and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` match the regeneration
-- [ ] 42.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP), the owner looking:
+- [x] 42.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP), the owner looking:
   - the account screen opens;
   - a transaction dated today shows "…, kolem HH:MM" in its sheet;
   - the app's lines show no `FirstSeenNotRecorded`.
