@@ -33,12 +33,13 @@ test.each(problems)(
 );
 
 test("A failed newest page keeps a list already shown", () => {
+  const bakery = transaction("card", -12.3, "2026-11-18", {
+    counterparty: "Pekárna U Lípy",
+  });
   const list: ListState = {
-    days: byDay([
-      transaction("card", -12.3, "2026-11-18", {
-        counterparty: "Pekárna U Lípy",
-      }),
-    ]),
+    days: byDay([bakery]),
+    newest: [bakery],
+    olderLoaded: [],
     nextBefore: "2026-10-20",
     older: "idle",
   };

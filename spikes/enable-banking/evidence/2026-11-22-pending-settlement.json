@@ -1,0 +1,23 @@
+{
+  "note": "Redacted: counts only. Issue #85: does a pending transaction keep its entry_reference when it settles?",
+  "earlier_read_utc": "2026-11-21T19:24:48.093Z",
+  "later_read_utc": "2026-11-22T19:46:30.188Z",
+  "outcome": {
+    "pending_before": 6,
+    "still_pending_same_reference": 1,
+    "booked_same_reference": 5,
+    "gone_by_reference": 0,
+    "gone_with_a_new_booked_lookalike": 0
+  },
+  "unchanged_on_settling": {
+    "booking_date": 5,
+    "transaction_amount": 5,
+    "creditor": 5,
+    "debtor": 5,
+    "remittance_information": 5,
+    "bank_transaction_code": 5
+  },
+  "value_date_minus_booking_date_days": {
+    "1": 5
+  }
+}

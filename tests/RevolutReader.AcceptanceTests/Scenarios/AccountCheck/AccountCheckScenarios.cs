@@ -29,7 +29,8 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.PhoneAsksForACheckFrom(phone);
 
     Bank.BalanceRequestsReceived().ShouldBe([RequestAtBank.WithUserHeadersOf(phone)], "one balance request, as from that phone");
-    Bank.RequestsReceived().Count.ShouldBe(1, "nothing but the balance is read");
+    Bank.TransactionsRequestsReceived().ShouldBe([RequestAtBank.WithUserHeadersOf(phone)], "one transactions request, as from that phone");
+    Bank.RequestsReceived().Count.ShouldBe(2, "nothing but the balance and the transactions is read");
   }
 
   [Test, Scenario("account-check", "A check that names no browser reads nothing at the bank")]
@@ -157,6 +158,7 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.ChecksArriveWhileTheFirstReadsTheBank(3);
 
     Bank.BalanceRequestsReceived().Count.ShouldBe(2, "the bank receives two balance requests");
+    Bank.TransactionsRequestsReceived().Count.ShouldBe(2, "the bank receives two transactions requests");
     Push.Received(phone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
   }
 
@@ -202,5 +204,62 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
 
     Push.PushServiceReceived(phone).ShouldHaveSingleItem("her phone's push service receives only the first push");
     second.ShouldBe(CheckAnswer.NothingChanged);
+  }
+
+  // The check also reads the recent transactions, for their first-seen times only (c018).
+
+  [Test, Scenario("account-check", "The check reads the transactions from yesterday on")]
+  public async Task The_check_reads_the_transactions_from_yesterday_on() {
+    Transactions.TodayIs(new DateOnly(2026, 11, 20));
+
+    await Check.PhoneAsksForACheck();
+
+    Transactions.DaysTheBankWasAskedFrom().ShouldBe([new DateOnly(2026, 11, 19)]);
+  }
+
+  [Test, Scenario("account-check", "A payment a check reads first carries the check's time")]
+  public async Task A_payment_a_check_reads_first_carries_the_checks_time() {
+    // Lucie signs in first: the time of day is set after signing in, as the clock starts at the real time, which
+    // Microsoft's ID token is checked against.
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 20), to: "Kavárna Na Rohu", reference: "e-c018-311"));
+
+    await Check.PhoneAsksForACheck();
+    Transactions.TimeIs(new TimeOnly(13, 20, 0));
+    TransactionsReading reading = await Transactions.AsksForTheTransactions();
+
+    reading.Transactions.ShouldBe([
+      TransactionSeenInApi.StillPending(-8.90m, on: new DateOnly(2026, 11, 20), counterparty: "Kavárna Na Rohu", seenAt: new DateTimeOffset(2026, 11, 20, 13, 5, 12, TimeSpan.Zero)),
+    ]);
+  }
+
+  [Test, Scenario("account-check", "Transactions a check reads are not kept")]
+  public async Task Transactions_a_check_reads_are_not_kept() {
+    UserAtDevice herPhone = new("198.51.100.77", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X)");
+    Transactions.TodayIs(new DateOnly(2026, 11, 20));
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    await Transactions.Kept(new KeptAtApp(new DateOnly(2026, 9, 30), -4.20m));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 19), reference: "e-c018-312"));
+
+    await Check.PhoneAsksForACheck();
+    await Transactions.AsksForTheTransactionsFrom(herPhone);
+
+    Transactions.DaysTheBankWasAskedFromBy(herPhone).ShouldBe([new DateOnly(2026, 9, 30)], "her read asks the bank from the newest kept day");
+  }
+
+  [Test, Scenario("account-check", "A failed transactions read leaves the check's notification and answer as they were")]
+  public async Task A_failed_transactions_read_leaves_the_checks_notification_and_answer_as_they_were() {
+    await Check.HasKept(lastSeen: 49.00m, lastNotified: 49.00m);
+    PhoneForPush phone = Push.NewPhone("Lucie's phone");
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    await Push.HasRegistered(phone);
+    Bank.HasAvailableBalance(45.20m, "EUR");
+    Bank.ReportsOwnErrorForTransactions();
+
+    CheckAnswer answer = await Check.PhoneAsksForACheck();
+
+    Push.Received(phone).ShouldHaveSingleItem().Title.ShouldBe("Odešlo 3,80\u00A0€");
+    answer.ShouldBe(CheckAnswer.BalanceChanged);
   }
 }

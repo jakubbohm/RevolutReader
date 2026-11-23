@@ -25,9 +25,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// <item>A <see cref="TransactionsReading"/> only when the answer's exact shape fits: a 200 is <c>application/json</c>
 /// with exactly <c>transactions</c>, <c>olderBefore</c> (a date or <c>null</c>), <c>czkPerEur</c> and <c>rateDate</c>,
 /// and each transaction exactly <c>date</c>, <c>amount</c>, <c>currency</c> (<c>EUR</c>), <c>pending</c>,
-/// <c>counterparty</c> (a string or <c>null</c>), <c>details</c> (strings) and <c>kind</c> (a string); dates read as
-/// <c>yyyy-MM-dd</c>. <c>date</c>, <c>olderBefore</c> and <c>rateDate</c> are shifted back to the scenario's calendar
-/// (c017 design.md D10); <c>rateDate</c> is also given exactly as answered, outside the reading's equality
+/// <c>counterparty</c> (a string or <c>null</c>), <c>details</c> (strings), <c>kind</c> (a string) and, since c018,
+/// <c>seenAt</c> (an instant at offset zero with whole seconds, or <c>null</c>; c018 design.md D4, D10); dates read as <c>yyyy-MM-dd</c>. <c>date</c>, <c>seenAt</c>, <c>olderBefore</c> and <c>rateDate</c> are shifted back to the
+/// scenario's calendar (c017 design.md D10); <c>rateDate</c> is also given exactly as answered, outside the reading's equality
 /// (<see cref="TransactionsReading.RateDateAsAnswered"/>), for the app's own rate, whose date is fixed, not the calendar's.
 /// A problem as <c>BalanceDriver</c>'s:
 /// <c>application/problem+json</c>, a body <c>status</c> equal to the response's, a <c>title</c> and a <c>type</c> (RFC
@@ -41,7 +41,10 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// day shifted onto the clock, and its place within its day in the order given, after those this test kept on that day
 /// before.</item>
 /// <item><see cref="DaysTheBankWasAskedFrom"/> reads the <c>date_from</c> of every request for the account's transactions
-/// the fake bank received, in order, shifted back to the scenario's calendar.</item>
+/// the fake bank received, in order, shifted back to the scenario's calendar; <see cref="DaysTheBankWasAskedFromBy"/>
+/// only those with one user's headers (c018).</item>
+/// <item><see cref="TodayIsAt"/> and <see cref="TimeIs"/> name the scenario's time of day on its calendar (c018 design.md
+/// D10); <see cref="HasReadBefore"/> reads the app copy's own first-seen times.</item>
 /// </list>
 /// </summary>
 public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, ScenarioCalendar calendar, IServiceProvider app) {
@@ -70,6 +73,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   private const string COUNTERPARTY = "counterparty";
   private const string DETAILS = "details";
   private const string KIND = "kind";
+  private const string SEEN_AT = "seenAt";
 
   /// <summary>The problem description's members the driver reads (RFC 9457), and the trace id ASP.NET adds.</summary>
   private const string TYPE = "type";
@@ -85,7 +89,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 
   /// <summary>The members of a page and of a transaction in it: exactly these (D10).</summary>
   private const int PAGE_MEMBERS = 4;
-  private const int TRANSACTION_MEMBERS = 7;
+  private const int TRANSACTION_MEMBERS = 8;
 
   /// <summary>The problem descriptions the DSL knows for the transactions, with the status each case belongs to.</summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
@@ -98,6 +102,13 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 
   /// <summary>The only members a 500 may have: nothing about the failure (spec api-errors).</summary>
   private static readonly HashSet<string> _internalErrorMembers = new(StringComparer.Ordinal) { TYPE, TITLE, STATUS, TRACE_ID };
+
+  /// <summary>
+  /// How the answer may write an instant at offset zero with whole seconds (c018 design.md D4): with the offset, as
+  /// System.Text.Json writes a <see cref="DateTimeOffset"/> (<c>2026-11-20T13:05:12+00:00</c>), or with <c>Z</c>. Nothing
+  /// finer than a second and nothing without an offset fits either; an offset other than zero is refused after parsing.
+  /// </summary>
+  private static readonly string[] _instantFormats = ["yyyy-MM-dd'T'HH:mm:sszzz", "yyyy-MM-dd'T'HH:mm:ss'Z'"];
 
   /// <summary>The next place within each day (on the clock) for a transaction <see cref="Keep"/> keeps.</summary>
   private readonly Dictionary<DateOnly, int> _nextPositionOn = [];
@@ -167,6 +178,43 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   public IReadOnlyList<DateOnly> DaysTheBankWasAskedFrom() => [.. bank.TransactionDaysReceived().Select(calendar.FromClock)];
 
   /// <summary>
+  /// The <c>date_from</c> of every transactions request the fake bank received with <paramref name="user"/>'s user headers
+  /// (<c>Psu-Ip-Address</c> its address and <c>Psu-User-Agent</c> its browser), in order, as the scenario's dates; requests
+  /// from anyone else, or with no user headers, are left out (c018: a check's own transactions read, from the phone, is
+  /// told apart from a signed-in user's).
+  /// </summary>
+  public IReadOnlyList<DateOnly> DaysTheBankWasAskedFromBy(UserAtDevice user) {
+    RequestAtBank fromUser = RequestAtBank.WithUserHeadersOf(user);
+
+    return [
+      .. bank.TransactionDaysAndHeadersReceived()
+        .Where(request => BankDriver.RequestOf(request.Headers) == fromUser)
+        .Select(request => calendar.FromClock(request.Day)),
+    ];
+  }
+
+  /// <summary>
+  /// Today is <paramref name="scenarioDay"/> at <paramref name="utcTime"/> UTC (c018 design.md D10): the calendar moves the
+  /// clock to the coming day of that weekday at that time (<see cref="ScenarioCalendar.TodayIsAt"/>), only after signing
+  /// in.
+  /// </summary>
+  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) => calendar.TodayIsAt(scenarioDay, utcTime);
+
+  /// <summary>The clock moves forward to <paramref name="utcTime"/> UTC on the scenario's today (<see cref="ScenarioCalendar.TimeIs"/>, c018 design.md D10).</summary>
+  public void TimeIs(TimeOnly utcTime) => calendar.TimeIs(utcTime);
+
+  /// <summary>
+  /// Whether the app copy has recorded when it first read the transaction with this bank reference: its own
+  /// <c>IFirstSeenStore</c> (from its services, so the real Table adapter on the test's own <c>FirstSeenTimes</c> table in
+  /// Azurite, <see cref="AzuriteStorage"/>) holds a moment for <paramref name="reference"/> (c018 design.md D3).
+  /// </summary>
+  public async Task<bool> HasReadBefore(string reference) {
+    IReadOnlyDictionary<string, DateTimeOffset> kept = await app.GetRequiredService<IFirstSeenStore>().Read([reference], CancellationToken.None);
+
+    return kept.ContainsKey(reference);
+  }
+
+  /// <summary>
   /// <c>GET /api/transactions</c> in the signed-in browser with <c>X-Forwarded-For</c> <paramref name="ipAddress"/>, and
   /// <c>User-Agent</c> <paramref name="browserName"/> when given, sent as it is; read as the class describes.
   /// </summary>
@@ -234,7 +282,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 
   /// <summary>
   /// The page, when the answer is <c>application/json</c> with exactly its four members and each transaction exactly its
-  /// seven, as the class describes; the dates of the calendar shifted back. Otherwise <see langword="null"/>.
+  /// eight, as the class describes; the dates of the calendar shifted back. Otherwise <see langword="null"/>.
   /// </summary>
   private TransactionsReading? PageOf(string mediaType, JsonElement answer) {
     if (!IsMediaType(mediaType, JSON) || answer.EnumerateObject().Count() != PAGE_MEMBERS)
@@ -258,12 +306,20 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
     return TransactionsReading.Of(transactions, olderBefore is DateOnly day ? calendar.FromClock(day) : null, czkPerEur, calendar.FromClock(rateDate)) with { RateDateAsAnswered = rateDate };
   }
 
-  /// <summary>A transaction, when it is an object of exactly its seven members, in euros, as the class describes; its date shifted back. Otherwise <see langword="null"/>.</summary>
+  /// <summary>
+  /// A transaction, when it is an object of exactly its eight members, in euros, as the class describes; its date and its
+  /// time shifted back. Otherwise <see langword="null"/>.
+  /// </summary>
   private TransactionSeenInApi? TransactionOf(JsonElement item) {
-    if (item.ValueKind != JsonValueKind.Object || item.EnumerateObject().Count() != TRANSACTION_MEMBERS)
+    if (item.ValueKind != JsonValueKind.Object)
       return null;
 
-    if (Text(item, CURRENCY) != TransactionAtBank.DEFAULT_CURRENCY || !TextOrNull(item, COUNTERPARTY, out string? counterparty))
+    if (item.EnumerateObject().Count() != TRANSACTION_MEMBERS)
+      return null;
+
+    if (Text(item, CURRENCY) != TransactionAtBank.DEFAULT_CURRENCY
+      || !TextOrNull(item, COUNTERPARTY, out string? counterparty)
+      || !InstantOrNull(item, SEEN_AT, out DateTimeOffset? seenAt))
       return null;
 
     return Date(item, DATE) is DateOnly date
@@ -271,7 +327,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
       && Bool(item, PENDING) is bool pending
       && Texts(item, DETAILS) is List<string> details
       && Text(item, KIND) is string kind
-        ? new TransactionSeenInApi(calendar.FromClock(date), amount, pending, counterparty, new Lines(details), kind)
+        ? new TransactionSeenInApi(calendar.FromClock(date), amount, pending, counterparty, new Lines(details), kind, seenAt is DateTimeOffset instant ? calendar.FromClock(instant) : null)
         : null;
   }
 
@@ -373,5 +429,29 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
     date = Date(value, name);
 
     return date is not null;
+  }
+
+  /// <summary>
+  /// Whether the member <paramref name="name"/> is there and is <c>null</c> or a JSON string holding an instant at offset
+  /// zero with whole seconds (<see cref="_instantFormats"/>); the instant, or <see langword="null"/>, in
+  /// <paramref name="instant"/>.
+  /// </summary>
+  private static bool InstantOrNull(JsonElement value, string name, out DateTimeOffset? instant) {
+    instant = null;
+
+    if (!value.TryGetProperty(name, out JsonElement member))
+      return false;
+
+    if (member.ValueKind == JsonValueKind.Null)
+      return true;
+
+    if (member.ValueKind != JsonValueKind.String
+      || !DateTimeOffset.TryParseExact(member.GetString(), _instantFormats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed)
+      || parsed.Offset != TimeSpan.Zero)
+      return false;
+
+    instant = parsed;
+
+    return true;
   }
 }

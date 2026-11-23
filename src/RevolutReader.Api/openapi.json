@@ -712,7 +712,8 @@
           "pending",
           "counterparty",
           "details",
-          "kind"
+          "kind",
+          "seenAt"
         ],
         "type": "object",
         "properties": {
@@ -747,6 +748,14 @@
           "kind": {
             "description": "The kind of transaction, from the bank's type code",
             "$ref": "#/components/schemas/RevolutReaderApiAccountTransactionKind"
+          },
+          "seenAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the app first got the transaction from the bank, in UTC to the second, when that was on the transaction's own day; null otherwise",
+            "format": "date-time"
           }
         },
         "description": "A transaction as the app shows it"

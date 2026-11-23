@@ -17,8 +17,21 @@ namespace RevolutReader.Api.Account;
 /// <see cref="IKorunaRates"/> answers, asked first and awaited last, so it runs alongside the store and the bank, and
 /// awaited whatever the bank answers (c017 design.md D4, D8). A bank failure comes back as it is, and nothing is kept. The
 /// store failing is an exception: the page is not answered without its write (D5).
+/// <para>
+/// Each transaction's first-seen time (c018 design.md D1, D2, D8): right after the bank's answer, the read's moment
+/// (<see cref="FirstSeenRule.ReadAt"/> of the clock); the read recorded and its kept moments read through
+/// <see cref="FirstSeenTimes.Record"/>; each shown transaction's <see cref="ShownTransaction.SeenAt"/> is
+/// <see cref="FirstSeenRule.Shown"/> of its kept moment. A bank failure records nothing; the first-seen store failing is
+/// an exception, so the page is not answered without its record (D8).
+/// </para>
 /// </summary>
-public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, IKorunaRates rates, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger) {
+public sealed class ReadNewestTransactionsHandler(
+  IBankAccount bank,
+  ITransactionStore store,
+  FirstSeenTimes firstSeen,
+  IKorunaRates rates,
+  TimeProvider time,
+  ILogger<ReadNewestTransactionsHandler> logger) {
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
 
@@ -29,7 +42,7 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     BankResult<Transactions> live = await bank.ReadTransactions(LiveReadStartAfter(kept, today), user, cancellationToken);
 
     BankResult<TransactionPage> result = live switch {
-      Transactions transactions => await KeptAndShown(transactions.Items, kept, windowStart, rate, cancellationToken),
+      Transactions transactions => await KeptAndShown(transactions.Items, FirstSeenRule.ReadAt(time.GetUtcNow()), kept, windowStart, rate, cancellationToken),
       BankAccessExpired expired => expired,
       BankRateLimited rateLimited => rateLimited,
       BankUnavailable unavailable => unavailable,
@@ -55,13 +68,15 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
   }
 
   /// <summary>
-  /// The live read's settled transactions kept (D5), a count of those without a reference logged when there are any; then
-  /// the page: the live transactions dated from the window's start, newest day first and in the bank's order within a day,
+  /// The live read's settled transactions kept (D5), a count of those without a reference logged when there are any; the
+  /// read recorded at <paramref name="readAt"/>, the moment the bank answered (c018 design.md D1); then the page, each
+  /// transaction with its first-seen time: the live transactions dated from the window's start, newest day first and in the bank's order within a day,
   /// their type codes the app does not know logged (D4c), and the window's start as OlderBefore when a transaction kept before this read, or by it, is older
   /// (D10); with <paramref name="rate"/>'s rate and day, awaited last (c017 design.md D4).
   /// </summary>
   private async Task<TransactionPage> KeptAndShown(
     IReadOnlyList<BankTransaction> live,
+    DateTimeOffset readAt,
     IReadOnlyList<KeptTransaction> keptBefore,
     DateOnly windowStart,
     Task<KorunaRate> rate,
@@ -72,6 +87,7 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     if (toKeep.WithoutReference > 0)
       TransactionsLog.SettledWithoutReference(logger, toKeep.WithoutReference);
 
+    IReadOnlyDictionary<string, DateTimeOffset> seen = await firstSeen.Record(live, readAt, cancellationToken);
     IReadOnlyList<BankTransaction> onPage = [.. live.Where(transaction => transaction.Date >= windowStart)];
     LogUnknownTypeCodes(onPage);
     KorunaRate koruna = await rate;
@@ -79,7 +95,7 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     // Newest day first: the bank's order across days is not guaranteed (pending ones can come after the booked ones).
     // OrderByDescending is a stable sort, so the bank's order within a day is kept.
     return new TransactionPage(
-      [.. onPage.OrderByDescending(static transaction => transaction.Date).Select(Shown)],
+      [.. onPage.OrderByDescending(static transaction => transaction.Date).Select(transaction => Shown(transaction, seen))],
       keptBefore.Concat(toKeep.Transactions).Any(transaction => transaction.Date < windowStart) ? windowStart : null,
       koruna.CzkPerEur,
       koruna.Date);
@@ -107,13 +123,17 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
       TransactionsLog.NoTypeCode(logger);
   }
 
-  /// <summary>A live transaction as the app shows it: pending when the bank has not settled it.</summary>
-  private static ShownTransaction Shown(BankTransaction transaction) => ShownTransaction.Of(
+  /// <summary>
+  /// A live transaction as the app shows it: pending when the bank has not settled it, seen at the moment
+  /// <paramref name="seen"/> keeps for its reference as <see cref="FirstSeenRule.Shown"/> answers it.
+  /// </summary>
+  private static ShownTransaction Shown(BankTransaction transaction, IReadOnlyDictionary<string, DateTimeOffset> seen) => ShownTransaction.Of(
     transaction.Date,
     transaction.Amount,
     transaction.Currency,
     transaction.Status == TransactionStatus.Pending,
     transaction.Counterparty,
     transaction.PaymentDetails,
-    transaction.TypeCode);
+    transaction.TypeCode,
+    FirstSeenRule.Shown(transaction.Date, transaction.Reference is { } reference && seen.TryGetValue(reference, out DateTimeOffset at) ? at : null));
 }

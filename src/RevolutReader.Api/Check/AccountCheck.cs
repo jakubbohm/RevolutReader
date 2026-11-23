@@ -5,8 +5,12 @@ namespace RevolutReader.Api.Check;
 
 /// <summary>
 /// One check (c014 design.md D3, D4, D10, D12), as <see cref="IAccountCheck"/> describes it. The kept balances are read
-/// first, so a storage failure costs no bank read; then the balance, once, through <see cref="ReadBalanceHandler"/> as the
-/// present user (D3, D7).
+/// first, so a storage failure costs no bank read. Then the recording of first sightings starts
+/// (<see cref="RecordFirstSeenHandler"/>, c018 design.md D5), a transactions read as the present user, alongside the
+/// balance, read once through <see cref="ReadBalanceHandler"/> as the present user (D3, D7), and the rest below; the
+/// check ends only once the recording has, whether the balance path returned or threw. The check's answer and
+/// notification are the balance path's, and so is its exception: when the balance path threw, the recording's own end,
+/// a cancellation by the app's stop included, never replaces it (c018 design.md § Error model).
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4).</item>
@@ -23,12 +27,30 @@ namespace RevolutReader.Api.Check;
 /// </list>
 /// What it came to is logged (<see cref="CheckLog.CheckEnded"/>), never an amount (D15).
 /// </summary>
-public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck {
+public sealed class AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandler recorder, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck {
   public async Task<BankResult<CheckOutcome>> Run(PresentUser user, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
     ArgumentNullException.ThrowIfNull(anotherCheckWaits);
 
     CheckedBalances? kept = await store.Read(cancellationToken);
+    Task recording = recorder.Handle(user, cancellationToken);
+
+    BankResult<CheckOutcome> outcome;
+    try {
+      outcome = await CheckTheBalance(user, kept, anotherCheckWaits, cancellationToken);
+    }
+    catch {
+      // The recording is awaited without throwing, so the balance path's exception is the one that passes.
+      await recording.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+      throw;
+    }
+
+    await recording;
+    return outcome;
+  }
+
+  /// <summary>The balance path: the balance read once as <paramref name="user"/>, then kept and notified as the read decides.</summary>
+  private async Task<BankResult<CheckOutcome>> CheckTheBalance(PresentUser user, CheckedBalances? kept, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     BankResult<AccountBalance> read = await reader.Handle(user, cancellationToken);
 
 #pragma warning disable CA1508 // Its interprocedural analysis follows the reader's returns and calls every arm always true; each case is named, so a case added to the union later is a compile error rather than a silent default.

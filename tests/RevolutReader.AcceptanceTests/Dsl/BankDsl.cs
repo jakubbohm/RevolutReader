@@ -61,6 +61,12 @@ public sealed class BankDsl(BankDriver driver) {
     driver.ReportsOwnError();
   }
 
+  /// <summary>
+  /// Every transactions request, each attempt: the bank reports an error of its own (c018 design.md D10). The balance
+  /// answers as the scenario set it up (the default balance otherwise).
+  /// </summary>
+  public void ReportsOwnErrorForTransactions() => driver.ReportsOwnErrorForTransactions();
+
   /// <summary>The first request: the bank reports an error of its own; later requests get what the scenario set up (the default balance otherwise).</summary>
   public void ReportsOwnErrorForTheFirstRequest() => driver.ReportsOwnErrorForTheFirstRequest();
 
@@ -118,6 +124,9 @@ public sealed class BankDsl(BankDriver driver) {
 
   /// <summary>Every request for the account's balance the bank received during the test, in order; requests for anything else are left out.</summary>
   public IReadOnlyList<RequestAtBank> BalanceRequestsReceived() => driver.BalanceRequestsReceived();
+
+  /// <summary>Every request for the account's transactions the bank received during the test, in order (c018 design.md D10); requests for anything else are left out.</summary>
+  public IReadOnlyList<RequestAtBank> TransactionsRequestsReceived() => driver.TransactionsRequestsReceived();
 
   /// <summary>The page each transactions request asked for, in the order received (1 for the first page).</summary>
   public IReadOnlyList<int> PagesRequested() => driver.PagesRequested();

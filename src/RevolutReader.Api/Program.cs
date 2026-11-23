@@ -30,6 +30,8 @@ builder.AddPushDeviceStore();
 builder.AddCheckedBalanceStore();
 // On the same tables client (c017 design.md D2, D9).
 builder.AddKorunaRateStore();
+// On the same tables client (c018 design.md D3, D9).
+builder.AddFirstSeenStore();
 // The koruna rate the answers carry, kept in the store above (c017 design.md D2–D4, D9).
 builder.Services.AddKorunaRates();
 builder.Services.AddTransactions();

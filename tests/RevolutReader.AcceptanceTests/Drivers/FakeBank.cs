@@ -58,20 +58,28 @@ public sealed class FakeBank : IDisposable {
   /// <summary>
   /// The priority of the page every first transactions request gets when nothing else the test set up answers it
   /// (<see cref="AnswerTransactionsForAnyDayByDefault"/>, c010): below every other answer, which keeps the default, 0, or
-  /// takes <see cref="ONE_OFF_PRIORITY"/>, so any answer the test sets up wins, whether before or after it.
+  /// takes a higher priority, so any answer the test sets up wins, whether before or after it.
   /// </summary>
   private const int TRANSACTIONS_FALLBACK_PRIORITY = 1;
 
   /// <summary>
   /// The priority of an answer for the first matching request only (<see cref="AnswerOnce"/>): above every other answer
-  /// (WireMock.Net: a lower value is a higher priority; every other answer keeps the default, 0, but a fallback, at
-  /// <see cref="FALLBACK_PRIORITY"/>), so it wins whether the scenario sets it up before or after them.
+  /// but <see cref="TRANSACTIONS_OWN_ERROR_PRIORITY"/> (WireMock.Net: a lower value is a higher priority; every other
+  /// answer keeps the default, 0, but a fallback, at <see cref="FALLBACK_PRIORITY"/>), so it wins whether the scenario
+  /// sets it up before or after them.
   /// </summary>
   private const int ONE_OFF_PRIORITY = -1;
 
   /// <summary>
+  /// The priority of the bank's own error for every transactions request (<see cref="AnswerTransactionsWithOwnError"/>,
+  /// c018): above every other answer on that path, one-off answers (<see cref="ONE_OFF_PRIORITY"/>) included, so it wins
+  /// whether the test sets it up before or after them.
+  /// </summary>
+  private const int TRANSACTIONS_OWN_ERROR_PRIORITY = -2;
+
+  /// <summary>
   /// The priority of a fallback answer (<see cref="AnswerBalancesByDefault"/>): below every other answer (every other
-  /// answer keeps the default, 0, or <see cref="ONE_OFF_PRIORITY"/>), so any answer the test sets up wins, whether before
+  /// answer keeps the default, 0, or takes a higher priority), so any answer the test sets up wins, whether before
   /// or after it.
   /// </summary>
   private const int FALLBACK_PRIORITY = 1;
@@ -237,12 +245,33 @@ public sealed class FakeBank : IDisposable {
   /// received (<see cref="ArrivalLog"/>). A request without a <c>date_from</c> the API reference's way, <c>yyyy-MM-dd</c>,
   /// fails the step.
   /// </summary>
-  public IReadOnlyList<DateOnly> TransactionDaysReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request =>
-      DateOnly.TryParseExact(request.DateFrom, DATE, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day)
-        ? day
-        : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.")),
+  public IReadOnlyList<DateOnly> TransactionDaysReceived() => [.. TransactionDaysAndHeadersReceived().Select(static request => request.Day)];
+
+  /// <summary>
+  /// The <c>date_from</c> and the headers of every request for this account's transactions the bank received, answered or
+  /// not, in the order received: the days as <see cref="TransactionDaysReceived"/> reads them, the headers as
+  /// <see cref="RequestHeadersReceived"/>'s (c018: a check's transactions read told apart from a signed-in user's by them).
+  /// </summary>
+  public IReadOnlyList<(DateOnly Day, IReadOnlyDictionary<string, string> Headers)> TransactionDaysAndHeadersReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => (DayFrom(request), request.Headers)),
   ];
+
+  /// <summary>
+  /// The headers of every request for this account's transactions the bank received, each page and each attempt, answered
+  /// or not, in the order received (<see cref="ArrivalLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s;
+  /// requests for anything else are left out (c018 design.md D10).
+  /// </summary>
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> TransactionRequestHeadersReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.Headers),
+  ];
+
+  /// <summary>
+  /// Every request for this account's transactions, each page and each attempt, is answered with this Enable Banking error
+  /// (<c>{ message, code, error, detail }</c>), the bank's own (c018 design.md D10), above every transactions answer the
+  /// test set up, before or after it; the balances are answered as set.
+  /// </summary>
+  public void AnswerTransactionsWithOwnError(HttpStatusCode status, string body) =>
+    _server.Given(SignedGet(TransactionsPath)).AtPriority(TRANSACTIONS_OWN_ERROR_PRIORITY).RespondWith(JsonAnswer(status, body));
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
@@ -393,6 +422,12 @@ public sealed class FakeBank : IDisposable {
       return next(context);
     }
   }
+
+  /// <summary>A transactions request's <c>date_from</c>; one not given the API reference's way, <c>yyyy-MM-dd</c>, fails the step.</summary>
+  private static DateOnly DayFrom(RequestArrived request) =>
+    DateOnly.TryParseExact(request.DateFrom, DATE, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day)
+      ? day
+      : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.");
 
   /// <summary>
   /// A request as it arrived: its path, its decoded <c>continuation_key</c> (none: <see langword="null"/>), its headers,

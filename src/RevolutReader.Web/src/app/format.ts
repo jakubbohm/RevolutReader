@@ -168,6 +168,14 @@ export function formatUpdated(readAt: Date, now: Date): string {
   return `Aktualizováno ${readAt.getDate()}.${NO_BREAK_SPACE}${readAt.getMonth() + 1}.${year} ${at}`;
 }
 
+/**
+ * `kolem 14:05`: a no-break space after "kolem", the time in the phone's local time (c018 design.md D6; the design
+ * system's approxTimeLabel).
+ */
+export function formatApproxTime(time: Date): string {
+  return `kolem${NO_BREAK_SPACE}${formatTime(time)}`;
+}
+
 /** The koruna value's size in whole crowns, as `6 960 Kč`. */
 function korunaValue(eurAmount: number, rate: number): string {
   return asOnScreen(wholeKoruna.format(wholeCrowns(eurAmount, rate)));

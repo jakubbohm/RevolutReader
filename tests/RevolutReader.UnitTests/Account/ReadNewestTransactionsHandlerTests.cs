@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,7 +21,8 @@ namespace RevolutReader.UnitTests.Account;
 /// <para>
 /// The bank is a hand-written stub of the port (<see cref="StubBankAccount"/>): it answers one fixed result whatever day
 /// it is asked from, records who each read was for, and can hold its answer. The store is
-/// <see cref="InMemoryTransactionStore"/>; the rates <see cref="FixedKorunaRates"/>; the clock a
+/// <see cref="InMemoryTransactionStore"/>; the first-seen moments <see cref="InMemoryFirstSeenStore"/>, through
+/// <see cref="FirstSeenTimes"/> (c018 design.md D1, D2, D8); the rates <see cref="FixedKorunaRates"/>; the clock a
 /// <see cref="FakeTimeProvider"/>. Today is 2026-11-20 unless a test says otherwise, so the window starts on 2026-10-20.
 /// What later rules decide is left alone here: where the live read starts (the stub ignores the day it is asked from),
 /// the shown details and the kind (every transaction's details are a line that does not repeat its counterparty, and its
@@ -48,6 +50,12 @@ public sealed class ReadNewestTransactionsHandlerTests {
 
   /// <summary>The rate the rates answer (<see cref="FixedKorunaRates"/>): the spec's 24.38 koruna per euro, for 2026-11-19.</summary>
   private static readonly KorunaRate _rate = new(24.38m, new DateOnly(2026, 11, 19));
+
+  /// <summary>The bank's reference of the spec's pending card payment (made up).</summary>
+  private const string REFERENCE = "e-c018-kavarna";
+
+  /// <summary>The spec's first read: 2026-11-20 13:05:12 UTC.</summary>
+  private static readonly DateTimeOffset _firstRead = new(2026, 11, 20, 13, 5, 12, TimeSpan.Zero);
 
   // The window
 
@@ -456,18 +464,115 @@ public sealed class ReadNewestTransactionsHandlerTests {
     (await store.ReadAll(CancellationToken.None)).ShouldBeEmpty("what the store keeps after the read");
   }
 
-  /// <summary>The handler under test; its rates answer <see cref="_rate"/> unless a test hands in its own.</summary>
+  // The first-seen time (c018 design.md D1, D2, D8): the spec's pending card payment of 8.90 EUR to "Kavárna Na Rohu" on
+  // 2026-11-20, with the bank's reference, first read at 13:05:12 UTC.
+
+  [Test]
+  public async Task The_newest_pages_transaction_carries_the_moment_its_first_read_recorded() {
+    InMemoryFirstSeenStore firstSeen = new();
+    StubBankAccount bank = new(Lists(PendingWithItsReference()));
+
+    TransactionPage page = await NewestPage(bank, new InMemoryTransactionStore(), new FakeTimeProvider(_firstRead), firstSeen: firstSeen);
+
+    IReadOnlyDictionary<string, DateTimeOffset> kept = await firstSeen.Read([REFERENCE], CancellationToken.None);
+    page.ShouldSatisfyAllConditions(
+      () => Written(page.Transactions.ShouldHaveSingleItem().SeenAt).ShouldBe("2026-11-20T13:05:12.0000000+00:00", "the page's seenAt"),
+      () => kept.Select(static moment => $"{moment.Key} {Written(moment.Value)}")
+        .ShouldBe([$"{REFERENCE} 2026-11-20T13:05:12.0000000+00:00"], "what the first-seen store keeps"));
+  }
+
+  /// <summary>
+  /// The bank holds its answer while the clock moves on from 13:05:12 to 13:05:15 UTC: the moment is when the answer came
+  /// (D1, <c>FirstSeenRule.ReadAt</c> after the answer), not when the read started.
+  /// </summary>
+  [Test]
+  public async Task The_moment_is_the_clock_after_the_banks_answer_not_before_the_read() {
+    FakeTimeProvider clock = new(_firstRead);
+    StubBankAccount bank = new(Lists(PendingWithItsReference()));
+    bank.HoldTheAnswer();
+
+    Task<BankResult<TransactionPage>> handling = Handler(bank, new InMemoryTransactionStore(), clock, firstSeen: new InMemoryFirstSeenStore())
+      .Handle(_lucieOnHerPhone, CancellationToken.None);
+
+    try {
+      bank.TriggersReceived.ShouldHaveSingleItem("the bank is read, and holds its answer");
+      clock.Advance(TimeSpan.FromSeconds(3));
+    }
+    finally {
+      bank.ReleaseTheAnswer();
+    }
+
+    TransactionPage page = (await handling).Value.ShouldBeOfType<TransactionPage>("the newest page, not a failure");
+    Written(page.Transactions.ShouldHaveSingleItem().SeenAt).ShouldBe("2026-11-20T13:05:15.0000000+00:00", "the page's seenAt");
+  }
+
+  /// <param name="failure">Each of the bank's three expected failures (c004 design.md D4).</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("bank unavailable")]
+  public async Task A_bank_failure_records_nothing_in_the_first_seen_store(string failure) {
+    BankResult<Transactions> answer = failure switch {
+      "access expired" => new BankAccessExpired(),
+      "rate limited" => new BankRateLimited(),
+      "bank unavailable" => new BankUnavailable(),
+      _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+    };
+    InMemoryFirstSeenStore firstSeen = new();
+
+    BankResult<TransactionPage> result = await Handler(new StubBankAccount(answer), new InMemoryTransactionStore(), new FakeTimeProvider(_firstRead), firstSeen: firstSeen)
+      .Handle(_lucieOnHerPhone, CancellationToken.None);
+
+    result.ShouldSatisfyAllConditions(
+      () => result.Value.ShouldBe(answer.Value, "the same failure"),
+      () => firstSeen.RecordRequests.ShouldBe(0, "records sent to the first-seen store"));
+  }
+
+  /// <summary>
+  /// The first-seen store fails: the store's own exception comes out of the handler, and no page is answered, so a later
+  /// read cannot record a later moment as the first (D8).
+  /// </summary>
+  [Test]
+  public async Task A_first_seen_store_failure_throws_and_the_page_is_not_answered() {
+    InvalidOperationException storeFailure = new("The first-seen store fails (made up).");
+    InMemoryFirstSeenStore firstSeen = new();
+    firstSeen.FailWith(storeFailure);
+    StubBankAccount bank = new(Lists(PendingWithItsReference()));
+
+    InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(
+      () => Handler(bank, new InMemoryTransactionStore(), new FakeTimeProvider(_firstRead), firstSeen: firstSeen).Handle(_lucieOnHerPhone, CancellationToken.None));
+
+    thrown.ShouldBeSameAs(storeFailure, "the first-seen store's own exception");
+  }
+
+  /// <summary>
+  /// The handler under test; its rates answer <see cref="_rate"/> unless a test hands in its own, and it records first
+  /// sightings through <see cref="FirstSeenTimes"/> on a new <see cref="InMemoryFirstSeenStore"/> unless a test hands in
+  /// its own.
+  /// </summary>
   private static ReadNewestTransactionsHandler Handler(
     IBankAccount bank,
     ITransactionStore store,
     TimeProvider? clock = null,
     ILogger<ReadNewestTransactionsHandler>? logger = null,
-    FixedKorunaRates? rates = null) =>
-    new(bank, store, rates ?? new FixedKorunaRates(_rate), clock ?? new FakeTimeProvider(_today), logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
+    FixedKorunaRates? rates = null,
+    IFirstSeenStore? firstSeen = null) =>
+    new(
+      bank,
+      store,
+      new FirstSeenTimes(firstSeen ?? new InMemoryFirstSeenStore()),
+      rates ?? new FixedKorunaRates(_rate),
+      clock ?? new FakeTimeProvider(_today),
+      logger ?? NullLogger<ReadNewestTransactionsHandler>.Instance);
 
   /// <summary>The newest page for <see cref="_lucieOnHerPhone"/>; a failure fails the test.</summary>
-  private static async Task<TransactionPage> NewestPage(StubBankAccount bank, ITransactionStore store, TimeProvider? clock = null, ILogger<ReadNewestTransactionsHandler>? logger = null) {
-    BankResult<TransactionPage> result = await Handler(bank, store, clock, logger).Handle(_lucieOnHerPhone, CancellationToken.None);
+  private static async Task<TransactionPage> NewestPage(
+    StubBankAccount bank,
+    ITransactionStore store,
+    TimeProvider? clock = null,
+    ILogger<ReadNewestTransactionsHandler>? logger = null,
+    IFirstSeenStore? firstSeen = null) {
+    BankResult<TransactionPage> result = await Handler(bank, store, clock, logger, firstSeen: firstSeen).Handle(_lucieOnHerPhone, CancellationToken.None);
 
     return result.Value.ShouldBeOfType<TransactionPage>("the newest page, not a failure");
   }
@@ -499,6 +604,12 @@ public sealed class ReadNewestTransactionsHandlerTests {
     Counterparty: "Kavárna Na Rohu",
     PaymentDetails: ["Praha 2"],
     TypeCode: "CARD_PAYMENT");
+
+  /// <summary>The spec's pending card payment of 8.90 EUR to "Kavárna Na Rohu" on 2026-11-20, with the bank's reference (<see cref="REFERENCE"/>).</summary>
+  private static BankTransaction PendingWithItsReference() => Pending(_november20, -8.90m) with { Reference = REFERENCE };
+
+  /// <summary>A moment written out with its offset and every fraction of a second (<c>O</c>), so both count; <see langword="null"/> as itself.</summary>
+  private static string? Written(DateTimeOffset? moment) => moment?.ToString("O", CultureInfo.InvariantCulture);
 
   /// <summary>A settled payment the store already keeps, on <paramref name="date"/>, first in its day.</summary>
   private static KeptTransaction Kept(DateOnly date, string reference) =>

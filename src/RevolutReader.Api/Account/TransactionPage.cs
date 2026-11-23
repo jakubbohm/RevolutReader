@@ -8,6 +8,7 @@ namespace RevolutReader.Api.Account;
 /// <param name="Counterparty">The payee for money spent, the payer for money received; <see langword="null"/> when missing or blank.</param>
 /// <param name="Details">The bank's text as the app shows it.</param>
 /// <param name="Kind">The kind, from the bank's type code.</param>
+/// <param name="SeenAt">When the app first got it from the bank, when that was on its own day (c018 design.md D1, D2, D4); else <see langword="null"/>.</param>
 public sealed record ShownTransaction(
   DateOnly Date,
   decimal Amount,
@@ -15,7 +16,8 @@ public sealed record ShownTransaction(
   bool Pending,
   string? Counterparty,
   IReadOnlyList<string> Details,
-  TransactionKind Kind) {
+  TransactionKind Kind,
+  DateTimeOffset? SeenAt) {
   /// <summary>
   /// A transaction from the bank or the store as the app shows it, the newest page's or an older one's: no counterparty
   /// when the bank's is missing, empty or white space only (<see cref="TransactionText.Counterparty"/>; the store keeps
@@ -29,14 +31,16 @@ public sealed record ShownTransaction(
     bool pending,
     string? counterparty,
     IReadOnlyList<string> paymentDetails,
-    string? typeCode) => new(
+    string? typeCode,
+    DateTimeOffset? seenAt) => new(
       date,
       amount,
       currency,
       pending,
       TransactionText.Counterparty(counterparty),
       TransactionText.Details(counterparty, paymentDetails),
-      TransactionKinds.Of(typeCode));
+      TransactionKinds.Of(typeCode),
+      seenAt);
 }
 
 /// <summary>A page of transactions as the app shows it (c010 design.md D10).</summary>

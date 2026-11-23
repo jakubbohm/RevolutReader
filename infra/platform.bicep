@@ -1,6 +1,6 @@
 // The shared infrastructure (c005 design.md D1, D13): the log workspace with Application Insights on
 // it, Key Vault, the app's identity and its roles, the storage account (C6) with its tables (C7b,
-// C8a) and the Container Apps environment. A feature PR changes this file only when it adds something shared. Everything here
+// C8a, C9a, c017, c018) and the Container Apps environment. A feature PR changes this file only when it adds something shared. Everything here
 // is managed by the deployment stack: a resource deleted from this file is deleted from Azure on the
 // next deploy.
 
@@ -235,13 +235,23 @@ resource korunaRatesTable 'Microsoft.Storage/storageAccounts/tableServices/table
   name: 'korunarates'
 }
 
+// The first-seen moments (c018 design.md D3): one row per timed transaction, the SHA-256 of the
+// bank's reference and the moment the app first got it, no amount, name or text. Removing this table
+// from the stack deletes it, and only the times are lost (c018 design.md § Migration plan, step 4).
+// Its name is the app's default FirstSeenTimes:TableName.
+resource firstSeenTimesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'firstseentimes'
+}
+
 // Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
 // tables, and creates its table when it is missing on first use. On the account rather than the one
 // table, because no doc says a role on the one table allows that creation; the account scope does.
 // It reaches the account's tables and nothing else (no blobs), and the app is their only user; it
-// covers C8a's, C9a's and c017's tables above too, so none adds a role (c010 design.md D11, the user,
-// 2026-11-09; c011 design.md D12; c014 design.md D17; c017 design.md § Migration plan). One of the
-// roles the deploy identity may assign (docs/operations/azure-prerequisites.md, step 5).
+// covers C8a's, C9a's, c017's and c018's tables above too, so none adds a role (c010 design.md D11,
+// the user, 2026-11-09; c011 design.md D12; c014 design.md D17; c017 design.md § Migration plan;
+// c018 design.md D3). One of the roles the deploy identity may assign
+// (docs/operations/azure-prerequisites.md, step 5).
 var storageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 
 resource appKeepsTransactions 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

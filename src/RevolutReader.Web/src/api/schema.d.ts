@@ -251,6 +251,11 @@ export interface components {
             details: components["schemas"]["SystemCollectionsGenericIReadOnlyListOfSystemString"];
             /** @description The kind of transaction, from the bank's type code */
             kind: components["schemas"]["RevolutReaderApiAccountTransactionKind"];
+            /**
+             * Format: date-time
+             * @description When the app first got the transaction from the bank, in UTC to the second, when that was on the transaction's own day; null otherwise
+             */
+            seenAt: null | string;
         };
         /** @description A push's arrival on this device, named by the read time its balance carried */
         RevolutReaderApiPushArrivalReportRequest: {

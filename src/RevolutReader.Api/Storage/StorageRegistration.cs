@@ -7,7 +7,8 @@ namespace RevolutReader.Api.Storage;
 
 /// <summary>
 /// The stores' registrations on Table Storage: the transactions (c010 design.md D11), the push devices (c011 design.md
-/// D11), the account check's balances (c014 design.md D4) and the kept koruna rate (c017 design.md D2).
+/// D11), the account check's balances (c014 design.md D4), the kept koruna rate (c017 design.md D2) and the first-seen
+/// moments (c018 design.md D3).
 /// </summary>
 public static class StorageRegistration {
   /// <summary>The connection's name, read from <c>ConnectionStrings:tables</c>.</summary>
@@ -97,6 +98,25 @@ public static class StorageRegistration {
       .ValidateOnStart();
 
     builder.Services.AddSingleton<IKorunaRateStore, TableKorunaRateStore>();
+
+    return builder;
+  }
+
+  /// <summary>
+  /// The first-seen moments' store (c018 design.md D3, D9): binds <see cref="FirstSeenStoreOptions"/> from its section,
+  /// validated on start, and <see cref="TableFirstSeenStore"/> as <see cref="IFirstSeenStore"/>, a singleton, so its table
+  /// is created once per process. Like <see cref="AddKorunaRateStore"/>, it uses the tables client
+  /// <see cref="AddTransactionStore"/> registers, so Program.cs calls it after that one.
+  /// </summary>
+  public static IHostApplicationBuilder AddFirstSeenStore(this IHostApplicationBuilder builder) {
+    ArgumentNullException.ThrowIfNull(builder);
+
+    builder.Services.AddOptions<FirstSeenStoreOptions>()
+      .BindConfiguration(FirstSeenStoreOptions.SECTION)
+      .ValidateDataAnnotations()
+      .ValidateOnStart();
+
+    builder.Services.AddSingleton<IFirstSeenStore, TableFirstSeenStore>();
 
     return builder;
   }
