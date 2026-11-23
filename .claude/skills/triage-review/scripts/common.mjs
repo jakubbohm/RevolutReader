@@ -213,6 +213,11 @@ export function lastSummaryTime(issueComments) {
   return latest;
 }
 
+// Will return the issue comment whose first line equals the body's first line (the round's heading), else null.
+export function summaryPosted(issueComments, body) {
+  throw new Error("not implemented");
+}
+
 // This repository's pull requests retired because their text made GitHub post backlinks on other repositories'
 // issues. A mention of one, in any form GitHub links, puts a link to the mentioning text on its page, which stays even
 // after that text is deleted, so they are named in words only (docs/software-factory/lessons.md R-102).

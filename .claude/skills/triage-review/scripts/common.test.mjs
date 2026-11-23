@@ -1,7 +1,7 @@
 // Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
 // submitted, a text's first line, the lines of a diff a comment can attach to, how a chat review's findings become
-// review comments to post, when the PR's last triage summary was posted, and which references in a text would post
-// a backlink outside the repository.
+// review comments to post, when the PR's last triage summary was posted and whether a round's summary already is,
+// and which references in a text would post a backlink outside the repository and the refusal that names them.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
 // REST API's, and every other repository named is made up.
 //
@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  backlinkRefusal,
   backlinkRisks,
   findingsFrom,
   firstLine,
@@ -17,6 +18,7 @@ import {
   planPosts,
   ranges,
   submissionTimes,
+  summaryPosted,
 } from "./common.mjs";
 
 // A made-up top-level review comment as the REST API returns it; a test overrides what it is about.
@@ -39,6 +41,15 @@ function comment(id, overrides = {}) {
 
 // A made-up submission time: 2026-11-20 at `hour` o'clock UTC.
 const at = (hour) => `2026-11-20T${String(hour).padStart(2, "0")}:00:00Z`;
+
+// A made-up PR comment (an issue comment) as the REST API returns it.
+const issueComment = (id, createdAt, body) => ({
+  id,
+  body,
+  created_at: createdAt,
+  user: { login: "a-reviewer" },
+  html_url: `https://github.com/example/repo/pull/1#issuecomment-${id}`,
+});
 
 // Each top-level comment in its own review, submitted in the order of the comments' ids: the tests whose subject is
 // not the submission time.
@@ -719,15 +730,6 @@ describe("planPosts", () => {
 });
 
 describe("lastSummaryTime", () => {
-  // A made-up PR comment (an issue comment) as the REST API returns it.
-  const issueComment = (id, createdAt, body) => ({
-    id,
-    body,
-    created_at: createdAt,
-    user: { login: "a-reviewer" },
-    html_url: `https://github.com/example/repo/pull/1#issuecomment-${id}`,
-  });
-
   test("gives the time of the latest triage summary, whatever the comments' order", () => {
     const comments = [
       issueComment(5003, at(14), "## Review triage, round 2\n\n| # | Finding | Outcome |"),
@@ -761,6 +763,45 @@ describe("lastSummaryTime", () => {
   test("gives no time when the PR has no triage summary", () => {
     assert.equal(lastSummaryTime([]), null);
     assert.equal(lastSummaryTime([issueComment(5031, at(9), "Looks good so far.")]), null);
+  });
+});
+
+describe("summaryPosted", () => {
+  const roundOne = "## Review triage\n\n| # | Finding | Outcome |";
+  const roundTwo = "## Review triage, round 2\n\n| # | Finding | Outcome |";
+
+  test("finds the summary already posted for the round by its heading", () => {
+    const comments = [
+      issueComment(6001, at(9), roundOne),
+      issueComment(6002, at(10), "A question about round one."),
+      issueComment(6003, at(12), roundTwo),
+    ];
+
+    const posted = summaryPosted(comments, "## Review triage, round 2\n\n| # | Finding | Outcome |\n| 7 | Other |");
+
+    assert.deepEqual(posted, comments[2]);
+  });
+
+  test("finds it whatever line ending follows the heading", () => {
+    const crlf = [issueComment(6011, at(9), "## Review triage, round 3\r\n\r\n| # | Finding | Outcome |")];
+    const lf = [issueComment(6012, at(9), "## Review triage, round 3\n\n| # | Finding | Outcome |")];
+
+    assert.equal(summaryPosted(crlf, "## Review triage, round 3\n\n| # |")?.id, 6011);
+    assert.equal(summaryPosted(lf, "## Review triage, round 3\r\n\r\n| # |")?.id, 6012);
+  });
+
+  test("does not take the first round's summary for a later round's, nor a later round's for the first's", () => {
+    assert.equal(summaryPosted([issueComment(6021, at(9), roundOne)], roundTwo), null);
+    assert.equal(summaryPosted([issueComment(6022, at(9), roundTwo)], roundOne), null);
+  });
+
+  test("finds none when no comment starts with the round's heading", () => {
+    assert.equal(summaryPosted([], roundTwo), null);
+    const comments = [
+      issueComment(6031, at(9), "Looks good so far."),
+      issueComment(6032, at(10), "Before the next round:\n## Review triage, round 2\nwill follow."),
+    ];
+    assert.equal(summaryPosted(comments, roundTwo), null);
   });
 });
 
@@ -881,6 +922,51 @@ describe("backlinkRisks", () => {
   test("finds nothing in a text without references", () => {
     assertClean("No references here.\nJust text, a path like docs/a.md and a heading anchor #top.");
     assertClean("");
+  });
+
+  test("finds the retired pull request named as GH- and its number, in either case", () => {
+    assertFinds("See GH-94, and gh-94 too.", ["GH-94", "gh-94"]);
+  });
+
+  test("takes neither another number nor this repository's other issues named as GH-", () => {
+    assertClean("GH-940 and GH-67 are fine.");
+  });
+});
+
+describe("backlinkRefusal", () => {
+  const ownRepo = "jakubbohm/RevolutReader";
+  const linesOf = (message) => message.split(/\r?\n/);
+
+  test("gives no refusal when every text is clean", () => {
+    const texts = [
+      { label: "finding 1 (docs/a.md)", text: "Closes #67." },
+      { label: "finding 2 (src/b.mjs)", text: "Upstream: https://redirect.github.com/example-org/widget/issues/12" },
+    ];
+
+    assert.equal(backlinkRefusal(texts, ownRepo), null);
+  });
+
+  test("names each reference with the label of its text, and no clean text", () => {
+    const texts = [
+      { label: "finding 1 (docs/a.md)", text: "Clean, and part of #67." },
+      { label: "finding 2 (src/b.mjs)", text: "Upstream example-org/widget#12, as in #94." },
+      { label: "finding 3 (docs/c.md)", text: "See https://github.com/other.user/some-lib/pull/7." },
+    ];
+
+    const message = backlinkRefusal(texts, ownRepo);
+
+    assert.equal(typeof message, "string");
+    const named = (label, reference) => linesOf(message).some((l) => l.includes(label) && l.includes(reference));
+    assert.ok(named("finding 2 (src/b.mjs)", "example-org/widget#12"), message);
+    assert.ok(named("finding 2 (src/b.mjs)", "#94"), message);
+    assert.ok(named("finding 3 (docs/c.md)", "github.com/other.user/some-lib/pull/7"), message);
+    assert.ok(!message.includes("finding 1 (docs/a.md)"), message);
+  });
+
+  test("says how to rewrite a reference: through redirect.github.com", () => {
+    const message = backlinkRefusal([{ label: "the reply", text: "Upstream example-org/widget#12." }], ownRepo);
+
+    assert.ok(message.includes("redirect.github.com"), message);
   });
 });
 
