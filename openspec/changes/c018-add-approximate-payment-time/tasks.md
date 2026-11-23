@@ -274,8 +274,8 @@ Conventions for the run:
 
 ## 37. [close] Slice 13 — A payment seen after midnight is listed under the next day
 
-- [ ] 37.1 The scenario's test passes. Verify: green, including account-transactions / A payment seen after midnight is listed under the next day
-- [ ] 37.2 Docs: `testing.md`, the frontend's async time zone (`inTimeZoneWhile`). Verify: it names design.md D10
+- [x] 37.1 The scenario's test passes. Verify: green, including account-transactions / A payment seen after midnight is listed under the next day
+- [x] 37.2 Docs: `testing.md`, the frontend's async time zone (`inTimeZoneWhile`). Verify: it names design.md D10
 
 ## 38. [unit] Slice 14 — The time in the sheet
 
