@@ -60,25 +60,25 @@ Conventions for the run:
 
 ## 2. [unit] Slice 1 — The first-seen rule, the happy path
 
-- [ ] 2.1 The moment a read got its answer is the clock at offset zero, cut to the whole second
-- [ ] 2.2 A read records a pending transaction with a reference dated the read's UTC day, at the read's moment
-- [ ] 2.3 A kept moment on the transaction's own UTC day is answered
+- [x] 2.1 The moment a read got its answer is the clock at offset zero, cut to the whole second
+- [x] 2.2 A read records a pending transaction with a reference dated the read's UTC day, at the read's moment
+- [x] 2.3 A kept moment on the transaction's own UTC day is answered
 
 ## 3. [unit] Slice 1 — The newest page carries the first-seen time
 
-- [ ] 3.1 The newest page's transaction carries the moment its first read recorded (`InMemoryFirstSeenStore`)
-- [ ] 3.2 The moment is the clock after the bank's answer, not before the read (a held bank fake, the clock moved while it is held)
+- [x] 3.1 The newest page's transaction carries the moment its first read recorded (`InMemoryFirstSeenStore`)
+- [x] 3.2 The moment is the clock after the bank's answer, not before the read (a held bank fake, the clock moved while it is held)
 - [x] 3.3 A bank failure records nothing
-- [ ] 3.4 A first-seen store failure throws, and the page is not answered (design.md D8)
+- [x] 3.4 A first-seen store failure throws, and the page is not answered (design.md D8)
 
 ## 4. [integration] Slice 1 — IFirstSeenStore
 
-- [ ] 4.1 A reference never recorded reads as absent
-- [ ] 4.2 A recorded moment reads back exactly, in UTC, to the second, and `Record` answers it
-- [ ] 4.3 Only the references asked for are answered
-- [ ] 4.4 A reference with `/ \ # ?` and `%` in it is recorded and read back
-- [ ] 4.5 Nothing to read or record sends no request (the fake's counts; the adapter's own test)
-- [ ] 4.6 The table is created when missing (Table adapter); a row it cannot read is an `InvalidOperationException` naming the column, never its value (adapter edge case, `Wiring/Storage`)
+- [x] 4.1 A reference never recorded reads as absent
+- [x] 4.2 A recorded moment reads back exactly, in UTC, to the second, and `Record` answers it
+- [x] 4.3 Only the references asked for are answered
+- [x] 4.4 A reference with `/ \ # ?` and `%` in it is recorded and read back
+- [x] 4.5 Nothing to read or record sends no request (the fake's counts; the adapter's own test)
+- [x] 4.6 The table is created when missing (Table adapter); a row it cannot read is an `InvalidOperationException` naming the column, never its value (adapter edge case, `Wiring/Storage`)
 
 ## 5. [wiring] Slice 1 — The store, the field and the contract
 
