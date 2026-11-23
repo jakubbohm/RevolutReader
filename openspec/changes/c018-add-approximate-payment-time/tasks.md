@@ -217,12 +217,12 @@ Conventions for the run:
 
 ## 27. [unit] Slice 9 — The check records first sightings
 
-- [ ] 27.1 The check records the read's sightings through `FirstSeenTimes`, at the clock's moment after the bank's answer
-- [ ] 27.2 A transaction the check already timed keeps its moment when the check reads it again
+- [x] 27.1 The check records the read's sightings through `FirstSeenTimes`, at the clock's moment after the bank's answer
+- [x] 27.2 A transaction the check already timed keeps its moment when the check reads it again
 
 ## 28. [wiring] Slice 9 — Recording in the check
 
-- [ ] 28.1 `RecordFirstSeenHandler` records through `FirstSeenTimes.Record` (D5). Verify: group 27 green
+- [x] 28.1 `RecordFirstSeenHandler` records through `FirstSeenTimes.Record` (D5). Verify: group 27 green
 
 ## 29. [close] Slice 9 — A payment a check reads first carries the check's time
 
