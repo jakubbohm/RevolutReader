@@ -290,7 +290,7 @@ Conventions for the run:
 
 ## 40. [close] Slice 14 — The details show the approximate time after the date
 
-- [ ] 40.1 The scenario's test passes. Verify: green, including account-transactions / The details show the approximate time after the date
+- [x] 40.1 The scenario's test passes. Verify: green, including account-transactions / The details show the approximate time after the date
 
 ## 41. [close] Slice 15 — The details of a payment seen after midnight show the next day
 
