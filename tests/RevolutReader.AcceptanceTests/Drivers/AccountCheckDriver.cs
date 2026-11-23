@@ -27,7 +27,9 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// probe), no body, no fetch metadata (<c>Sec-Fetch-*</c>) and no <c>Origin</c>. A call naming no browser leaves out
 /// <c>User-Agent</c> only. A bank the test set nothing up for answers <see cref="BankDsl.DEFAULT_BALANCE"/> EUR, as
 /// <see cref="BalanceDriver"/> does: a fallback below every answer the test sets up, so a scenario about the phone's
-/// headers needs no balance.</item>
+/// headers needs no balance. Since c018 the check also reads the transactions (c018 design.md D5): a bank the test set no
+/// transactions up for lists none, an empty page for any <c>date_from</c>, as <see cref="TransactionsDriver"/> gives it and
+/// the real bank answers, at the same lowest priority, so the scenario's own list or error wins.</item>
 /// <item><b>Exact shapes</b>, any other answer failing the step, naming it: 200 <c>application/json</c> with exactly
 /// <c>changed</c>, a JSON boolean (<see cref="CheckAnswer.BalanceChanged"/>, <see cref="CheckAnswer.NothingChanged"/>); a
 /// problem as <see cref="BalanceDriver"/> reads one, with the status its case belongs to by the driver's own table:
@@ -121,8 +123,8 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// <summary>The wrong key and the phone <see cref="CheckWithAWrongKey"/> sent last; <see langword="null"/> before it sent one.</summary>
   private (string WrongKey, UserAtDevice Phone)? _lastWrongKeyCheck;
 
-  /// <summary>Whether the fake bank already has the default balance below the test's own answers.</summary>
-  private bool _defaultBalanceGiven;
+  /// <summary>Whether the fake bank already has the default balance and the empty transactions page below the test's own answers.</summary>
+  private bool _defaultsGiven;
 
   /// <summary>
   /// The app copy's clock (<see cref="FakeMicrosoft.Clock"/>), read as it is: a property may not throw
@@ -217,7 +219,7 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
     ArgumentNullException.ThrowIfNull(phone);
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(checks);
 
-    AnswerTheDefaultBalanceBelowEverything();
+    AnswerTheDefaultsBelowEverything();
     Bank.HoldTheNextBalanceAnswer();
 
     Task<CheckAnswer> first = SendCheck(phone.IpAddress, phone.Browser);
@@ -234,7 +236,7 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   public async Task CheckThenStopWaitingWhileTheBankReads(UserAtDevice phone) {
     ArgumentNullException.ThrowIfNull(phone);
 
-    AnswerTheDefaultBalanceBelowEverything();
+    AnswerTheDefaultsBelowEverything();
     Bank.HoldTheNextBalanceAnswer();
 
     try {
@@ -259,7 +261,7 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// <paramref name="cancellationToken"/> is cancelled, as a phone that gives up.
   /// </summary>
   private async Task<CheckAnswer> SendCheck(string ipAddress, string? browserName, CancellationToken cancellationToken = default) {
-    AnswerTheDefaultBalanceBelowEverything();
+    AnswerTheDefaultsBelowEverything();
 
     using HttpRequestMessage request = CheckRequest(CHECK, Key, ipAddress, browserName);
     using HttpResponseMessage response = await Phone.SendAsync(request, cancellationToken);
@@ -340,14 +342,18 @@ public sealed class AccountCheckDriver(HttpClient anonymous, FakeBank bank, Fake
   /// <summary>
   /// Once per test, before its first check: the default balance (<see cref="BankDsl.DEFAULT_BALANCE"/> EUR) as the fake
   /// bank's fallback, below every answer the test sets up (<see cref="FakeBank.AnswerBalancesByDefault"/>), as
-  /// <see cref="BalanceDriver"/> gives it.
+  /// <see cref="BalanceDriver"/> gives it; and, for the check's transactions read (c018 design.md D5), an empty page for
+  /// any <c>date_from</c> as the fake bank's fallback, below every answer the test sets up
+  /// (<see cref="FakeBank.AnswerTransactionsForAnyDayByDefault"/>), as <see cref="TransactionsDriver"/> gives it: the
+  /// same answer under the same id, so whichever driver sets it first, it is one fallback.
   /// </summary>
-  private void AnswerTheDefaultBalanceBelowEverything() {
-    if (_defaultBalanceGiven)
+  private void AnswerTheDefaultsBelowEverything() {
+    if (_defaultsGiven)
       return;
 
     Bank.AnswerBalancesByDefault(BankDriver.BalancesJson(BankDsl.DEFAULT_BALANCE, TransactionAtBank.DEFAULT_CURRENCY));
-    _defaultBalanceGiven = true;
+    Bank.AnswerTransactionsForAnyDayByDefault(BankDriver.LastPageOf([]));
+    _defaultsGiven = true;
   }
 
   /// <summary>

@@ -244,6 +244,14 @@ public sealed class FakeBank : IDisposable {
         : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.")),
   ];
 
+  /// <summary>
+  /// Every request for this account's transactions, each page and each attempt, is answered with this Enable Banking error
+  /// (<c>{ message, code, error, detail }</c>), the bank's own (c018 design.md D10), above every transactions answer the
+  /// test set up, before or after it; the balances are answered as set.
+  /// </summary>
+  public void AnswerTransactionsWithOwnError(HttpStatusCode status, string body) =>
+    throw new NotImplementedException("c018 tasks.md 1.13: every transactions request answered with the bank's own error, filled in wiring (slice 11).");
+
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
 

@@ -28,6 +28,7 @@ import {
   transaction,
   transactionsPage,
 } from "../test/server";
+import { inTimeZoneWhile } from "../test/timeZone";
 
 // Amounts are written as the spec writes them: U+2212 for a minus sign. Spaces are matched as any whitespace, the
 // no-break spaces the app writes inside amounts and dates among them, as Testing Library's text matching does.
@@ -703,6 +704,102 @@ scenario(
       row("Pekárna U Lípy"),
     );
   },
+);
+
+// A transaction's approximate time (c018): the phone's time zone decides the day and the time shown, so these run on a
+// phone set to Prague time, their dates made inside the zone.
+
+/** The phone's time zone in the scenarios of the approximate time (c018 design.md D10). */
+const PRAGUE = "Europe/Prague";
+
+scenario(
+  "account-transactions",
+  "A payment seen after midnight is listed under the next day",
+  () =>
+    inTimeZoneWhile(PRAGUE, async () => {
+      startTestClock(new Date(2026, 10, 17, 10, 0));
+      renderApp("iPhone Home Screen", {
+        whoIsSignedIn: LUCIE,
+        balance: balance(286.4),
+        transactions: transactionsPage([
+          transaction("card", -3.8, "2026-11-15"),
+          transaction("transfer", 30, "2026-11-14", {
+            counterparty: "Táta",
+            seenAt: "2026-11-14T23:20:00+00:00",
+          }),
+        ]),
+      });
+
+      await timePasses(0);
+
+      const sunday = day("neděle 15. listopadu");
+      const cardPayment = row("−3,80 €");
+      const transfer = row("Táta");
+      expect(sunday).toContainElement(cardPayment);
+      expect(sunday).toContainElement(transfer);
+      expectInOrder(cardPayment, transfer);
+      expect(dayHeadings()).not.toContain("sobota 14. listopadu");
+      expect(sunday).toHaveTextContent("Příchozí 30,00 €");
+      expect(sunday).toHaveTextContent("Odchozí 3,80 €");
+    }),
+);
+
+scenario(
+  "account-transactions",
+  "The details show the approximate time after the date",
+  () =>
+    inTimeZoneWhile(PRAGUE, async () => {
+      startTestClock(new Date(2026, 10, 20, 10, 0));
+      renderApp("iPhone Home Screen", {
+        whoIsSignedIn: LUCIE,
+        balance: balance(286.4),
+        transactions: transactionsPage([
+          transaction("card", -12.3, "2026-11-18", {
+            counterparty: "Pekárna U Lípy",
+            seenAt: "2026-11-18T13:05:12+00:00",
+          }),
+        ]),
+      });
+      const user = userOnTheTestClock();
+      await timePasses(0);
+
+      await user.click(row("Pekárna U Lípy"));
+      await timePasses(0);
+
+      const details = screen.getByRole("dialog", { name: "Pekárna U Lípy" });
+      expect(
+        within(details).getByText("18. 11. 2026, kolem 14:05"),
+      ).toBeInTheDocument();
+    }),
+);
+
+scenario(
+  "account-transactions",
+  "The details of a payment seen after midnight show the next day",
+  () =>
+    inTimeZoneWhile(PRAGUE, async () => {
+      startTestClock(new Date(2026, 10, 20, 10, 0));
+      renderApp("iPhone Home Screen", {
+        whoIsSignedIn: LUCIE,
+        balance: balance(286.4),
+        transactions: transactionsPage([
+          transaction("transfer", 30, "2026-11-14", {
+            counterparty: "Táta",
+            seenAt: "2026-11-14T23:20:00+00:00",
+          }),
+        ]),
+      });
+      const user = userOnTheTestClock();
+      await timePasses(0);
+
+      await user.click(row("Táta"));
+      await timePasses(0);
+
+      const details = screen.getByRole("dialog", { name: "Táta" });
+      expect(
+        within(details).getByText("15. 11. 2026, kolem 0:20"),
+      ).toBeInTheDocument();
+    }),
 );
 
 /** Text as Testing Library compares it: every run of whitespace, a no-break space among them, as one space; trimmed. */

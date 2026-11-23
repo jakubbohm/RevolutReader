@@ -32,7 +32,7 @@ Conventions for the run:
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 Foundation (API), the test kit of design.md D10 and § Public API sketch, the test-writer's:
+- [x] 1.1 Foundation (API), the test kit of design.md D10 and § Public API sketch, the test-writer's:
   - `TransactionsDsl.TodayIsAt` and `TimeIs`, `ScenarioCalendar.TimeIs` and `FromClock(DateTimeOffset)`;
   - `TransactionSeenInApi.SeenAt` and the factories' `seenAt`;
   - the driver reads `seenAt` (an instant at offset zero with whole seconds, or null, shifted back by the calendar); for now a transaction without the member reads as null, so seven members still pass;
@@ -41,22 +41,22 @@ Conventions for the run:
   - stubs throw `NotImplementedException`.
 
   Verify: the build passes; every acceptance test that was green stays green
-- [ ] 1.2 Foundation (frontend): `inTimeZoneWhile` in `src/test/timeZone.ts` (design.md § Public API sketch), with its own test next to it. Verify: its test passes; the frontend checks are clean
-- [ ] 1.3 Acceptance: account-transactions / A transaction first read on its own day carries the time it was first read
-- [ ] 1.4 Acceptance: account-transactions / A later read keeps the first time
-- [ ] 1.5 Acceptance: account-transactions / The time stays when the payment settles
-- [ ] 1.6 Acceptance: account-transactions / A transaction first read after its own day carries no time
-- [ ] 1.7 Acceptance: account-transactions / A transaction without the bank's reference carries no time
-- [ ] 1.8 Acceptance: account-transactions / A kept transaction on an older page carries its time
-- [ ] 1.9 Acceptance: account-check / The bank sees the phone's address and browser name (modified: a balance request and a transactions request, each with the phone's headers)
-- [ ] 1.10 Acceptance: account-check / The check reads the transactions from yesterday on
-- [ ] 1.11 Acceptance: account-check / A payment a check reads first carries the check's time
-- [ ] 1.12 Acceptance: account-check / Transactions a check reads are not kept
-- [ ] 1.13 Acceptance: account-check / A failed transactions read leaves the check's notification and answer as they were
-- [ ] 1.14 Acceptance: account-check / A burst of checks sends one notification and reads the bank at most twice (modified: two balance requests and two transactions requests)
-- [ ] 1.15 Acceptance: account-transactions / A payment seen after midnight is listed under the next day (frontend)
-- [ ] 1.16 Acceptance: account-transactions / The details show the approximate time after the date (frontend)
-- [ ] 1.17 Acceptance: account-transactions / The details of a payment seen after midnight show the next day (frontend)
+- [x] 1.2 Foundation (frontend): `inTimeZoneWhile` in `src/test/timeZone.ts` (design.md § Public API sketch), with its own test next to it. Verify: its test passes; the frontend checks are clean
+- [x] 1.3 Acceptance: account-transactions / A transaction first read on its own day carries the time it was first read
+- [x] 1.4 Acceptance: account-transactions / A later read keeps the first time
+- [x] 1.5 Acceptance: account-transactions / The time stays when the payment settles
+- [x] 1.6 Acceptance: account-transactions / A transaction first read after its own day carries no time
+- [x] 1.7 Acceptance: account-transactions / A transaction without the bank's reference carries no time
+- [x] 1.8 Acceptance: account-transactions / A kept transaction on an older page carries its time
+- [x] 1.9 Acceptance: account-check / The bank sees the phone's address and browser name (modified: a balance request and a transactions request, each with the phone's headers)
+- [x] 1.10 Acceptance: account-check / The check reads the transactions from yesterday on
+- [x] 1.11 Acceptance: account-check / A payment a check reads first carries the check's time
+- [x] 1.12 Acceptance: account-check / Transactions a check reads are not kept
+- [x] 1.13 Acceptance: account-check / A failed transactions read leaves the check's notification and answer as they were
+- [x] 1.14 Acceptance: account-check / A burst of checks sends one notification and reads the bank at most twice (modified: two balance requests and two transactions requests)
+- [x] 1.15 Acceptance: account-transactions / A payment seen after midnight is listed under the next day (frontend)
+- [x] 1.16 Acceptance: account-transactions / The details show the approximate time after the date (frontend)
+- [x] 1.17 Acceptance: account-transactions / The details of a payment seen after midnight show the next day (frontend)
 
 ## 2. [unit] Slice 1 — The first-seen rule, the happy path
 

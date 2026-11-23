@@ -10,7 +10,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// in days from it. The rules count days only, so a scenario's claims hold unchanged.
 /// <list type="bullet">
 /// <item><see cref="ToClock"/> shifts a scenario's date onto the clock (what the driver writes to the fake bank, the
-/// store and the API's query); <see cref="FromClock"/> shifts a date the app or the fake bank gave back;
+/// store and the API's query); <see cref="FromClock(DateOnly)"/> shifts a date the app or the fake bank gave back;
 /// <see cref="ClockToday"/> is the scenario's today on the clock, as it is when asked.</item>
 /// <item><see cref="PassDays"/> moves the clock by whole days, and the scenario's today with it: the mapping keeps its
 /// distance, so a date shifts the same before and after.</item>
@@ -18,6 +18,8 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// calendar was made with.</item>
 /// <item><see cref="TodayIsAt"/> names it on a weekday at a time of day, for a rule that depends on the weekday (c017
 /// design.md D10, the koruna rate's asking): the clock moves to the coming day of that weekday first.</item>
+/// <item><see cref="TimeIs"/> moves the clock forward to a later time of the same day (c018 design.md D10), and
+/// <see cref="FromClock(DateTimeOffset)"/> shifts back an instant the app gave, as a date.</item>
 /// </list>
 /// The mapping is a fixed number of days, set when the scenario's today is named: whatever moves the clock (this
 /// calendar, or <c>SignInDsl.DaysPass</c>), the scenario's today moves with it, and a date already written stays the
@@ -59,11 +61,32 @@ public sealed class ScenarioCalendar(DateOnly scenarioToday, FakeTimeProvider cl
     _daysAhead = DaysAhead(scenarioDay, _clock);
   }
 
+  /// <summary>
+  /// The clock moves forward to <paramref name="utcTime"/> UTC on the scenario's today (c018 design.md D10), which stays
+  /// the same day; the mapping is unchanged. Exactly at it, the clock stays; a time already past throws, as the clock
+  /// only moves forward.
+  /// </summary>
+  public void TimeIs(TimeOnly utcTime) {
+    DateTimeOffset now = _clock.GetUtcNow();
+    DateTimeOffset then = new(ClockToday.ToDateTime(utcTime), TimeSpan.Zero);
+
+    if (then < now)
+      throw new InvalidOperationException($"The clock is already at {now:HH:mm:ss} UTC, past {utcTime:HH:mm:ss}: it only moves forward.");
+
+    _clock.Advance(then - now);
+  }
+
   /// <summary>The clock's date for <paramref name="scenarioDate"/>: as many days from the clock's today as it is from the scenario's.</summary>
   public DateOnly ToClock(DateOnly scenarioDate) => scenarioDate.AddDays(_daysAhead);
 
-  /// <summary>The scenario's date for <paramref name="clockDate"/>, the inverse of <see cref="ToClock"/>.</summary>
+  /// <summary>The scenario's date for <paramref name="clockDate"/>, the inverse of <see cref="ToClock(DateOnly)"/>.</summary>
   public DateOnly FromClock(DateOnly clockDate) => clockDate.AddDays(-_daysAhead);
+
+  /// <summary>
+  /// The scenario's instant for an instant the app gave (c018 design.md D10): in UTC, the same time of day, its date
+  /// shifted back as <see cref="FromClock(DateOnly)"/> shifts a date.
+  /// </summary>
+  public DateTimeOffset FromClock(DateTimeOffset clockInstant) => clockInstant.ToUniversalTime().AddDays(-_daysAhead);
 
   /// <summary>Moves the clock forward by <paramref name="days"/> whole days; the scenario's today moves with it.</summary>
   public void PassDays(int days) {

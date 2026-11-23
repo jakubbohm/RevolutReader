@@ -174,4 +174,83 @@ public sealed class AccountTransactionsScenarios : AcceptanceTest {
 
     (await Transactions.AsksForTheTransactions()).ShouldBe(TransactionsReading.Failed(ProblemDescription.BankUnavailable));
   }
+
+  // A transaction's approximate time (c018). The time of day is set after signing in: the clock starts at the real time,
+  // which Microsoft's ID token is checked against.
+
+  [Test, Scenario("account-transactions", "A transaction first read on its own day carries the time it was first read")]
+  public async Task A_transaction_first_read_on_its_own_day_carries_the_time_it_was_first_read() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 20), to: "Kavárna Na Rohu", reference: "e-c018-301"));
+
+    (await Transactions.AsksForTheTransactions()).Transactions.ShouldBe([
+      TransactionSeenInApi.StillPending(-8.90m, on: new DateOnly(2026, 11, 20), counterparty: "Kavárna Na Rohu", seenAt: new DateTimeOffset(2026, 11, 20, 13, 5, 12, TimeSpan.Zero)),
+    ]);
+  }
+
+  [Test, Scenario("account-transactions", "A later read keeps the first time")]
+  public async Task A_later_read_keeps_the_first_time() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 20), reference: "e-c018-302"));
+    await Transactions.AsksForTheTransactions();
+    Transactions.TimeIs(new TimeOnly(13, 40, 0));
+
+    (await Transactions.AsksForTheTransactions()).Transactions.ShouldBe([
+      TransactionSeenInApi.StillPending(-8.90m, on: new DateOnly(2026, 11, 20), seenAt: new DateTimeOffset(2026, 11, 20, 13, 5, 12, TimeSpan.Zero)),
+    ]);
+  }
+
+  [Test, Scenario("account-transactions", "The time stays when the payment settles")]
+  public async Task The_time_stays_when_the_payment_settles() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 20), reference: "e-c018-303"));
+    await Transactions.AsksForTheTransactions();
+    // To 2026-11-21.
+    Transactions.DaysPass(1);
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Booked, 8.90m, on: new DateOnly(2026, 11, 20), reference: "e-c018-303"));
+
+    (await Transactions.AsksForTheTransactions()).Transactions.ShouldBe([
+      TransactionSeenInApi.Settled(-8.90m, on: new DateOnly(2026, 11, 20), seenAt: new DateTimeOffset(2026, 11, 20, 13, 5, 12, TimeSpan.Zero)),
+    ]);
+  }
+
+  [Test, Scenario("account-transactions", "A transaction first read after its own day carries no time")]
+  public async Task A_transaction_first_read_after_its_own_day_carries_no_time() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 21), new TimeOnly(0, 10, 0));
+    TransactionAtBank payment = TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 20), reference: "e-c018-304");
+    Transactions.BankLists(payment);
+    await Transactions.AppHasNotReadBefore(payment);
+
+    (await Transactions.AsksForTheTransactions()).Transactions.ShouldNotBeNull().ShouldHaveSingleItem().SeenAt.ShouldBeNull();
+  }
+
+  [Test, Scenario("account-transactions", "A transaction without the bank's reference carries no time")]
+  public async Task A_transaction_without_the_banks_reference_carries_no_time() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Pending, 8.90m, on: new DateOnly(2026, 11, 20), reference: null));
+
+    (await Transactions.AsksForTheTransactions()).Transactions.ShouldNotBeNull().ShouldHaveSingleItem().SeenAt.ShouldBeNull();
+  }
+
+  [Test, Scenario("account-transactions", "A kept transaction on an older page carries its time")]
+  public async Task A_kept_transaction_on_an_older_page_carries_its_time() {
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    Transactions.TodayIsAt(new DateOnly(2026, 11, 20), new TimeOnly(13, 5, 12));
+    Transactions.BankLists(TransactionAtBank.Payment(StatusAtBank.Booked, 12.30m, on: new DateOnly(2026, 11, 20), to: "Pekárna U Lípy", reference: "e-c018-306"));
+    await Transactions.AsksForTheTransactions();
+    // To 2026-12-30. A login unused for 30 days ends (spec sign-in), so she uses the app on the way, as she would.
+    Transactions.DaysPass(20);
+    await SignIn.UsesTheApp();
+    Transactions.DaysPass(20);
+    Transactions.BankLists();
+
+    (await Transactions.AsksForTheTransactionsBefore(new DateOnly(2026, 11, 29))).Transactions.ShouldBe([
+      TransactionSeenInApi.Settled(-12.30m, on: new DateOnly(2026, 11, 20), counterparty: "Pekárna U Lípy", seenAt: new DateTimeOffset(2026, 11, 20, 13, 5, 12, TimeSpan.Zero)),
+    ]);
+  }
 }

@@ -236,6 +236,13 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   public void ReportsOwnError() => Bank.AnswerError(OWN_ERROR_STATUS, OWN_ERROR);
 
   /// <summary>
+  /// Every request for the account's transactions, each attempt: the bank reports an error of its own
+  /// (<see cref="OWN_ERROR"/>, written from the API reference), whatever else the test set up for the transactions; the
+  /// balance answers as set (<see cref="FakeBank.AnswerTransactionsWithOwnError"/>, c018 design.md D10).
+  /// </summary>
+  public void ReportsOwnErrorForTransactions() => Bank.AnswerTransactionsWithOwnError(OWN_ERROR_STATUS, OWN_ERROR);
+
+  /// <summary>
   /// The first request: the bank reports an error of its own (<see cref="OWN_ERROR"/>), whatever else the test set up;
   /// later requests get that.
   /// </summary>
@@ -287,6 +294,13 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   /// <summary>Every request for the account's balances the fake bank received, in order, by its user headers, as <see cref="RequestsReceived"/> reads them.</summary>
   public IReadOnlyList<RequestAtBank> BalanceRequestsReceived() => [.. Bank.BalanceRequestHeadersReceived().Select(RequestOf)];
+
+  /// <summary>
+  /// Every request for the account's transactions the fake bank received, in order, by its user headers, as
+  /// <see cref="RequestsReceived"/> reads them (c018 design.md D10).
+  /// </summary>
+  public IReadOnlyList<RequestAtBank> TransactionsRequestsReceived() =>
+    throw new NotImplementedException("c018 tasks.md 1.9, 1.14: the fake bank's transactions requests by their user headers (wiring, tasks.md 22.2).");
 
   /// <summary>
   /// The page every transactions request the fake bank received asked for, in order: 1 without a continuation key, else

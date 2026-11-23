@@ -34,6 +34,15 @@ public sealed class TransactionsDsl(TransactionsDriver driver, ScenarioCalendar 
   /// <summary>The scenario's today is <paramref name="scenarioToday"/>. Before any step that names a date.</summary>
   public void TodayIs(DateOnly scenarioToday) => calendar.TodayIs(scenarioToday);
 
+  /// <summary>
+  /// Today is <paramref name="day"/> at <paramref name="utcTime"/> UTC (c018 design.md D10; <see cref="ScenarioCalendar.TodayIsAt"/>):
+  /// only after signing in (Microsoft's ID token is checked against the real clock), and before any step that names a date.
+  /// </summary>
+  public void TodayIsAt(DateOnly day, TimeOnly utcTime) => driver.TodayIsAt(day, utcTime);
+
+  /// <summary>The clock moves forward to <paramref name="utcTime"/> UTC on the scenario's today (c018 design.md D10); an earlier time throws.</summary>
+  public void TimeIs(TimeOnly utcTime) => driver.TimeIs(utcTime);
+
   /// <summary>This many days pass on the app's clock, and the scenario's today moves with it. Only after signing in (<see cref="SignInDsl.DaysPass"/>).</summary>
   public void DaysPass(int days) => calendar.PassDays(days);
 
@@ -48,6 +57,21 @@ public sealed class TransactionsDsl(TransactionsDriver driver, ScenarioCalendar 
 
   /// <summary>The app keeps these settled transactions; within a day, in the order given.</summary>
   public Task Kept(params IEnumerable<KeptAtApp> transactions) => driver.Keep(transactions);
+
+  /// <summary>
+  /// Checks that the app has not read <paramref name="transaction"/> before: it holds no time of a first reading for the
+  /// transaction's bank reference (c018 design.md D3); throws otherwise, so a scenario never rests on a state it only
+  /// assumes. The transaction must carry a reference.
+  /// </summary>
+  public async Task AppHasNotReadBefore(TransactionAtBank transaction) {
+    ArgumentNullException.ThrowIfNull(transaction);
+
+    string reference = transaction.Reference
+      ?? throw new ArgumentException("Only a transaction with the bank's reference can be told read before or not.", nameof(transaction));
+
+    if (await driver.HasReadBefore(reference))
+      throw new InvalidOperationException("The scenario needs a transaction the app has not read before, but the app holds a time it first read it.");
+  }
 
   /// <summary>The app keeps <paramref name="count"/> different settled payments on <paramref name="day"/>, made up.</summary>
   public Task KeptOnDay(DateOnly day, int count) {
@@ -78,6 +102,13 @@ public sealed class TransactionsDsl(TransactionsDriver driver, ScenarioCalendar 
 
   /// <summary>The day each transactions request the bank received asked from, in the order received.</summary>
   public IReadOnlyList<DateOnly> DaysTheBankWasAskedFrom() => driver.DaysTheBankWasAskedFrom();
+
+  /// <summary>The day each transactions request the bank received from this user's device asked from, in the order received; requests from anyone else are left out.</summary>
+  public IReadOnlyList<DateOnly> DaysTheBankWasAskedFromBy(UserAtDevice user) {
+    ArgumentNullException.ThrowIfNull(user);
+
+    return driver.DaysTheBankWasAskedFromBy(user);
+  }
 
   /// <summary>A booked transaction without a reference gets a unique made-up one; any other stays as the scenario gave it.</summary>
   private static TransactionAtBank WithAReferenceWhenBooked(TransactionAtBank transaction) =>
