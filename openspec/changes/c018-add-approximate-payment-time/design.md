@@ -146,7 +146,7 @@ The design system's reference code is translated into the app's own (`.claude/ru
   - This replaces `withOlderPage`'s merge of a first day already shown: regrouping gives one heading per day by construction, also when a moved payment joins a day of the previous page.
 - **`formatApproxTime(time)`** (`format.ts`): `kolem` + no-break space + `H:mm` in the phone's local time (the existing `formatTime`; the design system's `approxTimeLabel`).
 - **The sheet's `Datum`:** `formatDate(transactionDay(tx))`, then, with a time, `, ` + `formatApproxTime(...)`. For example `18. 11. 2026, kolem 14:05`, or `15. 11. 2026, kolem 0:20` for a payment dated the 14th seen at 23:20 UTC.
-- **`transactionOf`** (`transactions.ts`) accepts `seenAt` as text or `null`, with exactly eight members. Any other value makes the page unexpected, as for every other field. A text that does not parse is accepted and shows no time (`approxTime`), as the design system says.
+- **`transactionOf`** (`transactions.ts`) accepts `seenAt` as text or `null`. All eight members must be there, `seenAt` among them, and a member it does not know is ignored, as the app's other readers ignore one (review finding 3, the owner, 2026-11-23: a phone still on a cached app version keeps reading the pages of a later API that adds a field). Any other value makes the page unexpected, as for every other field. A text that does not parse is accepted and shows no time (`approxTime`), as the design system says.
 - **Unchanged:** `TransactionRow` and its spoken label (the owner, 2026-11-22), `DayHeader`'s look and words, and the row's order within a bank date.
 
 ### D7 — Design parts and artboards (design loop, 2026-11-23)
