@@ -226,7 +226,7 @@ Conventions for the run:
 
 ## 29. [close] Slice 9 — A payment a check reads first carries the check's time
 
-- [ ] 29.1 The scenario's test passes. Verify: green, including account-check / A payment a check reads first carries the check's time
+- [x] 29.1 The scenario's test passes. Verify: green, including account-check / A payment a check reads first carries the check's time
 
 ## 30. [close] Slice 10 — Transactions a check reads are not kept
 
