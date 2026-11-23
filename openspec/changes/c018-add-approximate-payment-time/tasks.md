@@ -255,8 +255,8 @@ Conventions for the run:
 
 ## 34. [close] Slice 12 — A burst of checks sends one notification and reads the bank at most twice
 
-- [ ] 34.1 The scenario's test passes, as expected after slice 7 (the recording is awaited within the check, D5), and is proven by a mutation: with `AccountCheck` skipping the recording when another check waits behind it, it fails. Verify: green, including account-check / A burst of checks sends one notification and reads the bank at most twice; the mutation's red result in `.tdd-state.md`
-- [ ] 34.2 Docs: ADR-0008, a dated note at the constraint "safe to call more than once": a burst still runs at most two checks, now with two requests each. Verify: it names c018 design.md D5
+- [x] 34.1 The scenario's test passes, as expected after slice 7 (the recording is awaited within the check, D5), and is proven by a mutation: with `AccountCheck` skipping the recording when another check waits behind it, it fails. Verify: green, including account-check / A burst of checks sends one notification and reads the bank at most twice; the mutation's red result in `.tdd-state.md`
+- [x] 34.2 Docs: ADR-0008, a dated note at the constraint "safe to call more than once": a burst still runs at most two checks, now with two requests each. Verify: it names c018 design.md D5
 
 ## 35. [unit] Slice 13 — The transaction's day and the list
 
