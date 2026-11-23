@@ -33,8 +33,11 @@ Conventions: `docs/conventions/testing.md` § Test-first workflow, `docs/convent
   change branch. Never push, never commit on `main`, never open a PR.
 - **One worker in the working tree at a time.** Never start a runner or a reviewer while another runner is
   working. The next chapter starts only when this chapter's review and its fixes are done.
-- **Go by the hand-back, not by the notice.** A subagent's report arrives as a message from it. A "finished"
-  notice can come late or without the report; wait again if only a notice came.
+- **You wait by ending your turn.** After you start or resume a runner or a reviewer, tell the owner in a
+  line what is running, and stop there. Its hand-back arrives as a message and starts your next turn. Waiting
+  needs no tool: do not look for one.
+- **Go by the hand-back, not by the notice.** A "finished" notice can come late or without the hand-back: if
+  only a notice came, end your turn again.
 - **A report from a test-writer or an implementer can reach you directly,** after its runner has finished
   (the agent is woken once more when a command it left in the background ends). It repeats what the runner
   handed back: do nothing with it.
@@ -54,8 +57,8 @@ Conventions: `docs/conventions/testing.md` § Test-first workflow, `docs/convent
 
 ## Your commands
 
-`tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root, always with
-`--change <change>`. Each call prints a line or two.
+`tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root. The command
+comes first, then always `--change <change>`. Each call prints a line or two.
 
 - `tdd init --review <mode> --checkpoint <mode> [--issue <n>]`: creates the state file
   `openspec/changes/<change>/.tdd-state.md` and indexes the code graph.
@@ -75,14 +78,18 @@ The state file holds state only: what a new session needs to continue. The commi
 
 ## 0. Start, or resume
 
-**A change already under way** (its state file exists and `Run` says `Status: applying`): do steps 2, 4 and 5
-below, read `tdd get --section "Resume here" --section Run --section Agents --section Open`, and start a
-fresh runner (§ 1) where "Resume here" says, telling it where the chapter stands. A `review=` or
+**A change already under way** (its state file exists and `Run` says `Status: applying`): read
+`tdd get --section "Resume here" --section Run --section Agents --section Open`, do steps 2, 4 and 5 below
+as they say for a resume, and start a fresh runner (§ 1) where "Resume here" says, telling it where the
+chapter stands. Do not count on the agents of an earlier session that the Agents section lists: start fresh
+ones (for a fix round of an earlier chapter, a fresh runner with that chapter's brief). A `review=` or
 `checkpoint=` given now wins over the recorded mode (`tdd put --section Run`).
 
 1. Read `proposal.md`, and `tasks.md` up to its first group plus its group headings.
-2. Check that you are on the change's branch (not `main`) and that `git status --porcelain` is empty. If not,
-   stop and ask the owner.
+2. Check that you are on the change's branch (not `main`), and look at `git status --porcelain`. At a start
+   it must be empty. On a resume, the state file and `.chapter-reviews.md` may be changed (bookkeeping, which
+   the next commit takes along), and work that "Resume here" names as uncommitted goes into the runner's
+   brief as `TREE:`. Anything else: stop and ask the owner.
 3. `tdd init` with the two modes and the change's GitHub issue, if `proposal.md` or `tasks.md` names one.
 4. Record the attribution lines your context gives you for commits, so every commit carries them:
    `tdd put --section Run --key "Commit trailers" --value "<line 1>\n<line 2>"`.
@@ -90,7 +97,8 @@ fresh runner (§ 1) where "Resume here" says, telling it where the chapter stand
    artboards it implements (Grep it for them; `docs/conventions/workflow.md` § 8 has the links). The subagents
    cannot open Claude artifacts: fetch the named files with the Artifact tool (`action: read` with `paths`, so
    they are saved and not printed) and record the saved paths: `tdd set --section "Design files"`. They live
-   in this session's scratchpad, so a resumed apply fetches them again.
+   in a session's scratchpad. On a resume, first check that the recorded files are still there
+   (`tdd get --section "Design files"`, then list its base folders), and fetch again only when they are gone.
 6. Start the acceptance chapter (§ 1). Its runner validates the change, runs the baseline and the bootstrap,
    and has the acceptance tests written.
 
@@ -106,8 +114,9 @@ fresh runner (§ 1) where "Resume here" says, telling it where the chapter stand
    TREE: clean | <what is uncommitted, when resuming mid-chapter>
    ```
 
-2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`.
-3. Wait for its hand-back with Yield.
+2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`. The runner expects
+   this one change in the tree.
+3. Wait for its hand-back: end your turn.
 4. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
    **200,000** with the chapter not done, resume it with `END THE CHAPTER after the slice in progress.` The
    rest of the chapter becomes a new chapter with a fresh runner (the rest of B is B2): update the plan with
@@ -122,7 +131,9 @@ fresh runner (§ 1) where "Resume here" says, telling it where the chapter stand
        `tdd commit --type docs --tag plan --summary "<what changed>" --path <file>`;
      - `tdd add --section "Standing rules" --line "<date>, the owner: <the decision>"`;
      - resume the runner with `ANSWER: <the decision>` and the commit, if there is one.
-   - `BLOCKED`: tell the owner what stopped the runner, and wait.
+   - `BLOCKED`: tell the owner what stopped the runner, and wait. One case is yours to clear: a command an
+     agent left running and could not stop (the hand-back names the task's id). Stop it with TaskStop (load
+     it with ToolSearch, `select:TaskStop`), tell the owner in a line, and resume the runner with `CONTINUE`.
    - `CHAPTER_DONE` or `CHAPTER_ENDED_EARLY`: § 3 (the acceptance chapter: start chapter A).
    - `FIX_ROUND_DONE`: back in § 4, step 4.
 
@@ -154,7 +165,7 @@ After every chapter's `CHAPTER_DONE` (the acceptance chapter: at its gate, § 2)
    LATER: <one line per later chapter of the plan: its name and what it adds; "none" after the last>
    ```
 
-2. Wait for its hand-back with Yield. It holds every finding with a verifier's verdict.
+2. Wait for its hand-back: end your turn. It holds every finding with a verifier's verdict.
 3. Route each finding (§ 4, step 1) and record it:
    `tdd put --file reviews --section "Chapter <X>" --key "<id>" --value "<severity> · <verdict> · <file:line> · <the defect in a few words> → <FIX|DECLINE|ASK>"`.
 
@@ -204,4 +215,4 @@ After the last chapter's review and fixes:
 
 This skill is attached again, and a hook adds "Resume here", "Agents" and "Open" from the state file. That is
 all you need: read nothing again until a step asks for it. A runner or a reviewer that was working is still
-working, so wait for its hand-back with Yield.
+working, so end your turn and wait for its hand-back.

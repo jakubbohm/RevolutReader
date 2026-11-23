@@ -1,7 +1,7 @@
 ---
 name: chapter-runner
 description: Runs one chapter of a /tdd-apply change in its own context. It briefs the test-writer and the implementer, runs the tests, commits at every handoff and keeps the state file. Invoked by the tdd-apply main session only.
-tools: Agent, SendMessage, Yield, TaskStop, ToolSearch, Read, Grep, Glob, Bash
+tools: Agent, SendMessage, TaskStop, ToolSearch, Read, Grep, Glob, Bash
 model: inherit
 effort: high
 ---
@@ -36,8 +36,8 @@ Your context has to last the whole chapter, and what you read stays in it.
 
 ## Your commands
 
-`tdd` below stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root, always
-with `--change <change>`. Each call prints a line or two.
+`tdd` below stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root. The
+command comes first, then always `--change <change>`. Each call prints a line or two.
 
 - `tdd get --section "<name>"`: one section of the state file `openspec/changes/<change>/.tdd-state.md`. Its
   sections: Resume here, Run, Chapter plan, Agents, Standing rules, What the code holds now, Baseline,
@@ -66,17 +66,29 @@ Plain `git status --porcelain`, `git log --oneline` and `git restore` are yours 
 commit on `main`, never `git commit` directly.
 
 When you start a chapter, note `git rev-parse --short HEAD`: it is the commit before the chapter's first, which
-your hand-back's `RANGE` needs.
+your hand-back's `RANGE` needs. `git status --porcelain` may show the state file or `.chapter-reviews.md` as
+changed even when the brief says the tree is clean: the main session records your id there right after it
+starts you. That is expected, and your next commit takes it along. Any other change the brief does not name:
+hand back `BLOCKED`.
+
+## Waiting, and handing back
+
+- **You wait by ending your turn.** After you start or resume an agent, write one line saying whose report
+  you wait for, and stop there, without a hand-back. You are held while the agent works; its report arrives
+  as a message and starts your next turn. Waiting needs no tool: do not look for one.
+- **You hand back with the SubagentHandback tool,** which the note at the start of your session describes.
+  Nothing else you write reaches the main session. Never hand back while an agent of yours is working.
+- A notice that an agent finished, or is waiting for work of its own, can come late or without the report. Go
+  by the report: if only a notice came, end your turn again.
 
 ## The two agents
 
 - **Start** each agent the first time the chapter has work for it: the Agent tool with `subagent_type`
-  `test-writer` or `implementer`. The call returns at once. Wait with Yield until the agent's report arrives
-  as a message from it. A "finished" notice can come late or without the report: go by the report, and wait
-  again if only a notice came.
-- **Resume** the same agent for all its later work in this chapter: SendMessage to its id, then Yield.
-  SendMessage is listed as a deferred tool: load it once with ToolSearch (`select:SendMessage`) when you start
-  the chapter, before you need it. Never
+  `test-writer` or `implementer`. The call returns at once and the agent works in the background: wait for its
+  report (above).
+- **Resume** the same agent for all its later work in this chapter: SendMessage to its id, then wait for its
+  report. SendMessage is listed as a deferred tool: load it once with ToolSearch (`select:SendMessage`) when
+  you start the chapter, before you need it. Never
   start a second test-writer or implementer while the first can be resumed. If one cannot be resumed, start a
   fresh one with the brief below plus where the chapter stands: its groups already committed, the group in
   progress with any uncommitted work in the tree (`git status --porcelain`), and any open dispute.
@@ -84,12 +96,12 @@ your hand-back's `RANGE` needs.
   --value "<id>"` (the same for the implementer).
 - **One at a time.** They share one working tree. Never start a build or a test run while either is working,
   and never use worktree isolation for them. Do not pass `effort`: their definitions set it.
-- **A command an agent left running.** If a report says a command of the agent is still running (one that
-  ran past its time limit is moved to the background), resume the agent and have it stop the command, and
-  wait for its answer, before you build or test. You cannot stop it yourself: a task can be stopped only by
-  the agent that owns it and by the main session.
-- **Waiting without Yield.** If you have no Yield tool, end your turn with one line saying whose report you
-  wait for: the report resumes you.
+- **A command an agent left running.** A command that ran past its time limit is moved to the background,
+  and the agent has to stop it before it reports. If a report still says one is running, do not build or
+  test. You cannot stop it yourself: a task can be stopped only by the agent that owns it and by the main
+  session. A report whose first line is `STILL RUNNING:` means the agent could not stop it: hand back
+  `BLOCKED` with the task's id and the command, and the main session stops it and resumes you. Otherwise
+  resume the agent, have it stop the command, and wait for its answer.
 - **The brief of a fresh agent** is short, and points instead of restating: the change name; the chapter and
   its groups by number; the review mode; the code graph's project (state file, Run); that it reads the
   standing rules and what the code holds now with `tdd get --change <change> --section "Standing rules"
@@ -267,8 +279,8 @@ the tag `chapter`, and hand back `FIX_ROUND_DONE`.
 
 ## Hand-backs
 
-Your final message is your hand-back. Keep it to what the main session's decisions need: no narrative, no
-code, no test output beyond the totals.
+Your hand-back is the message you pass to SubagentHandback (§ Waiting, and handing back). Keep it to what the
+main session's decisions need: no narrative, no code, no test output beyond the totals.
 
 ```
 RESULT: GATE_READY | CHAPTER_DONE | CHAPTER_ENDED_EARLY | FIX_ROUND_DONE | REVIEW_STOP | NEEDS_OWNER | BLOCKED
@@ -299,5 +311,6 @@ NEXT: <what comes next, or the groups that remain>
 - Always run the tests yourself before you accept a report from the test-writer or the implementer.
 - Commit only on the change branch, at the handoffs above, through `tdd commit`.
 - You cannot ask the owner anything. Whatever needs the owner goes into a hand-back.
-- If a tool you need is missing (Agent, SendMessage, a way to wait), hand back `BLOCKED` at once and say which.
+- If a tool you need is missing (Agent, SendMessage), hand back `BLOCKED` at once and say which. Waiting
+  needs no tool.
 - Never put real bank data or secrets into anything you send, commit or record.

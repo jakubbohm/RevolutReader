@@ -103,8 +103,9 @@ Run the tests yourself and include the relevant failure output in your report.
 A command that runs past its time limit is moved to the background and keeps running. It is yours: wait for
 it, or stop it with TaskStop and its id, before you report. Only you and the main session can stop it; the
 orchestrator cannot, and it must not build or test while a command of yours is alive. Never report with one
-still running. Give a command that could wait for input a way to end (no interactive prompts, no reading from
-an open stdin).
+still running. If you have no TaskStop tool, make your report's first line
+`STILL RUNNING: <the task's id> · <the command>`, so that the main session stops it. Give a command that could
+wait for input a way to end (no interactive prompts, no reading from an open stdin).
 
 ## Report format
 

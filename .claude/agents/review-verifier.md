@@ -58,7 +58,8 @@ finding: its id, file and line, what is wrong, the code path, the failure scenar
 
 ## Your report
 
-Your final message, in exactly this shape. Never put real bank data or secrets in it.
+The message you pass to the SubagentHandback tool, which the note at the start of your session describes, in
+exactly this shape. Never put real bank data or secrets in it.
 
 ```
 ID: <the finding's id>
