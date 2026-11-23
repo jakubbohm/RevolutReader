@@ -165,7 +165,7 @@ Conventions for the run:
 
 ## 17. [close] Slice 5 — A transaction without the bank's reference carries no time
 
-- [ ] 17.1 The scenario's test passes. Verify: green, including account-transactions / A transaction without the bank's reference carries no time
+- [x] 17.1 The scenario's test passes. Verify: green, including account-transactions / A transaction without the bank's reference carries no time
 
 ## 18. [unit] Slice 6 — Older pages carry the time
 
