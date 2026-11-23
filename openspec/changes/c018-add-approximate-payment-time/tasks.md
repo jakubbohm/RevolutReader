@@ -204,12 +204,12 @@ Conventions for the run:
 
 ## 24. [unit] Slice 8 — From yesterday on
 
-- [ ] 24.1 The check's transactions read starts at the UTC day before the clock's today
-- [ ] 24.2 Just after UTC midnight, the read starts at the day that has just ended
+- [x] 24.1 The check's transactions read starts at the UTC day before the clock's today
+- [x] 24.2 Just after UTC midnight, the read starts at the day that has just ended
 
 ## 25. [wiring] Slice 8 — The from-date
 
-- [ ] 25.1 `RecordFirstSeenHandler` reads from yesterday (D5). Verify: group 24 green
+- [x] 25.1 `RecordFirstSeenHandler` reads from yesterday (D5). Verify: group 24 green
 
 ## 26. [close] Slice 8 — The check reads the transactions from yesterday on
 
