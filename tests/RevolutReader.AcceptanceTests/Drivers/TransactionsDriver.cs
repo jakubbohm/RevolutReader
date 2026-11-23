@@ -183,8 +183,15 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   /// from anyone else, or with no user headers, are left out (c018: a check's own transactions read, from the phone, is
   /// told apart from a signed-in user's).
   /// </summary>
-  public IReadOnlyList<DateOnly> DaysTheBankWasAskedFromBy(UserAtDevice user) =>
-    throw new NotImplementedException("c018 tasks.md 1.12: the transactions requests the fake bank received, by their user headers (wiring, slice 7 or 10).");
+  public IReadOnlyList<DateOnly> DaysTheBankWasAskedFromBy(UserAtDevice user) {
+    RequestAtBank fromUser = RequestAtBank.WithUserHeadersOf(user);
+
+    return [
+      .. bank.TransactionDaysAndHeadersReceived()
+        .Where(request => BankDriver.RequestOf(request.Headers) == fromUser)
+        .Select(request => calendar.FromClock(request.Day)),
+    ];
+  }
 
   /// <summary>
   /// Today is <paramref name="scenarioDay"/> at <paramref name="utcTime"/> UTC (c018 design.md D10): the calendar moves the

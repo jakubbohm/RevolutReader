@@ -237,11 +237,24 @@ public sealed class FakeBank : IDisposable {
   /// received (<see cref="ArrivalLog"/>). A request without a <c>date_from</c> the API reference's way, <c>yyyy-MM-dd</c>,
   /// fails the step.
   /// </summary>
-  public IReadOnlyList<DateOnly> TransactionDaysReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request =>
-      DateOnly.TryParseExact(request.DateFrom, DATE, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day)
-        ? day
-        : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.")),
+  public IReadOnlyList<DateOnly> TransactionDaysReceived() => [.. TransactionDaysAndHeadersReceived().Select(static request => request.Day)];
+
+  /// <summary>
+  /// The <c>date_from</c> and the headers of every request for this account's transactions the bank received, answered or
+  /// not, in the order received: the days as <see cref="TransactionDaysReceived"/> reads them, the headers as
+  /// <see cref="RequestHeadersReceived"/>'s (c018: a check's transactions read told apart from a signed-in user's by them).
+  /// </summary>
+  public IReadOnlyList<(DateOnly Day, IReadOnlyDictionary<string, string> Headers)> TransactionDaysAndHeadersReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => (DayFrom(request), request.Headers)),
+  ];
+
+  /// <summary>
+  /// The headers of every request for this account's transactions the bank received, each page and each attempt, answered
+  /// or not, in the order received (<see cref="ArrivalLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s;
+  /// requests for anything else are left out (c018 design.md D10).
+  /// </summary>
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> TransactionRequestHeadersReceived() => [
+    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.Headers),
   ];
 
   /// <summary>
@@ -401,6 +414,12 @@ public sealed class FakeBank : IDisposable {
       return next(context);
     }
   }
+
+  /// <summary>A transactions request's <c>date_from</c>; one not given the API reference's way, <c>yyyy-MM-dd</c>, fails the step.</summary>
+  private static DateOnly DayFrom(RequestArrived request) =>
+    DateOnly.TryParseExact(request.DateFrom, DATE, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day)
+      ? day
+      : throw new InvalidOperationException("The fake bank received a transactions request without a date_from as yyyy-MM-dd.");
 
   /// <summary>
   /// A request as it arrived: its path, its decoded <c>continuation_key</c> (none: <see langword="null"/>), its headers,

@@ -191,7 +191,7 @@ Conventions for the run:
 ## 22. [wiring] Slice 7 — The recorder in the check
 
 - [x] 22.1 `Check/RecordFirstSeenHandler` (reading, for now, from the clock's today); `AccountCheck` takes it (D5); `AccountCheckRegistration` registers it, scoped. Verify: group 21 green; the existing check scenarios stay green (the burst and the leaving caller hold the balance answer only)
-- [ ] 22.2 `BankDsl.TransactionsRequestsReceived` and the drivers it needs, if group 1's stubs left any. Verify: the scenario's test reaches the fake bank's transactions path
+- [x] 22.2 `BankDsl.TransactionsRequestsReceived` and the drivers it needs, if group 1's stubs left any. Verify: the scenario's test reaches the fake bank's transactions path
 
 ## 23. [close] Slice 7 — The bank sees the phone's address and browser name
 

@@ -299,8 +299,7 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
   /// Every request for the account's transactions the fake bank received, in order, by its user headers, as
   /// <see cref="RequestsReceived"/> reads them (c018 design.md D10).
   /// </summary>
-  public IReadOnlyList<RequestAtBank> TransactionsRequestsReceived() =>
-    throw new NotImplementedException("c018 tasks.md 1.9, 1.14: the fake bank's transactions requests by their user headers (wiring, tasks.md 22.2).");
+  public IReadOnlyList<RequestAtBank> TransactionsRequestsReceived() => [.. Bank.TransactionRequestHeadersReceived().Select(RequestOf)];
 
   /// <summary>
   /// The page every transactions request the fake bank received asked for, in order: 1 without a continuation key, else
@@ -350,7 +349,11 @@ public sealed class BankDriver(FakeBank bank, IServiceProvider services) {
 
   private static PresentUser Present(UserAtDevice user) => new(IPAddress.Parse(user.IpAddress), user.Browser);
 
-  private static RequestAtBank RequestOf(IReadOnlyDictionary<string, string> headers) =>
+  /// <summary>
+  /// A received request by its user headers, as <see cref="RequestsReceived"/> reads them; also for
+  /// <see cref="TransactionsDriver"/>, which tells a check's transactions read from a signed-in user's by them (c018).
+  /// </summary>
+  internal static RequestAtBank RequestOf(IReadOnlyDictionary<string, string> headers) =>
     headers.Keys.Any(static name => name.StartsWith(USER_HEADER_PREFIX, StringComparison.OrdinalIgnoreCase))
       ? new RequestAtBank(new UserHeaders(headers.GetValueOrDefault(USER_IP_ADDRESS), headers.GetValueOrDefault(USER_AGENT)))
       : RequestAtBank.WithoutUserHeaders;
