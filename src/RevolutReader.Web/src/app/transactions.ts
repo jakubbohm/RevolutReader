@@ -128,18 +128,15 @@ function pageOf(body: unknown): TransactionPage | null {
   return { transactions, olderBefore, czkPerEur, rateDate };
 }
 
-/** A transaction's members, exactly: a value with any other is not a transaction (c018 design.md D6). */
-const TRANSACTION_MEMBERS = 8;
-
 /**
  * The transaction, when the value has its shape (c010 design.md D10, c018 design.md D6): the date, currency and
  * counterparty as text (the counterparty or null), the amount as a number, `pending` as a flag, the details as a list of
  * text, one of the kinds the API names, and `seenAt` as text or null (a text that does not parse is taken as it is and
- * shows no time); exactly those eight, no other.
+ * shows no time). All eight are needed; any other member is left out, as `pageOf` does, so the transaction holds the
+ * eight only (c018 design.md D6).
  */
 function transactionOf(value: unknown): Transaction | null {
   if (typeof value !== "object" || value === null) return null;
-  if (Object.keys(value).length !== TRANSACTION_MEMBERS) return null;
   if (!(
     "date" in value &&
     "amount" in value &&
