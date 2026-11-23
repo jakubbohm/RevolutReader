@@ -25,11 +25,12 @@ $before = Read-Saved $Earlier
 $after = Read-Saved $Later
 $beforeRefs = @{}; foreach ($t in $before.Transactions) { if ($t.entry_reference) { $beforeRefs[$t.entry_reference] = $t } }
 $afterRefs = @{}; foreach ($t in $after.Transactions) { if ($t.entry_reference) { $afterRefs[$t.entry_reference] = $t } }
-$newBooked = @($after.Transactions | Where-Object { $_.status -eq 'BOOK' -and -not $beforeRefs.ContainsKey($_.entry_reference) })
+$newBooked = @($after.Transactions | Where-Object { $_.status -eq 'BOOK' -and $_.entry_reference -and -not $beforeRefs.ContainsKey($_.entry_reference) })
 
 $pending = @($before.Transactions | Where-Object status -ne 'BOOK')
 $counts = [ordered]@{
     pending_before                   = $pending.Count
+    pending_without_reference        = 0
     still_pending_same_reference     = 0
     booked_same_reference            = 0
     gone_by_reference                = 0
@@ -40,6 +41,7 @@ $valueDateLag = @{}
 $i = 0
 foreach ($p in $pending) {
     $i++
+    if (-not $p.entry_reference) { $counts.pending_without_reference++; Write-Host "  #${i}: no reference, not looked up"; continue }
     $now = $afterRefs[$p.entry_reference]
     if ($null -eq $now) {
         $counts.gone_by_reference++
