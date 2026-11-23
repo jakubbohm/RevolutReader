@@ -298,21 +298,21 @@ Conventions for the run:
 
 ## 42. [close] Acceptance green
 
-- [ ] 42.1 All 15 scenario tests of this change pass and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` match the regeneration
+- [x] 42.1 All 15 scenario tests of this change pass and the full suite is green; the traceability check passes; `dotnet format whitespace --verify-no-changes` and the frontend checks are clean; `az bicep lint` is clean; `openapi.json` and `schema.d.ts` match the regeneration
 - [ ] 42.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP), the owner looking:
   - the account screen opens;
   - a transaction dated today shows "…, kolem HH:MM" in its sheet;
   - the app's lines show no `FirstSeenNotRecorded`.
 
   Verify: the owner sees each
-- [ ] 42.3 Docs (design.md D12): the owner's paste goes last.
+- [x] 42.3 Docs (design.md D12): the owner's paste goes last.
   - **workflow.md § 8:** step 2's update prompt ends with "The design system's changes:" and `<paste the list>`; step 3's example reads "Apply the design system's changes. The list: <paste the list>"; one sentence states the rule for every prompt the owner fills in.
   - **`.claude/rules/design.md`** step 3: the list goes at the end.
   - **lessons.md R-7:** a bullet (New, 2026-11-23): pasted text goes last.
   - The handover inventory's rows stay as they are.
 
   Verify: no prompt in workflow.md § 8 has text after its paste placeholder
-- [ ] 42.4 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (issue-only work). Verify: `CLAUDE.md`'s commands run as written
+- [x] 42.4 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (issue-only work). Verify: `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 

@@ -182,7 +182,7 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
   - text typed straight into an artboard, e.g. the app name on the sign-in, install and Home Screen boards;
   - `project/tarjeta-tokens.css` and `tarjeta-tokens-dark.css`, the canvas's own CSS copy of the tokens, which every artboard takes its colours from. The design system ships no CSS file of its tokens, so a changed colour would not reach the screens ([divergences.md R-7](../software-factory/divergences.md)).
 
-  So every design-system change ends with two prompts, and the list then goes to Claude Code. The design-system session knows what really changed, including the owner's steering; the Screens design knows its own canvas.
+  So every design-system change ends with two prompts, and the list then goes to Claude Code. The design-system session knows what really changed, including the owner's steering; the Screens design knows its own canvas. Every prompt the owner fills in ends with the part to paste, so the cursor goes to the end with nothing to place mid-text, above all on a phone (the owner, 2026-11-23, c018 design.md D12).
 
   1. In the design system, at the end of the change:
 
@@ -193,12 +193,11 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
   2. In the Screens design, with that list (when the change spanned several sessions, ask each for its list and paste them all):
 
      ```text
-     Update the design system to its latest version. These are its changes:
+     Update the design system to its latest version. Then bring everything this canvas made itself into line with its changes: tarjeta-tokens.css, tarjeta-tokens-dark.css, and any text, colour or layout written directly in an artboard. Change nothing else, then list what you changed. The design system's changes:
      <paste the list>
-     Then bring everything this canvas made itself into line with them: tarjeta-tokens.css, tarjeta-tokens-dark.css, and any text, colour or layout written directly in an artboard. Change nothing else, then list what you changed.
      ```
 
-  3. In Claude Code, once the design is finished: the same list, e.g. "The design system changed: <paste the list>. Apply it." Claude Code reads the current artifacts and compares them with the code, so it also catches a difference the list missed. When the code has nothing of it yet, there is nothing to do now: the step that builds the screen reads the design. A change to a screen alone skips steps 1 and 2: the owner tells Claude Code which artboards changed.
+  3. In Claude Code, once the design is finished: the same list, e.g. "Apply the design system's changes. The list: <paste the list>". Claude Code reads the current artifacts and compares them with the code, so it also catches a difference the list missed. When the code has nothing of it yet, there is nothing to do now: the step that builds the screen reads the design. A change to a screen alone skips steps 1 and 2: the owner tells Claude Code which artboards changed.
 - **One canvas, not one artifact per screen:** the screens share one design-system copy and one set of sample data, and one update refreshes them all. To change one screen, select its artboard and ask; the others stay as they are.
 - **Where a change starts:**
 
