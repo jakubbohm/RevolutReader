@@ -260,17 +260,17 @@ Conventions for the run:
 
 ## 35. [unit] Slice 13 — The transaction's day and the list
 
-- [ ] 35.1 `approxTime` gives `seenAt` as a date, and none when it is null or does not parse
-- [ ] 35.2 `transactionDay` is the local date of the time when there is one, else `date`; in Prague, 2026-11-14 23:20:00 UTC is 2026-11-15, and in Los Angeles it is 2026-11-14
-- [ ] 35.3 `byDay` groups by `transactionDay`, newest day first
-- [ ] 35.4 Within a day, newer dates come first, each date's transactions in the order given
-- [ ] 35.5 A day's totals count the transactions moved into it, and not those moved out
-- [ ] 35.6 A newest page read again replaces the newest transactions and keeps the older pages' transactions dated before its `olderBefore`
-- [ ] 35.7 An older page whose transaction moves into a day already shown gives that day one heading
+- [x] 35.1 `approxTime` gives `seenAt` as a date, and none when it is null or does not parse
+- [x] 35.2 `transactionDay` is the local date of the time when there is one, else `date`; in Prague, 2026-11-14 23:20:00 UTC is 2026-11-15, and in Los Angeles it is 2026-11-14
+- [x] 35.3 `byDay` groups by `transactionDay`, newest day first
+- [x] 35.4 Within a day, newer dates come first, each date's transactions in the order given
+- [x] 35.5 A day's totals count the transactions moved into it, and not those moved out
+- [x] 35.6 A newest page read again replaces the newest transactions and keeps the older pages' transactions dated before its `olderBefore`
+- [x] 35.7 An older page whose transaction moves into a day already shown gives that day one heading
 
 ## 36. [wiring] Slice 13 — Regrouping all loaded
 
-- [ ] 36.1 `src/app/transactionDay.ts`; `byDay` and `ListState` with `newest` and `olderLoaded` (D6); `useTransactionList` and `TransactionList` on the new state. Verify: group 35 green; the existing list scenarios stay green
+- [x] 36.1 `src/app/transactionDay.ts`; `byDay` and `ListState` with `newest` and `olderLoaded` (D6); `useTransactionList` and `TransactionList` on the new state. Verify: group 35 green; the existing list scenarios stay green
 
 ## 37. [close] Slice 13 — A payment seen after midnight is listed under the next day
 
