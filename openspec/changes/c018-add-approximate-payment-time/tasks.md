@@ -169,13 +169,13 @@ Conventions for the run:
 
 ## 18. [unit] Slice 6 — Older pages carry the time
 
-- [ ] 18.1 An older page's transaction carries the moment kept for its reference, through `FirstSeenRule.Shown`
-- [ ] 18.2 An older page reads the first-seen store once, for its own transactions' references
-- [ ] 18.3 A first-seen store failure on an older page throws (design.md D8)
+- [x] 18.1 An older page's transaction carries the moment kept for its reference, through `FirstSeenRule.Shown`
+- [x] 18.2 An older page reads the first-seen store once, for its own transactions' references
+- [x] 18.3 A first-seen store failure on an older page throws (design.md D8)
 
 ## 19. [wiring] Slice 6 — The older handler
 
-- [ ] 19.1 `ReadOlderTransactionsHandler` takes `IFirstSeenStore` and reads it once the page is cut (D9). Verify: group 18 green
+- [x] 19.1 `ReadOlderTransactionsHandler` takes `IFirstSeenStore` and reads it once the page is cut (D9). Verify: group 18 green
 
 ## 20. [close] Slice 6 — A kept transaction on an older page carries its time
 
