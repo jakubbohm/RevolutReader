@@ -194,8 +194,7 @@ and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area
 2. Run the full test suite and the traceability test.
 3. Optional, only if Stryker.NET is configured (RevolutReader: not adopted): run mutation testing on the files
    changed by this change and report survivors. Survivors mean weak tests; offer to send them to the test-writer.
-4. Do the close-out tasks yourself: `pm/progress.md` when the change implements a roadmap step (issue-only work has
-   no row: `docs/conventions/workflow.md` § 9), and `CLAUDE.md` if build, test or run commands changed.
+4. Do the close-out tasks yourself: `CLAUDE.md` if build, test or run commands changed.
 5. Tick the `[close]` tasks, commit `feat(<cNNN>): [close] acceptance green`, and report to the human: groups
    done, disputes and how they were resolved, any spec/design changes, and that the change is ready for
    `/opsx:archive`.

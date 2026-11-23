@@ -1,6 +1,6 @@
 # Architecture decision records
 
-One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, numbered in order, never renumbered. Cite an ADR by its full name, e.g. `ADR-0001-bank-data-access` or `ADR-0001-bank-data-access § Decision`. When to write one and how it relates to `pm/progress.md`: [docs/conventions/workflow.md § 2](../conventions/workflow.md#2-decisions).
+One file per decision with lasting, cross-cutting effect: `NNNN-slug.md`, numbered in order, never renumbered. Cite an ADR by its full name, e.g. `ADR-0001-bank-data-access` or `ADR-0001-bank-data-access § Decision`. When to write one: [docs/conventions/workflow.md § 2](../conventions/workflow.md#2-decisions).
 
 | ADR | Title | Status | Date |
 |---|---|---|---|
