@@ -113,7 +113,7 @@ Conventions for the run:
 ## 7. [unit] Slice 2 — The first time stays
 
 - [ ] 7.1 `FirstSeenTimes` reads the read's references, and records only those with no moment yet
-- [ ] 7.2 `FirstSeenTimes` answers the kept moments and the newly recorded ones together
+- [x] 7.2 `FirstSeenTimes` answers the kept moments and the newly recorded ones together
 
 ## 8. [integration] Slice 2 — IFirstSeenStore keeps the earliest
 

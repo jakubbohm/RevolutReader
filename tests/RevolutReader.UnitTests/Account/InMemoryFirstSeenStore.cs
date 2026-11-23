@@ -13,9 +13,11 @@ namespace RevolutReader.UnitTests.Account;
 /// <item><see cref="Record"/>: for each sighting, the earliest moment for its reference is kept: recorded when none is,
 /// replacing a later one, never an earlier one, so the order of the calls changes nothing. Answers the moment kept for each
 /// sighting's reference after the call.</item>
-/// <item>The requests it would send, counted (<see cref="ReadRequests"/>, <see cref="RecordRequests"/>): a call with
-/// something to read or record. A call with nothing in it is no request, as the adapter sends none for it (§ Ports and
-/// contracts: "Nothing asked or nothing to record: no request").</item>
+/// <item>The requests it would send, counted (<see cref="ReadRequests"/>, <see cref="RecordRequests"/>) and kept with what
+/// each asked (<see cref="ReferencesRead"/>, <see cref="SightingsRecorded"/>): a call with something to read or record. A
+/// call with nothing in it is no request, as the adapter sends none for it (§ Ports and contracts: "Nothing asked or
+/// nothing to record: no request").</item>
+/// <item>A unit test can set a moment as kept before it starts (<see cref="Keep"/>), which counts as no request.</item>
 /// <item>It can be made to fail (<see cref="FailWith"/>): every call from then on throws the given exception, as a store
 /// failure is an exception (design.md D8, § Error model).</item>
 /// <item>Safe for calls from several threads at once (two readers record at once).</item>
@@ -24,15 +26,15 @@ namespace RevolutReader.UnitTests.Account;
 public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
   private readonly Lock _lock = new();
   private readonly Dictionary<string, DateTimeOffset> _kept = new(StringComparer.Ordinal);
-  private int _readRequests;
-  private int _recordRequests;
+  private readonly List<IReadOnlyList<string>> _referencesRead = [];
+  private readonly List<IReadOnlyList<FirstSeen>> _sightingsRecorded = [];
   private Exception? _failure;
 
   /// <summary>How many reads asked for at least one reference so far.</summary>
   public int ReadRequests {
     get {
       lock (_lock)
-        return _readRequests;
+        return _referencesRead.Count;
     }
   }
 
@@ -40,8 +42,32 @@ public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
   public int RecordRequests {
     get {
       lock (_lock)
-        return _recordRequests;
+        return _sightingsRecorded.Count;
     }
+  }
+
+  /// <summary>The references each read request asked for, as asked, in the order of the requests.</summary>
+  public IReadOnlyList<IReadOnlyList<string>> ReferencesRead {
+    get {
+      lock (_lock)
+        return [.. _referencesRead];
+    }
+  }
+
+  /// <summary>The sightings each record request carried, as given, in the order of the requests.</summary>
+  public IReadOnlyList<IReadOnlyList<FirstSeen>> SightingsRecorded {
+    get {
+      lock (_lock)
+        return [.. _sightingsRecorded];
+    }
+  }
+
+  /// <summary>Keeps <paramref name="at"/> for <paramref name="reference"/>, as recorded before the test: no request counted.</summary>
+  public void Keep(string reference, DateTimeOffset at) {
+    ArgumentNullException.ThrowIfNull(reference);
+
+    lock (_lock)
+      _kept[reference] = at;
   }
 
   /// <summary>Every call from now on throws <paramref name="failure"/>, and changes nothing.</summary>
@@ -60,7 +86,7 @@ public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
       ThrowIfFailing();
 
       if (references.Count > 0)
-        _readRequests++;
+        _referencesRead.Add([.. references]);
 
       Dictionary<string, DateTimeOffset> answer = new(StringComparer.Ordinal);
 
@@ -81,7 +107,7 @@ public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
       ThrowIfFailing();
 
       if (sightings.Count > 0)
-        _recordRequests++;
+        _sightingsRecorded.Add([.. sightings]);
 
       foreach (FirstSeen sighting in sightings) {
         if (!_kept.TryGetValue(sighting.Reference, out DateTimeOffset kept) || sighting.At < kept)

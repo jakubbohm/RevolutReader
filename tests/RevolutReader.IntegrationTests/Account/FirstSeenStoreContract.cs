@@ -12,7 +12,9 @@ namespace RevolutReader.IntegrationTests.Account;
 /// <list type="bullet">
 /// <item><c>Read</c>: the kept moment of each reference asked for that has one; a reference never recorded is absent,
 /// never an error; a reference not asked for is not answered.</item>
-/// <item><c>Record</c>: keeps the moment and answers the moment kept for each sighting's reference.</item>
+/// <item><c>Record</c>: keeps the earliest moment per reference and answers the moment kept for each sighting's
+/// reference: a later moment changes nothing, an earlier one replaces the kept one, the same sighting twice changes
+/// nothing, and calls at once for one reference keep the earliest of them.</item>
 /// <item>Values: a moment comes back exactly as given, at offset zero and to the second; a reference with any characters,
 /// <c>/ \ # ?</c> and <c>%</c> among them, is recorded and read back.</item>
 /// </list>
@@ -24,6 +26,9 @@ namespace RevolutReader.IntegrationTests.Account;
 public abstract class FirstSeenStoreContract {
   /// <summary>The spec's first read: 2026-11-20 13:05:12 UTC.</summary>
   private static readonly DateTimeOffset _firstRead = new(2026, 11, 20, 13, 5, 12, TimeSpan.Zero);
+
+  /// <summary>The racing callers' moments, in minutes after <see cref="_firstRead"/>, in the order they start: neither earliest first nor latest first.</summary>
+  private static readonly int[] _racingMinutes = [5, 2, 7, 0, 4, 1, 6, 3];
 
   /// <param name="store">An empty store; or one holding another reference.</param>
   [Test]
@@ -83,6 +88,71 @@ public abstract class FirstSeenStoreContract {
     store.ShouldSatisfyAllConditions(
       () => Written(recorded).ShouldBe([$"{reference} 2026-11-20T13:05:12.0000000+00:00"], "what Record answers"),
       () => Written(read).ShouldBe([$"{reference} 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
+  }
+
+  // The earliest moment wins (D3, § Ports and contracts), whichever write comes first.
+
+  [Test]
+  public async Task Recording_a_later_moment_keeps_the_earlier_one_and_Record_answers_the_earlier_one() {
+    IFirstSeenStore store = NewStore();
+    _ = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead)], CancellationToken.None);
+
+    IReadOnlyDictionary<string, DateTimeOffset> recorded = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead.AddMinutes(35))], CancellationToken.None);
+    IReadOnlyDictionary<string, DateTimeOffset> read = await store.Read(["e-c018-kavarna"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => Written(recorded).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Record answers"),
+      () => Written(read).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
+  }
+
+  [Test]
+  public async Task Recording_an_earlier_moment_replaces_a_later_one() {
+    IFirstSeenStore store = NewStore();
+    _ = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead.AddMinutes(35))], CancellationToken.None);
+
+    IReadOnlyDictionary<string, DateTimeOffset> recorded = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead)], CancellationToken.None);
+    IReadOnlyDictionary<string, DateTimeOffset> read = await store.Read(["e-c018-kavarna"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => Written(recorded).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Record answers"),
+      () => Written(read).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
+  }
+
+  /// <summary>The same sighting recorded twice, in two calls: the second answers as the first, and the moment stays.</summary>
+  [Test]
+  public async Task Recording_the_same_sighting_twice_changes_nothing() {
+    IFirstSeenStore store = NewStore();
+    IReadOnlyDictionary<string, DateTimeOffset> first = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead)], CancellationToken.None);
+
+    IReadOnlyDictionary<string, DateTimeOffset> second = await store.Record([new FirstSeen("e-c018-kavarna", _firstRead)], CancellationToken.None);
+    IReadOnlyDictionary<string, DateTimeOffset> read = await store.Read(["e-c018-kavarna"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => Written(first).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what the first Record answers"),
+      () => Written(second).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what the second Record answers"),
+      () => Written(read).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
+  }
+
+  /// <summary>
+  /// Eight callers record one reference at once, each its own moment, a minute apart from 13:05:12 UTC, started in an
+  /// order that is neither the earliest first nor the latest first, each on a thread of its own: however their writes
+  /// interleave, the store keeps the earliest, the earliest caller is answered it, and no caller is answered a moment later
+  /// than its own. Correct in any interleaving, so it holds on every run; the adapter's lost race itself is forced, every
+  /// time, in its own test (<c>Wiring/Storage/FirstSeenRaceTests</c>).
+  /// </summary>
+  [Test]
+  public async Task Two_Record_calls_at_once_for_one_reference_keep_the_earlier_moment() {
+    IFirstSeenStore store = NewStore();
+    DateTimeOffset[] moments = [.. _racingMinutes.Select(minutes => _firstRead.AddMinutes(minutes))];
+
+    IReadOnlyDictionary<string, DateTimeOffset>[] answers = await Task.WhenAll(moments.Select(at =>
+      Task.Run(() => store.Record([new FirstSeen("e-c018-kavarna", at)], CancellationToken.None))));
+    IReadOnlyDictionary<string, DateTimeOffset> read = await store.Read(["e-c018-kavarna"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => Written(read).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"),
+      () => Written(answers[Array.IndexOf(moments, _firstRead)]).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what the earliest caller is answered"),
+      () => moments.Zip(answers).Where(each => each.Second["e-c018-kavarna"] > each.First).ShouldBeEmpty("callers answered a moment later than their own"));
   }
 
   /// <summary>A new, empty store of the test's own.</summary>
