@@ -114,7 +114,7 @@ See proposal.md (Why) for the motivation and the owner's two checks against the 
   - On success it records through `FirstSeenTimes.Record`, the same path as the newest page (D1, D2).
 - **Why from yesterday on.** Only today's transactions can get a time (D2). The extra day costs no request (one page either way), keeps the read independent of which of a transaction's dates the bank's `date_from` compares, and covers a check that straddles midnight. It was decided before item 3 settled the day's basis, and the decision stands.
 - **It keeps nothing.** Only the newest page keeps transactions, and its reach-back (c010 D3) starts from the newest kept day. A check keeping its narrow window would move that day forward and hide a gap the page should close, since a card payment settles a few days later still dated its own day. The spec's "Transactions a check reads are not kept" shows this through the page's read.
-- **In the check.** `AccountCheck.Run` still reads the kept balances first, so a storage failure costs no bank read. It then starts the recording, runs the balance read and the rest as now, and awaits the recording in a `finally`, so the recording ends before the check does whatever the balance path did:
+- **In the check.** `AccountCheck.Run` still reads the kept balances first, so a storage failure costs no bank read. It then starts the recording, runs the balance read and the rest as now, and awaits the recording however the balance path ends (review finding 4: when that path throws, without letting the recording's own end replace its exception), so the recording ends before the check does whatever the balance path did:
   - **A burst** still runs at most two checks, with two bank reads each.
   - **The app's stop** cancels both reads.
   - **The push** goes out as soon as the balance path sends it, never waiting for the transactions.
@@ -319,7 +319,7 @@ public static partial void FirstSeenNotRecorded(ILogger logger, FirstSeenFailure
 public static partial void FirstSeenNotRecordedWithException(ILogger logger, FirstSeenFailure failure, Exception exception);
 
 /// Kept balances read first; then the recording started (recorder.Handle), the balance read and the rest as before;
-/// the recording awaited in a finally (D5).
+/// the recording awaited however the balance path ends, never replacing that path's exception (D5).
 public sealed class AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandler recorder, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck;
 
 // ---- src/RevolutReader.Api/Storage/
@@ -412,7 +412,7 @@ export function inTimeZoneWhile(zone: string, body: () => Promise<void>): Promis
 - `FirstSeenTimes.Record` lets the store's exceptions pass.
 - **The page handlers' error models are unchanged:** a bank failure is a `BankResult` case and records nothing, and a store failure (now also the first-seen store's) throws and is answered as 500 (D8).
 - **`RecordFirstSeenHandler.Handle`** returns normally for every bank failure and every exception, logged (D5). Only the caller's cancellation throws `OperationCanceledException`.
-- **`AccountCheck`'s error model is unchanged** (c014 D11). The recording neither adds a failure nor hides one: it is awaited in a `finally`, never throws there but for the app's stop, and in that case the check is being cancelled anyway.
+- **`AccountCheck`'s error model is unchanged** (c014 D11). The recording neither adds a failure nor hides one. It never throws but for the app's stop. After a balance path that threw, it is awaited without throwing, so that path's exception is the one that passes, and a storage or sender failure is still logged as `CheckFailed` (review finding 4).
 
 ## Ports and contracts
 
