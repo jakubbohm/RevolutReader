@@ -1,7 +1,7 @@
 // Shared by the triage-review scripts (post-findings.mjs, gather-findings.mjs, reply-finding.mjs, post-summary.mjs):
 // the gh calls, the PR's review threads, how review comments become numbered findings, how a review's findings from
-// the conversation become review comments to post, what a triage summary is, and the check that keeps every text the
-// scripts post from making GitHub post a backlink outside this repository.
+// the conversation become review comments to post, what a triage summary is and whether a round's is posted, and the
+// check that keeps every text the scripts post from making GitHub post a backlink outside this repository.
 import { spawnSync } from "node:child_process";
 
 export function fail(message) {
@@ -213,9 +213,14 @@ export function lastSummaryTime(issueComments) {
   return latest;
 }
 
-// Will return the issue comment whose first line equals the body's first line (the round's heading), else null.
+// The PR's issue comment (the REST API's objects) that already is the summary `body` would post: the first whose first
+// line equals the body's first line, which is the round's heading, so the first round's "## Review triage" and a later
+// round's "## Review triage, round <n>" never match each other. Line endings and trailing spaces aside; null when
+// there is none.
 export function summaryPosted(issueComments, body) {
-  throw new Error("not implemented");
+  const heading = (text) => text.split("\n")[0].trimEnd();
+  const wanted = heading(body);
+  return issueComments.find((c) => typeof c.body === "string" && heading(c.body) === wanted) ?? null;
 }
 
 // This repository's pull requests retired because their text made GitHub post backlinks on other repositories'
@@ -225,14 +230,16 @@ const RETIRED_PULL_REQUESTS = [94];
 
 // The references GitHub links in published text, in one pattern so that each is matched once, from left to right:
 // a github.com link to an issue or pull request (with or without the scheme and www; redirect.github.com and any other
-// host ending in github.com do not match), a repository's `owner/name#n`, or a bare `#n`, which GitHub reads as this
-// repository's. Markdown code is not skipped: GitHub links nothing there, but rewriting a reference costs nothing.
+// host ending in github.com do not match), a repository's `owner/name#n`, or a bare `#n` or `GH-n` (either case),
+// which GitHub reads as this repository's. Markdown code is not skipped: GitHub links nothing there, but rewriting a
+// reference costs nothing.
 const REFERENCE = new RegExp(
   [
     String.raw`(?<![\w.-])(?:https?:\/\/)?(?:www\.)?github\.com\/` +
       String.raw`(?<linkRepo>[\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(?<linkNumber>\d+)`,
     String.raw`(?<nameRepo>[\w.-]+\/[\w.-]+)#(?<nameNumber>\d+)`,
     String.raw`(?<!\w)#(?<bareNumber>\d+)`,
+    String.raw`(?<!\w)GH-(?<ghNumber>\d+)`,
   ].join("|"),
   "gi",
 );
@@ -245,9 +252,9 @@ export function backlinkRisks(text, ownRepo) {
   const own = ownRepo.toLowerCase();
   const risks = [];
   for (const m of text.matchAll(REFERENCE)) {
-    const { linkRepo, linkNumber, nameRepo, nameNumber, bareNumber } = m.groups;
+    const { linkRepo, linkNumber, nameRepo, nameNumber, bareNumber, ghNumber } = m.groups;
     const repo = (linkRepo ?? nameRepo)?.toLowerCase() ?? own;
-    const number = Number(linkNumber ?? nameNumber ?? bareNumber);
+    const number = Number(linkNumber ?? nameNumber ?? bareNumber ?? ghNumber);
     if (repo !== own || RETIRED_PULL_REQUESTS.includes(number)) risks.push(m[0]);
   }
   return risks;

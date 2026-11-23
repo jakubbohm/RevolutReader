@@ -360,5 +360,6 @@ link, or words), and post nothing.
   `--dry-run` makes the same checks and prints what it would post, without posting.
 - **`post-summary.mjs <pr> <body-file> [--dry-run]`** (§ 5 step 3): posts the body file as the round's summary
   comment on the PR. It checks first that the body starts with `## Review triage`, the heading § 0 step 3 counts
-  the rounds by, and that the number is a PR, so a failed check posts nothing. Prints `POSTED: <url>`. `--dry-run`
+  the rounds by, that the number is a PR, and that no comment on it has the body's first line yet (a summary of this
+  round already posted, whose address it names), so a failed check posts nothing. Prints `POSTED: <url>`. `--dry-run`
   makes the same checks and prints `WOULD POST: summary on PR <pr>, <n> characters: <first line>`, without posting.
