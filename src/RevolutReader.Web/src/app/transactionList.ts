@@ -10,7 +10,12 @@ export interface Day {
 
 /** The list as it is shown (c010 design.md D1): its days, the day the next older page is asked before, and that page's state. */
 export interface ListState {
+  /** `byDay([...newest, ...olderLoaded])` (c018 design.md D6). */
   days: Day[];
+  /** The newest page's transactions (c018 design.md D6). */
+  newest: Transaction[];
+  /** Every older page's transactions, in the order they came (c018 design.md D6). */
+  olderLoaded: Transaction[];
   nextBefore: string | null;
   older: "idle" | "loading" | "error";
 }
@@ -70,12 +75,21 @@ export function withNewestPage(
 ): ListState {
   const newest = byDay(page.transactions);
   const { olderBefore } = page;
+  // `newest` and `olderLoaded` are compile-only placeholders until c018 tasks.md 36.1.
   if (state === null || olderBefore === null)
-    return { days: newest, nextBefore: olderBefore, older: "idle" };
+    return {
+      days: newest,
+      newest: [],
+      olderLoaded: [],
+      nextBefore: olderBefore,
+      older: "idle",
+    };
 
   return {
     // Dates are `yyyy-MM-dd`, so they compare as text.
     days: [...newest, ...state.days.filter((day) => day.date < olderBefore)],
+    newest: [],
+    olderLoaded: [],
     nextBefore: state.nextBefore,
     older: state.older,
   };
@@ -103,5 +117,12 @@ export function withOlderPage(
     } else days.push(day);
   }
 
-  return { days, nextBefore: page.olderBefore, older: "idle" };
+  // `newest` and `olderLoaded` are compile-only placeholders until c018 tasks.md 36.1.
+  return {
+    days,
+    newest: [],
+    olderLoaded: [],
+    nextBefore: page.olderBefore,
+    older: "idle",
+  };
 }
