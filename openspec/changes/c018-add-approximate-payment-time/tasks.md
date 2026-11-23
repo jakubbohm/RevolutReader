@@ -151,8 +151,8 @@ Conventions for the run:
 
 ## 14. [close] Slice 4 — A transaction first read after its own day carries no time
 
-- [ ] 14.1 The scenario's test passes. Verify: green, including account-transactions / A transaction first read after its own day carries no time
-- [ ] 14.2 Docs: ADR-0001, a dated note that the bank's dates are UTC dates (the owner's midnight sample in words only: no amount, name or exact date), confirming the app's UTC today (c010 D3). Verify: no bank data in it
+- [x] 14.1 The scenario's test passes. Verify: green, including account-transactions / A transaction first read after its own day carries no time
+- [x] 14.2 Docs: ADR-0001, a dated note that the bank's dates are UTC dates (the owner's midnight sample in words only: no amount, name or exact date), confirming the app's UTC today (c010 D3). Verify: no bank data in it
 
 ## 15. [unit] Slice 5 — No reference, no time
 
