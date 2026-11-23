@@ -4,7 +4,8 @@ namespace RevolutReader.UnitTests.Check;
 
 /// <summary>
 /// The bank port as an account check reads it (c014 design.md D3; c018 design.md D5, D10): every balance read answers
-/// <paramref name="balance"/>, every transactions read answers no transaction, and each read records who it was for as it
+/// <paramref name="balance"/>, every transactions read answers <see cref="TransactionsListed"/> (by default no transaction),
+/// whatever day it asks from, and each read records who it was for as it
 /// starts (<see cref="BalanceReadsFor"/>, <see cref="TransactionReadsFor"/>), a transactions read also the day it asked
 /// from (<see cref="TransactionReadsFrom"/>). Either answer can be held until the test
 /// releases it, so a test sees what runs alongside a held read, as c017's rate tests hold theirs. Safe for reads on several
@@ -24,6 +25,9 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
 
   private TaskCompletionSource? _balanceHeld;
   private TaskCompletionSource? _transactionsHeld;
+
+  /// <summary>What every transactions read answers: these transactions, in this order; none unless the test lists some.</summary>
+  public IReadOnlyList<BankTransaction> TransactionsListed { get; init; } = [];
 
   /// <summary>Who each balance read was for, in order: the trigger's case (a <see cref="PresentUser"/> or <see cref="Unattended"/>).</summary>
   public IReadOnlyList<object> BalanceReadsFor {
@@ -116,7 +120,7 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
     if (held is not null)
       await held.Task.WaitAsync(cancellationToken);
 
-    return new Transactions([]);
+    return new Transactions(TransactionsListed);
   }
 
   private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
