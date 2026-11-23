@@ -125,6 +125,59 @@ public sealed class FirstSeenRuleTests {
     shown.ShouldBeNull("the answered moment");
   }
 
+  /// <summary>
+  /// A read at the spec's moment lists the spec's pending card payment of 8.90 EUR without the bank's reference, and one
+  /// with a reference, both dated the read's UTC day: only the one with a reference is recorded, since nothing could
+  /// match the other later (D1).
+  /// </summary>
+  [Test]
+  public void A_read_records_no_transaction_without_a_reference() {
+    BankTransaction withoutReference = new(
+      Reference: null,
+      Status: TransactionStatus.Pending,
+      Date: _november20,
+      Amount: -8.90m,
+      Currency: "EUR",
+      Counterparty: "Kavárna Na Rohu",
+      PaymentDetails: [],
+      TypeCode: "CARD_PAYMENT");
+    BankTransaction withReference = new(
+      Reference: "e-c018-trafika",
+      Status: TransactionStatus.Pending,
+      Date: _november20,
+      Amount: -3.80m,
+      Currency: "EUR",
+      Counterparty: "Trafika U Mostu",
+      PaymentDetails: [],
+      TypeCode: "CARD_PAYMENT");
+
+    IReadOnlyList<FirstSeen> sightings = FirstSeenRule.Sightings([withoutReference, withReference], _readAt);
+
+    sightings.Select(static sighting => sighting.Reference).ShouldBe(["e-c018-trafika"], "the references recorded");
+  }
+
+  /// <summary>
+  /// A read at the spec's moment lists the spec's payment twice under one reference, pending and settled, both dated the
+  /// read's UTC day: the reference is recorded once, at the read's moment (D2).
+  /// </summary>
+  [Test]
+  public void A_reference_listed_twice_in_one_read_is_recorded_once() {
+    BankTransaction pending = new(
+      Reference: "e-c018-kavarna",
+      Status: TransactionStatus.Pending,
+      Date: _november20,
+      Amount: -8.90m,
+      Currency: "EUR",
+      Counterparty: "Kavárna Na Rohu",
+      PaymentDetails: [],
+      TypeCode: "CARD_PAYMENT");
+
+    IReadOnlyList<FirstSeen> sightings = FirstSeenRule.Sightings([pending, pending with { Status = TransactionStatus.Booked }], _readAt);
+
+    sightings.Select(static sighting => $"{sighting.Reference} {Written(sighting.At)}")
+      .ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "the sightings recorded");
+  }
+
   /// <summary>A moment written out with its offset and every fraction of a second.</summary>
   private static string Written(DateTimeOffset moment) => moment.ToString("O", CultureInfo.InvariantCulture);
 }
