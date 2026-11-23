@@ -5,7 +5,8 @@ namespace RevolutReader.UnitTests.Check;
 /// <summary>
 /// The bank port as an account check reads it (c014 design.md D3; c018 design.md D5, D10): every balance read answers
 /// <paramref name="balance"/>, every transactions read answers no transaction, and each read records who it was for as it
-/// starts (<see cref="BalanceReadsFor"/>, <see cref="TransactionReadsFor"/>). Either answer can be held until the test
+/// starts (<see cref="BalanceReadsFor"/>, <see cref="TransactionReadsFor"/>), a transactions read also the day it asked
+/// from (<see cref="TransactionReadsFrom"/>). Either answer can be held until the test
 /// releases it, so a test sees what runs alongside a held read, as c017's rate tests hold theirs. Safe for reads on several
 /// threads at once.
 /// </summary>
@@ -16,6 +17,7 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
   private readonly Lock _lock = new();
   private readonly List<object> _balanceReadsFor = [];
   private readonly List<object> _transactionReadsFor = [];
+  private readonly List<DateOnly> _transactionReadsFrom = [];
 
   /// <summary>Set when the first transactions read starts.</summary>
   private readonly TaskCompletionSource _transactionsRead = NewSignal();
@@ -36,6 +38,14 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
     get {
       lock (_lock)
         return [.. _transactionReadsFor];
+    }
+  }
+
+  /// <summary>The day each transactions read asked from, in order.</summary>
+  public IReadOnlyList<DateOnly> TransactionReadsFrom {
+    get {
+      lock (_lock)
+        return [.. _transactionReadsFrom];
     }
   }
 
@@ -97,6 +107,7 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
 
     lock (_lock) {
       _transactionReadsFor.Add(trigger.Value!);
+      _transactionReadsFrom.Add(from);
       held = _transactionsHeld;
     }
 
