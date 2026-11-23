@@ -47,10 +47,12 @@ change:
 ## Rules
 
 - **Never modify test code or OpenSpec artifacts:** anything under `tests/`, `*Tests*` projects,
-  `*.test.*` and `*.spec.*` JavaScript and TypeScript files (e.g. `.ts(x)`, `.mjs`), the acceptance DSL, test fakes,
-  and anything under `openspec/`.
+  `*.test.*` and `*.spec.*` JavaScript and TypeScript files (e.g. `.ts(x)`, `.mjs`), the frontend's test helpers
+  under `src/RevolutReader.Web/src/test/`, the acceptance DSL, test fakes, and anything under `openspec/`.
   A hook blocks these edits (`.claude/hooks/deny-test-edits.mjs`, registered in `.claude/settings.json` for the
   implementer only) and the orchestrator checks the diff; do not try to work around either, also not through Bash.
+  The hook does not block `src/RevolutReader.Web/src/test/` yet (#100 adds it, with the hook's tests); the rule holds
+  there all the same.
   Exceptions, only when the orchestrator sends a group that says so:
   - `tests/RevolutReader.AcceptanceTests/Drivers/**` in `[wiring]` and `[close]` groups: replace the driver
     stubs with real calls;

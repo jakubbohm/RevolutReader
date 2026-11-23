@@ -209,10 +209,10 @@ Order the FIX findings by file, so related ones follow each other. For each, by 
   3. Send the implementer the test (file and test name), the finding and the sketch (a Direct PR: also its
      issue); the implementer must not change any test file. Verify green yourself: the full suite passes, and
      `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
-     list nothing under `tests/`, `*Tests*/`, `*.test.*` and `*.spec.*` JavaScript and TypeScript files (e.g.
-     `.ts(x)`, `.mjs`) or `openspec/` other than your state file (§ 0 step 3). A violation: restore the file
-     (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer, resume it. Commit
-     `fix(<scope>): [review] <id>: <summary>`.
+     list nothing under `tests/`, `*Tests*/`, `src/RevolutReader.Web/src/test/`, `*.test.*` and `*.spec.*`
+     JavaScript and TypeScript files (e.g. `.ts(x)`, `.mjs`) or `openspec/` other than your state file (§ 0 step 3).
+     A violation: restore the file (`git restore --source=HEAD -- <path>`; delete a new one), tell the implementer,
+     resume it. Commit `fix(<scope>): [review] <id>: <summary>`.
   4. The implementer returns `STATUS: BLOCKED` (the test looks wrong): do not judge it alone, and do not go on to
      the next finding, since every later check of a green suite depends on that test. The finding is an ASK, asked
      at once:
