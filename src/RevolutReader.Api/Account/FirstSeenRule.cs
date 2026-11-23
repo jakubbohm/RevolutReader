@@ -18,8 +18,15 @@ public static class FirstSeenRule {
   public static IReadOnlyList<FirstSeen> Sightings(IReadOnlyList<BankTransaction> read, DateTimeOffset readAt) {
     ArgumentNullException.ThrowIfNull(read);
 
-    // A transaction without a reference is left out: nothing could match it later (D1).
-    return [.. read.Select(static transaction => transaction.Reference).OfType<string>().Select(reference => new FirstSeen(reference, readAt))];
+    DateOnly readDay = DateOnly.FromDateTime(readAt.UtcDateTime);
+
+    // A transaction without a reference is left out: nothing could match it later (D1). One dated another day is left
+    // out too: the read is not when it happened (D2).
+    return [.. read
+      .Where(transaction => transaction.Date == readDay)
+      .Select(static transaction => transaction.Reference)
+      .OfType<string>()
+      .Select(reference => new FirstSeen(reference, readAt))];
   }
 
   /// <summary>What <c>seenAt</c> answers for a transaction dated <paramref name="date"/>: <paramref name="firstSeen"/> when its UTC date is <paramref name="date"/>, else null.</summary>

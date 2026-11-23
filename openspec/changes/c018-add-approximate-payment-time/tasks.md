@@ -141,13 +141,13 @@ Conventions for the run:
 
 ## 12. [unit] Slice 4 — Only on the transaction's own day
 
-- [ ] 12.1 A read records no transaction dated before the read's UTC day
+- [x] 12.1 A read records no transaction dated before the read's UTC day
 - [x] 12.2 A kept moment whose UTC date is not the transaction's date is answered as none
 - [x] 12.3 With no kept moment, none is answered
 
 ## 13. [wiring] Slice 4 — The rule in both directions
 
-- [ ] 13.1 `FirstSeenRule.Sightings` filters by the read's UTC date and `Shown` compares the UTC date (D2), both handlers answering through `Shown`. Verify: group 12 green
+- [x] 13.1 `FirstSeenRule.Sightings` filters by the read's UTC date and `Shown` compares the UTC date (D2), both handlers answering through `Shown`. Verify: group 12 green
 
 ## 14. [close] Slice 4 — A transaction first read after its own day carries no time
 
