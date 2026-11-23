@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 using RevolutReader.AcceptanceTests.Drivers;
 using RevolutReader.AcceptanceTests.Dsl;
+using RevolutReader.Api.Bank;
 using Shouldly;
 using TUnit.AspNetCore;
 
@@ -16,7 +17,8 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// the test's app copy reads the bank once for its balance and once for its transactions, for a present user, and
 /// nothing it logs (message, structured value or scope value) or exports as a trace (activity name, tag, event or
 /// status) may contain the configured account id, the session id, or the user's IP address or browser. A second test
-/// does the same for a read retried once, whose retry the resilience library logs as well (c008 design.md D9).
+/// does the same for a read retried once, whose retry the resilience library logs as well (c008 design.md D9). A third
+/// counts the bank reads of one account check, two since c018 (design.md D5), and guards them the same way.
 /// <para>
 /// The present user is the guard's own, with an address and a browser no other test uses: the app copies of tests running
 /// in parallel export into this test's collection too (<see cref="ExportedActivityCollection"/>), and the server activity of
@@ -38,6 +40,9 @@ public sealed class BankTelemetryTests : AcceptanceTest {
 
   /// <summary>The guard's own present user: a documentation address (RFC 5737) and a made-up browser, both used nowhere else.</summary>
   private static readonly UserAtDevice _user = new("192.0.2.71", "Mozilla/5.0 (RevolutReader telemetry guard; made up)");
+
+  /// <summary>The phone of the check's guard: a documentation address (RFC 5737) and a made-up Shortcut browser, both used nowhere else.</summary>
+  private static readonly UserAtDevice _checkingPhone = new("192.0.2.72", "BackgroundShortcutRunner/5114.0 (RevolutReader telemetry guard; made up)");
 
   private readonly CapturedLogTexts _logs = new();
   private readonly ExportedActivityCollection _traces = new();
@@ -74,6 +79,33 @@ public sealed class BankTelemetryTests : AcceptanceTest {
     _logs.MessagesOf(RESILIENCE_LIBRARY).ShouldNotBeEmpty("The resilience library's lines about the retry");
     _logs.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session, or the user's address or browser");
     _traces.Texts().Where(text => Names(text, identifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account, the session, or the user's address or browser");
+  }
+
+  /// <summary>
+  /// One account check, as the owner's phone asks for it, reads the bank twice: its balance and, since c018, its
+  /// transactions (design.md D5, D10; tasks.md 32.2). The bank's requests are left out of the exported traces (c004
+  /// design.md D5), so the bank adapter's own line of each read is what the telemetry holds of them: one balance line and
+  /// one transactions line, and the fake bank receives those two requests and nothing else. Nothing logged or exported
+  /// names the account or the session, and nothing logged names the phone's address or browser. The phone's values are
+  /// this test's own, so another test's guard never meets them; its browser is not looked for in the traces, since the
+  /// server activity of the check's own request records it (see the class).
+  /// </summary>
+  [Test]
+  public async Task A_check_reads_the_bank_twice_each_read_in_the_bank_adapters_line_with_no_account_id_or_session_id() {
+    Bank.HasAvailableBalance(1234.56m);
+
+    _ = await Check.PhoneAsksForACheckFrom(_checkingPhone);
+
+    IReadOnlyList<string> bankLines = _logs.MessagesOf(typeof(EnableBankingClient).FullName!);
+    string[] bankIdentifiers = [ConfiguredBankSetting("AccountId"), ConfiguredBankSetting("SessionId")];
+    string[] phoneHeaders = [_checkingPhone.IpAddress, _checkingPhone.Browser];
+
+    bankLines.ShouldSatisfyAllConditions(
+      () => bankLines.Count(static line => line.StartsWith("Bank balance read", StringComparison.Ordinal)).ShouldBe(1, "one balance read, in the bank adapter's line"),
+      () => bankLines.Count(static line => line.StartsWith("Bank transactions read", StringComparison.Ordinal)).ShouldBe(1, "one transactions read, in the bank adapter's line"),
+      () => Bank.RequestsReceived().Count.ShouldBe(2, "the fake bank receives the two requests and nothing else"),
+      () => _logs.Texts().Where(text => Names(text, [.. bankIdentifiers, .. phoneHeaders])).ShouldBeEmpty("Log messages, structured values or scope values naming the account, the session, or the phone's address or browser"),
+      () => _traces.Texts().Where(text => Names(text, bankIdentifiers)).ShouldBeEmpty("Exported trace names, tags, events or statuses naming the account or the session"));
   }
 
   protected override void ConfigureTestOptions(WebApplicationTestOptions options) {

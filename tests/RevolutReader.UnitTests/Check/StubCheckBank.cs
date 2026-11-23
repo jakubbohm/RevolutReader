@@ -4,7 +4,7 @@ namespace RevolutReader.UnitTests.Check;
 
 /// <summary>
 /// The bank port as an account check reads it (c014 design.md D3; c018 design.md D5, D10): every balance read answers
-/// <paramref name="balance"/>, every transactions read answers <see cref="TransactionsListed"/> (by default no transaction),
+/// <paramref name="balance"/>, every transactions read answers <see cref="TransactionsAnswer"/> (by default no transaction),
 /// whatever day it asks from, and each read records who it was for as it
 /// starts (<see cref="BalanceReadsFor"/>, <see cref="TransactionReadsFor"/>), a transactions read also the day it asked
 /// from (<see cref="TransactionReadsFrom"/>). Either answer can be held until the test
@@ -26,8 +26,8 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
   private TaskCompletionSource? _balanceHeld;
   private TaskCompletionSource? _transactionsHeld;
 
-  /// <summary>What every transactions read answers: these transactions, in this order; none unless the test lists some.</summary>
-  public IReadOnlyList<BankTransaction> TransactionsListed { get; init; } = [];
+  /// <summary>What every transactions read answers: the transactions a test lists, in their order, or a bank failure; no transaction unless the test sets it.</summary>
+  public BankResult<Transactions> TransactionsAnswer { get; init; } = new Transactions([]);
 
   /// <summary>Who each balance read was for, in order: the trigger's case (a <see cref="PresentUser"/> or <see cref="Unattended"/>).</summary>
   public IReadOnlyList<object> BalanceReadsFor {
@@ -120,7 +120,7 @@ public sealed class StubCheckBank(BankResult<Balance> balance) : IBankAccount {
     if (held is not null)
       await held.Task.WaitAsync(cancellationToken);
 
-    return new Transactions(TransactionsListed);
+    return TransactionsAnswer;
   }
 
   private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);

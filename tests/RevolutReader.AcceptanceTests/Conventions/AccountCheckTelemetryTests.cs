@@ -12,19 +12,22 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// <summary>
 /// The account check's log lines (c014 design.md D15; CLAUDE.md: never log bank data or secrets): what a check came to and
 /// counts only. A whole notifying check runs through the app copy: balances kept, a fall to a new balance, Lucie and Petr
-/// with registered phones, the check sent with the check key, the bank read for the phone as a present user and the change
+/// with registered phones, the check sent with the check key, the bank read for the phone as a present user (the balance,
+/// and since c018 the transactions, which list a card payment of today the check records, design.md D5) and the change
 /// pushed to both phones. Nothing the app copy logs during the whole test holds:
 /// <list type="bullet">
-/// <item>an amount, in any form: the balance kept, the new balance, the change and the new balance's koruna value (at the
-/// rate the notification carries, the one the app copy answered: the fake CNB's, c017 design.md D10), with a dot or a
-/// decimal comma, with an ordinary or a no-break space between thousands (a U+2212 minus is caught by the digits after
-/// it);</item>
+/// <item>an amount, in any form: the balance kept, the new balance, the change, the new balance's koruna value (at the
+/// rate the notification carries, the one the app copy answered: the fake CNB's, c017 design.md D10) and the card
+/// payment's amount, with a dot or a decimal comma, with an ordinary or a no-break space between thousands (a U+2212 minus
+/// is caught by the digits after it);</item>
+/// <item>the card payment's payee or its reference;</item>
 /// <item>a time a balance was read (the new read's and the kept balances');</item>
 /// <item>an email address of the allowlist;</item>
 /// <item>the check key, the message key, the VAPID pair or a phone's keys.</item>
 /// </list>
 /// The test first checks that the lines it guards were written (<c>CheckEnded</c>, <c>ChangeSent</c>, <c>PushSent</c> and
-/// the bank adapter's balance line), so it cannot pass without them.
+/// the bank adapter's balance and transactions lines), so it cannot pass without them. A second test does the same for a
+/// check whose transactions read fails, and its <c>FirstSeenNotRecorded</c> line (c018 design.md D5, D10).
 /// <para>
 /// A rule, not a scenario, as <see cref="PushTelemetryTests"/>: a logger provider in the app copy's container receives every
 /// entry the app's filters let through (<c>appsettings.json</c>'s levels), with its message, structured values, scopes and
@@ -42,8 +45,23 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
   private const string CHANGE_SENT = "ChangeSent";
   private const string PUSH_SENT = "PushSent";
 
+  /// <summary>The event of a check that recorded no first-seen times (c018 design.md D5, § Public API sketch).</summary>
+  private const string FIRST_SEEN_NOT_RECORDED = "FirstSeenNotRecorded";
+
   /// <summary>How the bank adapter's line of a balance read starts (c006 design.md D8).</summary>
   private const string BALANCE_READ = "Bank balance read";
+
+  /// <summary>How the bank adapter's line of a transactions read starts (c006 design.md D8): a check's since c018 (design.md D5).</summary>
+  private const string TRANSACTIONS_READ = "Bank transactions read";
+
+  /// <summary>The amount of the card payment the bank lists, made up.</summary>
+  private const decimal PAYMENT = 2468.13m;
+
+  /// <summary>Who the card payment the bank lists went to, made up.</summary>
+  private const string PAYEE = "Hlídka: Kavárna Na Rohu";
+
+  /// <summary>The bank's reference of the card payment it lists, made up.</summary>
+  private const string PAYMENT_REFERENCE = "e-c018-hlidka-4721";
 
   /// <summary>The balance both kept balances hold, made up.</summary>
   private const decimal KEPT = 18531.86m;
@@ -64,6 +82,7 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
     await Push.HasRegistered(petrsPhone);
     await Check.HasKept(lastSeen: KEPT, lastNotified: KEPT);
     Bank.HasAvailableBalance(READ, "EUR");
+    Transactions.BankLists(TodaysPayment());
     DateTimeOffset readAt = Check.Now;
 
     (await Check.PhoneAsksForACheck()).ShouldBe(CheckAnswer.BalanceChanged, "the check notified the change");
@@ -74,6 +93,7 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
     string[] guarded = [CHECK_ENDED, CHANGE_SENT, PUSH_SENT];
     guarded.Except(_logs.EventNames(), StringComparer.Ordinal).ShouldBeEmpty("lines not written, so the guard would not read them");
     _logs.Messages().ShouldContain(static message => message.StartsWith(BALANCE_READ, StringComparison.Ordinal), "the bank adapter's balance line");
+    _logs.Messages().ShouldContain(static message => message.StartsWith(TRANSACTIONS_READ, StringComparison.Ordinal), "the bank adapter's transactions line");
 
     string checkKey = Services.GetRequiredService<IOptions<AccountCheckOptions>>().Value.Key;
     (string What, string Value)[] forbidden = [
@@ -83,6 +103,9 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
       .. KorunaForms("the new balance's koruna value", READ * czkPerEur),
       .. TimeForms("the new read's time", readAt),
       .. TimeForms("the kept balances' time", readAt.AddHours(-1)),
+      .. AmountForms("the card payment's amount", PAYMENT),
+      ("the card payment's payee", PAYEE),
+      ("the card payment's reference", PAYMENT_REFERENCE),
       ("Lucie's email", Visitor.Lucie.Email),
       ("Petr's email", Visitor.Petr.Email),
       ("the check key", checkKey),
@@ -93,6 +116,44 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
 
     _logs.Leaks(forbidden).ShouldBeEmpty("Log messages, structured values, scope values or exceptions naming an amount, a time read, an email or a key");
   }
+
+  /// <summary>
+  /// A notifying check whose transactions read fails at the bank, its own error on every transactions request (c018
+  /// design.md D5, D10; tasks.md 32.2): the app copy writes one <c>FirstSeenNotRecorded</c> line at Warning, whose message
+  /// names the kind, <c>BankUnavailable</c>, and nothing else (§ Public API sketch); and no line the app copy writes holds
+  /// an amount (the balances, the change, the card payment the bank lists), the payment's payee or its reference.
+  /// </summary>
+  [Test]
+  public async Task A_failed_transactions_read_logs_one_FirstSeenNotRecorded_warning_with_its_kind_and_no_amount_name_or_reference() {
+    await Check.HasKept(lastSeen: KEPT, lastNotified: KEPT);
+    Bank.HasAvailableBalance(READ, "EUR");
+    Transactions.BankLists(TodaysPayment());
+    Bank.ReportsOwnErrorForTransactions();
+
+    (await Check.PhoneAsksForACheck()).ShouldBe(CheckAnswer.BalanceChanged, "the check answered as its balance read decides");
+
+    IReadOnlyList<LogEntry> notRecorded = _logs.Of(FIRST_SEEN_NOT_RECORDED);
+    (string What, string Value)[] forbidden = [
+      .. AmountForms("the kept balance", KEPT),
+      .. AmountForms("the new balance", READ),
+      .. AmountForms("the change", KEPT - READ),
+      .. AmountForms("the card payment's amount", PAYMENT),
+      ("the card payment's payee", PAYEE),
+      ("the card payment's reference", PAYMENT_REFERENCE),
+    ];
+    notRecorded.ShouldSatisfyAllConditions(
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Level.ShouldBe(LogLevel.Warning),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Texts[0]
+        .ShouldBe("An account check recorded no first-seen times: BankUnavailable", "its message names the kind, and nothing else"),
+      () => _logs.Leaks(forbidden).ShouldBeEmpty("Log messages, structured values, scope values or exceptions naming an amount, the payee or the reference"));
+  }
+
+  /// <summary>
+  /// A pending card payment of <see cref="PAYMENT"/> to <see cref="PAYEE"/>, with its reference
+  /// (<see cref="PAYMENT_REFERENCE"/>), dated the scenario's today, so a check that reads it records it.
+  /// </summary>
+  private static TransactionAtBank TodaysPayment() =>
+    TransactionAtBank.Payment(StatusAtBank.Pending, PAYMENT, on: TransactionsDsl.DefaultToday, to: PAYEE, reference: PAYMENT_REFERENCE);
 
   protected override void ConfigureTestServices(IServiceCollection services) => services.AddSingleton<ILoggerProvider>(_ => new CapturingLoggerProvider(_logs));
 
@@ -162,6 +223,12 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
     public IReadOnlyList<string> EventNames() {
       lock (_lock)
         return [.. _entries.Select(static entry => entry.EventName).OfType<string>().Distinct(StringComparer.Ordinal)];
+    }
+
+    /// <summary>The entries of the event <paramref name="eventName"/>, in the order logged.</summary>
+    public IReadOnlyList<LogEntry> Of(string eventName) {
+      lock (_lock)
+        return [.. _entries.Where(entry => entry.EventName == eventName)];
     }
 
     /// <summary>Every entry's message, in the order logged.</summary>

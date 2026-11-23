@@ -284,6 +284,59 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
+  /// Both balances kept at 49.00; the bank holds 45.20; the recording fails, at the bank (its own error, as
+  /// <c>BankUnavailable</c>) or in storage (the first-seen store throws on the spec's payment, read today). The check
+  /// notifies and answers exactly as its balance read decides (spec account-check, "The transactions read never changes the
+  /// notification"; c018 design.md D5, § Error model; tasks.md 31.4): one push, "Odešlo 3,80 €", and the answer that the
+  /// balance changed. When the balance path itself throws (the sender's device table cannot be read, c014 D11), the
+  /// caller gets that exception, as it is, not the recording's.
+  /// </summary>
+  /// <param name="failsAt">Where the recording fails.</param>
+  /// <param name="balancePath">How the balance path ends: it returns (a change notified) or throws (the sender's failure).</param>
+  [Test]
+  [Arguments("at the bank", "returns")]
+  [Arguments("in storage", "returns")]
+  [Arguments("in storage", "throws")]
+  public async Task With_the_recording_failing_a_check_notifies_and_answers_exactly_as_its_balance_read_decides(string failsAt, string balancePath) {
+    InMemoryFirstSeenStore firstSeen = new();
+    StubCheckBank bank = failsAt switch {
+      "at the bank" => new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new BankUnavailable() },
+      "in storage" => new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohuToday()]) },
+      _ => throw new ArgumentOutOfRangeException(nameof(failsAt), failsAt, "Not a known case."),
+    };
+
+    if (failsAt == "in storage")
+      firstSeen.FailWith(new InvalidOperationException("A made-up storage failure: the first-seen table cannot be read."));
+
+    bool returns = balancePath switch {
+      "returns" => true,
+      "throws" => false,
+      _ => throw new ArgumentOutOfRangeException(nameof(balancePath), balancePath, "Not a known case."),
+    };
+    FailingDeviceTable devices = new(await DevicesWithLuciesPhone()) { Readable = returns };
+    StubPushDelivery delivery = new();
+    AccountCheck check = await CheckWith(bank, await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m), delivery, devices: devices, firstSeen: firstSeen);
+    object? ended;
+
+    try {
+      ended = (await check.Run(_phone, _noCheckWaits, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS))).Value;
+    }
+    catch (InvalidOperationException failure) {
+      ended = failure;
+    }
+
+    ended.ShouldSatisfyAllConditions(() => {
+      if (returns) {
+        delivery.HandedOver.Select(static handedOver => Notification(handedOver.Push).Title).ShouldBe(["Odešlo 3,80 €"], "one notification, as the balance read decides");
+        ended.ShouldBe(new CheckOutcome(Changed: true), "the answer: the balance changed");
+      }
+      else {
+        ended.ShouldBeSameAs(devices.Failure, "the balance path's exception reaches the caller as it is, not the recording's");
+      }
+    });
+  }
+
+  /// <summary>
   /// Both balances kept at 49.00, read an hour earlier; the bank holds 45.20. The change is notified once, from last
   /// notified's 49.00 to the new last seen (D10 item 4), and last notified is then written as last seen: both the read,
   /// whole (D12).
@@ -638,6 +691,10 @@ public sealed class AccountCheckTests {
       () => lines.ShouldNotContain(static line => line.EventName == "ChangeSent", "nothing was sent"));
   }
 
+  /// <summary>The spec's pending card payment of 8.90 EUR to "Kavárna Na Rohu", with its reference (made up), dated the check's day, so a check records it.</summary>
+  private static BankTransaction KavarnaNaRohuToday() =>
+    new("e-c018-kavarna", TransactionStatus.Pending, DateOnly.FromDateTime(_now.UtcDateTime), -8.90m, "EUR", "Kavárna Na Rohu", ["Praha 2"], "CARD_PAYMENT");
+
   /// <summary>An amount in euros given as invariant text (an attribute cannot hold a decimal).</summary>
   private static decimal Euros(string amount) => decimal.Parse(amount, NumberStyles.Number, CultureInfo.InvariantCulture);
 
@@ -683,12 +740,13 @@ public sealed class AccountCheckTests {
 
   /// <summary>
   /// The check under test: it reads the balance and, through its recorder, the transactions at <paramref name="bank"/> while
-  /// the clock shows <see cref="_now"/>, the recorder's first-seen moments in an empty <see cref="InMemoryFirstSeenStore"/>;
-  /// its balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender, with the allowlist
-  /// Lucie and Petr, to <paramref name="delivery"/>; the sender's device store is <paramref name="devices"/>, or one holding
-  /// Lucie's phone (<see cref="DevicesWithLuciesPhone"/>); every log line goes to <paramref name="log"/>.
+  /// the clock shows <see cref="_now"/>, the recorder's first-seen moments in <paramref name="firstSeen"/>, or an empty
+  /// <see cref="InMemoryFirstSeenStore"/>; its balances are kept in <paramref name="store"/>; it notifies through a real
+  /// notifier and sender, with the allowlist Lucie and Petr, to <paramref name="delivery"/>; the sender's device store is
+  /// <paramref name="devices"/>, or one holding Lucie's phone (<see cref="DevicesWithLuciesPhone"/>); every log line goes to
+  /// <paramref name="log"/>.
   /// </summary>
-  private static async Task<AccountCheck> CheckWith(StubCheckBank bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null, IPushDeviceStore? devices = null) {
+  private static async Task<AccountCheck> CheckWith(StubCheckBank bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null, IPushDeviceStore? devices = null, InMemoryFirstSeenStore? firstSeen = null) {
     CapturedLog lines = log ?? new CapturedLog();
     Allowlist allowlist = Allowlist.Parse($"{LUCIE}, {PETR}");
     IPushDeviceStore deviceStore = devices ?? await DevicesWithLuciesPhone();
@@ -704,7 +762,7 @@ public sealed class AccountCheckTests {
 
     return new AccountCheck(
       new ReadBalanceHandler(bank, new FixedKorunaRates(new(CZK_PER_EUR, new DateOnly(2026, 11, 20))), clock),
-      new RecordFirstSeenHandler(bank, new FirstSeenTimes(new InMemoryFirstSeenStore()), clock, lines.For<RecordFirstSeenHandler>()),
+      new RecordFirstSeenHandler(bank, new FirstSeenTimes(firstSeen ?? new InMemoryFirstSeenStore()), clock, lines.For<RecordFirstSeenHandler>()),
       store,
       new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
       lines.For<AccountCheck>());

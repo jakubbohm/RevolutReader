@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Net;
+using Azure;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using RevolutReader.Api.Account;
@@ -14,9 +16,10 @@ namespace RevolutReader.UnitTests.Check;
 /// The account check's recording of first sightings (c018 design.md D5; § Public API sketch,
 /// <see cref="RecordFirstSeenHandler"/>): it reads the transactions as the present user the check runs for, never
 /// unattended (ADR-0008 item 3), from the UTC day before the clock's today, and records the read's first sightings
-/// through <see cref="FirstSeenTimes"/>, the newest page's path (D1, D2).
+/// through <see cref="FirstSeenTimes"/>, the newest page's path (D1, D2). A failed read or recording is logged and changes
+/// nothing; only the app's stop passes out (D5).
 /// <para>
-/// The bank is <see cref="StubCheckBank"/>, answering no transaction; the first-seen moments
+/// The bank is <see cref="StubCheckBank"/>, answering no transaction unless a test says otherwise; the first-seen moments
 /// <see cref="InMemoryFirstSeenStore"/> through a real <see cref="FirstSeenTimes"/>; the clock a
 /// <see cref="FakeTimeProvider"/>. The address is a documentation address (RFC 5737), the browser name the Shortcut's.
 /// </para>
@@ -30,6 +33,9 @@ public sealed class RecordFirstSeenHandlerTests {
 
   /// <summary>The bank's reference of a settled payment dated the day before the check (made up).</summary>
   private const string YESTERDAYS = "e-c018-yesterday";
+
+  /// <summary>The event of a check that recorded no first-seen times (§ Public API sketch, <c>CheckLog</c>).</summary>
+  private const string FIRST_SEEN_NOT_RECORDED = "FirstSeenNotRecorded";
 
   /// <summary>How long a test waits on the real clock for the recorder to end once nothing holds it: far longer than it takes.</summary>
   private const int WITHIN_SECONDS = 10;
@@ -103,7 +109,7 @@ public sealed class RecordFirstSeenHandlerTests {
   public async Task The_check_records_the_reads_sightings_at_the_clocks_moment_after_the_banks_answer() {
     FakeTimeProvider clock = new(_now);
     InMemoryFirstSeenStore firstSeen = new();
-    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsListed = [KavarnaNaRohu(), SettledYesterday()] };
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohu(), SettledYesterday()]) };
     bank.HoldTheTransactions();
 
     Task handling = Recorder(bank, clock, firstSeen).Handle(_phone, CancellationToken.None);
@@ -132,7 +138,7 @@ public sealed class RecordFirstSeenHandlerTests {
   public async Task A_transaction_the_check_already_timed_keeps_its_moment_when_the_check_reads_it_again() {
     InMemoryFirstSeenStore firstSeen = new();
     firstSeen.Keep(KAVARNA, _now);
-    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsListed = [KavarnaNaRohu(), TrafikaMustek()] };
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohu(), TrafikaMustek()]) };
 
     await Recorder(bank, new FakeTimeProvider(new DateTimeOffset(2026, 11, 20, 13, 20, 0, TimeSpan.Zero)), firstSeen).Handle(_phone, CancellationToken.None);
 
@@ -140,6 +146,165 @@ public sealed class RecordFirstSeenHandlerTests {
       [$"{KAVARNA} 2026-11-20T13:05:12.0000000+00:00", $"{TRAFIKA} 2026-11-20T13:20:00.0000000+00:00"],
       ignoreOrder: true,
       "what the first-seen store keeps: the payment timed before at its first moment, the new one at this read's");
+  }
+
+  // A failed transactions read changes nothing (D5: it never throws but for cancellation; § Error model)
+
+  /// <summary>
+  /// The transactions read fails at the bank in each of its three expected ways: the recorder returns normally, the
+  /// first-seen store is neither read nor written, and one <c>FirstSeenNotRecorded</c> line at Warning holds the kind and
+  /// nothing else, with no exception (§ Public API sketch, <c>CheckLog.FirstSeenNotRecorded</c>; tasks.md 31.1).
+  /// </summary>
+  /// <param name="failure">How the bank failed.</param>
+  [Test]
+  [Arguments("access expired")]
+  [Arguments("rate limited")]
+  [Arguments("unavailable")]
+  public async Task A_bank_failure_of_the_transactions_read_logs_its_kind_records_nothing_and_returns_normally(string failure) {
+    (BankResult<Transactions> answer, FirstSeenFailure kind) = failure switch {
+      "access expired" => ((BankResult<Transactions>)new BankAccessExpired(), FirstSeenFailure.BankAccessExpired),
+      "rate limited" => (new BankRateLimited(), FirstSeenFailure.BankRateLimited),
+      "unavailable" => (new BankUnavailable(), FirstSeenFailure.BankUnavailable),
+      _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+    };
+    InMemoryFirstSeenStore firstSeen = new();
+    CapturedLog log = new();
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = answer };
+
+    Exception? escaped = await Escaped(Recorder(bank, firstSeen, log).Handle(_phone, CancellationToken.None));
+
+    IReadOnlyList<LogEntry> notRecorded = log.Of(FIRST_SEEN_NOT_RECORDED);
+    notRecorded.ShouldSatisfyAllConditions(
+      () => escaped.ShouldBeNull("the recorder returns normally"),
+      () => (firstSeen.ReadRequests, firstSeen.RecordRequests).ShouldBe((0, 0), "the first-seen store is neither read nor written"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Level.ShouldBe(LogLevel.Warning),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").OwnValues().ShouldBe([kind], "the kind, and nothing else"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Exception.ShouldBeNull("a bank failure carries no exception"));
+  }
+
+  /// <summary>
+  /// The bank lists the spec's payment, and the first-seen store fails: a row it cannot read (§ Error model: an
+  /// <see cref="InvalidOperationException"/> naming the column), or the storage's own failure, as the Azure SDK reports
+  /// it. The recorder returns normally, and one <c>FirstSeenNotRecorded</c> line at Warning holds
+  /// <see cref="FirstSeenFailure.Failed"/> and nothing else, with the store's exception (tasks.md 31.2).
+  /// </summary>
+  /// <param name="failure">How the store failed.</param>
+  [Test]
+  [Arguments("a row it cannot read")]
+  [Arguments("the storage's own failure")]
+  public async Task An_exception_in_the_recording_logs_Failed_with_the_exception_and_returns_normally(string failure) {
+    Exception storeFailure = failure switch {
+      "a row it cannot read" => new InvalidOperationException("A made-up row of the first-seen table that cannot be read: its SeenAt column is missing."),
+      "the storage's own failure" => new RequestFailedException(503, "A made-up storage failure: the table service is unavailable."),
+      _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Not a known case."),
+    };
+    InMemoryFirstSeenStore firstSeen = new();
+    firstSeen.FailWith(storeFailure);
+    CapturedLog log = new();
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohu()]) };
+
+    Exception? escaped = await Escaped(Recorder(bank, firstSeen, log).Handle(_phone, CancellationToken.None));
+
+    IReadOnlyList<LogEntry> notRecorded = log.Of(FIRST_SEEN_NOT_RECORDED);
+    notRecorded.ShouldSatisfyAllConditions(
+      () => escaped.ShouldBeNull("the recorder returns normally"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Level.ShouldBe(LogLevel.Warning),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").OwnValues().ShouldBe([FirstSeenFailure.Failed], "Failed, and nothing else"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Exception.ShouldBeSameAs(storeFailure, "the store's exception"));
+  }
+
+  /// <summary>
+  /// The app stops while the check records (the caller's token, the app's stopping token through the queue, is cancelled):
+  /// while the bank holds its answer, or once the bank has answered and the first-seen store is asked. The recorder ends
+  /// with an <see cref="OperationCanceledException"/>, and logs no <c>FirstSeenNotRecorded</c> line: the stop is neither
+  /// swallowed nor logged as <see cref="FirstSeenFailure.Failed"/> (D5, § Error model; tasks.md 31.3).
+  /// </summary>
+  /// <param name="when">Where the recording is when the app stops.</param>
+  [Test]
+  [Arguments("at the bank")]
+  [Arguments("in the store")]
+  public async Task The_apps_stop_passes_as_a_cancellation(string when) {
+    InMemoryFirstSeenStore firstSeen = new();
+    CapturedLog log = new();
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohu()]) };
+    using CancellationTokenSource appStops = new();
+    Exception? escaped;
+
+    switch (when) {
+      case "at the bank":
+        bank.HoldTheTransactions();
+        Task handling = Recorder(bank, firstSeen, log).Handle(_phone, appStops.Token);
+
+        try {
+          (await bank.TransactionsAreRead()).ShouldBeTrue("the bank is read, and holds its answer");
+          await appStops.CancelAsync();
+          escaped = await Escaped(handling.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS)));
+        }
+        finally {
+          bank.ReleaseTheTransactions();
+        }
+
+        break;
+      case "in the store":
+        // The stub bank answers whatever the token; the in-memory store honours it, as the Table adapter's calls do.
+        await appStops.CancelAsync();
+        escaped = await Escaped(Recorder(bank, firstSeen, log).Handle(_phone, appStops.Token));
+
+        break;
+      default:
+        throw new ArgumentOutOfRangeException(nameof(when), when, "Not a known case.");
+    }
+
+    escaped.ShouldSatisfyAllConditions(
+      () => escaped.ShouldBeAssignableTo<OperationCanceledException>("the app's stop passes as a cancellation"),
+      () => log.Of(FIRST_SEEN_NOT_RECORDED).ShouldBeEmpty("the stop is not logged as a failure to record"));
+  }
+
+  /// <summary>
+  /// The first-seen store throws a <see cref="TaskCanceledException"/> while the caller's token is not cancelled, as an
+  /// SDK's own timeout would: not the app's stop, so an exception like any other. The recorder returns normally, and one
+  /// <c>FirstSeenNotRecorded</c> line at Warning holds <see cref="FirstSeenFailure.Failed"/> and nothing else, with that
+  /// exception (§ Error model: "Only the caller's cancellation throws <c>OperationCanceledException</c>"; tasks.md 31.3).
+  /// </summary>
+  [Test]
+  public async Task A_cancellation_that_is_not_the_callers_logs_Failed_with_the_exception_and_returns_normally() {
+    TaskCanceledException storesOwnTimeout = new("A made-up timeout of the storage client's own: the caller did not cancel.");
+    InMemoryFirstSeenStore firstSeen = new();
+    firstSeen.FailWith(storesOwnTimeout);
+    CapturedLog log = new();
+    StubCheckBank bank = new(new Balance(45.20m, "EUR")) { TransactionsAnswer = new Transactions([KavarnaNaRohu()]) };
+    using CancellationTokenSource appStops = new();
+
+    Exception? escaped = await Escaped(Recorder(bank, firstSeen, log).Handle(_phone, appStops.Token));
+
+    IReadOnlyList<LogEntry> notRecorded = log.Of(FIRST_SEEN_NOT_RECORDED);
+    notRecorded.ShouldSatisfyAllConditions(
+      () => appStops.IsCancellationRequested.ShouldBeFalse("the app has not stopped"),
+      () => escaped.ShouldBeNull("the recorder returns normally"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Level.ShouldBe(LogLevel.Warning),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").OwnValues().ShouldBe([FirstSeenFailure.Failed], "Failed, and nothing else"),
+      () => notRecorded.ShouldHaveSingleItem("one FirstSeenNotRecorded line").Exception.ShouldBeSameAs(storesOwnTimeout, "the store's exception"));
+  }
+
+  /// <summary>
+  /// What <paramref name="handling"/> ended with: <see langword="null"/> when it returned normally, else the exception it
+  /// threw, of the kinds these tests make happen (a cancellation, a store's failure); any other passes on and fails the test.
+  /// </summary>
+  private static async Task<Exception?> Escaped(Task handling) {
+    try {
+      await handling;
+
+      return null;
+    }
+    catch (OperationCanceledException cancelled) {
+      return cancelled;
+    }
+    catch (InvalidOperationException failed) {
+      return failed;
+    }
+    catch (RequestFailedException failed) {
+      return failed;
+    }
   }
 
   /// <summary>
@@ -179,4 +344,50 @@ public sealed class RecordFirstSeenHandlerTests {
   /// <summary>The recorder under test: it reads <paramref name="bank"/> on <paramref name="clock"/>, and records into <paramref name="firstSeen"/> through a real <see cref="FirstSeenTimes"/>.</summary>
   private static RecordFirstSeenHandler Recorder(StubCheckBank bank, TimeProvider clock, InMemoryFirstSeenStore firstSeen) =>
     new(bank, new FirstSeenTimes(firstSeen), clock, NullLogger<RecordFirstSeenHandler>.Instance);
+
+  /// <summary>The recorder under test: it reads <paramref name="bank"/> while the clock shows <see cref="_now"/>, records into <paramref name="firstSeen"/> through a real <see cref="FirstSeenTimes"/>, and logs to <paramref name="log"/>.</summary>
+  private static RecordFirstSeenHandler Recorder(StubCheckBank bank, InMemoryFirstSeenStore firstSeen, CapturedLog log) =>
+    new(bank, new FirstSeenTimes(firstSeen), new FakeTimeProvider(_now), log);
+
+  /// <summary>The recorder's logger, keeping every line it writes: its level, its event's name, its structured values, its exception and its message.</summary>
+  private sealed class CapturedLog : ILogger<RecordFirstSeenHandler> {
+    private readonly Lock _lock = new();
+    private readonly List<LogEntry> _entries = [];
+
+    /// <summary>The lines of the event <paramref name="eventName"/>, in the order written.</summary>
+    public IReadOnlyList<LogEntry> Of(string eventName) {
+      lock (_lock)
+        return [.. _entries.Where(entry => entry.EventName == eventName)];
+    }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) {
+      ArgumentNullException.ThrowIfNull(formatter);
+
+      IEnumerable<KeyValuePair<string, object?>> values = state as IEnumerable<KeyValuePair<string, object?>> ?? [];
+      LogEntry entry = new(logLevel, eventId.Name, [.. values], exception, formatter(state, exception));
+
+      lock (_lock)
+        _entries.Add(entry);
+    }
+  }
+
+  /// <summary>One line of the recorder's log.</summary>
+  private sealed record LogEntry(LogLevel Level, string? EventName, IReadOnlyList<KeyValuePair<string, object?>> Values, Exception? Exception, string Message) {
+    /// <summary>The structured value every source-generated line carries besides its own: its message template.</summary>
+    private const string ORIGINAL_FORMAT = "{OriginalFormat}";
+
+    /// <summary>The values of the line's own fields, without its message template.</summary>
+    public IReadOnlyList<object?> OwnValues() => [.. Values.Where(static pair => pair.Key != ORIGINAL_FORMAT).Select(static pair => pair.Value)];
+
+    #region Object overrides
+
+    /// <summary>For a failure message: the level and the event.</summary>
+    public override string ToString() => $"{Level} {EventName}";
+
+    #endregion
+  }
 }
