@@ -20,5 +20,6 @@
 - [Archive inside the PR](archive-inside-the-pr.md) — /opsx:archive runs on the change branch before the merge, part of the same PR; never an after-merge follow-up
 - [gh api --slurp excludes --jq](gh-api-slurp-excludes-jq.md) — slurped pages go to a file and are shaped with node; --jq alone runs per page
 - [Workflow script syntax check](workflow-script-syntax-check.md) — wrap the body in an async function before node --check; a saved workflow appears in the skill list by its meta.name
+- [Worktree guard refuses script blocks](worktree-guard-refuses-script-blocks.md) — in a worktree session multi-line shell functions are refused; skills ship such scripts as files run by path (triage-review's do)
 - [No backlinks on upstream issues](no-upstream-backlinks.md) — never owner/repo#n or a github.com issue URL of another repo in GitHub text (issues, PRs, comments, commit messages); use redirect.github.com; nothing outside the repo without a go; deleting the issue removes a backlink, deleting a comment doesn't, a PR can't be deleted
 - [npm ci vs a locked oxlint](npm-ci-locked-oxlint.md) — run npm ci only when the lockfile changed; the editor's oxlint LSP locks a binary and npm ci fails with node_modules wiped; npm install restores

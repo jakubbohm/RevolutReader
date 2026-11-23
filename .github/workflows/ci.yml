@@ -1,6 +1,7 @@
 # Builds and tests everything on every pull request: the solution (c002 design.md D2, D8), the
-# frontend (c003 design.md D12), and the image and the Bicep that the deploy uses (c005 design.md
-# D7, D14).
+# frontend (c003 design.md D12), the image and the Bicep that the deploy uses (c005 design.md
+# D7, D14), and the triage-review skill's scripts (in the frontend job;
+# docs/software-factory/lessons.md R-103).
 # The job names `build-and-test`, `frontend` and `image-and-infra` are required checks in the
 # ruleset on main (docs/operations/main-ruleset.json): renaming one means updating the ruleset in
 # the same PR. No job here holds a credential or publishes anything (docs/conventions/workflow.md § 4).
@@ -65,6 +66,12 @@ jobs:
           cache-dependency-path: |
             src/RevolutReader.Web/package-lock.json
             tools/api-client/package-lock.json
+
+      # The triage-review skill's scripts (docs/conventions/testing.md § Where tests live): in this job
+      # because it has Node, whose own test runner needs no install.
+      - name: Triage scripts' tests
+        working-directory: .
+        run: node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 
       - name: Install
         run: npm ci

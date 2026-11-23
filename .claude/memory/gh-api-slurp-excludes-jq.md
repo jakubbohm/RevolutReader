@@ -9,4 +9,4 @@ metadata:
 
 **Why:** the triage-review skill's gather script first combined the two and failed on its first run.
 
-**How to apply:** write the slurped pages to a file (an array of pages, `[[]]` when empty) and shape them with a short `node -e` script (`pages.flat()`), as `.claude/skills/triage-review/SKILL.md` script A does. Single-page results may still use `--jq` without `--slurp`.
+**How to apply:** write the slurped pages to a file (an array of pages, `[[]]` when empty) and shape them with Node (`pages.flat()`), as `.claude/skills/triage-review/scripts/gather-findings.mjs` does. Single-page results may still use `--jq` without `--slurp`.

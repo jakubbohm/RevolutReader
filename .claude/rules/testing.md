@@ -3,6 +3,7 @@ paths:
   - "tests/**"
   - "**/*.test.ts"
   - "**/*.test.tsx"
+  - "**/*.test.mjs"
   - "openspec/changes/**/tasks.md"
 ---
 
@@ -19,6 +20,7 @@ paths:
 - **Frontend scenarios that wait or store** run on the test clock (`src/test/clock.ts`: `startTestClock()`, then `timePasses(ms)` and `getBy…`/`queryBy…`, never `findBy…`/`waitFor`; taps through `userOnTheTestClock()`), with `fake-indexeddb` as the phone's storage, emptied before every test, and the fake server's answers in order, delays (`after`), abort, offline and leaving the app (`src/test/server.ts`).
 - **Fake bank responses are copied from Mock ASPSP captures** (`spikes/enable-banking-mock/evidence/`) or, when the mock cannot produce them, written from the API reference with a comment saying so. **Never real account data** in any test or fixture.
 - **No automatic re-runs** of failing tests; a flaky test is fixed or deleted. Docker-dependent tests stop with a message when Docker is not running, never skip silently; since C7b `dotnet test` needs Docker (Azurite).
-- **tasks.md is the test list:** groups `[acceptance]` → `[unit]` → `[integration]` → `[wiring]` → `[close]`, one behaviour per task, never a "write tests" task. A tooling-only change's groups are named after its work instead.
+- **The triage scripts' tests sit next to them** as `*.test.mjs` in `.claude/skills/triage-review/scripts/`, run with Node's own runner (`node --test`): only their pure parts, on made-up objects, never calling `gh` or the network; CI runs them ([testing.md § Where tests live](../../docs/conventions/testing.md#where-tests-live)). The .NET and Vitest tooling above (Shouldly, the DSL, the drivers and fakes, Azurite, the test clock) does not apply to them.
+- **tasks.md is the test list:** groups `[acceptance]` → `[unit]` → `[integration]` → `[wiring]` → `[close]`, one behaviour per task, never a "write tests" task. A change of more than 3 scenarios, sliced per scenario, suggests its chapters (runs of slices, each with a fresh pair of agents in `/tdd-apply`) in a short paragraph before group 1 ([testing.md § Task groups](../../docs/conventions/testing.md#task-groups)). A tooling-only change's groups are named after its work instead.
 
 Source of truth: [docs/conventions/testing.md](../../docs/conventions/testing.md).
