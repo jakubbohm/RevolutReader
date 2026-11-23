@@ -1,0 +1,2 @@
+D:\repo\sample\Beta.Tests\BetaTests.cs(9,28): error CS1002: ; expected [D:\repo\sample\Beta.Tests\Beta.Tests.csproj]
+Build failed with exit code: 1.

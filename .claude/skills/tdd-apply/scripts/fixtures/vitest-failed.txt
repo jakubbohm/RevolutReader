@@ -1,0 +1,83 @@
+
+ RUN  v5.1.0 D:/repo/vsample
+
+ ❯ src/gamma.test.js (0 test)
+ ❯ src/alpha.test.js (6 tests | 3 failed | 1 skipped | 1 todo) 10ms
+   ❯ a made-up group (5)
+     × a list holds what was added 6ms
+     × a stub is not written yet 0ms
+   × a top-level test with a message 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/gamma.test.js [ src/gamma.test.js ]
+Error: Cannot find module './not-there.js' imported from D:/repo/vsample/src/gamma.test.js
+ ❯ src/gamma.test.js:1:1
+      1| import { missing } from "./not-there.js";
+       | ^
+      2| test("never runs", () => {
+      3|   expect(missing).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/alpha.test.js > a made-up group > a list holds what was added
+AssertionError: expected [ 'first' ] to deeply equal [ 'first', 'second' ]
+
+- Expected
++ Received
+
+  [
+    "first",
+-   "second",
+  ]
+
+ ❯ src/alpha.test.js:6:23
+      4|   });
+      5|   test("a list holds what was added", () => {
+      6|     expect(["first"]).toEqual(["first", "second"]);
+       |                       ^
+      7|   });
+      8|   test("a stub is not written yet", () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/alpha.test.js > a made-up group > a stub is not written yet
+Error: Not implemented: c000 tasks.md 1.1
+ ❯ src/alpha.test.js:9:11
+      7|   });
+      8|   test("a stub is not written yet", () => {
+      9|     throw new Error("Not implemented: c000 tasks.md 1.1");
+       |           ^
+     10|   });
+     11|   test.skip("a test that is skipped", () => {});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/alpha.test.js > a top-level test with a message
+AssertionError: the flag is set: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/alpha.test.js:15:36
+     13| });
+     14| test("a top-level test with a message", () => {
+     15|   expect(false, "the flag is set").toBe(true);
+       |                                    ^
+     16| });
+     17|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  3 failed | 2 passed | 1 skipped | 1 todo (7)
+   Start at  20:31:32
+   Duration  181ms (transform 36%, worker 30%, import 18%, tests 15%, environment 1%)
+
