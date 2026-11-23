@@ -213,7 +213,7 @@ Conventions for the run:
 
 ## 26. [close] Slice 8 — The check reads the transactions from yesterday on
 
-- [ ] 26.1 The scenario's test passes. Verify: green, including account-check / The check reads the transactions from yesterday on
+- [x] 26.1 The scenario's test passes. Verify: green, including account-check / The check reads the transactions from yesterday on
 
 ## 27. [unit] Slice 9 — The check records first sightings
 
