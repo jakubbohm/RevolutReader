@@ -102,8 +102,8 @@ Conventions for the run:
 
 ## 6. [close] Slice 1 — A transaction first read on its own day carries the time it was first read
 
-- [ ] 6.1 The scenario's test passes. Verify: green, including account-transactions / A transaction first read on its own day carries the time it was first read
-- [ ] 6.2 Docs:
+- [x] 6.1 The scenario's test passes. Verify: green, including account-transactions / A transaction first read on its own day carries the time it was first read
+- [x] 6.2 Docs:
   - `configuration.md` § `appsettings.json` is the inventory (`FirstSeenTimes`);
   - `testing.md` (the calendar's time of day, `seenAt` in the DSL, the app copy's own `FirstSeenTimes` table) and its mirror in `.claude/rules/testing.md`;
   - `deployment.md`'s storage account row (the `firstseentimes` table: hashes of references and moments, no bank text; dropping it loses only the times).
