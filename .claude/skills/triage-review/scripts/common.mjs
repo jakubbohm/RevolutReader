@@ -202,6 +202,11 @@ export function lastSummaryTime(issueComments) {
   return latest;
 }
 
+// Will return, in text order, the references in a text GitHub publishes that would post a backlink outside `ownRepo`.
+export function backlinkRisks(text, ownRepo) {
+  throw new Error("not implemented");
+}
+
 // A sorted list of whole numbers as compact text, each run of consecutive numbers as a range: [1, 2, 4, 7, 8, 9]
 // gives "1-2, 4, 7-9", and no numbers give "".
 export function ranges(numbers) {

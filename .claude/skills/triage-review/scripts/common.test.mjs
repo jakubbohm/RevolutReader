@@ -1,13 +1,15 @@
 // Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
 // submitted, a text's first line, the lines of a diff a comment can attach to, how a chat review's findings become
-// review comments to post, and when the PR's last triage summary was posted.
+// review comments to post, when the PR's last triage summary was posted, and which references in a text would post
+// a backlink outside the repository.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
-// REST API's.
+// REST API's, and every other repository named is made up.
 //
 //   node --test ".claude/skills/triage-review/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  backlinkRisks,
   findingsFrom,
   firstLine,
   lastSummaryTime,
@@ -759,6 +761,126 @@ describe("lastSummaryTime", () => {
   test("gives no time when the PR has no triage summary", () => {
     assert.equal(lastSummaryTime([]), null);
     assert.equal(lastSummaryTime([issueComment(5031, at(9), "Looks good so far.")]), null);
+  });
+});
+
+describe("backlinkRisks", () => {
+  // The repository the scripts post in; example-org/widget and other.user/some-lib stand for any other repository.
+  const ownRepo = "jakubbohm/RevolutReader";
+
+  // backlinkRisks finds exactly one match per expected reference, in text order: each match holds its reference and
+  // no white space (the reference itself, not the line around it). How far a link's match reaches (its https://,
+  // a trailing anchor) is left open.
+  function assertFinds(text, references) {
+    const found = backlinkRisks(text, ownRepo);
+    assert.equal(found.length, references.length, `found ${JSON.stringify(found)}`);
+    references.forEach((reference, i) => {
+      assert.ok(
+        found[i].includes(reference) && !/\s/.test(found[i]),
+        `match ${i + 1} is ${JSON.stringify(found[i])}, not ${reference}`,
+      );
+    });
+  }
+  const assertClean = (text) => assert.deepEqual(backlinkRisks(text, ownRepo), []);
+
+  test("finds another repository's issue named by its owner, name and number", () => {
+    assertFinds("Upstream: example-org/widget#123, and other.user/some-lib#7.", [
+      "example-org/widget#123",
+      "other.user/some-lib#7",
+    ]);
+  });
+
+  test("finds a github.com link to another repository's issue or pull request, with or without https and www", () => {
+    const text = [
+      "https://github.com/example-org/widget/issues/12",
+      "github.com/example-org/widget/pull/7",
+      "https://www.github.com/other.user/some-lib/issues/3#issuecomment-45",
+      "http://github.com/example-org/widget/pull/8/files",
+    ].join("\n");
+
+    assertFinds(text, [
+      "github.com/example-org/widget/issues/12",
+      "github.com/example-org/widget/pull/7",
+      "github.com/other.user/some-lib/issues/3",
+      "github.com/example-org/widget/pull/8",
+    ]);
+  });
+
+  test("allows a redirect.github.com link to another repository's issue or pull request", () => {
+    assertClean(
+      "Upstream: https://redirect.github.com/example-org/widget/issues/12 and " +
+        "redirect.github.com/other.user/some-lib/pull/7.",
+    );
+  });
+
+  test("allows a github.com link to another repository's page that is no issue or pull request", () => {
+    assertClean(
+      [
+        "https://github.com/example-org/widget",
+        "https://github.com/example-org/widget/blob/main/README.md",
+        "https://github.com/example-org/widget/releases/tag/v1.2.0",
+      ].join("\n"),
+    );
+  });
+
+  test("finds this repository's retired pull request in every form that links it", () => {
+    const text = [
+      "#94 was retired.",
+      "Also jakubbohm/RevolutReader#94, https://github.com/jakubbohm/RevolutReader/pull/94 and",
+      "github.com/jakubbohm/RevolutReader/issues/94.",
+    ].join("\n");
+
+    assertFinds(text, [
+      "#94",
+      "#94",
+      "github.com/jakubbohm/RevolutReader/pull/94",
+      "github.com/jakubbohm/RevolutReader/issues/94",
+    ]);
+  });
+
+  test("takes neither another number nor a 94 without # for the retired pull request", () => {
+    assertClean(
+      [
+        "#940 and #9 are other issues; R-94 is a lesson, and the review had 94 findings (PR 94 in words).",
+        "jakubbohm/RevolutReader#940 and https://github.com/jakubbohm/RevolutReader/pull/940 are fine too.",
+      ].join("\n"),
+    );
+  });
+
+  test("allows references to this repository's other issues and pull requests", () => {
+    assertClean(
+      [
+        "Closes #67.",
+        "Part of jakubbohm/RevolutReader#67.",
+        "https://github.com/jakubbohm/RevolutReader/issues/67 and github.com/jakubbohm/RevolutReader/pull/93",
+      ].join("\n"),
+    );
+  });
+
+  test("compares the repository's owner and name without regard to case", () => {
+    assertClean("JakubBohm/revolutreader#67 and https://github.com/JAKUBBOHM/RevolutReader/issues/67");
+    assertFinds("Not Jakubbohm/Revolutreader#94 either.", ["#94"]);
+  });
+
+  test("finds several references in a text of several lines, in text order", () => {
+    const text = [
+      "## Review triage, round 2",
+      "",
+      "- Upstream: https://github.com/example-org/widget/issues/12",
+      "- The same as (#94), fixed here.",
+      "- Tracked in other.user/some-lib#7 and #67.",
+    ].join("\r\n");
+
+    assertFinds(text, ["github.com/example-org/widget/issues/12", "#94", "other.user/some-lib#7"]);
+  });
+
+  test("finds a reference inside Markdown code too, although GitHub links none there", () => {
+    assertFinds("Run `example-org/widget#12` again.\n```\nSee #94\n```", ["example-org/widget#12", "#94"]);
+  });
+
+  test("finds nothing in a text without references", () => {
+    assertClean("No references here.\nJust text, a path like docs/a.md and a heading anchor #top.");
+    assertClean("");
   });
 });
 
