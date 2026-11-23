@@ -234,10 +234,10 @@ Conventions for the run:
 
 ## 31. [unit] Slice 11 — A failed transactions read changes nothing
 
-- [ ] 31.1 A bank failure of the transactions read logs `FirstSeenNotRecorded` with its kind, records nothing and returns normally (each of the three kinds)
-- [ ] 31.2 An exception in the recording (the store) logs `FirstSeenNotRecorded` as `Failed`, with the exception, and returns normally
-- [ ] 31.3 The app's stop passes as a cancellation
-- [ ] 31.4 With the recording failing, `AccountCheck` notifies and answers exactly as its balance read decides
+- [x] 31.1 A bank failure of the transactions read logs `FirstSeenNotRecorded` with its kind, records nothing and returns normally (each of the three kinds)
+- [x] 31.2 An exception in the recording (the store) logs `FirstSeenNotRecorded` as `Failed`, with the exception, and returns normally
+- [x] 31.3 The app's stop passes as a cancellation
+- [x] 31.4 With the recording failing, `AccountCheck` notifies and answers exactly as its balance read decides
 
 ## 32. [wiring] Slice 11 — The failure path and its log
 
