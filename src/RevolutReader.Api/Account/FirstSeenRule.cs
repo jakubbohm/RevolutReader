@@ -23,5 +23,6 @@ public static class FirstSeenRule {
   }
 
   /// <summary>What <c>seenAt</c> answers for a transaction dated <paramref name="date"/>: <paramref name="firstSeen"/> when its UTC date is <paramref name="date"/>, else null.</summary>
-  public static DateTimeOffset? Shown(DateOnly date, DateTimeOffset? firstSeen) => firstSeen;
+  public static DateTimeOffset? Shown(DateOnly date, DateTimeOffset? firstSeen) =>
+    firstSeen is DateTimeOffset seen && DateOnly.FromDateTime(seen.UtcDateTime) == date ? seen : null;
 }

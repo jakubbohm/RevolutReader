@@ -13,20 +13,20 @@ public sealed record TransactionPageResponse(
   [property: Description("The day before which older transactions are kept, to ask for the next older page with; null when none are")] DateOnly? OlderBefore,
   [property: Description("Czech koruna per euro, the rate the app converts euro amounts with")] decimal CzkPerEur,
   [property: Description("The day the koruna rate is for")] DateOnly RateDate) {
-  /// <summary>A page as the API answers it, the newest or an older one: each transaction's seven fields, as the page holds them.</summary>
+  /// <summary>A page as the API answers it, the newest or an older one: each transaction's eight fields, as the page holds them.</summary>
   internal static TransactionPageResponse Of(TransactionPage page) {
     ArgumentNullException.ThrowIfNull(page);
 
     return new(
       [.. page.Transactions.Select(static transaction => new TransactionResponse(
-        transaction.Date, transaction.Amount, transaction.Currency, transaction.Pending, transaction.Counterparty, transaction.Details, transaction.Kind))],
+        transaction.Date, transaction.Amount, transaction.Currency, transaction.Pending, transaction.Counterparty, transaction.Details, transaction.Kind, transaction.SeenAt))],
       page.OlderBefore,
       page.CzkPerEur,
       page.RateDate);
   }
 }
 
-/// <summary>A transaction as the API answers it (D10): the seven fields the screen shows.</summary>
+/// <summary>A transaction as the API answers it (D10): the eight fields the screen shows, its first-seen time among them (c018 design.md D4).</summary>
 [Description("A transaction as the app shows it")]
 public sealed record TransactionResponse(
   [property: Description("The day the transaction is dated by")] DateOnly Date,
@@ -35,4 +35,5 @@ public sealed record TransactionResponse(
   [property: Description("Whether the bank has not settled the transaction yet")] bool Pending,
   [property: Description("The payee of money spent, the payer of money received; null when the bank names none")] string? Counterparty,
   [property: Description("The bank's text, line by line, as the app shows it")] IReadOnlyList<string> Details,
-  [property: Description("The kind of transaction, from the bank's type code")] TransactionKind Kind);
+  [property: Description("The kind of transaction, from the bank's type code")] TransactionKind Kind,
+  [property: Description("When the app first got the transaction from the bank, in UTC to the second, when that was on the transaction's own day; null otherwise")] DateTimeOffset? SeenAt);

@@ -82,23 +82,23 @@ Conventions for the run:
 
 ## 5. [wiring] Slice 1 — The store, the field and the contract
 
-- [ ] 5.1 `Account/`:
+- [x] 5.1 `Account/`:
   - `FirstSeen`, `FirstSeenRule`, `IFirstSeenStore`, `FirstSeenTimes` (design.md D1–D3);
   - `ShownTransaction.SeenAt` and `TransactionResponse.SeenAt` with its description (D4);
   - `ReadNewestTransactionsHandler` takes `FirstSeenTimes`;
   - `TransactionsRegistration` registers `FirstSeenTimes`, scoped (D9).
 
   Verify: groups 2 and 3 green
-- [ ] 5.2 `Storage/`: `FirstSeenStoreOptions` (section `FirstSeenTimes`), `TableFirstSeenStore` (D3: partition `account`, the SHA-256 row key, `SeenAt`, `TableCreation`, the insert), `AddFirstSeenStore`; `InMemoryFirstSeenStore` in the unit tests, linked into the integration project. Verify: group 4 green against both
-- [ ] 5.3 `Program.cs` calls `AddFirstSeenStore` after `AddKorunaRateStore`; `appsettings.json` declares `FirstSeenTimes:TableName` `firstseentimes`, commented as `KorunaRates`. Verify: the app copies start; a table name Table Storage refuses stops the app at start
-- [ ] 5.4 Update infra Bicep + `.bicepparam`: `infra/platform.bicep` gains the `firstseentimes` table next to `korunarates`, commented as it is, under the existing table role; no `features.bicep`, `main.bicep` or `.bicepparam` change. Verify: `az bicep lint --file infra/main.bicep` clean
-- [ ] 5.5 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`, then commit `openapi.json` and `schema.d.ts`. Verify: `seenAt` (nullable, `date-time`) on `TransactionResponse`; CI's drift check would pass
-- [ ] 5.6 Every TS consumer of the changed contract:
+- [x] 5.2 `Storage/`: `FirstSeenStoreOptions` (section `FirstSeenTimes`), `TableFirstSeenStore` (D3: partition `account`, the SHA-256 row key, `SeenAt`, `TableCreation`, the insert), `AddFirstSeenStore`; `InMemoryFirstSeenStore` in the unit tests, linked into the integration project. Verify: group 4 green against both
+- [x] 5.3 `Program.cs` calls `AddFirstSeenStore` after `AddKorunaRateStore`; `appsettings.json` declares `FirstSeenTimes:TableName` `firstseentimes`, commented as `KorunaRates`. Verify: the app copies start; a table name Table Storage refuses stops the app at start
+- [x] 5.4 Update infra Bicep + `.bicepparam`: `infra/platform.bicep` gains the `firstseentimes` table next to `korunarates`, commented as it is, under the existing table role; no `features.bicep`, `main.bicep` or `.bicepparam` change. Verify: `az bicep lint --file infra/main.bicep` clean
+- [x] 5.5 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`, then commit `openapi.json` and `schema.d.ts`. Verify: `seenAt` (nullable, `date-time`) on `TransactionResponse`; CI's drift check would pass
+- [x] 5.6 Every TS consumer of the changed contract:
   - `transactionOf` accepts `seenAt` as text or null, with exactly eight members (D6);
   - the frontend tests' answers gain `seenAt: null`, by the test-writer: a unit test, "a page whose transaction's `seenAt` is a number is unexpected", written first.
 
   Verify: the frontend suite, `lint` and `typecheck` green
-- [ ] 5.7 `TransactionsDriver` now wants exactly eight members per transaction, `seenAt` among them (the implementer's driver edit in wiring). Verify: every acceptance test that reads a page stays green
+- [x] 5.7 `TransactionsDriver` now wants exactly eight members per transaction, `seenAt` among them (the implementer's driver edit in wiring). Verify: every acceptance test that reads a page stays green
 
 ## 6. [close] Slice 1 — A transaction first read on its own day carries the time it was first read
 

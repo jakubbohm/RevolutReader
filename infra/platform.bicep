@@ -235,6 +235,15 @@ resource korunaRatesTable 'Microsoft.Storage/storageAccounts/tableServices/table
   name: 'korunarates'
 }
 
+// The first-seen moments (c018 design.md D3): one row per timed transaction, the SHA-256 of the
+// bank's reference and the moment the app first got it, no amount, name or text. Removing this table
+// from the stack deletes it, and only the times are lost (c018 design.md § Migration plan, step 4).
+// Its name is the app's default FirstSeenTimes:TableName.
+resource firstSeenTimesTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2025-01-01' = {
+  parent: tables
+  name: 'firstseentimes'
+}
+
 // Storage Table Data Contributor, on the storage account: the app reads and writes the rows of its
 // tables, and creates its table when it is missing on first use. On the account rather than the one
 // table, because no doc says a role on the one table allows that creation; the account scope does.

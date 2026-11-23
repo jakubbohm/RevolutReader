@@ -32,16 +32,6 @@ public sealed class ReadNewestTransactionsHandler(
   IKorunaRates rates,
   TimeProvider time,
   ILogger<ReadNewestTransactionsHandler> logger) {
-  // A stand-in until c018 tasks.md 5.1 registers FirstSeenTimes: the app's container takes this constructor, the one with
-  // most parameters it can fill, and the page records nothing and shows no time, as before c018. 5.1 deletes it and
-  // NothingRecorded.
-  public ReadNewestTransactionsHandler(
-    IBankAccount bank,
-    ITransactionStore store,
-    IKorunaRates rates,
-    TimeProvider time,
-    ILogger<ReadNewestTransactionsHandler> logger) : this(bank, store, new FirstSeenTimes(new NothingRecorded()), rates, time, logger) { }
-
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
 
@@ -146,13 +136,4 @@ public sealed class ReadNewestTransactionsHandler(
     transaction.PaymentDetails,
     transaction.TypeCode,
     FirstSeenRule.Shown(transaction.Date, transaction.Reference is { } reference && seen.TryGetValue(reference, out DateTimeOffset at) ? at : null));
-
-  /// <summary>The first-seen store's stand-in until c018 tasks.md 5.1: it keeps nothing and sends no request.</summary>
-  private sealed class NothingRecorded : IFirstSeenStore {
-    public Task<IReadOnlyDictionary<string, DateTimeOffset>> Read(IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
-      Task.FromResult<IReadOnlyDictionary<string, DateTimeOffset>>(new Dictionary<string, DateTimeOffset>());
-
-    public Task<IReadOnlyDictionary<string, DateTimeOffset>> Record(IReadOnlyList<FirstSeen> sightings, CancellationToken cancellationToken) =>
-      Task.FromResult<IReadOnlyDictionary<string, DateTimeOffset>>(new Dictionary<string, DateTimeOffset>());
-  }
 }

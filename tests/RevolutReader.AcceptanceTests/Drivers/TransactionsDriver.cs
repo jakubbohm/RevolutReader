@@ -26,9 +26,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// with exactly <c>transactions</c>, <c>olderBefore</c> (a date or <c>null</c>), <c>czkPerEur</c> and <c>rateDate</c>,
 /// and each transaction exactly <c>date</c>, <c>amount</c>, <c>currency</c> (<c>EUR</c>), <c>pending</c>,
 /// <c>counterparty</c> (a string or <c>null</c>), <c>details</c> (strings), <c>kind</c> (a string) and, since c018,
-/// <c>seenAt</c> (an instant at offset zero with whole seconds, or <c>null</c>; c018 design.md D4, D10; until the API
-/// answers it, a transaction of the other seven alone reads as having none, and tasks.md 5.7 makes it required); dates
-/// read as <c>yyyy-MM-dd</c>. <c>date</c>, <c>seenAt</c>, <c>olderBefore</c> and <c>rateDate</c> are shifted back to the
+/// <c>seenAt</c> (an instant at offset zero with whole seconds, or <c>null</c>; c018 design.md D4, D10); dates read as <c>yyyy-MM-dd</c>. <c>date</c>, <c>seenAt</c>, <c>olderBefore</c> and <c>rateDate</c> are shifted back to the
 /// scenario's calendar (c017 design.md D10); <c>rateDate</c> is also given exactly as answered, outside the reading's equality
 /// (<see cref="TransactionsReading.RateDateAsAnswered"/>), for the app's own rate, whose date is fixed, not the calendar's.
 /// A problem as <c>BalanceDriver</c>'s:
@@ -91,14 +89,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 
   /// <summary>The members of a page and of a transaction in it: exactly these (D10).</summary>
   private const int PAGE_MEMBERS = 4;
-  private const int TRANSACTION_MEMBERS = 7;
-
-  /// <summary>
-  /// The members of a transaction once it carries <c>seenAt</c> (c018 design.md D4, D10). Until the API answers it (tasks.md
-  /// 5.7 makes the driver want exactly these), a transaction of <see cref="TRANSACTION_MEMBERS"/> without it reads as
-  /// having no time.
-  /// </summary>
-  private const int TRANSACTION_MEMBERS_WITH_SEEN_AT = 8;
+  private const int TRANSACTION_MEMBERS = 8;
 
   /// <summary>The problem descriptions the DSL knows for the transactions, with the status each case belongs to.</summary>
   private static readonly Dictionary<ProblemDescription, HttpStatusCode> _statusByCase = new() {
@@ -200,20 +191,21 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   /// clock to the coming day of that weekday at that time (<see cref="ScenarioCalendar.TodayIsAt"/>), only after signing
   /// in.
   /// </summary>
-  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) =>
-    throw new NotImplementedException("c018 tasks.md 1.1: the scenario's time of day (ScenarioCalendar.TodayIsAt), filled in wiring (slice 1).");
+  public void TodayIsAt(DateOnly scenarioDay, TimeOnly utcTime) => calendar.TodayIsAt(scenarioDay, utcTime);
 
   /// <summary>The clock moves forward to <paramref name="utcTime"/> UTC on the scenario's today (<see cref="ScenarioCalendar.TimeIs"/>, c018 design.md D10).</summary>
-  public void TimeIs(TimeOnly utcTime) =>
-    throw new NotImplementedException("c018 tasks.md 1.1: a later time of the scenario's today (ScenarioCalendar.TimeIs), filled in wiring (slice 1).");
+  public void TimeIs(TimeOnly utcTime) => calendar.TimeIs(utcTime);
 
   /// <summary>
   /// Whether the app copy has recorded when it first read the transaction with this bank reference: its own
   /// <c>IFirstSeenStore</c> (from its services, so the real Table adapter on the test's own <c>FirstSeenTimes</c> table in
   /// Azurite, <see cref="AzuriteStorage"/>) holds a moment for <paramref name="reference"/> (c018 design.md D3).
   /// </summary>
-  public Task<bool> HasReadBefore(string reference) =>
-    throw new NotImplementedException("c018 tasks.md 1.6: the app copy's IFirstSeenStore, read for this reference (wiring, slice 1).");
+  public async Task<bool> HasReadBefore(string reference) {
+    IReadOnlyDictionary<string, DateTimeOffset> kept = await app.GetRequiredService<IFirstSeenStore>().Read([reference], CancellationToken.None);
+
+    return kept.ContainsKey(reference);
+  }
 
   /// <summary>
   /// <c>GET /api/transactions</c> in the signed-in browser with <c>X-Forwarded-For</c> <paramref name="ipAddress"/>, and
@@ -283,7 +275,7 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
 
   /// <summary>
   /// The page, when the answer is <c>application/json</c> with exactly its four members and each transaction exactly its
-  /// seven, as the class describes; the dates of the calendar shifted back. Otherwise <see langword="null"/>.
+  /// eight, as the class describes; the dates of the calendar shifted back. Otherwise <see langword="null"/>.
   /// </summary>
   private TransactionsReading? PageOf(string mediaType, JsonElement answer) {
     if (!IsMediaType(mediaType, JSON) || answer.EnumerateObject().Count() != PAGE_MEMBERS)
@@ -308,26 +300,19 @@ public sealed class TransactionsDriver(HttpClient browser, FakeBank bank, Scenar
   }
 
   /// <summary>
-  /// A transaction, when it is an object of exactly its eight members, in euros, as the class describes, or of its seven
-  /// without <c>seenAt</c> until the API answers it (<see cref="TRANSACTION_MEMBERS_WITH_SEEN_AT"/>); its date and its
+  /// A transaction, when it is an object of exactly its eight members, in euros, as the class describes; its date and its
   /// time shifted back. Otherwise <see langword="null"/>.
   /// </summary>
   private TransactionSeenInApi? TransactionOf(JsonElement item) {
     if (item.ValueKind != JsonValueKind.Object)
       return null;
 
-    int members = item.EnumerateObject().Count();
-    bool seenAtAnswered = item.TryGetProperty(SEEN_AT, out _);
-
-    if (members != (seenAtAnswered ? TRANSACTION_MEMBERS_WITH_SEEN_AT : TRANSACTION_MEMBERS))
+    if (item.EnumerateObject().Count() != TRANSACTION_MEMBERS)
       return null;
 
-    if (Text(item, CURRENCY) != TransactionAtBank.DEFAULT_CURRENCY || !TextOrNull(item, COUNTERPARTY, out string? counterparty))
-      return null;
-
-    DateTimeOffset? seenAt = null;
-
-    if (seenAtAnswered && !InstantOrNull(item, SEEN_AT, out seenAt))
+    if (Text(item, CURRENCY) != TransactionAtBank.DEFAULT_CURRENCY
+      || !TextOrNull(item, COUNTERPARTY, out string? counterparty)
+      || !InstantOrNull(item, SEEN_AT, out DateTimeOffset? seenAt))
       return null;
 
     return Date(item, DATE) is DateOnly date
