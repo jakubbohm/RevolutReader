@@ -279,14 +279,14 @@ Conventions for the run:
 
 ## 38. [unit] Slice 14 — The time in the sheet
 
-- [ ] 38.1 `formatApproxTime` writes "kolem", a no-break space and `H:mm` in the phone's local time (`kolem 14:05`, `kolem 0:20`)
-- [ ] 38.2 The sheet's `Datum` is the transaction's day followed by ", kolem" and the time when there is one
+- [x] 38.1 `formatApproxTime` writes "kolem", a no-break space and `H:mm` in the phone's local time (`kolem 14:05`, `kolem 0:20`)
+- [x] 38.2 The sheet's `Datum` is the transaction's day followed by ", kolem" and the time when there is one
 - [x] 38.3 Without a time, `Datum` is the date alone, as before
 - [x] 38.4 The row and its spoken label show no time
 
 ## 39. [wiring] Slice 14 — The sheet's Datum
 
-- [ ] 39.1 `formatApproxTime` in `format.ts`; `TransactionSheet`'s `Datum` (D6). Verify: group 38 green
+- [x] 39.1 `formatApproxTime` in `format.ts`; `TransactionSheet`'s `Datum` (D6). Verify: group 38 green
 
 ## 40. [close] Slice 14 — The details show the approximate time after the date
 

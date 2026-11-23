@@ -1,7 +1,13 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Clock, X } from "lucide-react";
 import { useRef, type JSX, type ReactNode } from "react";
-import { formatAmount, formatDate, formatRate } from "../app/format";
+import {
+  formatAmount,
+  formatApproxTime,
+  formatDate,
+  formatRate,
+} from "../app/format";
+import { approxTime, transactionDay } from "../app/transactionDay";
 import type { Transaction } from "../app/transactions";
 import {
   korunaValue,
@@ -132,7 +138,7 @@ export function TransactionSheet({
               )}
             </Detail>
             <Detail term="Datum">
-              <span className="tabular-nums">{formatDate(tx.date)}</span>
+              <span className="tabular-nums">{datum(tx)}</span>
             </Detail>
             {tx.details.length > 0 ? (
               <Detail term="Popis">
@@ -168,4 +174,14 @@ function Detail({
       <dd className="text-subhead text-ink">{children}</dd>
     </div>
   );
+}
+
+/**
+ * The sheet's "Datum" (c018 design.md D6): the transaction's day, then, when it has an approximate time, ", " and that
+ * time, as `18. 11. 2026, kolem 14:05`; without one the day alone.
+ */
+function datum(tx: Transaction): string {
+  const day = formatDate(transactionDay(tx));
+  const time = approxTime(tx);
+  return time === null ? day : `${day}, ${formatApproxTime(time)}`;
 }

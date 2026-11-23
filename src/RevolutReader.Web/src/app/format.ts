@@ -172,8 +172,8 @@ export function formatUpdated(readAt: Date, now: Date): string {
  * `kolem 14:05`: a no-break space after "kolem", the time in the phone's local time (c018 design.md D6; the design
  * system's approxTimeLabel).
  */
-export function formatApproxTime(_time: Date): string {
-  throw new Error("Not implemented: c018 tasks.md 39.1");
+export function formatApproxTime(time: Date): string {
+  return `kolem${NO_BREAK_SPACE}${formatTime(time)}`;
 }
 
 /** The koruna value's size in whole crowns, as `6 960 Kč`. */
