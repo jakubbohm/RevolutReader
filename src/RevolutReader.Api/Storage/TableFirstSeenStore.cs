@@ -20,7 +20,7 @@ namespace RevolutReader.Api.Storage;
 /// <item>A record keeps the earliest moment per reference, row by row (a batch would fail whole on one row already
 /// there): it inserts the row; when one is there already (409), it reads it, keeps it when its moment is not later, and
 /// otherwise replaces it under the ETag it read; a lost race (412) reads the row again, and a row gone since the conflict
-/// is inserted again. It is not capped: every lost race means another caller wrote the row first, and the app's callers
+/// (on that read, or at the replace: 404) is inserted again. It is not capped: every lost race means another caller wrote the row first, and the app's callers
 /// only ever write an earlier moment, so each try either ends or meets a strictly earlier kept moment; the caller's token
 /// bounds it.</item>
 /// <item>Nothing to read or record: no request, the table's creation included.</item>
@@ -121,14 +121,17 @@ public sealed class TableFirstSeenStore : IFirstSeenStore {
     }
   }
 
-  /// <summary>Whether <paramref name="row"/> replaced the row still at <paramref name="etag"/>; <see langword="false"/> when another write came first (412).</summary>
+  /// <summary>
+  /// Whether <paramref name="row"/> replaced the row still at <paramref name="etag"/>; <see langword="false"/> when another
+  /// write came first (412) or the row is gone (404): the next read finds it changed, or nothing to replace.
+  /// </summary>
   private async Task<bool> Replaced(TableEntity row, ETag etag, CancellationToken cancellationToken) {
     try {
       _ = await _table.UpdateEntityAsync(row, etag, TableUpdateMode.Replace, cancellationToken);
 
       return true;
     }
-    catch (RequestFailedException lost) when (lost.Status == (int)HttpStatusCode.PreconditionFailed) {
+    catch (RequestFailedException lost) when (lost.Status is (int)HttpStatusCode.PreconditionFailed or (int)HttpStatusCode.NotFound) {
       return false;
     }
   }
