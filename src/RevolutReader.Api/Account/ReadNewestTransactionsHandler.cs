@@ -19,6 +19,17 @@ namespace RevolutReader.Api.Account;
 /// store failing is an exception: the page is not answered without its write (D5).
 /// </summary>
 public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactionStore store, IKorunaRates rates, TimeProvider time, ILogger<ReadNewestTransactionsHandler> logger) {
+  // A compile-only stub (c018 tasks.md 5.1): the sketch's constructor, which takes FirstSeenTimes, so the unit tests can
+  // build the handler as the design has it. It behaves as the one above, which the app's container keeps using until 5.1
+  // makes this the only one.
+  public ReadNewestTransactionsHandler(
+    IBankAccount bank,
+    ITransactionStore store,
+    FirstSeenTimes firstSeen,
+    IKorunaRates rates,
+    TimeProvider time,
+    ILogger<ReadNewestTransactionsHandler> logger) : this(bank, store, rates, time, logger) => ArgumentNullException.ThrowIfNull(firstSeen);
+
   public async Task<BankResult<TransactionPage>> Handle(PresentUser user, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
 
@@ -115,5 +126,6 @@ public sealed class ReadNewestTransactionsHandler(IBankAccount bank, ITransactio
     transaction.Status == TransactionStatus.Pending,
     transaction.Counterparty,
     transaction.PaymentDetails,
-    transaction.TypeCode);
+    transaction.TypeCode,
+    seenAt: null);
 }

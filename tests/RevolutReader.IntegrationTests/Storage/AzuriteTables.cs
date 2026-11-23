@@ -25,6 +25,12 @@ public sealed class AzuriteTables : IAsyncInitializer, IAsyncDisposable {
   /// <summary>The table service of the running container, reached with its connection string (Azurite's well-known development key, no secret).</summary>
   public TableServiceClient Tables => _tables ?? throw new InvalidOperationException("Azurite has not been started.");
 
+  /// <summary>
+  /// The running container's connection string (Azurite's well-known development key, no secret), for a test that needs a
+  /// table service client with options of its own, such as a transport that counts the requests sent.
+  /// </summary>
+  public string ConnectionString => _container?.GetConnectionString() ?? throw new InvalidOperationException("Azurite has not been started.");
+
   /// <summary>A valid table name (3 to 63 letters and digits, starting with a letter, D11) no other test uses: <c>t</c> and a new GUID's 32 hex digits.</summary>
   public static string UniqueTableName() => $"t{Guid.NewGuid():N}";
 

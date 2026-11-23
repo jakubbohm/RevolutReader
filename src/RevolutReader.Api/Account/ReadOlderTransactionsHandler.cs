@@ -27,5 +27,6 @@ public sealed class ReadOlderTransactionsHandler(ITransactionStore store, IKorun
     pending: false,
     transaction.Counterparty,
     transaction.PaymentDetails,
-    transaction.TypeCode);
+    transaction.TypeCode,
+    seenAt: null);
 }

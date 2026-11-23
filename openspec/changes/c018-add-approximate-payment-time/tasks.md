@@ -68,7 +68,7 @@ Conventions for the run:
 
 - [ ] 3.1 The newest page's transaction carries the moment its first read recorded (`InMemoryFirstSeenStore`)
 - [ ] 3.2 The moment is the clock after the bank's answer, not before the read (a held bank fake, the clock moved while it is held)
-- [ ] 3.3 A bank failure records nothing
+- [x] 3.3 A bank failure records nothing
 - [ ] 3.4 A first-seen store failure throws, and the page is not answered (design.md D8)
 
 ## 4. [integration] Slice 1 — IFirstSeenStore
