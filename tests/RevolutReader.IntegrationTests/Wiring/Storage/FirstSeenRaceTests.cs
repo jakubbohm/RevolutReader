@@ -79,6 +79,41 @@ public sealed class FirstSeenRaceTests {
       () => read.Select(Written).ShouldBe([$"{REFERENCE} {expected}"], "what the table keeps"));
   }
 
+  /// <summary>
+  /// The row deleted from outside the app (the app deletes none, D3) between the store's read of it and its guarded
+  /// replace: the replace meets no row, and the store records its own moment anyway, as it does for a row already gone at
+  /// the read (the adapter's summary: "a row gone since the conflict is inserted again"). No exception; the store answers
+  /// its own moment, and the table keeps it.
+  /// </summary>
+  [Test]
+  public async Task A_row_deleted_before_the_guarded_replace_is_recorded_again_with_the_stores_moment() {
+    string tableName = AzuriteTables.UniqueTableName();
+    TableClient table = Azurite.Tables.GetTableClient(tableName);
+    await table.CreateIfNotExistsAsync();
+    await WriteRow(table, _keptBefore);
+
+    using HttpClientHandler toAzurite = new();
+    using OtherCallerFirst handler = new(toAzurite, () => DeleteRow(table));
+    using HttpClientTransport transport = new(handler);
+    TableServiceClient racingTables = new(Azurite.ConnectionString, new TableClientOptions { Transport = transport });
+    TableFirstSeenStore store = new(racingTables, Options.Create(new FirstSeenStoreOptions { TableName = tableName }));
+
+    // A bound for a store that would try again forever, never a wait: the test ends as soon as the store does.
+    using CancellationTokenSource bound = new(TimeSpan.FromSeconds(30));
+    IReadOnlyDictionary<string, DateTimeOffset> recorded = await store.Record([new FirstSeen(REFERENCE, _ours)], bound.Token);
+    IReadOnlyDictionary<string, DateTimeOffset> read = await new TableFirstSeenStore(Azurite.Tables, Options.Create(new FirstSeenStoreOptions { TableName = tableName }))
+      .Read([REFERENCE], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => handler.GuardedWrites.ShouldBeGreaterThan(0, "the store's writes under the row's ETag: the delete needs one"),
+      () => recorded.Select(Written).ShouldBe([$"{REFERENCE} 2026-11-20T13:05:12.0000000+00:00"], "what Record answers"),
+      () => read.Select(Written).ShouldBe([$"{REFERENCE} 2026-11-20T13:05:12.0000000+00:00"], "what the table keeps"));
+  }
+
+  /// <summary>Deletes the row of <see cref="REFERENCE"/> straight from the table, as a hand outside the app would.</summary>
+  private static async Task DeleteRow(TableClient table) =>
+    _ = await table.DeleteEntityAsync("account", RowKey(REFERENCE));
+
   /// <summary>Writes the row of <see cref="REFERENCE"/> straight into the table, as the store does, holding <paramref name="seenAt"/>, whatever it held.</summary>
   private static async Task WriteRow(TableClient table, DateTimeOffset seenAt) =>
     _ = await table.UpsertEntityAsync(new TableEntity("account", RowKey(REFERENCE)) { [SEEN_AT] = seenAt }, TableUpdateMode.Replace);
