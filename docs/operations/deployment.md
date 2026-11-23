@@ -495,7 +495,7 @@ These are c014 design.md § Migration plan, step 4, in order. C9a's row in `pm/p
 
 ### The checks and what they came to
 
-Two read-only queries: every check per Prague day with its answer's status, and what the checks came to, from their `CheckEnded` line (`FirstBalanceKept`, `Unchanged`, `ChangeNotified`, `ChangeLeftToTheNextCheck`, `BankReadFailed`; c014 design.md D15). Set the period as in [§ Bank reads](#bank-reads-that-did-not-end-as-read-c12), in UTC. A day with checks but no `ChangeNotified` had no change; a 503 or 429 is the bank's (`BankReadFailed`), and a 404 is a call without the right key.
+Three read-only queries: every check per Prague day with its answer's status, what the checks came to, from their `CheckEnded` line (`FirstBalanceKept`, `Unchanged`, `ChangeNotified`, `ChangeLeftToTheNextCheck`, `BankReadFailed`; c014 design.md D15), and, since c018, the checks that recorded no first-seen times, from their `FirstSeenNotRecorded` line (below). Set the period as in [§ Bank reads](#bank-reads-that-did-not-end-as-read-c12), in UTC. A day with checks but no `ChangeNotified` had no change; a 503 or 429 is the bank's (`BankReadFailed`), and a 404 is a call without the right key.
 
 ```powershell
 $sub = '7811bd13-d9ae-46bb-9355-3e3d885e544e'
@@ -512,11 +512,20 @@ az monitor log-analytics query --subscription $sub --workspace $workspace --outp
 # What the checks came to, per Prague day
 az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
     --analytics-query "AppTraces | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Check.AccountCheck' and Message startswith 'An account check ended' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Checks = count() by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), End = tostring(Properties.End) | order by Day desc, Checks desc"
+
+# Checks that recorded no first-seen times, per Prague day and kind (c018)
+az monitor log-analytics query --subscription $sub --workspace $workspace --output table `
+    --analytics-query "AppTraces | where TimeGenerated >= datetime($from) and TimeGenerated < datetime($to) | where tostring(Properties.CategoryName) == 'RevolutReader.Api.Check.RecordFirstSeenHandler' and Message startswith 'An account check recorded no first-seen times' | extend PragueTime = datetime_utc_to_local(TimeGenerated, 'Europe/Prague') | summarize Checks = count() by Day = format_datetime(startofday(PragueTime), 'yyyy-MM-dd'), Failure = tostring(Properties.Failure) | order by Day desc, Checks desc"
 ```
 
 - **Confirmed 2026-11-21 on real data:** both queries, after C9a's deploy, over the day's checks, one of which came to `ChangeNotified`. They were written from the log line's definition (`CheckLog`) before any check reached Application Insights. If the second query ever comes back empty although the first shows checks, look at a raw row: `AppTraces | where Message startswith 'An account check' | project TimeGenerated, Message, Properties | take 5`.
 - **No amount, ever:** the check's lines carry what it came to and counts only (`ChangeSent`: accounts, devices reached, failed, removed), never a balance, a time read, an email address or the key (c014 design.md D15, guarded by a test).
 - **A failed check** (storage, an unreadable bank answer) writes `An account check failed` at Error, with the exception in `AppExceptions`, and answers 500.
+- **A check that recorded no first-seen times** (since c018, c018 design.md D5): besides the balance, every check reads the transactions from yesterday on, only to record each one's first-seen time, the approximate payment time. When that read or its recording fails, the check writes `FirstSeenNotRecorded` at Warning ("An account check recorded no first-seen times: …") and goes on: its notification and its answer stay what its balance read decided. The kinds:
+  - `BankAccessExpired`, `BankRateLimited`, `BankUnavailable`: the transactions read failed at the bank, as a balance read can (expired access, the bank's limit, the bank unreachable after its retries). Usually the same check's `CheckEnded` says `BankReadFailed` too.
+  - `Failed`: any exception while reading or recording, with the exception in `AppExceptions`: most likely the `firstseentimes` table (storage), else a bug. Times are then missing until the next read, never wrong.
+
+  The line holds the kind only, never an amount, a name or a reference (guarded by a test). The app's stop is not logged: it cancels the check. The third query was written from the log line's definition (`CheckLog`) before any such line reached Application Insights; the first one after c018's deploy confirms it. After that deploy a healthy day has no `FirstSeenNotRecorded` (c018 design.md § Migration plan, step 3).
 
 ### Push arrivals (c016)
 

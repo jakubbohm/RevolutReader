@@ -242,12 +242,12 @@ Conventions for the run:
 ## 32. [wiring] Slice 11 — The failure path and its log
 
 - [x] 32.1 `RecordFirstSeenHandler`'s failure handling, `FirstSeenFailure` and the two forms of `CheckLog.FirstSeenNotRecorded` (D5). Verify: group 31 green
-- [ ] 32.2 `Conventions/AccountCheckTelemetryTests`: a failed transactions read writes one `FirstSeenNotRecorded` (Warning) with its kind and no amount, name or reference; `BankTelemetryTests` counts two bank dependencies per check. Verify: green, and a mutation (the kind left out of the line) shows it red
+- [x] 32.2 `Conventions/AccountCheckTelemetryTests`: a failed transactions read writes one `FirstSeenNotRecorded` (Warning) with its kind and no amount, name or reference; `BankTelemetryTests` counts two bank dependencies per check. Verify: green, and a mutation (the kind left out of the line) shows it red
 
 ## 33. [close] Slice 11 — A failed transactions read leaves the check's notification and answer as they were
 
-- [ ] 33.1 The scenario's test passes. Verify: green, including account-check / A failed transactions read leaves the check's notification and answer as they were
-- [ ] 33.2 Docs:
+- [x] 33.1 The scenario's test passes. Verify: green, including account-check / A failed transactions read leaves the check's notification and answer as they were
+- [x] 33.2 Docs:
   - **`deployment.md`**, the account check's log section: `FirstSeenNotRecorded` (Warning) with its kinds, and what each means (D5);
   - **`testing.md`**: `ReportsOwnErrorForTransactions`.
 
