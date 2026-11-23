@@ -58,20 +58,28 @@ public sealed class FakeBank : IDisposable {
   /// <summary>
   /// The priority of the page every first transactions request gets when nothing else the test set up answers it
   /// (<see cref="AnswerTransactionsForAnyDayByDefault"/>, c010): below every other answer, which keeps the default, 0, or
-  /// takes <see cref="ONE_OFF_PRIORITY"/>, so any answer the test sets up wins, whether before or after it.
+  /// takes a higher priority, so any answer the test sets up wins, whether before or after it.
   /// </summary>
   private const int TRANSACTIONS_FALLBACK_PRIORITY = 1;
 
   /// <summary>
   /// The priority of an answer for the first matching request only (<see cref="AnswerOnce"/>): above every other answer
-  /// (WireMock.Net: a lower value is a higher priority; every other answer keeps the default, 0, but a fallback, at
-  /// <see cref="FALLBACK_PRIORITY"/>), so it wins whether the scenario sets it up before or after them.
+  /// but <see cref="TRANSACTIONS_OWN_ERROR_PRIORITY"/> (WireMock.Net: a lower value is a higher priority; every other
+  /// answer keeps the default, 0, but a fallback, at <see cref="FALLBACK_PRIORITY"/>), so it wins whether the scenario
+  /// sets it up before or after them.
   /// </summary>
   private const int ONE_OFF_PRIORITY = -1;
 
   /// <summary>
+  /// The priority of the bank's own error for every transactions request (<see cref="AnswerTransactionsWithOwnError"/>,
+  /// c018): above every other answer on that path, one-off answers (<see cref="ONE_OFF_PRIORITY"/>) included, so it wins
+  /// whether the test sets it up before or after them.
+  /// </summary>
+  private const int TRANSACTIONS_OWN_ERROR_PRIORITY = -2;
+
+  /// <summary>
   /// The priority of a fallback answer (<see cref="AnswerBalancesByDefault"/>): below every other answer (every other
-  /// answer keeps the default, 0, or <see cref="ONE_OFF_PRIORITY"/>), so any answer the test sets up wins, whether before
+  /// answer keeps the default, 0, or takes a higher priority), so any answer the test sets up wins, whether before
   /// or after it.
   /// </summary>
   private const int FALLBACK_PRIORITY = 1;
@@ -263,7 +271,7 @@ public sealed class FakeBank : IDisposable {
   /// test set up, before or after it; the balances are answered as set.
   /// </summary>
   public void AnswerTransactionsWithOwnError(HttpStatusCode status, string body) =>
-    throw new NotImplementedException("c018 tasks.md 1.13: every transactions request answered with the bank's own error, filled in wiring (slice 11).");
+    _server.Given(SignedGet(TransactionsPath)).AtPriority(TRANSACTIONS_OWN_ERROR_PRIORITY).RespondWith(JsonAnswer(status, body));
 
   /// <summary>Every request is answered with this Enable Banking error (<c>{ message, code, error, detail }</c>).</summary>
   public void AnswerError(HttpStatusCode status, string body) => _server.Given(Request.Create().UsingAnyMethod()).RespondWith(JsonAnswer(status, body));
