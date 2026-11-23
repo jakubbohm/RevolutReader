@@ -107,9 +107,9 @@ export type TransactionKind =
   "card" | "topup" | "transfer" | "atm" | "exchange" | "refund" | "other";
 
 /**
- * A transaction as the API answers it: exactly these seven fields (D10), and `seenAt` when a test gives one (c018
- * design.md D4: the time the app first got it from the bank, an instant in UTC such as `2026-11-14T23:20:00+00:00`, or
- * `null`). `date` is a calendar date, `yyyy-MM-dd`.
+ * A transaction as the API answers it: exactly these eight fields (D10; c018 design.md D4: `seenAt`, the time the app
+ * first got it from the bank, an instant in UTC such as `2026-11-14T23:20:00+00:00`, or `null`). `date` is a calendar
+ * date, `yyyy-MM-dd`.
  */
 export interface TransactionInApi {
   date: string;
@@ -119,7 +119,7 @@ export interface TransactionInApi {
   counterparty: string | null;
   details: string[];
   kind: TransactionKind;
-  seenAt?: string | null;
+  seenAt: string | null;
 }
 
 /** A page of transactions: 200 with exactly `{ transactions, olderBefore, czkPerEur, rateDate }` (D10). */
@@ -360,8 +360,7 @@ export const RATE_DATE = "2026-11-08";
 
 /**
  * A transaction of `amount` (signed: negative for money spent) EUR on `date` (`yyyy-MM-dd`), of this kind; settled, with
- * no counterparty and no details unless `options` give them. Its approximate time, `seenAt`, is answered only when
- * `options` give one (c018 design.md D4; tasks.md 5.6 gives every other answer `seenAt: null`).
+ * no counterparty, no details and no approximate time (`seenAt: null`, c018 design.md D4) unless `options` give them.
  */
 export function transaction(
   kind: TransactionKind,
@@ -383,7 +382,7 @@ export function transaction(
     counterparty: options.counterparty ?? null,
     details: [...(options.details ?? [])],
     kind,
-    ...(options.seenAt === undefined ? {} : { seenAt: options.seenAt }),
+    seenAt: options.seenAt ?? null,
   };
 }
 
@@ -1102,7 +1101,7 @@ function transactionsOutcome(answer: Delayed<TransactionsAnswer>): Outcome {
               counterparty: each.counterparty,
               details: each.details,
               kind: each.kind,
-              ...(each.seenAt === undefined ? {} : { seenAt: each.seenAt }),
+              seenAt: each.seenAt,
             })),
             olderBefore: answer.olderBefore,
             czkPerEur: answer.czkPerEur,

@@ -26,6 +26,7 @@ import {
 import {
   readNewestTransactions,
   readOlderTransactions,
+  type Transaction,
   type TransactionPage,
   type TransactionsRead,
 } from "./transactions";
@@ -36,6 +37,11 @@ import {
 // else unexpected. Both reads, the newest page and an older one, unless a rule is the newest page's alone (the bank's
 // problems come only from its live read). The fake server (src/test/server.ts) answers the app's API client; the
 // transactions, amounts and addresses are made up.
+
+/** A page as read: each transaction with exactly its eight members, `seenAt` among them (c018 design.md D4, D6). */
+type PageAsRead = Omit<TransactionPage, "transactions"> & {
+  transactions: (Transaction & { seenAt: string | null })[];
+};
 
 /** One of the two reads: how to make it, how the server answers it, and the request it sends. */
 interface Reader {
@@ -82,7 +88,7 @@ const pages: {
   label: string;
   reader: Reader;
   answer: TransactionsAnswer;
-  page: TransactionPage;
+  page: PageAsRead;
 }[] = [
   {
     label: "the newest page",
@@ -93,6 +99,7 @@ const pages: {
           counterparty: "Kavárna Na Rohu",
           details: ["Praha 1"],
           pending: true,
+          seenAt: "2026-11-19T13:05:12+00:00",
         }),
         transaction("topup", 50, "2026-11-18"),
       ],
@@ -108,6 +115,7 @@ const pages: {
           counterparty: "Kavárna Na Rohu",
           details: ["Praha 1"],
           kind: "card",
+          seenAt: "2026-11-19T13:05:12+00:00",
         },
         {
           date: "2026-11-18",
@@ -117,6 +125,7 @@ const pages: {
           counterparty: null,
           details: [],
           kind: "topup",
+          seenAt: null,
         },
       ],
       olderBefore: "2026-10-20",
@@ -132,6 +141,7 @@ const pages: {
         transaction("refund", 7.5, "2026-10-15", {
           counterparty: "Knihkupectví Luxor",
           details: ["Vrácení zboží"],
+          seenAt: "2026-10-15T09:41:07+00:00",
         }),
         transaction("atm", -40, "2026-10-14", { details: ["Bankomat"] }),
       ],
@@ -147,6 +157,7 @@ const pages: {
           counterparty: "Knihkupectví Luxor",
           details: ["Vrácení zboží"],
           kind: "refund",
+          seenAt: "2026-10-15T09:41:07+00:00",
         },
         {
           date: "2026-10-14",
@@ -156,6 +167,7 @@ const pages: {
           counterparty: null,
           details: ["Bankomat"],
           kind: "atm",
+          seenAt: null,
         },
       ],
       olderBefore: null,
@@ -280,6 +292,7 @@ const PAGE_BODY = {
       counterparty: "Kavárna Na Rohu",
       details: [],
       kind: "card",
+      seenAt: null,
     },
   ],
   olderBefore: null,
@@ -337,6 +350,76 @@ test.each(notAPage)(
     answerWith(reader.answering(answer));
 
     expect(await reader.read()).toEqual({ kind: "unexpected" });
+  },
+);
+
+// A transaction's approximate time (c018 design.md D4, D6): `seenAt` is text or null, and a transaction has exactly
+// its eight members. The bodies are raw JSON, so these hold whatever the generated types say.
+
+/** The page body with its one transaction changed by `change`. */
+function withTransaction(
+  change: (transaction: (typeof PAGE_BODY.transactions)[0]) => object,
+): unknown {
+  return { ...PAGE_BODY, transactions: [change(PAGE_BODY.transactions[0])] };
+}
+
+test.each(READERS)(
+  "A page whose transaction's `seenAt` is a number is unexpected: $name",
+  async (reader) => {
+    answerWith(
+      reader.answering(
+        jsonBody(
+          withTransaction((each) => ({ ...each, seenAt: 1763643912000 })),
+        ),
+      ),
+    );
+
+    expect(await reader.read()).toEqual({ kind: "unexpected" });
+  },
+);
+
+const otherMembers = onBothReads<{ label: string; body: unknown }>([
+  {
+    label: "a ninth member",
+    body: withTransaction((each) => ({ ...each, note: "navíc" })),
+  },
+  {
+    label: "no `seenAt`",
+    body: withTransaction((each) => ({ ...each, seenAt: undefined })),
+  },
+]);
+
+test.each(otherMembers)(
+  "A transaction with other than exactly its eight members makes the page unexpected: $label",
+  async ({ reader, body }) => {
+    answerWith(reader.answering(jsonBody(body)));
+
+    expect(await reader.read()).toEqual({ kind: "unexpected" });
+  },
+);
+
+const times = onBothReads<{ label: string; seenAt: string | null }>([
+  { label: "an instant in UTC", seenAt: "2026-11-19T13:05:12+00:00" },
+  { label: "null", seenAt: null },
+  { label: "a text that does not parse", seenAt: "včera odpoledne" },
+]);
+
+test.each(times)(
+  "A transaction's `seenAt` as text or null is read as it is: $label",
+  async ({ reader, seenAt }) => {
+    answerWith(
+      reader.answering(
+        jsonBody(withTransaction((each) => ({ ...each, seenAt }))),
+      ),
+    );
+
+    expect(await reader.read()).toEqual({
+      kind: "read",
+      page: {
+        ...PAGE_BODY,
+        transactions: [{ ...PAGE_BODY.transactions[0], seenAt }],
+      },
+    });
   },
 );
 
