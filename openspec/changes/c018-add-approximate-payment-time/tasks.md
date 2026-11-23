@@ -142,8 +142,8 @@ Conventions for the run:
 ## 12. [unit] Slice 4 — Only on the transaction's own day
 
 - [ ] 12.1 A read records no transaction dated before the read's UTC day
-- [ ] 12.2 A kept moment whose UTC date is not the transaction's date is answered as none
-- [ ] 12.3 With no kept moment, none is answered
+- [x] 12.2 A kept moment whose UTC date is not the transaction's date is answered as none
+- [x] 12.3 With no kept moment, none is answered
 
 ## 13. [wiring] Slice 4 — The rule in both directions
 
