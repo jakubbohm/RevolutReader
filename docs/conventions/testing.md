@@ -40,7 +40,7 @@ Farley's four layers (LMAX style), in plain C#. No Gherkin and no Reqnroll: Open
 2. `## N. [unit] <Component>`: one group per component that carries rules; each task is one behaviour, phrased like the test name.
 3. `## N. [integration] <Port>`: only for a new or changed port contract (§ Integration tests).
 4. `## N. [wiring] <Area>`: plumbing without rules (endpoints, mapping, DI, migrations, driver methods). No unit tests: the acceptance tests cover it.
-5. `## N. [close] Acceptance green`: all acceptance tests of the change pass; then the close-out tasks (`pm/progress.md` for a roadmap step only, [workflow.md § 9](workflow.md#9-project-management); `CLAUDE.md`).
+5. `## N. [close] Acceptance green`: all acceptance tests of the change pass; then the close-out tasks (`CLAUDE.md` if build, test or run commands changed).
 
 - **Never a "write tests" task:** a test is part of every behaviour task.
 - **One group per round trip** between the agents: one component, not one checkbox and not the whole change.

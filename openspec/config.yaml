@@ -10,8 +10,9 @@ context: |
   (code, specs, docs) is English.
 
   Read before drafting any artifact:
-  - pm/kickoff.md (goals, scope, UC1–UC3, open questions Q1–Q10) · pm/roadmap.md (the
-    step this change implements) · pm/progress.md (status, outcomes of open questions)
+  - pm/kickoff.md (goals, scope, UC1–UC3, open questions Q1–Q10) · the GitHub issue this
+    change implements and, for one of the initial plan's remaining steps, the pm/roadmap.md
+    entry the issue links (pm/roadmap.md and pm/progress.md are otherwise a frozen record)
   - docs/adr/ (decisions, e.g. ADR-0001-bank-data-access) · docs/conventions/ (source of
     truth for conventions: README.md, configuration.md, workflow.md, testing.md)
 
@@ -66,7 +67,7 @@ rules:
     - Write the TL;DR last and keep it consistent with the rest of the artifact; update it whenever the artifact changes
     - Confirm the change id is cNNN-verb-topic with the next free NNN (check openspec/changes/ and the archive for the highest NNN)
     - Create the change's branch before drafting any artifact — once GitHub exists (M2) `git fetch origin` then `git switch -c <type>/<change-id> origin/main`; before M2 `git switch -c <type>/<change-id> main` — where <type> is the Conventional Commit type the eventual PR title will carry; never draft a change on main
-    - Cite the use case (UC1–UC3, kickoff ch. 5), the roadmap step id (e.g. C6) and every open question (Q1–Q10) the change applies or decides
+    - Cite the use case (UC1–UC3, kickoff ch. 5), the issue (and, for one of the initial plan's remaining steps, its id, e.g. C10) and every open question (Q1–Q10) the change applies or decides
     - Include a Non-goals section
   specs:
     - The app is read-only toward the bank — no requirement may introduce a write operation against Enable Banking
@@ -87,7 +88,7 @@ rules:
     - State the error model for every new operation (a Result value for expected failures, an exception only for bugs and infrastructure failures — docs/conventions/README.md)
     - Include a "Ports and contracts" section for every new or changed port (repository, external API client, push sender) stating its behavioural contract (not-found behaviour, ordering, concurrency, idempotency, failure modes), the infrastructure the real adapter uses, and whether unit tests use an in-memory fake of it
     - For each scenario, state how it is verified when it is not an API acceptance test (a frontend test, or manual at handover) and why
-    - Record cross-cutting decisions as an ADR in docs/adr/ and reference it; pm/progress.md gets only the one-line outcome and the link (docs/conventions/workflow.md § 2)
+    - Record cross-cutting decisions as an ADR in docs/adr/ and reference it (docs/conventions/workflow.md § 2)
     - Changes touching the API contract plan the TS client regeneration explicitly
     - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
     - Changes calling the bank respect ADR-0001-bank-data-access § Decision
@@ -110,7 +111,7 @@ rules:
     - 'A change introducing a setting declares it in appsettings.json (secrets as "<secret>") and binds it to an options class validated on start (docs/conventions/configuration.md)'
     - A change needing a hand-provisioned secret includes a guided manual task for putting it into Key Vault and lists it in docs/conventions/configuration.md § Hand-provisioned secrets
     - A task adding an anonymous endpoint also adds it to the anonymous-endpoint allowlist
-    - The last tasks (in the [close] group) update pm/progress.md when the change implements a roadmap step (issue-only work has no row, docs/conventions/workflow.md § 9) and, if build, test or run commands changed, CLAUDE.md
+    - The last tasks (in the [close] group) update CLAUDE.md if build, test or run commands changed
 
 operations:
   apply:
@@ -120,4 +121,4 @@ operations:
   archive:
     guidance:
       - "Before archiving: the owner wants no more review rounds on the PR (docs/conventions/workflow.md § 6), the traceability test passes (every scenario of the change's delta specs is claimed exactly once) and all acceptance tests of the change pass. If not, stop and report instead of archiving. A tooling-only change (skip_specs) has no acceptance tests; the traceability test must still pass."
-      - "For a change that implements a roadmap step, leave pm/progress.md's row final for the merge with the archive (docs/conventions/workflow.md § 6; issue-only work has no row, § 9): the archive link, and the status `done` once the owner says the step is done, preferably in a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy (a manual scenario on a real phone); then the row names that work and stays `in progress`. Never plan a follow-up PR that only changes the status or records routine after-deploy checks."
+      - "The archive leaves no status to record: the work's status is its GitHub issue, which the PR closes once the owner says the work is done (docs/conventions/workflow.md § 6, § 9). The one exception is real work that can only happen after the merge and the deploy (a manual scenario on a real phone); then the issue stays open and names that work. Never plan a follow-up PR that only closes the issue or records routine after-deploy checks."

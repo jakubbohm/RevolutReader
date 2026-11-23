@@ -42,12 +42,12 @@ Run from the repository root; PowerShell 7 and Bash take them as written (each r
 
 ## Read before deciding anything
 
-- [pm/roadmap.md](pm/roadmap.md) and [pm/progress.md](pm/progress.md) — the source of truth for driving the initial development; work after it lives in GitHub issues only ([§ Project management](#project-management)). **Every session reads both at the start, before doing anything else.**
+- The GitHub issue of the work at hand — every work item and its status lives in an issue ([§ Project management](#project-management)). [pm/roadmap.md](pm/roadmap.md) and [pm/progress.md](pm/progress.md) are the frozen record of the initial development: read them only when an issue links an entry, or when a decision's history matters.
 - [pm/kickoff.md](pm/kickoff.md) — the original brief: why, scope, UC1–UC3, open questions Q1–Q10.
 - [docs/adr/](docs/adr/) — decisions (e.g. ADR-0001-bank-data-access).
 - [docs/conventions/](docs/conventions/) — **source of truth for conventions**: README.md (code), configuration.md, workflow.md (where knowledge and decisions live, Git, CI/CD, infrastructure, OpenSpec, spikes, design), testing.md. `.claude/rules/` and the tooling mirror them.
 - `openspec/specs/` — exactly what the system does, once capabilities ship.
-- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever a step creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4), the ruleset on `main` (C2), the deployment (C4: the deployed resources, the first deploy, the Key Vault task, checks, rolling back) and the owner's iPhone Shortcut that triggers the account check (C9a), with their identifiers; later the reinstatement guide (D1).
+- [docs/operations/](docs/operations/) — every expiring approval and secret and how to restore it (update it whenever work creates or renews one); the hand-made Azure and GitHub setup (M3), the Entra app registration (M4), the ruleset on `main` (C2), the deployment (C4: the deployed resources, the first deploy, the Key Vault task, checks, rolling back) and the owner's iPhone Shortcut that triggers the account check (C9a), with their identifiers; later the reinstatement guide (D1).
 
 Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventions/workflow.md#1-where-knowledge-lives)). [docs/software-factory/](docs/software-factory/) is what goes to the user's future software factory ([workflow.md § 10](docs/conventions/workflow.md#10-software-factory)): add a lesson whenever a decision diverges from DoseUp, reverses an earlier one, or answers something new; a divergence when the project runs a cut-down version; an inventory line when a step creates or substantially changes a reusable artifact. A handover package is built from it at the end of the project.
 
@@ -72,11 +72,9 @@ Each fact has one home; link, never duplicate ([workflow.md § 1](docs/conventio
 
 ## Project management
 
-- The initial development's work items live in `pm/roadmap.md` and `pm/progress.md`; `pm/kickoff.md` is the brief the roadmap refers to.
-- **Work after the initial development is a GitHub issue only** (the owner, 2026-11-21): no roadmap step and no `pm/progress.md` row; the issue holds the goal, the OpenSpec change and its PR name it, and the PR that finishes it closes it ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
-- Update `pm/progress.md` when a roadmap step starts and when it ends. A step's own PR leaves its row final for the merge: ask the owner whether the step is done before marking the PR ready, and mark it `done` in that PR. Preferably that is a commit of its own, pushed together with the PR's other commits (one CI run, one deploy). The one exception is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone; the row then names that work. Never a follow-up PR only to change a status or record routine after-deploy checks ([workflow.md § 6](docs/conventions/workflow.md#6-openspec)). Decisions go into ADRs; `pm/progress.md` records only each open question's status, a one-line outcome, the link and the impact on steps ([workflow.md § 2](docs/conventions/workflow.md#2-decisions)).
-- Roadmap changes only with the user's approval, logged in `pm/progress.md`.
-- Every roadmap step also gets a GitHub issue, linked both ways with its roadmap entry and closed by the PR that finishes it, unless the user says otherwise for that item ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
+- **Every work item is a GitHub issue** (the owner: work after the initial development since 2026-11-21, the initial plan's remaining steps since 2026-11-23): the issue holds the goal and the status, the OpenSpec change and its PR name it, and the PR that finishes it closes it ([workflow.md § 9](docs/conventions/workflow.md#9-project-management)).
+- `pm/roadmap.md` and `pm/progress.md` are frozen as the record of the initial development; `pm/kickoff.md` is the brief the roadmap refers to. The issue of a remaining step (C10, M9, D1, SF1, M8, T1) links the step's roadmap entry, which keeps its detail as planned; what changes after that lives in the issue. Nothing more is written to either file.
+- A work item's PR is complete on its own: ask the owner whether the work is done before marking the PR ready; on yes, the PR closes its issue. The one exception is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone: the issue then stays open and names that work, and the PR recording its results closes it. Never a follow-up PR only to close an issue or record routine after-deploy checks ([workflow.md § 6](docs/conventions/workflow.md#6-openspec)). Decisions go into ADRs ([workflow.md § 2](docs/conventions/workflow.md#2-decisions)).
 
 ## Workflow
 

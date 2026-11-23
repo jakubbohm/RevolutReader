@@ -1,5 +1,7 @@
 # RevolutReader — Progress
 
+> **Frozen on 2026-11-23** ([workflow.md § 9](../docs/conventions/workflow.md#9-project-management)): the record of the initial development, no longer updated or read at a session's start. The steps still `todo` below continue as GitHub issues, where their status lives: C10 [#53](https://github.com/jakubbohm/RevolutReader/issues/53), M9 [#102](https://github.com/jakubbohm/RevolutReader/issues/102), D1 [#103](https://github.com/jakubbohm/RevolutReader/issues/103), SF1 [#104](https://github.com/jakubbohm/RevolutReader/issues/104), M8 [#105](https://github.com/jakubbohm/RevolutReader/issues/105), T1 [#106](https://github.com/jakubbohm/RevolutReader/issues/106). All ten open questions are decided; their trail below stays as it is.
+
 > Status of the steps in [`pm/roadmap.md`](roadmap.md) and outcomes of the open questions from [`pm/kickoff.md`](kickoff.md), ch. 10. Update when a step starts and when it ends.
 
 ## How to update

@@ -1,17 +1,17 @@
 ---
 name: step-pr-carries-status
-description: A step's own PR carries its done status (about the PR, not a commit); ask "is the step done?" before marking it ready; its own commit, pushed with the rest (review fixes wait for the archive, one push); a later PR only for real post-PR work
+description: A work item's own PR carries its done status (about the PR, not a commit); ask "is it done?" before marking it ready, then the PR closes its issue; review fixes wait for the archive, one push; a later PR only for real post-deploy work
 metadata:
   type: feedback
 ---
 
-**The rule is about the PR, not a commit.** A step's own PR carries its status.
-- **Ask first:** before the PR is marked ready, ask the owner "is <step> done?".
-- **On yes:** mark it `done` in `pm/progress.md` (status, date, notes) in that PR. A commit of its own is fine, and preferred.
-- **Pushed with the rest:** push it together with the PR's other commits, so one CI run covers them. The same goes for a review's fixes: after `/triage-review`, run `/opsx:archive` first, then push the fixes and the archive in one push. Never offer to push the fixes on their own.
+**The rule is about the PR, not a commit.** A work item's own PR carries its status. Since 2026-11-23 the status is the GitHub issue, not `pm/progress.md`, which is frozen ([docs/conventions/workflow.md § 9](../../docs/conventions/workflow.md#9-project-management)).
+- **Ask first:** before the PR is marked ready, ask the owner "is <the work> done?".
+- **On yes:** the PR closes its issue (`Closes #<n>` in its description). Until 2026-11-23 this meant marking the step `done` in `pm/progress.md`, in a commit of its own.
+- **Pushed with the rest:** a review's fixes and the archive go in one push: after `/triage-review`, run `/opsx:archive` first, then push the fixes and the archive together, so one CI run covers them. Never offer to push the fixes on their own.
 - **Always in the PR itself:** so the merge's one deploy covers it.
 
-**The one exception** is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The row then stays `in progress` and names that work, and the PR that records its results marks the step `done`. Routine checks after the deploy (the deploy ran, settings read back, a test message) are reported to the owner, never a PR of their own.
+**The one exception** is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The issue then stays open and names that work, and the PR that records its results closes it. Routine checks after the deploy (the deploy ran, settings read back, a test message) are reported to the owner, never a PR of their own.
 
 **Why:**
 - **2026-11-04 (F0-1):** "you should have asked me before committing". The done-marking then needed a separate commit. This memory first recorded it as "the same commit", which was wrong.
