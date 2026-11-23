@@ -183,14 +183,14 @@ Conventions for the run:
 
 ## 21. [unit] Slice 7 — The check reads the transactions as the phone
 
-- [ ] 21.1 `RecordFirstSeenHandler` reads the transactions as the present user it is given
-- [ ] 21.2 `AccountCheck` starts the recording after reading the kept balances and before the balance read answers, so the two run alongside (a held bank fake)
-- [ ] 21.3 `AccountCheck` ends only once the recording has ended, also when its balance path throws
+- [x] 21.1 `RecordFirstSeenHandler` reads the transactions as the present user it is given
+- [x] 21.2 `AccountCheck` starts the recording after reading the kept balances and before the balance read answers, so the two run alongside (a held bank fake)
+- [x] 21.3 `AccountCheck` ends only once the recording has ended, also when its balance path throws
 - [x] 21.4 A storage failure of the kept balances reads nothing at the bank, the transactions included
 
 ## 22. [wiring] Slice 7 — The recorder in the check
 
-- [ ] 22.1 `Check/RecordFirstSeenHandler` (reading, for now, from the clock's today); `AccountCheck` takes it (D5); `AccountCheckRegistration` registers it, scoped. Verify: group 21 green; the existing check scenarios stay green (the burst and the leaving caller hold the balance answer only)
+- [x] 22.1 `Check/RecordFirstSeenHandler` (reading, for now, from the clock's today); `AccountCheck` takes it (D5); `AccountCheckRegistration` registers it, scoped. Verify: group 21 green; the existing check scenarios stay green (the burst and the leaving caller hold the balance answer only)
 - [ ] 22.2 `BankDsl.TransactionsRequestsReceived` and the drivers it needs, if group 1's stubs left any. Verify: the scenario's test reaches the fake bank's transactions path
 
 ## 23. [close] Slice 7 — The bank sees the phone's address and browser name

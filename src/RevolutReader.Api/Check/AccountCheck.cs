@@ -5,8 +5,11 @@ namespace RevolutReader.Api.Check;
 
 /// <summary>
 /// One check (c014 design.md D3, D4, D10, D12), as <see cref="IAccountCheck"/> describes it. The kept balances are read
-/// first, so a storage failure costs no bank read; then the balance, once, through <see cref="ReadBalanceHandler"/> as the
-/// present user (D3, D7).
+/// first, so a storage failure costs no bank read. Then the recording of first sightings starts
+/// (<see cref="RecordFirstSeenHandler"/>, c018 design.md D5), a transactions read as the present user, alongside the
+/// balance, read once through <see cref="ReadBalanceHandler"/> as the present user (D3, D7), and the rest below; the
+/// recording is awaited in a <c>finally</c>, so the check ends only once it has, whether the balance path returned or
+/// threw. The check's answer and notification are the balance path's.
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4).</item>
@@ -23,18 +26,24 @@ namespace RevolutReader.Api.Check;
 /// </list>
 /// What it came to is logged (<see cref="CheckLog.CheckEnded"/>), never an amount (D15).
 /// </summary>
-public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck {
-  // A compile-only stub (c018 tasks.md 22.1): the sketch's constructor, which takes the recorder, so the unit tests can
-  // build the check as the design has it. It behaves as the one above, which the app's container keeps using, since
-  // RecordFirstSeenHandler is not registered yet, until 22.1 makes this the only one and registers the recorder.
-  public AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandler recorder, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger)
-    : this(reader, store, notifier, logger) => ArgumentNullException.ThrowIfNull(recorder);
-
+public sealed class AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandler recorder, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck {
   public async Task<BankResult<CheckOutcome>> Run(PresentUser user, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
     ArgumentNullException.ThrowIfNull(anotherCheckWaits);
 
     CheckedBalances? kept = await store.Read(cancellationToken);
+    Task recording = recorder.Handle(user, cancellationToken);
+
+    try {
+      return await CheckTheBalance(user, kept, anotherCheckWaits, cancellationToken);
+    }
+    finally {
+      await recording;
+    }
+  }
+
+  /// <summary>The balance path: the balance read once as <paramref name="user"/>, then kept and notified as the read decides.</summary>
+  private async Task<BankResult<CheckOutcome>> CheckTheBalance(PresentUser user, CheckedBalances? kept, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     BankResult<AccountBalance> read = await reader.Handle(user, cancellationToken);
 
 #pragma warning disable CA1508 // Its interprocedural analysis follows the reader's returns and calls every arm always true; each case is named, so a case added to the union later is a compile error rather than a silent default.

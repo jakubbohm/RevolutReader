@@ -9,10 +9,11 @@ public static class AccountCheckRegistration {
   /// <see cref="AccountCheckOptionsValidator"/>, D6), so the app refuses to start without a valid check key of its own,
   /// never the message key (the push settings, which <c>AddPush</c> binds).
   /// <see cref="AccountCheckQueue"/>, a singleton, as the one queue of the app copy (D10); <see cref="AccountCheck"/> as
-  /// <see cref="IAccountCheck"/> and <see cref="ChangeNotifier"/>, scoped, as the handlers they use, resolved by the queue
-  /// from a scope of each check's own. What they use is registered elsewhere: the store by <c>AddCheckedBalanceStore</c>,
-  /// the reader by <c>AddBalance</c>, the sender by <c>AddPush</c>, the allowlist by <c>AddSignIn</c>. Called from
-  /// Program.cs.
+  /// <see cref="IAccountCheck"/>, <see cref="RecordFirstSeenHandler"/> and <see cref="ChangeNotifier"/>, scoped, as the
+  /// handlers they use, resolved by the queue from a scope of each check's own. What they use is registered elsewhere:
+  /// the store by <c>AddCheckedBalanceStore</c>, the reader by <c>AddBalance</c>, the bank port and the clock by
+  /// <c>AddEnableBanking</c>, the first-seen times by <c>AddTransactions</c>, the sender by <c>AddPush</c>, the
+  /// allowlist by <c>AddSignIn</c>. Called from Program.cs.
   /// </summary>
   public static IServiceCollection AddAccountCheck(this IServiceCollection services) {
     ArgumentNullException.ThrowIfNull(services);
@@ -25,6 +26,7 @@ public static class AccountCheckRegistration {
 
     services.AddSingleton<AccountCheckQueue>();
     services.AddScoped<IAccountCheck, AccountCheck>();
+    services.AddScoped<RecordFirstSeenHandler>();
     services.AddScoped<ChangeNotifier>();
 
     return services;
