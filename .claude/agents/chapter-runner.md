@@ -84,6 +84,12 @@ your hand-back's `RANGE` needs.
   --value "<id>"` (the same for the implementer).
 - **One at a time.** They share one working tree. Never start a build or a test run while either is working,
   and never use worktree isolation for them. Do not pass `effort`: their definitions set it.
+- **A command an agent left running.** If a report says a command of the agent is still running (one that
+  ran past its time limit is moved to the background), resume the agent and have it stop the command, and
+  wait for its answer, before you build or test. You cannot stop it yourself: a task can be stopped only by
+  the agent that owns it and by the main session.
+- **Waiting without Yield.** If you have no Yield tool, end your turn with one line saying whose report you
+  wait for: the report resumes you.
 - **The brief of a fresh agent** is short, and points instead of restating: the change name; the chapter and
   its groups by number; the review mode; the code graph's project (state file, Run); that it reads the
   standing rules and what the code holds now with `tdd get --change <change> --section "Standing rules"

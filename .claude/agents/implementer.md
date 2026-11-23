@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Makes the failing tests of one OpenSpec task group, or a review finding's guard test, pass without changing any test, and fixes a review's docs and cleanup findings outside openspec/. Invoked by the tdd-apply and triage-review orchestrators only.
-tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codebase-memory-mcp__*
+tools: Read, Grep, Glob, Edit, Write, Bash, TaskStop, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
 model: inherit
 effort: medium
@@ -77,6 +77,14 @@ change:
 - Never log or store bank data or secrets beyond what the design specifies.
 - Run the full test suite before reporting (this change's acceptance tests may still be red until their
   wiring). Do not report green on a partial run.
+
+## Nothing of yours keeps running
+
+A command that runs past its time limit is moved to the background and keeps running. It is yours: wait for
+it, or stop it with TaskStop and its id, before you report. Only you and the main session can stop it; the
+orchestrator cannot, and it must not build or test while a command of yours is alive. Never report with one
+still running. Give a command that could wait for input a way to end (no interactive prompts, no reading from
+an open stdin).
 
 ## Report format
 

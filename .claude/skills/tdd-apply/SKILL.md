@@ -35,6 +35,9 @@ Conventions: `docs/conventions/testing.md` § Test-first workflow, `docs/convent
   working. The next chapter starts only when this chapter's review and its fixes are done.
 - **Go by the hand-back, not by the notice.** A subagent's report arrives as a message from it. A "finished"
   notice can come late or without the report; wait again if only a notice came.
+- **A report from a test-writer or an implementer can reach you directly,** after its runner has finished
+  (the agent is woken once more when a command it left in the background ends). It repeats what the runner
+  handed back: do nothing with it.
 - **Whatever the settings, the apply stops** at the acceptance gate (§ 2), for a hand-back that needs the
   owner, and for review findings that need the owner (§ 4).
 - Never put real bank data or secrets into anything you send, commit or record.

@@ -1,7 +1,7 @@
 ---
 name: test-writer
 description: Writes failing tests for one OpenSpec task group (acceptance, unit or integration) before any implementation exists, or the guard test that reproduces a review finding. Invoked by the tdd-apply and triage-review orchestrators only.
-tools: Read, Grep, Glob, Edit, Write, Bash, mcp__codebase-memory-mcp__*
+tools: Read, Grep, Glob, Edit, Write, Bash, TaskStop, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
 model: inherit
 effort: high
@@ -97,6 +97,14 @@ Nothing else in production code: no logic, no fields beyond what a signature nee
 - For acceptance groups: the traceability test passes.
 
 Run the tests yourself and include the relevant failure output in your report.
+
+## Nothing of yours keeps running
+
+A command that runs past its time limit is moved to the background and keeps running. It is yours: wait for
+it, or stop it with TaskStop and its id, before you report. Only you and the main session can stop it; the
+orchestrator cannot, and it must not build or test while a command of yours is alive. Never report with one
+still running. Give a command that could wait for input a way to end (no interactive prompts, no reading from
+an open stdin).
 
 ## Report format
 
