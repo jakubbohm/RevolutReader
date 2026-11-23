@@ -141,7 +141,7 @@ The design system's reference code is translated into the app's own (`.claude/ru
   - within a day, newer `date` first, then the order given (a stable sort), so a payment moved in from the bank's previous day comes last in its day;
   - totals over the group (the design system's `groupByDay`, DayGroup note).
 - **`ListState`** keeps the loaded transactions, `newest` (the newest page's) and `olderLoaded` (every older page's, in the order they came), and derives `days = byDay([...newest, ...olderLoaded])` (the design system's ListEnd note: "Regroup all loaded transactions with `groupByDay`").
-  - A newest page read again replaces `newest` and keeps the `olderLoaded` dated before its `olderBefore`, as `withNewestPage` keeps older days now.
+  - A newest page read again (a refresh) replaces `newest` with its transactions, and every transaction already loaded whose bank `date` is before the page's `olderBefore` stays, as `withNewestPage` keeps older days now (the spec: a refresh keeps the older pages loaded). The kept ones of the earlier `newest` join `olderLoaded`, before the older pages' own.
   - An older page appends to `olderLoaded`.
   - This replaces `withOlderPage`'s merge of a first day already shown: regrouping gives one heading per day by construction, also when a moved payment joins a day of the previous page.
 - **`formatApproxTime(time)`** (`format.ts`): `kolem` + no-break space + `H:mm` in the phone's local time (the existing `formatTime`; the design system's `approxTimeLabel`).
@@ -193,7 +193,7 @@ On a page read, `IFirstSeenStore` failures are exceptions, answered as C7a's 500
 - **The existing tests that change:**
   - **The exact-shape check:** the driver's transaction members go from seven to eight.
   - **`AccountCheckDriver`'s burst and leaving caller** hold the balance answer only, as now. The transactions request is not held, and the fake answers it from its default.
-  - **The conventions' telemetry tests:** a check now makes two bank requests. `AccountCheckTelemetryTests` gains `FirstSeenNotRecorded` (Warning, kind only), and `BankTelemetryTests` counts the dependencies per check.
+  - **The conventions' telemetry tests:** a check now makes two bank reads. `AccountCheckTelemetryTests` gains `FirstSeenNotRecorded` (Warning, kind only), and `BankTelemetryTests` counts the bank adapter's log line per read, two per check: bank requests are left out of the exported traces (c004 D5), so the adapter's line is what records each read.
 - **Unit tests:** `FirstSeenRule`, `FirstSeenTimes`, both handlers, `RecordFirstSeenHandler` and `AccountCheck`, with `InMemoryFirstSeenStore` (the earliest moment kept, records counted) and the existing fakes. `AccountCheck`'s tests prove that the recording runs alongside the balance read and is awaited before the check ends. They use a held bank fake, as c017's rate tests do.
 - **Contract tests:** `FirstSeenStoreContract` against `InMemoryFirstSeenStore` (the unit tests' file, linked) and `TableFirstSeenStore` on Azurite (§ Ports and contracts). Adapter edge cases in `Wiring/Storage`: a row it cannot read, and the ETag race of two `Record` calls at once against Azurite.
 - **Frontend:**
@@ -373,7 +373,7 @@ export function byDay(transactions: Transaction[]): Day[];
 export interface ListState {
   days: Day[];                 // byDay([...newest, ...olderLoaded])
   newest: Transaction[];       // the newest page's transactions
-  olderLoaded: Transaction[];  // every older page's, in the order they came
+  olderLoaded: Transaction[];  // every older page's, in the order they came; after a refresh, the earlier newest page's kept ones first
   nextBefore: string | null;
   older: "idle" | "loading" | "error";
 }
@@ -443,7 +443,7 @@ export function inTimeZoneWhile(zone: string, body: () => Promise<void>): Promis
 ## Cross-cutting effects
 
 - **Bank load:** each check makes one more present-user read (usually one page: yesterday and today). It is never unattended, so Revolut's 4-a-day limit does not apply (ADR-0008 item 3). A burst makes at most four bank reads, each retried as the bank client retries a present user's request.
-- **Telemetry:** one more bank dependency per check, and `FirstSeenNotRecorded` only on a failure. No new line on the pages.
+- **Telemetry:** one more bank read per check, logged by the bank adapter's line as every read is (bank requests are left out of the exported traces, c004 D5), and `FirstSeenNotRecorded` only on a failure. No new line on the pages.
 - **Privacy:** the table holds hashes and moments, nothing logged. A moment is the owner's daughter's payment time, kept in the app's private storage, as the transactions are, and never published.
 - **Local development:** Aspire's Azurite creates the table on first use. Nothing to set up.
 - **The image quick start and the OpenAPI export** need no new setting: the table name has its default, and neither touches the table.

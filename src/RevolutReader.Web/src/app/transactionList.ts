@@ -15,7 +15,10 @@ export interface ListState {
   days: Day[];
   /** The newest page's transactions (c018 design.md D6). */
   newest: Transaction[];
-  /** Every older page's transactions, in the order they came (c018 design.md D6). */
+  /**
+   * The older transactions loaded: every older page's, in the order they came, and after a refresh, the earlier newest
+   * page's kept ones before them (c018 design.md D6).
+   */
   olderLoaded: Transaction[];
   nextBefore: string | null;
   older: "idle" | "loading" | "error";
