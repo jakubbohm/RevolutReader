@@ -24,6 +24,12 @@ namespace RevolutReader.Api.Check;
 /// What it came to is logged (<see cref="CheckLog.CheckEnded"/>), never an amount (D15).
 /// </summary>
 public sealed class AccountCheck(ReadBalanceHandler reader, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger) : IAccountCheck {
+  // A compile-only stub (c018 tasks.md 22.1): the sketch's constructor, which takes the recorder, so the unit tests can
+  // build the check as the design has it. It behaves as the one above, which the app's container keeps using, since
+  // RecordFirstSeenHandler is not registered yet, until 22.1 makes this the only one and registers the recorder.
+  public AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandler recorder, ICheckedBalanceStore store, ChangeNotifier notifier, ILogger<AccountCheck> logger)
+    : this(reader, store, notifier, logger) => ArgumentNullException.ThrowIfNull(recorder);
+
   public async Task<BankResult<CheckOutcome>> Run(PresentUser user, Func<bool> anotherCheckWaits, CancellationToken cancellationToken) {
     ArgumentNullException.ThrowIfNull(user);
     ArgumentNullException.ThrowIfNull(anotherCheckWaits);

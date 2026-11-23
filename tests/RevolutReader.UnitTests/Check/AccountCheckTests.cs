@@ -11,6 +11,7 @@ using RevolutReader.Api.Bank;
 using RevolutReader.Api.Check;
 using RevolutReader.Api.Push;
 using RevolutReader.Api.SignIn;
+using RevolutReader.UnitTests.Account;
 using RevolutReader.UnitTests.Push;
 using RevolutReader.UnitTests.Rate;
 using Shouldly;
@@ -23,10 +24,13 @@ namespace RevolutReader.UnitTests.Check;
 /// notified and sends nothing; a read that differs from last notified, with no check waiting behind, is notified from the
 /// stored balances through the sender, and last notified is then written as last seen; the check answers whether the two
 /// differ after its read; a failed read keeps nothing and is the read's failure; the check logs what it came to, and never
-/// an amount.
+/// an amount. Since c018 (design.md D5) it also records first sightings: the recording starts once the kept balances are
+/// read, runs alongside the balance read, and ends before the check does.
 /// <para>
-/// The setup is design.md D16's: a hand-written stub of the bank port under a real <see cref="ReadBalanceHandler"/> on a
-/// <see cref="FakeTimeProvider"/>, its rates answering a rate written out (<see cref="FixedKorunaRates"/>, c017 design.md
+/// The setup is design.md D16's: a hand-written stub of the bank port (<see cref="StubCheckBank"/>, answering no
+/// transaction) under a real <see cref="ReadBalanceHandler"/> and a real <see cref="RecordFirstSeenHandler"/> on one
+/// <see cref="FakeTimeProvider"/>, the recorder's first-seen moments in <see cref="InMemoryFirstSeenStore"/> through a real
+/// <see cref="FirstSeenTimes"/>, the rates answering a rate written out (<see cref="FixedKorunaRates"/>, c017 design.md
 /// D10); the in-memory store of the check's balances; a real <see cref="ChangeNotifier"/> over a
 /// real <see cref="SendPushHandler"/> with C8a's in-memory device store and stub delivery, whose hand-overs show what was
 /// sent. The allowlist holds Lucie and Petr; Lucie has a registered phone, so anything sent would reach it. Every log line
@@ -49,6 +53,9 @@ public sealed class AccountCheckTests {
   /// and the kept balances'; the koruna values the log tests look for are at this rate.
   /// </summary>
   private const decimal CZK_PER_EUR = 24.3m;
+
+  /// <summary>How long a test waits on the real clock for a check to end once nothing holds it: far longer than a check takes.</summary>
+  private const int WITHIN_SECONDS = 10;
 
   /// <summary>The clock when the bank answers: the read time of every balance read here.</summary>
   private static readonly DateTimeOffset _now = new(2026, 11, 21, 9, 14, 3, TimeSpan.Zero);
@@ -155,18 +162,125 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
-  /// The check reads the balance once, and as the user it runs for: the bank gets that user's address and browser name, and
-  /// no other read (spec account-check, "The check reads the balance as the phone present"; D3, D7; tasks.md 12.1). The
-  /// user is one no other test here names.
+  /// The check reads the balance once, and as the user it runs for: the bank gets that user's address and browser name
+  /// (spec account-check, "The check reads the balance and the recent transactions as the phone present"; c014 D3, D7;
+  /// c014 tasks.md 12.1). Its transactions read is the recorder's (c018 tasks.md 21.1, 21.2). The user is one no other test
+  /// here names.
   /// </summary>
   [Test]
-  public async Task A_check_reads_the_bank_once_as_the_user_it_runs_for() {
+  public async Task A_check_reads_the_balance_once_as_the_user_it_runs_for() {
     PresentUser user = new(IPAddress.Parse("203.0.113.42"), "BackgroundShortcutRunner/5108.1");
-    StubBankAccount bank = new(new Balance(45.20m, "EUR"));
+    StubCheckBank bank = new(new Balance(45.20m, "EUR"));
 
     await (await CheckWith(bank, new InMemoryCheckedBalanceStore(), new StubPushDelivery())).Run(user, _noCheckWaits, CancellationToken.None);
 
-    bank.ReadsFor.ShouldBe([user], "one balance read, as the user the check runs for: the same address and browser name");
+    bank.BalanceReadsFor.ShouldBe([user], "one balance read, as the user the check runs for: the same address and browser name");
+  }
+
+  /// <summary>
+  /// The bank holds its balance answer: the check, once called, starts the recording, a transactions read as the user it
+  /// runs for, while the balance read has not answered, so the two run alongside (c018 design.md D5, D10; tasks.md 21.2).
+  /// Once the balance answers, the check ends as the balance decides. That the recording starts only after the kept
+  /// balances are read shows in <see cref="A_storage_failure_of_the_kept_balances_reads_nothing_at_the_bank_the_transactions_included"/>
+  /// (tasks.md 21.4). The user is one no other test here names.
+  /// </summary>
+  [Test]
+  public async Task A_check_starts_the_recording_after_reading_the_kept_balances_and_before_the_balance_read_answers() {
+    PresentUser user = new(IPAddress.Parse("203.0.113.58"), "BackgroundShortcutRunner/5112.3");
+    StubCheckBank bank = new(new Balance(45.20m, "EUR"));
+    bank.HoldTheBalance();
+
+    Task<BankResult<CheckOutcome>> running = (await CheckWith(bank, await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m), new StubPushDelivery()))
+      .Run(user, _noCheckWaits, CancellationToken.None);
+    bool readWhileTheBalanceWasHeld;
+    IReadOnlyList<object> transactionReadsFor;
+
+    try {
+      readWhileTheBalanceWasHeld = await bank.TransactionsAreRead();
+      transactionReadsFor = bank.TransactionReadsFor;
+    }
+    finally {
+      bank.ReleaseTheBalance();
+    }
+
+    BankResult<CheckOutcome> result = await running.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+    result.ShouldSatisfyAllConditions(
+      () => readWhileTheBalanceWasHeld.ShouldBeTrue("the transactions are read while the balance read has not answered"),
+      () => transactionReadsFor.ShouldBe([user], "one transactions read, as the user the check runs for"),
+      () => result.Value.ShouldBe(new CheckOutcome(Changed: true), "once the balance answers, the check ends as it decides"));
+  }
+
+  /// <summary>
+  /// The bank holds its transactions answer, so the recording cannot end; every other part of the check answers at once, so
+  /// its balance path has ended, returning or throwing, by the time the recording is held. The check has not ended then,
+  /// neither normally nor with the exception; it ends once the transactions are answered, as its balance path decided:
+  /// a change notified, or the sender's exception, as it is (c018 design.md D5, the recording awaited in a <c>finally</c>;
+  /// § Error model; tasks.md 21.3). The balance path throws as c014 D11 has it: the sender's device table cannot be read.
+  /// </summary>
+  /// <param name="balancePath">How the balance path ends: it returns (a change notified) or throws (the sender's failure).</param>
+  [Test]
+  [Arguments("returns")]
+  [Arguments("throws")]
+  public async Task A_check_ends_only_once_the_recording_has_ended_also_when_its_balance_path_throws(string balancePath) {
+    bool returns = balancePath switch {
+      "returns" => true,
+      "throws" => false,
+      _ => throw new ArgumentOutOfRangeException(nameof(balancePath), balancePath, "Not a known case."),
+    };
+    FailingDeviceTable devices = new(await DevicesWithLuciesPhone()) { Readable = returns };
+    StubCheckBank bank = new(new Balance(45.20m, "EUR"));
+    bank.HoldTheTransactions();
+
+    Task<BankResult<CheckOutcome>> running = (await CheckWith(bank, await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m), new StubPushDelivery(), devices: devices))
+      .Run(_phone, _noCheckWaits, CancellationToken.None);
+    bool recordingStarted;
+    bool endedWhileTheRecordingWasHeld;
+
+    try {
+      recordingStarted = await bank.TransactionsAreRead();
+      endedWhileTheRecordingWasHeld = running.IsCompleted;
+    }
+    finally {
+      bank.ReleaseTheTransactions();
+    }
+
+    object? ended;
+
+    try {
+      ended = (await running.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS))).Value;
+    }
+    catch (InvalidOperationException failure) {
+      ended = failure;
+    }
+
+    ended.ShouldSatisfyAllConditions(
+      () => recordingStarted.ShouldBeTrue("the recording starts: the transactions are read, and held"),
+      () => endedWhileTheRecordingWasHeld.ShouldBeFalse("the check has not ended, normally or with an exception, while the recording waits for the bank"),
+      () => {
+        if (returns)
+          ended.ShouldBe(new CheckOutcome(Changed: true), "once the recording has ended, the check ends as its balance path decided: a change notified");
+        else
+          ended.ShouldBeSameAs(devices.Failure, "once the recording has ended, the balance path's exception reaches the caller as it is");
+      });
+  }
+
+  /// <summary>
+  /// The check's balances cannot be read (a storage failure, c014 § Error model): the exception reaches the caller as it
+  /// is, and the bank receives nothing, neither the balance read nor the transactions read (c014 D3: the kept balances read
+  /// first, so a storage failure costs no bank read; c018 design.md D5; tasks.md 21.4).
+  /// </summary>
+  [Test]
+  public async Task A_storage_failure_of_the_kept_balances_reads_nothing_at_the_bank_the_transactions_included() {
+    StubCheckBank bank = new(new Balance(45.20m, "EUR"));
+    UnreadableBalanceStore store = new();
+    AccountCheck check = await CheckWith(bank, store, new StubPushDelivery());
+
+    InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => check.Run(_phone, _noCheckWaits, CancellationToken.None));
+
+    thrown.ShouldSatisfyAllConditions(
+      () => thrown.ShouldBeSameAs(store.Failure, "the storage failure reaches the caller as it is"),
+      () => bank.BalanceReadsFor.ShouldBeEmpty("no balance read"),
+      () => bank.TransactionReadsFor.ShouldBeEmpty("no transactions read"));
   }
 
   /// <summary>
@@ -322,7 +436,7 @@ public sealed class AccountCheckTests {
     CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
     FailingDeviceTable devices = new(await DevicesWithLuciesPhone());
     StubPushDelivery delivery = new();
-    AccountCheck check = await CheckWith(new StubBankAccount(new Balance(45.20m, "EUR")), store, delivery, devices: devices);
+    AccountCheck check = await CheckWith(new StubCheckBank(new Balance(45.20m, "EUR")), store, delivery, devices: devices);
 
     InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => check.Run(_phone, _noCheckWaits, CancellationToken.None));
     CheckedBalances afterTheFailure = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
@@ -348,7 +462,7 @@ public sealed class AccountCheckTests {
     InMemoryCheckedBalanceStore store = await StoreKeeping(lastSeen: 45.20m, lastNotified: 49.00m);
     CheckedBalances before = (await store.Read(CancellationToken.None)).ShouldNotBeNull();
     FailingDeviceTable devices = new(await DevicesWithLuciesPhone());
-    AccountCheck check = await CheckWith(new StubBankAccount(Failure("unavailable")), store, new StubPushDelivery(), devices: devices);
+    AccountCheck check = await CheckWith(new StubCheckBank(Failure("unavailable")), store, new StubPushDelivery(), devices: devices);
 
     InvalidOperationException thrown = await Should.ThrowAsync<InvalidOperationException>(() => check.Run(_phone, _noCheckWaits, CancellationToken.None));
 
@@ -565,18 +679,20 @@ public sealed class AccountCheckTests {
 
   /// <summary>The check under test, as the other overload, with a bank that answers every balance read with <paramref name="bankAnswer"/>.</summary>
   private static Task<AccountCheck> CheckWith(BankResult<Balance> bankAnswer, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null) =>
-    CheckWith(new StubBankAccount(bankAnswer), store, delivery, log);
+    CheckWith(new StubCheckBank(bankAnswer), store, delivery, log);
 
   /// <summary>
-  /// The check under test: it reads the balance at <paramref name="bank"/> while the clock shows <see cref="_now"/>; its
-  /// balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender, with the allowlist Lucie
-  /// and Petr, to <paramref name="delivery"/>; the sender's device store is <paramref name="devices"/>, or one holding Lucie's
-  /// phone (<see cref="DevicesWithLuciesPhone"/>); every log line goes to <paramref name="log"/>.
+  /// The check under test: it reads the balance and, through its recorder, the transactions at <paramref name="bank"/> while
+  /// the clock shows <see cref="_now"/>, the recorder's first-seen moments in an empty <see cref="InMemoryFirstSeenStore"/>;
+  /// its balances are kept in <paramref name="store"/>; it notifies through a real notifier and sender, with the allowlist
+  /// Lucie and Petr, to <paramref name="delivery"/>; the sender's device store is <paramref name="devices"/>, or one holding
+  /// Lucie's phone (<see cref="DevicesWithLuciesPhone"/>); every log line goes to <paramref name="log"/>.
   /// </summary>
-  private static async Task<AccountCheck> CheckWith(StubBankAccount bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null, IPushDeviceStore? devices = null) {
+  private static async Task<AccountCheck> CheckWith(StubCheckBank bank, ICheckedBalanceStore store, IPushDelivery delivery, CapturedLog? log = null, IPushDeviceStore? devices = null) {
     CapturedLog lines = log ?? new CapturedLog();
     Allowlist allowlist = Allowlist.Parse($"{LUCIE}, {PETR}");
     IPushDeviceStore deviceStore = devices ?? await DevicesWithLuciesPhone();
+    FakeTimeProvider clock = new(_now);
 
     SendPushHandler sender = new(deviceStore, delivery, allowlist, Options.Create(new PushOptions {
       VapidPublicKey = NOT_READ_WHEN_SENDING,
@@ -587,7 +703,8 @@ public sealed class AccountCheckTests {
     }), lines.For<SendPushHandler>());
 
     return new AccountCheck(
-      new ReadBalanceHandler(bank, new FixedKorunaRates(new(CZK_PER_EUR, new DateOnly(2026, 11, 20))), new FakeTimeProvider(_now)),
+      new ReadBalanceHandler(bank, new FixedKorunaRates(new(CZK_PER_EUR, new DateOnly(2026, 11, 20))), clock),
+      new RecordFirstSeenHandler(bank, new FirstSeenTimes(new InMemoryFirstSeenStore()), clock, lines.For<RecordFirstSeenHandler>()),
       store,
       new ChangeNotifier(allowlist, sender, lines.For<ChangeNotifier>()),
       lines.For<AccountCheck>());
@@ -633,30 +750,17 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
-  /// The bank port, answering every balance read with <paramref name="answer"/> and recording who each read was for
-  /// (<see cref="ReadsFor"/>); a check reads no transactions (D3).
+  /// The check's balance store, which cannot be read: <see cref="Read"/> throws <see cref="Failure"/>, as a storage failure
+  /// would; nothing is ever saved.
   /// </summary>
-  private sealed class StubBankAccount(BankResult<Balance> answer) : IBankAccount {
-    private readonly Lock _lock = new();
-    private readonly List<object> _readsFor = [];
+  private sealed class UnreadableBalanceStore : ICheckedBalanceStore {
+    /// <summary>The failure every read throws; made up.</summary>
+    public InvalidOperationException Failure { get; } = new("A made-up storage failure: the check's balances cannot be read.");
 
-    /// <summary>Who each balance read was for, in order: the trigger's case (a <see cref="PresentUser"/> or <see cref="Unattended"/>).</summary>
-    public IReadOnlyList<object> ReadsFor {
-      get {
-        lock (_lock)
-          return [.. _readsFor];
-      }
-    }
+    public Task<CheckedBalances?> Read(CancellationToken cancellationToken) => throw Failure;
 
-    public Task<BankResult<Balance>> ReadBalance(ReadTrigger trigger, CancellationToken cancellationToken) {
-      lock (_lock)
-        _readsFor.Add(trigger.Value!);
-
-      return Task.FromResult(answer);
-    }
-
-    public Task<BankResult<Transactions>> ReadTransactions(DateOnly from, ReadTrigger trigger, CancellationToken cancellationToken) =>
-      throw new NotSupportedException("A check reads no transactions.");
+    public Task Save(CheckedBalances balances, CancellationToken cancellationToken) =>
+      throw new InvalidOperationException("Nothing is saved when the balances cannot be read.");
   }
 
   /// <summary>

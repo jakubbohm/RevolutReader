@@ -186,7 +186,7 @@ Conventions for the run:
 - [ ] 21.1 `RecordFirstSeenHandler` reads the transactions as the present user it is given
 - [ ] 21.2 `AccountCheck` starts the recording after reading the kept balances and before the balance read answers, so the two run alongside (a held bank fake)
 - [ ] 21.3 `AccountCheck` ends only once the recording has ended, also when its balance path throws
-- [ ] 21.4 A storage failure of the kept balances reads nothing at the bank, the transactions included
+- [x] 21.4 A storage failure of the kept balances reads nothing at the bank, the transactions included
 
 ## 22. [wiring] Slice 7 — The recorder in the check
 
