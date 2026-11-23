@@ -265,6 +265,53 @@ public sealed class AccountCheckTests {
   }
 
   /// <summary>
+  /// The balance path throws (the sender's device table cannot be read, c014 D11), and the app stops while the recording
+  /// still waits for the bank: the check's token is cancelled, so the recording ends with a cancellation. The caller still
+  /// gets the balance path's exception, as it is, not the recording's cancellation, so the queue logs the check's failure
+  /// rather than taking it for a cancelled check (c018 design.md § Error model: "The recording neither adds a failure nor
+  /// hides one"). The order is fixed, never timed: every other part of the check answers at once, so its balance path has
+  /// thrown by the time the recording is held, which the test checks before it cancels.
+  /// </summary>
+  [Test]
+  public async Task A_check_whose_balance_path_throws_ends_with_that_exception_when_the_app_stops_during_the_recording() {
+    FailingDeviceTable devices = new(await DevicesWithLuciesPhone()) { Readable = false };
+    StubCheckBank bank = new(new Balance(45.20m, "EUR"));
+    bank.HoldTheTransactions();
+    using CancellationTokenSource appStops = new();
+
+    Task<BankResult<CheckOutcome>> running = (await CheckWith(bank, await StoreKeeping(lastSeen: 49.00m, lastNotified: 49.00m), new StubPushDelivery(), devices: devices))
+      .Run(_phone, _noCheckWaits, appStops.Token);
+    bool recordingStarted;
+    int deviceReadsBeforeTheStop;
+
+    try {
+      recordingStarted = await bank.TransactionsAreRead();
+      deviceReadsBeforeTheStop = devices.Reads;
+      await appStops.CancelAsync();
+    }
+    finally {
+      bank.ReleaseTheTransactions();
+    }
+
+    Exception? ended = null;
+
+    try {
+      _ = await running.WaitAsync(TimeSpan.FromSeconds(WITHIN_SECONDS));
+    }
+    catch (InvalidOperationException failure) {
+      ended = failure;
+    }
+    catch (OperationCanceledException cancelled) {
+      ended = cancelled;
+    }
+
+    ended.ShouldSatisfyAllConditions(
+      () => recordingStarted.ShouldBeTrue("the recording starts: the transactions are read, and held"),
+      () => deviceReadsBeforeTheStop.ShouldBe(1, "the balance path has thrown before the app stops"),
+      () => ended.ShouldBeSameAs(devices.Failure, "the balance path's exception reaches the caller as it is, not the recording's cancellation"));
+  }
+
+  /// <summary>
   /// The check's balances cannot be read (a storage failure, c014 § Error model): the exception reaches the caller as it
   /// is, and the bank receives nothing, neither the balance read nor the transactions read (c014 D3: the kept balances read
   /// first, so a storage failure costs no bank read; c018 design.md D5; tasks.md 21.4).
@@ -796,11 +843,19 @@ public sealed class AccountCheckTests {
     /// <summary>The failure every read throws while the table cannot be read; made up.</summary>
     public InvalidOperationException Failure { get; } = new("A made-up storage failure: the device table cannot be read.");
 
+    private int _reads;
+
     /// <summary>Whether the table can be read; not at first.</summary>
     public bool Readable { get; set; }
 
-    public Task<IReadOnlyList<PushDevice>> ReadAll(CancellationToken cancellationToken) =>
-      Readable ? devices.ReadAll(cancellationToken) : throw Failure;
+    /// <summary>How many reads were asked so far, answered or failed.</summary>
+    public int Reads => Volatile.Read(ref _reads);
+
+    public Task<IReadOnlyList<PushDevice>> ReadAll(CancellationToken cancellationToken) {
+      _ = Interlocked.Increment(ref _reads);
+
+      return Readable ? devices.ReadAll(cancellationToken) : throw Failure;
+    }
 
     public Task Save(PushDevice device, CancellationToken cancellationToken) => devices.Save(device, cancellationToken);
 
