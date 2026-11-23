@@ -179,7 +179,7 @@ Conventions for the run:
 
 ## 20. [close] Slice 6 — A kept transaction on an older page carries its time
 
-- [ ] 20.1 The scenario's test passes. Verify: green, including account-transactions / A kept transaction on an older page carries its time
+- [x] 20.1 The scenario's test passes. Verify: green, including account-transactions / A kept transaction on an older page carries its time
 
 ## 21. [unit] Slice 7 — The check reads the transactions as the phone
 
