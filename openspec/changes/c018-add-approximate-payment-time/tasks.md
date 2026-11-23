@@ -195,8 +195,8 @@ Conventions for the run:
 
 ## 23. [close] Slice 7 — The bank sees the phone's address and browser name
 
-- [ ] 23.1 The scenario's test passes. Verify: green, including account-check / The bank sees the phone's address and browser name
-- [ ] 23.2 Docs:
+- [x] 23.1 The scenario's test passes. Verify: green, including account-check / The bank sees the phone's address and browser name
+- [x] 23.2 Docs:
   - **ADR-0001 item 6**, a dated note: since c018 the check reads the transactions from yesterday on, only for first-seen times, and keeps none (D11);
   - **ADR-0008 Decision item 1**, a dated note on what the check reads.
 
