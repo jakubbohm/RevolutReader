@@ -8,8 +8,9 @@ namespace RevolutReader.Api.Check;
 /// first, so a storage failure costs no bank read. Then the recording of first sightings starts
 /// (<see cref="RecordFirstSeenHandler"/>, c018 design.md D5), a transactions read as the present user, alongside the
 /// balance, read once through <see cref="ReadBalanceHandler"/> as the present user (D3, D7), and the rest below; the
-/// recording is awaited in a <c>finally</c>, so the check ends only once it has, whether the balance path returned or
-/// threw. The check's answer and notification are the balance path's.
+/// check ends only once the recording has, whether the balance path returned or threw. The check's answer and
+/// notification are the balance path's, and so is its exception: when the balance path threw, the recording's own end,
+/// a cancellation by the app's stop included, never replaces it (c018 design.md § Error model).
 /// <list type="bullet">
 /// <item>With nothing kept, a successful read is kept as both balances, nothing is sent, and the check answers that nothing
 /// changed (D4).</item>
@@ -34,12 +35,18 @@ public sealed class AccountCheck(ReadBalanceHandler reader, RecordFirstSeenHandl
     CheckedBalances? kept = await store.Read(cancellationToken);
     Task recording = recorder.Handle(user, cancellationToken);
 
+    BankResult<CheckOutcome> outcome;
     try {
-      return await CheckTheBalance(user, kept, anotherCheckWaits, cancellationToken);
+      outcome = await CheckTheBalance(user, kept, anotherCheckWaits, cancellationToken);
     }
-    finally {
-      await recording;
+    catch {
+      // The recording is awaited without throwing, so the balance path's exception is the one that passes.
+      await recording.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+      throw;
     }
+
+    await recording;
+    return outcome;
   }
 
   /// <summary>The balance path: the balance read once as <paramref name="user"/>, then kept and notified as the read decides.</summary>
