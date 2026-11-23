@@ -115,7 +115,7 @@ See proposal.md (Why) for the motivation and the owner's two checks against the 
 - **Why from yesterday on.** Only today's transactions can get a time (D2). The extra day costs no request (one page either way), keeps the read independent of which of a transaction's dates the bank's `date_from` compares, and covers a check that straddles midnight. It was decided before item 3 settled the day's basis, and the decision stands.
 - **It keeps nothing.** Only the newest page keeps transactions, and its reach-back (c010 D3) starts from the newest kept day. A check keeping its narrow window would move that day forward and hide a gap the page should close, since a card payment settles a few days later still dated its own day. The spec's "Transactions a check reads are not kept" shows this through the page's read.
 - **In the check.** `AccountCheck.Run` still reads the kept balances first, so a storage failure costs no bank read. It then starts the recording, runs the balance read and the rest as now, and awaits the recording in a `finally`, so the recording ends before the check does whatever the balance path did:
-  - **A burst** still runs at most two checks, with two requests each.
+  - **A burst** still runs at most two checks, with two bank reads each.
   - **The app's stop** cancels both reads.
   - **The push** goes out as soon as the balance path sends it, never waiting for the transactions.
   - **The Shortcut's answer** waits for the recording. At worst that is the bank client's 15 s limit with its retries, when the bank is failing.
@@ -209,7 +209,7 @@ On a page read, `IFirstSeenStore` failures are exceptions, answered as C7a's 500
   - **At item 6's "(Since ADR-0008: the phone-triggered check reads it…)":** the check read the balance only from C9a (c014 D3). Since c018 it also reads the transactions from yesterday on, only to record first-seen times, and keeps none.
 - **ADR-0008** (dated notes):
   - at Decision item 1, the check reads the balance and, since c018, the transactions from yesterday on;
-  - at the constraint "safe to call more than once", a burst still runs at most two checks, now two requests each.
+  - at the constraint "safe to call more than once", a burst still runs at most two checks, now two bank reads each.
 - **`spikes/enable-banking/`:**
   - **README:** step 9, "Does a pending transaction keep its reference when it settles? (issue #85, 2026-11-21/22)", with how to run it, the finding and the verdict line.
   - **Scripts:** `read-pending.ps1` and `compare-pending.ps1` (counts only on screen, the raw reads to the gitignored `secrets/`).
@@ -400,7 +400,7 @@ export function inTimeZoneWhile(zone: string, body: () => Promise<void>): Promis
 | A check records first sightings by the same rule (account-check) | `RecordFirstSeenHandler` through `FirstSeenTimes` |
 | A check keeps no transaction (account-check) | `RecordFirstSeenHandler` (never calls `ITransactionStore`) |
 | A failed transactions read changes neither the notification nor the answer (account-check) | `RecordFirstSeenHandler` (never throws but for cancellation), `AccountCheck` (awaits it apart from the outcome) |
-| At most two checks per burst, two requests each (account-check) | `AccountCheckQueue` (unchanged), `AccountCheck` (the recording awaited within the check) |
+| At most two checks per burst, two bank reads each (account-check) | `AccountCheckQueue` (unchanged), `AccountCheck` (the recording awaited within the check) |
 | A transaction's day: the local date of its time, else its date (account-transactions, list and details) | `transactionDay` |
 | Grouping by that day, newer dates first, totals per group (account-transactions) | `byDay`, `ListState` regrouping all loaded |
 | `Datum`: the day, ", kolem" and the local time (account-transactions) | `TransactionSheet` with `formatDate`, `formatApproxTime` |
@@ -442,7 +442,7 @@ export function inTimeZoneWhile(zone: string, body: () => Promise<void>): Promis
 
 ## Cross-cutting effects
 
-- **Bank load:** each check makes one more present-user request (one page: yesterday and today). It is never unattended, so Revolut's 4-a-day limit does not apply (ADR-0008 item 3). A burst makes at most four requests.
+- **Bank load:** each check makes one more present-user read (usually one page: yesterday and today). It is never unattended, so Revolut's 4-a-day limit does not apply (ADR-0008 item 3). A burst makes at most four bank reads, each retried as the bank client retries a present user's request.
 - **Telemetry:** one more bank dependency per check, and `FirstSeenNotRecorded` only on a failure. No new line on the pages.
 - **Privacy:** the table holds hashes and moments, nothing logged. A moment is the owner's daughter's payment time, kept in the app's private storage, as the transactions are, and never published.
 - **Local development:** Aspire's Azurite creates the table on first use. Nothing to set up.
