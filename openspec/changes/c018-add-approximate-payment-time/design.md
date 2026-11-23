@@ -67,13 +67,13 @@ See proposal.md (Why) for the motivation and the owner's two checks against the 
 - **The rule:** a moment counts only when its UTC date equals the transaction's `date`.
   - **Written:** `FirstSeenRule.Sightings` takes, from a read, only the transactions dated `ReadAt`'s UTC date, pending or booked, each with a reference, each reference once.
   - **Answered:** `FirstSeenRule.Shown` gives the kept moment only when its UTC date is still the transaction's date, else `null`.
-- **Why UTC:** the bank's dates are UTC dates. The owner's sample (2026-11-23): an incoming transfer that Revolut shows at 00:17 Prague time on 25 October (22:17 UTC on the 24th) is dated 2026-10-24 by the bank, while card payments Revolut shows on the 25th at 17:49 and 19:04 are dated the 25th. This also confirms the app's UTC "today" (c010 D3).
+- **Why UTC:** the bank's dates are UTC dates. The owner's sample (2026-11-23), in words only as ADR-0001 records it: an incoming transfer that the Revolut app shows just after midnight Prague time is dated the day before by the bank, the UTC date of that moment, while card payments later that day are dated that day. This also confirms the app's UTC "today" (c010 D3).
 - **Why both sides:**
   - **The write side** keeps rows to the transactions that can ever show a time. That leaves the ~90 older transactions of the first read after the deploy alone, and every day the phone was off.
   - **The read side** guards a date the bank changed between pending and booked. That was never observed (5 of 5 unchanged), but it would otherwise pair a time with the wrong day. One rule, so one function serves both.
 - **What it gives:** a time is never wrong, only missing. Unobserved: a card payment after midnight. If one were dated otherwise, the rule hides its time.
 - **Alternatives** (the owner, 2026-11-23, after challenging the first framing):
-  - **C:** the server keeps UTC, and the phone shows the bank's date next to a local time ("24. 10. 2026, kolem 0:17"). Rejected: a date and a time that do not belong together.
+  - **C:** the server keeps UTC, and the phone shows the bank's date next to a local time (made up: "17. 11. 2026, kolem 0:20" for a payment the owner's daughter made at 0:20 on the 18th). Rejected: a date and a time that do not belong together.
   - **A:** the phone drops a time whose local date differs from the bank's date. Rejected: it loses correct times.
   - **B:** Prague time on the server. Rejected: the server has no time-zone data, and the phone already has its own zone.
   - **An offset stored with the time.** Not needed: the phone converts with its own zone.
