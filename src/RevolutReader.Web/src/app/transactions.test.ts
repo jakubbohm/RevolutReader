@@ -38,7 +38,10 @@ import {
 // problems come only from its live read). The fake server (src/test/server.ts) answers the app's API client; the
 // transactions, amounts and addresses are made up.
 
-/** A page as read: each transaction with exactly its eight members, `seenAt` among them (c018 design.md D4, D6). */
+/**
+ * A page as read: each transaction with its eight members, `seenAt` among them, and no member the app does not know
+ * (c018 design.md D4, D6).
+ */
 type PageAsRead = Omit<TransactionPage, "transactions"> & {
   transactions: (Transaction & { seenAt: string | null })[];
 };
@@ -353,8 +356,10 @@ test.each(notAPage)(
   },
 );
 
-// A transaction's approximate time (c018 design.md D4, D6): `seenAt` is text or null, and a transaction has exactly
-// its eight members. The bodies are raw JSON, so these hold whatever the generated types say.
+// A transaction's approximate time (c018 design.md D4, D6): `seenAt` is text or null, and a transaction needs all its
+// eight members; a member the app does not know is left out, as the app's other readers do, so a phone still on an
+// older app version keeps reading the pages of a later API that adds one. The bodies are raw JSON, so these hold
+// whatever the generated types say.
 
 /** The page body with its one transaction changed by `change`. */
 function withTransaction(
@@ -378,23 +383,33 @@ test.each(READERS)(
   },
 );
 
-const otherMembers = onBothReads<{ label: string; body: unknown }>([
-  {
-    label: "a ninth member",
-    body: withTransaction((each) => ({ ...each, note: "navíc" })),
-  },
+const missingMembers = onBothReads<{ label: string; body: unknown }>([
   {
     label: "no `seenAt`",
     body: withTransaction((each) => ({ ...each, seenAt: undefined })),
   },
 ]);
 
-test.each(otherMembers)(
-  "A transaction with other than exactly its eight members makes the page unexpected: $label",
+test.each(missingMembers)(
+  "A transaction missing one of its eight members makes the page unexpected: $label",
   async ({ reader, body }) => {
     answerWith(reader.answering(jsonBody(body)));
 
     expect(await reader.read()).toEqual({ kind: "unexpected" });
+  },
+);
+
+test.each(READERS)(
+  "A transaction's member the app does not know is left out, and the page read with its eight members as they are: $name",
+  async (reader) => {
+    answerWith(
+      reader.answering(
+        jsonBody(withTransaction((each) => ({ ...each, note: "navíc" }))),
+      ),
+    );
+
+    // `toEqual` fails on a member the expected page lacks, so the extra one must be gone, not only the eight there.
+    expect(await reader.read()).toEqual({ kind: "read", page: PAGE_BODY });
   },
 );
 
