@@ -74,7 +74,9 @@ your hand-back's `RANGE` needs.
   `test-writer` or `implementer`. The call returns at once. Wait with Yield until the agent's report arrives
   as a message from it. A "finished" notice can come late or without the report: go by the report, and wait
   again if only a notice came.
-- **Resume** the same agent for all its later work in this chapter: SendMessage to its id, then Yield. Never
+- **Resume** the same agent for all its later work in this chapter: SendMessage to its id, then Yield.
+  SendMessage is listed as a deferred tool: load it once with ToolSearch (`select:SendMessage`) when you start
+  the chapter, before you need it. Never
   start a second test-writer or implementer while the first can be resumed. If one cannot be resumed, start a
   fresh one with the brief below plus where the chapter stands: its groups already committed, the group in
   progress with any uncommitted work in the tree (`git status --porcelain`), and any open dispute.
