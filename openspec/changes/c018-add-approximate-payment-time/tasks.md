@@ -157,11 +157,11 @@ Conventions for the run:
 ## 15. [unit] Slice 5 — No reference, no time
 
 - [x] 15.1 A read records no transaction without a reference
-- [ ] 15.2 A reference listed twice in one read is recorded once
+- [x] 15.2 A reference listed twice in one read is recorded once
 
 ## 16. [wiring] Slice 5 — Sightings by reference
 
-- [ ] 16.1 `FirstSeenRule.Sightings` skips a transaction without a reference and takes each reference once; the page asks the store for references only. Verify: group 15 green
+- [x] 16.1 `FirstSeenRule.Sightings` skips a transaction without a reference and takes each reference once; the page asks the store for references only. Verify: group 15 green
 
 ## 17. [close] Slice 5 — A transaction without the bank's reference carries no time
 

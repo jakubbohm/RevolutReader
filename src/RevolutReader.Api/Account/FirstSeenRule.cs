@@ -21,11 +21,12 @@ public static class FirstSeenRule {
     DateOnly readDay = DateOnly.FromDateTime(readAt.UtcDateTime);
 
     // A transaction without a reference is left out: nothing could match it later (D1). One dated another day is left
-    // out too: the read is not when it happened (D2).
+    // out too: the read is not when it happened (D2). A reference listed twice (pending and booked) is taken once.
     return [.. read
       .Where(transaction => transaction.Date == readDay)
       .Select(static transaction => transaction.Reference)
       .OfType<string>()
+      .Distinct(StringComparer.Ordinal)
       .Select(reference => new FirstSeen(reference, readAt))];
   }
 
