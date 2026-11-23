@@ -132,8 +132,8 @@ Conventions for the run:
 
 ## 11. [close] Slice 3 — The time stays when the payment settles
 
-- [ ] 11.1 The scenario's test passes, as expected after slice 1 (the key is the reference, D1), and is proven by a mutation: with `FirstSeenRule.Sightings` leaving out pending transactions, it fails. Verify: green, including account-transactions / The time stays when the payment settles; the mutation's red result in `.tdd-state.md`
-- [ ] 11.2 Docs:
+- [x] 11.1 The scenario's test passes, as expected after slice 1 (the key is the reference, D1), and is proven by a mutation: with `FirstSeenRule.Sightings` leaving out pending transactions, it fails. Verify: green, including account-transactions / The time stays when the payment settles; the mutation's red result in `.tdd-state.md`
+- [x] 11.2 Docs:
   - **ADR-0001 § Transaction history**, dated notes (design.md D11): at Check 2's heads-up, the pending reference survives settlement (counts, the evidence linked); at the Enable Banking bullet, on Revolut the ID survives, and the app matches pending ones only for their first-seen time.
   - **`spikes/enable-banking/README.md`**, step 9 with its scripts, finding and verdict line (D11).
 
