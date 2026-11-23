@@ -230,7 +230,7 @@ Conventions for the run:
 
 ## 30. [close] Slice 10 — Transactions a check reads are not kept
 
-- [ ] 30.1 The scenario's test passes, as expected after slice 7 (the recorder never keeps, D5), and is proven by a mutation: with `RecordFirstSeenHandler` also keeping the read's settled transactions through `ITransactionStore`, it fails. Verify: green, including account-check / Transactions a check reads are not kept; the mutation's red result in `.tdd-state.md`
+- [x] 30.1 The scenario's test passes, as expected after slice 7 (the recorder never keeps, D5), and is proven by a mutation: with `RecordFirstSeenHandler` also keeping the read's settled transactions through `ITransactionStore`, it fails. Verify: green, including account-check / Transactions a check reads are not kept; the mutation's red result in `.tdd-state.md`
 
 ## 31. [unit] Slice 11 — A failed transactions read changes nothing
 
