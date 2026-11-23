@@ -44,7 +44,8 @@ Here ([docs/conventions/configuration.md § Not adopted](../conventions/configur
 Given up: work cannot be merged switched off and turned on later; a release cannot be decoupled from its deployment.
 *Switch back when:* a change spans several merges, or a release has to wait for a date or a person (e.g. a handover to the daughter).
 
-**R-6 · Plan and status in repository files, not a tracker**
+**R-6 · Plan and status in repository files, not a tracker** *(partly switched back 2026-11-23)*
+Partly switched back on 2026-11-23 (the owner): every work item is a GitHub issue, the initial plan's remaining steps included, and `pm/roadmap.md` and `pm/progress.md` are frozen as the record of the initial plan ([workflow.md § 9](../conventions/workflow.md#9-project-management), [lessons.md R-6](lessons.md)). Still given up: the board view and milestones; decisions stay ADRs, not issues.
 Full version: GitHub issues, milestones and a project board, with open decisions as issues ([lessons.md R-6](lessons.md), DoseUp F-77, F-79, F-80).
 Here ([docs/conventions/workflow.md § 9](../conventions/workflow.md#9-project-management), 2026-11-04): **`pm/roadmap.md` and `pm/progress.md`**, decisions in ADRs — a fixed plan of about 20 steps, one session each.
 Given up: no board view, and no links between work items and commits or PRs. *(Since 2026-11-08 every piece of planned work also has a GitHub issue, so PRs link to their work items; only the board view, milestones and decisions as issues remain given up.)*

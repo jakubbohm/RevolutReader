@@ -1,6 +1,6 @@
 # Expiring approvals and how to restore them
 
-> What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Every roadmap step that creates, renews or changes one updates this file ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)). Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
+> What keeps the app's bank access (and later sign-in, deployment and push) alive: when each approval or secret expires, how you notice, and how to restore it. Any work that creates, renews or changes one updates this file in the same PR. Rebuilding everything after decommissioning is the separate reinstatement guide (roadmap step D1).
 >
 > Commands are PowerShell 7, run from the repository root. Last updated: 2026-11-21 (C9a: the check key and the iPhone Shortcut. Before it, 2026-11-10, C8a: the push keys).
 

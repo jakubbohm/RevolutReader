@@ -7,7 +7,7 @@
 | What | Where |
 |---|---|
 | Why: goals, scope, use cases, open questions | `pm/kickoff.md` |
-| Plan and status | `pm/roadmap.md`, `pm/progress.md` |
+| Work items and their status | GitHub issues (§ 9); `pm/roadmap.md` and `pm/progress.md` are the frozen record of the initial development |
 | Decisions with lasting effect | `docs/adr/` |
 | How: conventions | `docs/conventions/` |
 | Exactly what the system does | `openspec/specs/` (after a change is archived) |
@@ -22,7 +22,7 @@
 ## 2. Decisions
 
 - **A decision with lasting, cross-cutting effect is an ADR** in `docs/adr/` (template in [docs/adr/README.md](../adr/README.md)): architecture, external services and their terms, data handling, anything later steps must respect. The research findings a decision rests on go into the ADR's Context, with sources and the date they were verified.
-- **`pm/progress.md` keeps only the trail:** per open question, its status, a one-line outcome, the link to the ADR section, the date, and the impact on roadmap steps. The details live only in the ADR.
+- **The open questions' trail** (Q1–Q10: status, a one-line outcome, the link to the ADR section, the date, the impact on roadmap steps) is in `pm/progress.md`, frozen with all ten decided (§ 9). A later open question lives in its issue until an ADR holds the decision. The details live only in the ADR.
 - A decision local to one change lives in that change's `design.md`; a convention lives in `docs/conventions/`.
 - **Reversing a decision:** a new ADR that supersedes the old one (the old one is marked *Superseded by …*, never deleted), plus a software-factory lesson (§ 10).
 - The user makes every decision; Claude proposes (CLAUDE.md § Working rules).
@@ -132,16 +132,15 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
 - Behavior changes go through OpenSpec; trivial non-behavioral fixes may be direct.
 - **Change ids: `cNNN-verb-topic`** (e.g., `c001-add-backend-foundation`). NNN is the next number across `openspec/changes/` and the archive, never reset; the leading letter satisfies the OpenSpec CLI's letter-first name rule. Change names in the roadmap are proposals; the number is assigned when the change is created.
 - **Each change starts on its own branch** off the freshest `main`, created before any artifact is drafted (proposal rule in `openspec/config.yaml`).
-- **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the roadmap step (e.g., C6) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
+- **Proposals cite** the use case (UC1–UC3, kickoff ch. 5), the issue (and, for one of the initial plan's remaining steps, its id, e.g. C10) and every open question they apply or decide (Q1–Q10), and **include a Non-goals section.**
 - **Apply is test-first through `/tdd-apply <change>`,** not `/opsx:apply` ([testing.md § Test-first workflow](testing.md#test-first-workflow)); `openspec/config.yaml` shapes `tasks.md` into the task groups it expects.
 - **A change's path, from the idea to `main`** (the user, 2026-11-08; the order C6 ran): (1) `/opsx:propose` and the owner's reading routine ([testing.md § Your reading routine](testing.md#your-reading-routine-about-5-minutes-per-change-after-propose-before-apply)); (2) `/tdd-apply` to its `[close]` commit; (3) the push and a draft PR, on the owner's go, opened by Claude; (4) `/code-review xhigh --comment` on the PR, run by the owner; (5) `/triage-review <PR>` ([testing.md § Code review after the apply](testing.md#code-review-after-the-apply)); (6) `/opsx:archive`, committed on the branch, after the last review round: (4) and (5) may run again on the fix range, and only the owner says when no more rounds come; (7) the PR marked ready, CI green, squash merge, `/cleanup-branch`. The review comes before the archive on purpose, and so does every later round: a finding that turns into a spec change is fixed in the change's delta specs while they still exist; after the archive the delta is merged into the main specs and the folder sits in the archive. A round that still comes after the archive fixes a spec change in the main spec under `openspec/specs/` and a design decision in the archived change's `design.md`, its home (§ 2); the archive folder stays where it is, its delta specs as they were merged, as the record (the owner, 2026-11-22, [lessons.md R-59](../software-factory/lessons.md)). A Direct PR ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)) takes the same path without (1) and (6): its unit tests first, then the draft PR, the review, the triage and ready.
 - **The archive is part of the change's own PR** (the user, 2026-11-08): `/opsx:archive` runs on the change branch once its tasks are done, guided tasks included, and is committed `[archive]` before the PR is marked ready, so the main specs change in the same squash merge as the code. Never a follow-up after the merge, never a PR of its own.
-- **A step's PR is complete on its own** (the user: first in F0-1, 2026-11-04; clarified 2026-11-20, after C8a's status-only follow-up #72). It is about the PR, not a commit. This holds for Direct PRs too.
-  - **Before the PR is marked ready,** Claude asks the owner whether the step is done, since only the owner declares a step complete (CLAUDE.md).
-  - **The PR leaves every record final for the merge:** `pm/progress.md` (status `done`, dated the day the PR is marked ready, and the notes), the archive and the docs.
-  - **The status update is preferably a commit of its own.** It is pushed together with the PR's other commits where possible, so one CI run covers them. It is always in the PR itself, so the merge's one deploy covers it.
-  - **No PR follows only to change a status or to record routine checks after the deploy** (the deploy ran, settings read back, a test message). Those are reported to the owner, and a check that fails gets its own fix PR.
-  - **The one exception is real work that can only happen after the merge and the deploy,** such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The row then stays `in progress` and names exactly that work, and the PR that records its results marks the step `done`.
+- **A work item's PR is complete on its own** (the user: first in F0-1, 2026-11-04; clarified 2026-11-20, after C8a's status-only follow-up #72; the status moved from `pm/progress.md` to the issue on 2026-11-23, § 9). It is about the PR, not a commit. This holds for Direct PRs too.
+  - **Before the PR is marked ready,** Claude asks the owner whether the work is done, since only the owner declares work complete (CLAUDE.md).
+  - **The PR leaves every record final for the merge:** the archive and the docs, and on the owner's yes it closes its issue (`Closes #<n>` in its description).
+  - **No PR follows only to close an issue or to record routine checks after the deploy** (the deploy ran, settings read back, a test message). Those are reported to the owner, and a check that fails gets its own fix PR.
+  - **The one exception is real work that can only happen after the merge and the deploy,** such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The PR then only refers to the issue, which stays open and names exactly that work, and the PR that records its results closes it.
 - **Tooling-only changes** (the user, 2026-11-05; the first is C2, `c002-add-ci-pipeline` design.md D1) change how the repository accepts or ships code (CI, the ruleset on `main`, process files), not what the app does. A change that touches the app's behaviour is never tooling-only.
   - It sets `skip_specs: true` in its `.openspec.yaml` and has no specs and no scenarios.
   - Proposal, design and tasks are reviewed before anything is built, as for any change.
@@ -149,13 +148,13 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
   - Its task groups are named after the work, and each group writes its own docs. Anything with an effect outside the repository (GitHub settings, Azure) is proven live, as C2's probe PR had to be refused a merge.
   - It is archived as usual.
 - **Size guide for explore: about 12 new or changed scenarios** (one acceptance task each) is where a change becomes worth splitting (the user, 2026-11-08). It is a guide, not a limit. The apply sessions of C5 (13 scenarios, 115 tasks) and C6 (20, 122) each reached about half a million tokens of context; c009 (C7a, 31 and 185) and c010 (C7b, 40 and 238) came out larger still, although C7 had already been split for size.
-  - **Explore** estimates how many scenarios the idea needs and says so; well above 12, it suggests a split: the parts, each a slice a user can see where possible, their order and which can run side by side. The user decides; a split changes the roadmap ([roadmap § 1](../../pm/roadmap.md#1-how-to-use-this-roadmap)), and each new step gets its issue (§ 9).
+  - **Explore** estimates how many scenarios the idea needs and says so; well above 12, it suggests a split: the parts, each a slice a user can see where possible, their order and which can run side by side. The user decides; each part gets an issue of its own (§ 9).
   - **Propose and the later steps never check it.** They write every scenario the change needs; a scenario is never merged, dropped or shortened to come closer to the guide. One behaviour per scenario, and a missing scenario costs more than a long list.
   - c009 and c010 were already being applied when the guide was set.
 - **Tasks finish in one sitting** (~2 h at most), each ending with the build and all tests green, **except the change's own acceptance tests:** they are written first and stay red until the change's `[close]` group.
 - **Explicit tasks:** "regenerate TS client" when the API contract changes ([README.md § API contract](README.md#api-contract)); "update Bicep + `.bicepparam`" when the AppHost resource graph or Azure topology changes; declaring every new setting in `appsettings.json` ([configuration.md](configuration.md)); a guided manual task for every hand-provisioned secret.
 - Cross-cutting decisions made inside a change become ADRs.
-- The last tasks of a change update `pm/progress.md` when it implements a roadmap step (issue-only work has no row, [§ 9](#9-project-management)), and `CLAUDE.md` if build, test or run commands changed.
+- The last tasks of a change update `CLAUDE.md` if build, test or run commands changed.
 - How TDD and BDD shape specs, design and tasks, and the owner's reading routine after propose: [testing.md](testing.md).
 
 ## 7. Spikes
@@ -221,13 +220,9 @@ Decided by the user on 2026-11-05, replacing F0-1's single mockup of the account
 
 ## 9. Project management
 
-- The initial development's work items live in `pm/roadmap.md` and `pm/progress.md`: the order, the status and the decision trail. CLAUDE.md § Project management says how sessions use them.
-- **Work after the initial development is a GitHub issue only** (the user, 2026-11-21): no roadmap step and no `pm/progress.md` row, for a feature, a follow-up, a fix or an enhancement alike. The issue holds the goal (and its decisions, until a change's design takes them over); the OpenSpec change and its PR name the issue, and the PR that finishes the work closes it. The roadmap and `pm/progress.md` stay the record of the initial plan. Lesson [R-97](../software-factory/lessons.md).
-- **Every roadmap step also gets a GitHub issue** (the user, 2026-11-08), filed when the step is added or split:
-  - the issue states the goal in a few lines and links the roadmap entry, which stays the one home of the detail; the roadmap entry and its `pm/progress.md` row link the issue;
-  - the PR that finishes the work closes the issue;
-  - it is the default, not a wall: the user may say for a specific item that it gets no issue.
-- Changing the roadmap needs the user's approval; every change is logged in `pm/progress.md` § Roadmap change log.
+- **Every work item is a GitHub issue** (the owner, 2026-11-23): a feature, a follow-up, a fix, an enhancement and the initial plan's remaining steps (C10, M9, D1, SF1, M8, T1) alike. The issue holds the goal, its decisions until a change's design takes them over, and the status; the OpenSpec change and its PR name the issue, and the PR that finishes the work closes it (§ 6). A split is new issues; a dropped item is a closed issue with the reason; both only with the owner's approval.
+- **`pm/roadmap.md` and `pm/progress.md` are frozen** (the owner, 2026-11-23) as the record of the initial development: its order, statuses, the open questions' trail and the roadmap change log. Sessions no longer read them at the start. The issue of a remaining step links the step's roadmap entry, which keeps its detail as planned; what changes after that lives in the issue.
+- **How it got here:** the initial development's work items lived in the two files, with a GitHub issue for every step from 2026-11-08 on; work after the initial development was issue-only from 2026-11-21 (lesson [R-97](../software-factory/lessons.md)). With the plan nearly done, the files only doubled the tracking of six steps, and reading them at every session start cost context for work that had no row there (lesson [R-6](../software-factory/lessons.md)).
 
 ## 10. Software factory
 
