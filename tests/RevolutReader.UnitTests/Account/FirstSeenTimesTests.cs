@@ -7,8 +7,9 @@ namespace RevolutReader.UnitTests.Account;
 
 /// <summary>
 /// How both readers record first sightings (c018 design.md D1, D3, § Public API sketch): <see cref="FirstSeenTimes"/>
-/// reads the kept moments of the read's references, records the read's sightings only for references with none yet, so a
-/// reference already timed costs no write, and answers the kept moments and the recorded ones together. The store is
+/// reads the kept moments of the read's references, records the read's sightings only for references with none yet or a
+/// later one (the earliest wins, D1), so a reference already timed earlier costs no write, and answers the kept moments
+/// and the recorded ones together. The store is
 /// <see cref="InMemoryFirstSeenStore"/>, whose kept moments are set before each test (<see cref="InMemoryFirstSeenStore.Keep"/>)
 /// and which keeps what each request asked. A read at 13:40:00 UTC on 2026-11-20 lists the spec's payment, first read at
 /// 13:05:12 UTC, and a new one. Moments are compared written out in the round-trip form (<c>O</c>). The references and
@@ -66,6 +67,27 @@ public sealed class FirstSeenTimesTests {
       "e-c018-pekarna 2026-11-19T18:02:45.0000000+00:00",
       "e-c018-trafika 2026-11-20T13:40:00.0000000+00:00",
     ], ignoreOrder: true);
+  }
+
+  /// <summary>
+  /// A later read recorded first (another reader's 13:40:00 kept while this read, answered at 13:05:12, was on its way;
+  /// or an app copy whose clock runs ahead): this read's earlier moment still wins, as the earliest moment wins whichever
+  /// read writes first (design.md D1, § Risks). The store keeps it, and the answer gives it.
+  /// </summary>
+  [Test]
+  public async Task FirstSeenTimes_keeps_and_answers_a_reads_earlier_moment_when_a_later_one_was_kept_first() {
+    InMemoryFirstSeenStore store = new();
+    store.Keep("e-c018-kavarna", _readAt);
+
+    IReadOnlyDictionary<string, DateTimeOffset> answered = await new FirstSeenTimes(store).Record([
+      Pending("e-c018-kavarna", _november20, -8.90m),
+    ], _firstRead, CancellationToken.None);
+
+    IReadOnlyDictionary<string, DateTimeOffset> keptAfter = await store.Read(["e-c018-kavarna"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => keptAfter.Select(WrittenMoment).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "the moment kept"),
+      () => answered.Select(WrittenMoment).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "the moment answered"));
   }
 
   /// <summary>A pending card payment of <paramref name="amount"/> EUR on <paramref name="date"/>, with this reference or none.</summary>
