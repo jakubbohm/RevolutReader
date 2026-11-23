@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { inTimeZone } from "../test/timeZone";
 import {
   czkApproxLabel,
+  formatApproxTime,
   formatCzkApprox,
   formatDate,
   formatDayHeader,
@@ -196,5 +197,27 @@ test('A date reads "18. 11. 2026"', () => {
   });
   inTimeZone("Asia/Tokyo", () => {
     expect(spaced(formatDate("2026-11-18"))).toBe("18. 11. 2026");
+  });
+});
+
+// c018: a transaction's approximate time (design.md D6, the design system's approxTimeLabel), from an instant the API
+// answers in UTC, so these make their moments with `Date.UTC` and read them on a phone set to a time zone.
+
+test('The approximate time writes "kolem", a no-break space and H:mm in the phone\'s local time (kolem 14:05, kolem 0:20)', () => {
+  inTimeZone("Europe/Prague", () => {
+    // 13:05:12 UTC is 14:05 in Prague (UTC+1 in November); the seconds are dropped, not rounded.
+    expect(formatApproxTime(new Date(Date.UTC(2026, 10, 18, 13, 5, 12)))).toBe(
+      `kolem${NO_BREAK_SPACE}14:05`,
+    );
+    // 23:20 UTC is 0:20 the next day: the hour without a leading zero.
+    expect(formatApproxTime(new Date(Date.UTC(2026, 10, 14, 23, 20, 0)))).toBe(
+      `kolem${NO_BREAK_SPACE}0:20`,
+    );
+  });
+  inTimeZone("America/Los_Angeles", () => {
+    // The same moment is 5:05 in Los Angeles (UTC−8).
+    expect(formatApproxTime(new Date(Date.UTC(2026, 10, 18, 13, 5, 12)))).toBe(
+      `kolem${NO_BREAK_SPACE}5:05`,
+    );
   });
 });

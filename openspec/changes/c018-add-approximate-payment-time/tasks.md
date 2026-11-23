@@ -281,8 +281,8 @@ Conventions for the run:
 
 - [ ] 38.1 `formatApproxTime` writes "kolem", a no-break space and `H:mm` in the phone's local time (`kolem 14:05`, `kolem 0:20`)
 - [ ] 38.2 The sheet's `Datum` is the transaction's day followed by ", kolem" and the time when there is one
-- [ ] 38.3 Without a time, `Datum` is the date alone, as before
-- [ ] 38.4 The row and its spoken label show no time
+- [x] 38.3 Without a time, `Datum` is the date alone, as before
+- [x] 38.4 The row and its spoken label show no time
 
 ## 39. [wiring] Slice 14 — The sheet's Datum
 
