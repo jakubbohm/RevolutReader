@@ -1,5 +1,7 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Azure;
 using Azure.Data.Tables;
 using Microsoft.Extensions.Options;
 using RevolutReader.Api.Account;
@@ -15,7 +17,12 @@ namespace RevolutReader.Api.Storage;
 /// <list type="bullet">
 /// <item>The one column: <c>SeenAt</c>, the table's date type, in UTC, to the second.</item>
 /// <item>A read queries the partition once and answers the rows whose key is one of the references' hashes.</item>
-/// <item>A record inserts each row on its own: a batch would fail whole on one row already there.</item>
+/// <item>A record keeps the earliest moment per reference, row by row (a batch would fail whole on one row already
+/// there): it inserts the row; when one is there already (409), it reads it, keeps it when its moment is not later, and
+/// otherwise replaces it under the ETag it read; a lost race (412) reads the row again, and a row gone since the conflict
+/// is inserted again. It is not capped: every lost race means another caller wrote the row first, and the app's callers
+/// only ever write an earlier moment, so each try either ends or meets a strictly earlier kept moment; the caller's token
+/// bounds it.</item>
 /// <item>Nothing to read or record: no request, the table's creation included.</item>
 /// <item>The table is created when missing, once per instance, before its first read or write; a creation that failed is
 /// tried again by the next call (<see cref="TableCreation"/>).</item>
@@ -71,17 +78,59 @@ public sealed class TableFirstSeenStore : IFirstSeenStore {
 
     await _creation.Ensure(cancellationToken);
 
-    foreach (FirstSeen sighting in sightings) {
-      DateTimeOffset at = sighting.At.ToUniversalTime();
-      TableEntity row = new(PARTITION, RowKey(sighting.Reference)) {
-        [SEEN_AT] = at,
-      };
-
-      _ = await _table.AddEntityAsync(row, cancellationToken);
-      kept[sighting.Reference] = at;
-    }
+    foreach (FirstSeen sighting in sightings)
+      kept[sighting.Reference] = await KeepEarliest(sighting.Reference, sighting.At.ToUniversalTime(), cancellationToken);
 
     return kept;
+  }
+
+  /// <summary>
+  /// The earliest of <paramref name="at"/> and the moment the row of <paramref name="reference"/> holds, kept in it and
+  /// answered, as the class describes (D3).
+  /// </summary>
+  private async Task<DateTimeOffset> KeepEarliest(string reference, DateTimeOffset at, CancellationToken cancellationToken) {
+    TableEntity row = new(PARTITION, RowKey(reference)) {
+      [SEEN_AT] = at,
+    };
+
+    while (true) {
+      if (await Inserted(row, cancellationToken))
+        return at;
+
+      while (await _table.GetEntityIfExistsAsync<TableEntity>(PARTITION, row.RowKey, cancellationToken: cancellationToken) is { HasValue: true, Value: { } found }) {
+        DateTimeOffset kept = SeenAt(found);
+
+        if (kept <= at)
+          return kept;
+
+        if (await Replaced(row, found.ETag, cancellationToken))
+          return at;
+      }
+    }
+  }
+
+  /// <summary>Whether <paramref name="row"/> was inserted; <see langword="false"/> when its key is taken (409).</summary>
+  private async Task<bool> Inserted(TableEntity row, CancellationToken cancellationToken) {
+    try {
+      _ = await _table.AddEntityAsync(row, cancellationToken);
+
+      return true;
+    }
+    catch (RequestFailedException conflict) when (conflict.Status == (int)HttpStatusCode.Conflict) {
+      return false;
+    }
+  }
+
+  /// <summary>Whether <paramref name="row"/> replaced the row still at <paramref name="etag"/>; <see langword="false"/> when another write came first (412).</summary>
+  private async Task<bool> Replaced(TableEntity row, ETag etag, CancellationToken cancellationToken) {
+    try {
+      _ = await _table.UpdateEntityAsync(row, etag, TableUpdateMode.Replace, cancellationToken);
+
+      return true;
+    }
+    catch (RequestFailedException lost) when (lost.Status == (int)HttpStatusCode.PreconditionFailed) {
+      return false;
+    }
   }
 
   /// <summary>The row key of a reference: the SHA-256 of its UTF-8 bytes, in lowercase hex (D3, as the transactions table's).</summary>

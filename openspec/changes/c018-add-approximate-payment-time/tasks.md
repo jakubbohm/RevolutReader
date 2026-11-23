@@ -112,19 +112,19 @@ Conventions for the run:
 
 ## 7. [unit] Slice 2 — The first time stays
 
-- [ ] 7.1 `FirstSeenTimes` reads the read's references, and records only those with no moment yet
+- [x] 7.1 `FirstSeenTimes` reads the read's references, and records only those with no moment yet
 - [x] 7.2 `FirstSeenTimes` answers the kept moments and the newly recorded ones together
 
 ## 8. [integration] Slice 2 — IFirstSeenStore keeps the earliest
 
-- [ ] 8.1 Recording a later moment keeps the earlier one, and `Record` answers the earlier one
-- [ ] 8.2 Recording an earlier moment replaces a later one
-- [ ] 8.3 Recording the same sighting twice changes nothing
-- [ ] 8.4 Two `Record` calls at once for one reference keep the earlier moment (the ETag race; an adapter edge case against Azurite in `Wiring/Storage`, its in-memory form in the contract)
+- [x] 8.1 Recording a later moment keeps the earlier one, and `Record` answers the earlier one
+- [x] 8.2 Recording an earlier moment replaces a later one
+- [x] 8.3 Recording the same sighting twice changes nothing
+- [x] 8.4 Two `Record` calls at once for one reference keep the earlier moment (the ETag race; an adapter edge case against Azurite in `Wiring/Storage`, its in-memory form in the contract)
 
 ## 9. [wiring] Slice 2 — The conflict path
 
-- [ ] 9.1 `TableFirstSeenStore.Record`: on a conflict, read the row; replace it under its ETag only when the kept moment is later; on a lost race, try again (D3). Verify: groups 7 and 8 green against both
+- [x] 9.1 `TableFirstSeenStore.Record`: on a conflict, read the row; replace it under its ETag only when the kept moment is later; on a lost race, try again (D3). Verify: groups 7 and 8 green against both
 
 ## 10. [close] Slice 2 — A later read keeps the first time
 
