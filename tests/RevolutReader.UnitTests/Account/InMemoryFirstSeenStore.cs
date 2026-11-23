@@ -8,8 +8,8 @@ namespace RevolutReader.UnitTests.Account;
 /// tests, which run it and the Table adapter against the same tests, so it stays self-contained: it needs nothing from
 /// either test project.
 /// <list type="bullet">
-/// <item><see cref="Read"/>: the kept moment of each reference asked for that has one, exactly as recorded; the others
-/// absent.</item>
+/// <item><see cref="Read"/>: the kept moment of each reference asked for that has one, the instant as recorded, at offset
+/// zero (as the adapter keeps it in UTC); the others absent.</item>
 /// <item><see cref="Record"/>: for each sighting, the earliest moment for its reference is kept: recorded when none is,
 /// replacing a later one, never an earlier one, so the order of the calls changes nothing. Answers the moment kept for each
 /// sighting's reference after the call.</item>
@@ -62,12 +62,12 @@ public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
     }
   }
 
-  /// <summary>Keeps <paramref name="at"/> for <paramref name="reference"/>, as recorded before the test: no request counted.</summary>
+  /// <summary>Keeps <paramref name="at"/>, at offset zero, for <paramref name="reference"/>, as recorded before the test: no request counted.</summary>
   public void Keep(string reference, DateTimeOffset at) {
     ArgumentNullException.ThrowIfNull(reference);
 
     lock (_lock)
-      _kept[reference] = at;
+      _kept[reference] = at.ToUniversalTime();
   }
 
   /// <summary>Every call from now on throws <paramref name="failure"/>, and changes nothing.</summary>
@@ -111,7 +111,7 @@ public sealed class InMemoryFirstSeenStore : IFirstSeenStore {
 
       foreach (FirstSeen sighting in sightings) {
         if (!_kept.TryGetValue(sighting.Reference, out DateTimeOffset kept) || sighting.At < kept)
-          _kept[sighting.Reference] = sighting.At;
+          _kept[sighting.Reference] = sighting.At.ToUniversalTime();
       }
 
       Dictionary<string, DateTimeOffset> answer = new(StringComparer.Ordinal);

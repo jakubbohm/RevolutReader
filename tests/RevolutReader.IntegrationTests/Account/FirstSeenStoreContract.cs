@@ -57,6 +57,23 @@ public abstract class FirstSeenStoreContract {
       () => Written(read).ShouldBe(["e-c018-kavarna 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
   }
 
+  /// <summary>
+  /// A moment given at +01:00 (14:05:12 there, 13:05:12 UTC) is answered as the same instant at offset zero, by Record and
+  /// by a later Read: the round-trip form pins the offset itself, which <see cref="DateTimeOffset"/>'s equality ignores.
+  /// </summary>
+  [Test]
+  public async Task A_moment_given_at_another_offset_is_answered_at_offset_zero_by_Record_and_Read() {
+    IFirstSeenStore store = NewStore();
+    DateTimeOffset inPrague = new(2026, 11, 20, 14, 5, 12, TimeSpan.FromHours(1));
+
+    IReadOnlyDictionary<string, DateTimeOffset> recorded = await store.Record([new FirstSeen("e-c018-trafika", inPrague)], CancellationToken.None);
+    IReadOnlyDictionary<string, DateTimeOffset> read = await store.Read(["e-c018-trafika"], CancellationToken.None);
+
+    store.ShouldSatisfyAllConditions(
+      () => Written(recorded).ShouldBe(["e-c018-trafika 2026-11-20T13:05:12.0000000+00:00"], "what Record answers"),
+      () => Written(read).ShouldBe(["e-c018-trafika 2026-11-20T13:05:12.0000000+00:00"], "what Read answers"));
+  }
+
   /// <summary>Two references recorded; a read asks for one of them and for one never recorded: only the first is answered.</summary>
   [Test]
   public async Task Only_the_references_asked_for_are_answered() {
