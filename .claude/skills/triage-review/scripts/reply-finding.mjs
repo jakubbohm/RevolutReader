@@ -3,15 +3,17 @@
 //
 //   node .claude/skills/triage-review/scripts/reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]
 //
-// Checks before it posts: the body file has text, the comment is a top-level review comment on this PR, and with
-// `yes` the thread it starts exists. A failed check posts nothing. A thread already resolved gets the reply and stays
-// resolved. Prints `REPLIED: <url>` and `RESOLVED: thread <id>`; a failure prints `ERROR: ...` and exits 1.
-// `--dry-run` makes the same checks and prints what it would do, without posting anything.
+// Checks before it posts: the body file has text and names no reference that would make GitHub post a backlink
+// outside this repository (backlinkRisks in common.mjs; docs/software-factory/lessons.md R-102), the comment is a
+// top-level review comment on this PR, and with `yes` the thread it starts exists. A failed check posts nothing. A
+// thread already resolved gets the reply and stays resolved. Prints `REPLIED: <url>` and `RESOLVED: thread <id>`; a
+// failure prints `ERROR: ...` and exits 1. `--dry-run` makes the same checks and prints what it would do, without
+// posting anything.
 // Run from the repository root; needs gh, logged in to the repository's GitHub account. A file, not a shell block in
 // the skill's text: a session isolated in a worktree refuses a multi-line block it cannot verify
 // (docs/software-factory/lessons.md R-37).
 import { readFileSync } from "node:fs";
-import { fail, firstLine, gh, reviewThreads, run } from "./common.mjs";
+import { backlinkRefusal, fail, firstLine, gh, ownRepo, reviewThreads, run } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -38,6 +40,8 @@ try {
   fail(`cannot read ${bodyFile}: ${e.message}`);
 }
 if (!body.trim()) fail(`${bodyFile} is empty`);
+const backlinks = backlinkRefusal([{ label: "the body", text: body }], ownRepo());
+if (backlinks) fail(`nothing posted; fix ${bodyFile} and run it again:\n${backlinks}`);
 
 const comment = JSON.parse(gh(["api", `repos/{owner}/{repo}/pulls/comments/${commentId}`]));
 if (!comment.pull_request_url?.endsWith(`/pulls/${pr}`)) fail(`comment ${commentId} is not on PR ${pr}`);

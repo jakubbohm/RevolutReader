@@ -1,6 +1,7 @@
-// Shared by the triage-review scripts (post-findings.mjs, gather-findings.mjs, reply-finding.mjs): the gh calls, the
-// PR's review threads, how review comments become numbered findings, and how a review's findings from the
-// conversation become review comments to post.
+// Shared by the triage-review scripts (post-findings.mjs, gather-findings.mjs, reply-finding.mjs, post-summary.mjs):
+// the gh calls, the PR's review threads, how review comments become numbered findings, how a review's findings from
+// the conversation become review comments to post, what a triage summary is, and the check that keeps every text the
+// scripts post from making GitHub post a backlink outside this repository.
 import { spawnSync } from "node:child_process";
 
 export function fail(message) {
@@ -21,9 +22,14 @@ export function gh(args) {
   return r.stdout.trim();
 }
 
+// The repository the scripts run in, as `owner/name`: the one gh's `{owner}/{repo}` placeholders stand for.
+export function ownRepo() {
+  return gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+}
+
 // Every review thread of the PR, paged: its node id, whether it is resolved, and its first comment's database id.
 export function reviewThreads(pr) {
-  const [owner, repo] = gh(["repo", "view", "--json", "owner,name", "--jq", '.owner.login + "/" + .name']).split("/");
+  const [owner, repo] = ownRepo().split("/");
   const query = `query($owner: String!, $repo: String!, $pr: Int!, $after: String) {
     repository(owner: $owner, name: $repo) { pullRequest(number: $pr) {
       reviewThreads(first: 100, after: $after) {
@@ -190,21 +196,71 @@ export function planPosts(findings, prFiles, existingComments, headSha, lastSumm
   return { errors, posts };
 }
 
+// Whether a PR comment's body is a triage summary: it starts with the heading "## Review triage" (any round's), which
+// the skill counts the rounds by. A comment that only mentions the heading further down is none.
+export function isTriageSummary(body) {
+  return typeof body === "string" && body.startsWith("## Review triage");
+}
+
 // When the PR's last triage summary was posted: the `created_at` of the latest of its issue comments (the REST API's
-// objects, any order) whose body starts with the heading "## Review triage" (any round's), else null. A comment that
-// only mentions the heading further down is no summary.
+// objects, any order) that is a triage summary (isTriageSummary), else null.
 export function lastSummaryTime(issueComments) {
   let latest = null;
   for (const c of issueComments) {
-    if (typeof c.body !== "string" || !c.body.startsWith("## Review triage")) continue;
+    if (!isTriageSummary(c.body)) continue;
     if (latest === null || Date.parse(c.created_at) > Date.parse(latest)) latest = c.created_at;
   }
   return latest;
 }
 
-// Will return, in text order, the references in a text GitHub publishes that would post a backlink outside `ownRepo`.
+// This repository's pull requests retired because their text made GitHub post backlinks on other repositories'
+// issues. A mention of one, in any form GitHub links, puts a link to the mentioning text on its page, which stays even
+// after that text is deleted, so they are named in words only (docs/software-factory/lessons.md R-102).
+const RETIRED_PULL_REQUESTS = [94];
+
+// The references GitHub links in published text, in one pattern so that each is matched once, from left to right:
+// a github.com link to an issue or pull request (with or without the scheme and www; redirect.github.com and any other
+// host ending in github.com do not match), a repository's `owner/name#n`, or a bare `#n`, which GitHub reads as this
+// repository's. Markdown code is not skipped: GitHub links nothing there, but rewriting a reference costs nothing.
+const REFERENCE = new RegExp(
+  [
+    String.raw`(?<![\w.-])(?:https?:\/\/)?(?:www\.)?github\.com\/` +
+      String.raw`(?<linkRepo>[\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(?<linkNumber>\d+)`,
+    String.raw`(?<nameRepo>[\w.-]+\/[\w.-]+)#(?<nameNumber>\d+)`,
+    String.raw`(?<!\w)#(?<bareNumber>\d+)`,
+  ].join("|"),
+  "gi",
+);
+
+// The references in a text GitHub publishes that would make it post a backlink outside `ownRepo` (`owner/name`), in
+// text order, each as the text it matched: another repository's issue or pull request named as `owner/name#n` or by a
+// github.com link (a redirect.github.com link posts none), and this repository's retired pull requests in any form
+// GitHub links. This repository's other references are fine. Owner and name are compared without regard to case.
 export function backlinkRisks(text, ownRepo) {
-  throw new Error("not implemented");
+  const own = ownRepo.toLowerCase();
+  const risks = [];
+  for (const m of text.matchAll(REFERENCE)) {
+    const { linkRepo, linkNumber, nameRepo, nameNumber, bareNumber } = m.groups;
+    const repo = (linkRepo ?? nameRepo)?.toLowerCase() ?? own;
+    const number = Number(linkNumber ?? nameNumber ?? bareNumber);
+    if (repo !== own || RETIRED_PULL_REQUESTS.includes(number)) risks.push(m[0]);
+  }
+  return risks;
+}
+
+// The refusal for texts a script would post (`{ label, text }`, the label naming the text in the message): one line
+// per reference backlinkRisks finds, then how to rewrite them; null when none would post a backlink outside `ownRepo`.
+export function backlinkRefusal(texts, ownRepo) {
+  const lines = texts.flatMap(({ label, text }) => backlinkRisks(text, ownRepo).map((r) => `  ${label}: ${r}`));
+  if (lines.length === 0) return null;
+  return (
+    "Each of these would make GitHub post a backlink on another repository's issue or pull request, or on this " +
+    "repository's retired pull request, and neither an edit nor a delete takes one back " +
+    `(docs/software-factory/lessons.md R-102):\n${lines.join("\n")}\n` +
+    "Rewrite each: another repository's issue or pull request as a https://redirect.github.com/<owner>/<name>/" +
+    "issues/<n> (or /pull/<n>) link, or in words; this repository's retired pull request in words, its number " +
+    "without # and never as a link."
+  );
 }
 
 // A sorted list of whole numbers as compact text, each run of consecutive numbers as a range: [1, 2, 4, 7, 8, 9]

@@ -124,8 +124,10 @@ where the findings are; never guess). Each then gets a thread, a number and a re
    ```
 
    `body` is the finding verbatim: its first line the severity and a one-line summary, as `/code-review --comment`
-   writes them, then the failure scenario. `line` is the line in the PR's new version, or `null` for the whole
-   file. A finding on a file the PR does not change goes on the changed file it concerns.
+   writes them, then the failure scenario, except for a reference the script refuses because it would post a
+   backlink outside this repository: rewrite it as the refusal says (§ Scripts). `line` is the line in the PR's new
+   version, or `null` for the whole file. A finding on a file the PR does not change goes on the changed file it
+   concerns.
 2. Run `node .claude/skills/triage-review/scripts/post-findings.mjs <PR> <work folder>/chat-findings.json
    --dry-run` (§ Scripts) and check the plan it prints, one line per finding: on its line when the line is in the
    PR's diff, else on its file. A finding that does not land on its real place, because it moved to another file
@@ -280,10 +282,12 @@ build or test while one of them is working.
    it is; of this round's findings, its open list must show exactly the undecided ASKs. Post the reply of any
    other that is still open. The findings § 1 took back after an interrupted round get no second reply: their
    threads already carry their outcome and stay resolved; they appear only in the summary (step 3).
-3. One summary comment on the PR, `gh pr comment <PR> --body-file <file>`: first the heading `## Review triage`
-   (in a later round `## Review triage, round <n>`: § 0 step 3 counts these headings), then the table
-   `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's description has it.
-   Never bank data, secrets or personal data in a thread or the summary: the repository is public.
+3. One summary comment on the PR: write it to `<work folder>/summary.md` and post it with `node
+   .claude/skills/triage-review/scripts/post-summary.mjs <PR> <work folder>/summary.md` (§ Scripts). First the
+   heading `## Review triage` (in a later round `## Review triage, round <n>`: § 0 step 3 counts these headings),
+   then the table `# · Finding · Outcome · Evidence or commit`, the counts, and the checks run, as PR #26's
+   description has it. Never bank data, secrets or personal data in a thread or the summary: the repository is
+   public.
 4. Commit `docs(<scope>): [review] triage summary`: a change's state file with any close-out docs the round
    changed (e.g. a memory file). A Direct PR's state file stays in the work folder (§ 0 step 3), so its commit takes
    only the close-out docs, and is skipped when there are none. Never push, never open a PR or mark one ready: the
@@ -314,19 +318,26 @@ build or test while one of them is working.
 - Do not use `isolation: "worktree"` for the test-writer or the implementer: one working tree, as in `/tdd-apply`.
 - Never put bank data or secrets into anything you send, commit, post or record.
 - Run the scripts as they are (§ Scripts), each as one Bash tool call; never rewrite, inline or translate one to
-  PowerShell, and never post a finding or a reply to the PR another way. A script that prints `ERROR:` says what
-  failed: fix that cause (e.g. `gh` not logged in, or a finding in `chat-findings.json` on a file the PR does not
-  change) or stop and report, never work around the script.
+  PowerShell, and never post a finding, a reply or the summary to the PR another way. A script that prints `ERROR:`
+  says what failed: fix that cause (e.g. `gh` not logged in, a finding in `chat-findings.json` on a file the PR does
+  not change, or a reference that would post a backlink, rewritten as the refusal says) or stop and report, never
+  work around the script.
 
 ## Scripts
 
-Three Node scripts in `.claude/skills/triage-review/scripts/`, run from the repository root as
+Four Node scripts in `.claude/skills/triage-review/scripts/`, run from the repository root as
 `node .claude/skills/triage-review/scripts/<script> <arguments>`; `common.mjs` beside them holds what they share
-(the `gh` calls, the PR's review threads, the numbering, the plan for posting findings). All three need `gh` logged
-in to the repository's GitHub account. They are files, not shell blocks in this text, because a session isolated
-in a worktree refuses a multi-line block it cannot verify (`docs/software-factory/lessons.md` R-37). Each file's
-header has the details. Their pure parts have tests beside them (`*.test.mjs`, Node's own runner, never calling
-`gh`; the command is in `CLAUDE.md` § Commands), which CI runs (R-103).
+(the `gh` calls, the PR's review threads, the numbering, the plan for posting findings, the backlink check). All
+four need `gh` logged in to the repository's GitHub account. They are files, not shell blocks in this text, because
+a session isolated in a worktree refuses a multi-line block it cannot verify (`docs/software-factory/lessons.md`
+R-37). Each file's header has the details. Their pure parts have tests beside them (`*.test.mjs`, Node's own
+runner, never calling `gh`; the command is in `CLAUDE.md` § Commands), which CI runs (R-103).
+
+The three that post check every text before they post any, also in a dry run: a text that names another
+repository's issue or pull request as `<owner>/<name>#<n>` or by a `github.com` link, or this repository's retired
+pull request in any form GitHub links, would make GitHub post a backlink there that no edit or delete takes back
+(R-102). They refuse it with `ERROR:`, naming each reference and how to rewrite it (a `https://redirect.github.com/…`
+link, or words), and post nothing.
 
 - **`post-findings.mjs <pr> <chat-findings-file> [--dry-run]`** (§ 1): posts a review's findings from this
   conversation as review comments on the PR, in the file's order: on the finding's line when the line is in the
@@ -347,3 +358,7 @@ header has the details. Their pure parts have tests beside them (`*.test.mjs`, N
   comment is a top-level review comment on the PR and, with `yes`, that its thread exists, so a failed check posts
   nothing; a thread already resolved stays resolved. Prints `REPLIED: <url>` and `RESOLVED: thread <id>`.
   `--dry-run` makes the same checks and prints what it would post, without posting.
+- **`post-summary.mjs <pr> <body-file> [--dry-run]`** (§ 5 step 3): posts the body file as the round's summary
+  comment on the PR. It checks first that the body starts with `## Review triage`, the heading § 0 step 3 counts
+  the rounds by, and that the number is a PR, so a failed check posts nothing. Prints `POSTED: <url>`. `--dry-run`
+  makes the same checks and prints `WOULD POST: summary on PR <pr>, <n> characters: <first line>`, without posting.

@@ -6,7 +6,9 @@
 // The file is a JSON array of { path, line, body }, in the review's order; `line` may be null. Checks before it
 // posts: the local HEAD is the PR's head commit, else the findings' line numbers would point at another version
 // (push first, on the owner's go); every finding has a body, a path the PR changes, and a line that is null or a line
-// number (planPosts in common.mjs). A failed check lists every problem and posts nothing. A finding goes on its line
+// number (planPosts in common.mjs); no body names a reference that would make GitHub post a backlink outside this
+// repository (backlinkRisks in common.mjs; docs/software-factory/lessons.md R-102), so such a reference is rewritten in
+// the file first, as the refusal says. A failed check lists every problem and posts nothing. A finding goes on its line
 // (the PR's new version) when the line is in the PR's diff, else on its file. A finding whose body is already a
 // top-level review comment on the PR, posted after the PR's last triage summary (an issue comment headed
 // `## Review triage`; before the first summary, any comment), is skipped, so after a failure part-way, running it
@@ -22,7 +24,7 @@
 // (docs/software-factory/lessons.md R-37).
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { fail, gh, lastSummaryTime, planPosts, run } from "./common.mjs";
+import { backlinkRefusal, fail, gh, lastSummaryTime, ownRepo, planPosts, run } from "./common.mjs";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -63,8 +65,16 @@ const prComments = gh(["api", `repos/{owner}/{repo}/issues/${pr}/comments`, "--p
 const lastSummaryAt = lastSummaryTime(JSON.parse(prComments).flat());
 
 const { errors, posts } = planPosts(findings, prFiles, comments, headSha, lastSummaryAt);
-if (errors.length > 0) {
-  fail(`nothing posted; fix ${findingsFile} and run it again:\n${errors.map((e) => `  ${e}`).join("\n")}`);
+const backlinks = backlinkRefusal(
+  findings.map((f, i) => ({
+    label: `finding ${i + 1} (${f?.path || "no path"})`,
+    text: typeof f?.body === "string" ? f.body : "",
+  })),
+  ownRepo(),
+);
+if (errors.length > 0 || backlinks) {
+  const problems = [...errors.map((e) => `  ${e}`), ...(backlinks ? [backlinks] : [])];
+  fail(`nothing posted; fix ${findingsFile} and run it again:\n${problems.join("\n")}`);
 }
 
 // With no errors, posts[i] is findings[i]'s plan.
