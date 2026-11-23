@@ -294,7 +294,7 @@ Conventions for the run:
 
 ## 41. [close] Slice 15 — The details of a payment seen after midnight show the next day
 
-- [ ] 41.1 The scenario's test passes, as expected after slice 14 if `Datum` takes `transactionDay`, and is proven by a mutation: with `Datum` formatting `tx.date`, it fails. If it is red on arrival, the slice gets its own `[unit]` task (the sheet's `Datum` takes the transaction's day) and wiring. Verify: green, including account-transactions / The details of a payment seen after midnight show the next day; the mutation's red result in `.tdd-state.md`
+- [x] 41.1 The scenario's test passes, as expected after slice 14 if `Datum` takes `transactionDay`, and is proven by a mutation: with `Datum` formatting `tx.date`, it fails. If it is red on arrival, the slice gets its own `[unit]` task (the sheet's `Datum` takes the transaction's day) and wiring. Verify: green, including account-transactions / The details of a payment seen after midnight show the next day; the mutation's red result in `.tdd-state.md`
 
 ## 42. [close] Acceptance green
 
