@@ -128,7 +128,7 @@ Conventions for the run:
 
 ## 10. [close] Slice 2 — A later read keeps the first time
 
-- [ ] 10.1 The scenario's test passes. Verify: green, including account-transactions / A later read keeps the first time
+- [x] 10.1 The scenario's test passes. Verify: green, including account-transactions / A later read keeps the first time
 
 ## 11. [close] Slice 3 — The time stays when the payment settles
 
