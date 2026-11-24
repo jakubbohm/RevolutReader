@@ -58,8 +58,8 @@ CHANGE: <change>
 5. **Fetch:** per artifact one call, Artifact with `action: "read"`, the link as `url`, and `paths` with all
    the files you chose. The tool saves each file and says where. It also prints the text files, which is why
    this is your job and not the main session's.
-6. **Record** the result in the change's state file, as one text through standard input (a here-document or a
-   pipe; the script takes it as it is):
+6. **Record** the result in the change's state file, as one text through standard input (with the Bash tool:
+   a here-document or a pipe, which do not work in PowerShell; the script takes the text as it is):
 
    `node .claude/skills/tdd-apply/scripts/tdd.mjs set --change <change> --section "Design files" --stdin`
 
@@ -77,7 +77,8 @@ CHANGE: <change>
    Not found: <a named part without a file> | nothing
    ```
 
-   Check that the command printed its line. If it was refused, hand back its `ERROR:` line.
+   Check that the command printed its line. If it was refused, hand back `DESIGN FILES: FAILED: <its ERROR
+   line>`.
 
 ## Your hand-back
 
@@ -88,7 +89,7 @@ Exactly one line, one of:
 DESIGN FILES: <n> files recorded · versions match
 DESIGN FILES: <n> files recorded · VERSION MISMATCH: <artifact> is at <version>, design.md names <version> [· <the same for the other artifact>]
 DESIGN FILES: none named
-DESIGN FILES: FAILED: <what could not be listed, read or recorded, in a few words>
+DESIGN FILES: FAILED: <what could not be listed or read, in a few words; for a refused record, its ERROR line>
 ```
 
 When a named part had no file, add ` · NOT FOUND: <the parts>` to the first or the second form.

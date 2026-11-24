@@ -140,7 +140,7 @@ async function hook(cwd, input = { hook_event_name: "SessionStart", source: "com
 }
 
 describe("tdd-resume hook", { concurrency: true }, () => {
-  test("for a change that is being applied, says so and adds its Resume here, Agents and Open sections", async (t) => {
+  test("for a change that is being applied, says so and adds its Resume here, Open and Agents sections, in that order", async (t) => {
     const dir = await repository(t);
     stateFile(dir, CHANGE, { change: underWay });
 
@@ -152,11 +152,34 @@ describe("tdd-resume hook", { concurrency: true }, () => {
     assert.match(intro, /^\/tdd-apply is under way for `c900-add-made-up-thing`/);
     assert.match(intro, /this session is its main session/i);
     assert.ok(intro.includes(`\`${GET(CHANGE)} "<name>"\``), intro);
+    assert.ok(intro.endsWith("Its Resume here, Open, Agents sections as they stand:"), intro);
     assert.deepEqual(sections, [
       "## Resume here\nChapter B, group 7 (red).\nThe last commit is [green] of group 6.",
-      "## Agents\n- **Test-writer (B):** a1b2c3, 41k tokens\n- **Implementer (B):** d4e5f6, 18k tokens",
       "## Open\n- a dispute about the error model, with the test-writer",
+      "## Agents\n- **Test-writer (B):** a1b2c3, 41k tokens\n- **Implementer (B):** d4e5f6, 18k tokens",
     ]);
+  });
+
+  test("says whose session is meant: the main session's, and not that of an agent it started", async (t) => {
+    const dir = await repository(t);
+    const triaged = await repository(t);
+    stateFile(dir, CHANGE, { change: underWay });
+    await triage(triaged, await prStateFile(triaged), { edit: fixing });
+
+    for (const [status, { context }] of [
+      ["applying", await hook(dir)],
+      ["triaging", await hook(triaged)],
+    ]) {
+      assert.ok(
+        context.includes(
+          `its state file says \`Status: ${status}\`. This session is its main session. An agent that the main ` +
+            "session started (a runner, a reviewer) is not meant by this note and goes on with its work. Read the " +
+            "state file by section, never whole: ",
+        ),
+        context,
+      );
+      assert.doesNotMatch(context, /orchestrator/i);
+    }
   });
 
   test("names the sections the state file has, so that the session can ask for any of them", async (t) => {
@@ -262,9 +285,26 @@ describe("tdd-resume hook", { concurrency: true }, () => {
     assert.ok(context.includes("Line 1 of a made-up"));
     assert.equal(context.includes("Line 200 of a made-up"), false);
     assert.ok(
-      context.endsWith(`${GET(CHANGE)} "Resume here" --section "Agents" --section "Open"\``),
+      context.endsWith(`${GET(CHANGE)} "Resume here" --section "Open" --section "Agents"\``),
       context.slice(-300),
     );
+    assert.match(context, /cut at 4,000 characters/);
+  });
+
+  test("cuts the list of agents, which comes last, and never what is open before it", async (t) => {
+    const dir = await repository(t);
+    const open = Array.from({ length: 12 }, (_, i) => `- Q${i + 1}: a made-up question that waits for the owner`);
+    const agents = Array.from({ length: 200 }, (_, i) => `- **Agent ${i + 1}:** a${i + 1}, retired at 150k tokens`);
+    stateFile(dir, CHANGE, {
+      change: (text) => setSection(setSection(underWay(text), "Open", open.join("\n")), "Agents", agents.join("\n")),
+    });
+
+    const { context } = await hook(dir);
+
+    assert.ok(context.length <= 4000 && context.length > 3900, `${context.length} characters`);
+    assert.ok(context.includes("## Resume here\nChapter B, group 7 (red).\nThe last commit is [green] of group 6."));
+    assert.ok(context.includes(`## Open\n${open.join("\n")}\n\n## Agents\n- **Agent 1:** a1, retired`), context);
+    assert.equal(context.includes("**Agent 200:**"), false);
     assert.match(context, /cut at 4,000 characters/);
   });
 
@@ -342,7 +382,7 @@ describe("tdd-resume hook", { concurrency: true }, () => {
 });
 
 describe("tdd-resume hook: a triage", { concurrency: true }, () => {
-  test("for a triage under way, says so and adds its Resume here, Agents and Open sections", async (t) => {
+  test("for a triage under way, says so and adds its Resume here, Open and Agents sections, in that order", async (t) => {
     const dir = await repository(t);
     await triage(dir, triageFile(dir, CHANGE), { edit: fixing, change: CHANGE, scope: "c900" });
 
@@ -357,8 +397,8 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
     assert.ok(intro.includes("(its sections: Resume here, Run, Agents, Open, Allowed failures, Round 2)"), intro);
     assert.deepEqual(sections, [
       "## Resume here\nThe fix round: finding 3 is next.\nFindings 1 and 2 are fixed.",
-      "## Agents\n- **Runner:** r1s2t3, 61k tokens",
       "## Open\n- finding 5: asked, waiting for the owner",
+      "## Agents\n- **Runner:** r1s2t3, 61k tokens",
     ]);
   });
 
@@ -495,7 +535,7 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
     assert.match(context, /cut at 4,000 characters/);
     assert.ok(context.includes("Line 1 of a made-up"));
     assert.equal(context.includes("Line 200 of a made-up"), false);
-    const sections = '"Resume here" --section "Agents" --section "Open"';
+    const sections = '"Resume here" --section "Open" --section "Agents"';
     assert.ok(
       context.endsWith(`read the rest with \`${GET(CHANGE)} ${sections}\` and \`${GET_TRIAGE("109")} ${sections}\``),
       context.slice(-400),
@@ -511,7 +551,7 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
 
     assert.ok(context.length <= 4000 && context.length > 3900, `${context.length} characters`);
     assert.ok(
-      context.endsWith(`${GET_TRIAGE("109")} "Resume here" --section "Agents" --section "Open"\``),
+      context.endsWith(`${GET_TRIAGE("109")} "Resume here" --section "Open" --section "Agents"\``),
       context.slice(-300),
     );
   });
@@ -537,7 +577,7 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
       const of = change ? ` of \`${change}\`` : "";
       assert.ok(r.context.startsWith(triageUnderWay(`PR 109${of}`, 1, work)), r.context);
       assert.ok(began.out.endsWith(` | work: ${slashed(work)}\n`), "the same folder `triage-init` printed");
-      assert.ok(r.context.includes("## Resume here\nGathering the findings.\n\n## Agents\n—\n\n## Open\n—"), r.context);
+      assert.ok(r.context.includes("## Resume here\nGathering the findings.\n\n## Open\n—\n\n## Agents\n—"), r.context);
       assert.equal(r.context.includes("Work folder"), false, "the state file holds no work folder");
     }
   });

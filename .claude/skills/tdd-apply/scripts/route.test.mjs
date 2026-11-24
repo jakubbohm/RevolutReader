@@ -1,13 +1,25 @@
 // Tests for route.mjs's pure functions: every sorting rule, the order the rules are applied in, the wording when
 // only one of two checks says something, every input that is refused, how a check's report is read into a verdict
-// (and every report that cannot be read), and the lines `tdd.mjs route` prints. Objects and texts in, objects and
-// lines out: nothing here touches a file or git, and every id, path and report is made up. (That the command reads
-// its input from --json, --in, --stdin and a folder of report files is tested in tdd.test.mjs.)
+// (the first check's and the second's, and every report that cannot be read), what a report must say to be saved
+// as a finding's report file, and the lines `tdd.mjs route` prints. Objects and texts in, objects and lines out:
+// nothing here touches a file or git, and every id, path and report is made up. (That the command reads its input
+// from --json, --in, --stdin and a folder of report files, and that `tdd.mjs report` writes such a file, is tested
+// in tdd.test.mjs.)
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { OUTCOMES, readFindings, readReport, reportFile, route, routeFinding, routeReport } from "./route.mjs";
+import {
+  OUTCOMES,
+  readFindings,
+  readReport,
+  readReportOf,
+  reportFile,
+  reportOf,
+  route,
+  routeFinding,
+  routeReport,
+} from "./route.mjs";
 
 // A confirmed verdict whose fix is the smallest there is, changed by `more`.
 const confirmed = (more = {}) => ({
@@ -47,14 +59,52 @@ describe("routeFinding: each rule", () => {
     assert.deepEqual(routed([refuted(), confirmed()]), asks("the two checks disagree on the verdict"));
   });
 
-  test("4: a finding the reviewer still disagrees on is asked about, confirmed or refuted", () => {
+  test("4: a finding whose second check disagrees with the first is asked about, with what it disagrees on", () => {
+    const second = (verdict, disagrees) => ({ ...verdict, disagrees });
+
+    assert.deepEqual(
+      routed([confirmed(), second(confirmed(), "the fix also changes the made-up contract")]),
+      asks("the second check disagrees with the first: the fix also changes the made-up contract"),
+    );
+    assert.deepEqual(
+      routed([refuted(), second(refuted(), "the guard it cites does not cover an empty list")]),
+      asks("the second check disagrees with the first: the guard it cites does not cover an empty list"),
+    );
+    assert.deepEqual(
+      routed([confirmed(), second(confirmed(), true)]),
+      asks("the second check disagrees with the first"),
+    );
+  });
+
+  test("4: a second check that agrees, or says nothing of it, decides nothing", () => {
+    const fixed = { outcome: "FIX", reason: "behaviour" };
+
+    assert.deepEqual(routed([confirmed(), { ...confirmed(), disagrees: false }]), fixed);
+    assert.deepEqual(routed([confirmed(), confirmed()]), fixed);
+    assert.deepEqual(routed([confirmed()]), fixed);
+    assert.equal(routed([refuted(), { ...refuted(), disagrees: false }]).outcome, "DECLINE");
+  });
+
+  test("4: the second check's words are put on one line and cut at 120 characters", () => {
+    const long = "a".repeat(119) + "bcd";
+    const reasonOf = (disagrees) => routed([confirmed(), { ...confirmed(), disagrees }]).reason;
+
+    assert.equal(
+      reasonOf("  the size:\n  it is   large  "),
+      "the second check disagrees with the first: the size: it is large",
+    );
+    assert.equal(reasonOf("a".repeat(120)), `the second check disagrees with the first: ${"a".repeat(120)}`);
+    assert.equal(reasonOf(long), `the second check disagrees with the first: ${"a".repeat(119)}b…`);
+  });
+
+  test("5: a finding the reviewer still disagrees on is asked about, confirmed or refuted", () => {
     const disagrees = { reviewerDisagrees: true };
 
     assert.deepEqual(routed([confirmed()], disagrees), asks("the reviewer disagrees with the verifier"));
     assert.deepEqual(routed([refuted()], disagrees), asks("the reviewer disagrees with the verifier"));
   });
 
-  test("5: a refuted finding is declined when every verdict has evidence, and asked about otherwise", () => {
+  test("6: a refuted finding is declined when every verdict has evidence, and asked about otherwise", () => {
     const declined = { outcome: "DECLINE", reason: "refuted with evidence" };
 
     assert.deepEqual(routed([refuted()]), declined);
@@ -64,35 +114,35 @@ describe("routeFinding: each rule", () => {
     assert.deepEqual(routed([refuted(false), refuted()]), asks("refuted without concrete evidence"));
   });
 
-  test("6: two confirmed verdicts of different kinds are asked about", () => {
+  test("7: two confirmed verdicts of different kinds are asked about", () => {
     assert.deepEqual(
       routed([confirmed({ kind: "behaviour" }), confirmed({ kind: "docs" })]),
       asks("the two checks disagree on the kind"),
     );
   });
 
-  test("7: a fix that changes behaviour a spec describes is asked about", () => {
+  test("8: a fix that changes behaviour a spec describes is asked about", () => {
     const spec = confirmed({ specBehaviour: true });
 
     assert.deepEqual(routed([spec]), asks("the fix changes behaviour a spec describes"));
     assert.deepEqual(routed([spec, spec]), asks("the fix changes behaviour a spec describes"));
   });
 
-  test("8: a fix that changes the API contract is asked about", () => {
+  test("9: a fix that changes the API contract is asked about", () => {
     const contract = confirmed({ contractChange: true });
 
     assert.deepEqual(routed([contract]), asks("the fix changes the API contract"));
     assert.deepEqual(routed([contract, contract]), asks("the fix changes the API contract"));
   });
 
-  test("9: a fix that is not local is asked about", () => {
+  test("10: a fix that is not local is asked about", () => {
     const wide = confirmed({ local: false });
 
     assert.deepEqual(routed([wide]), asks("the fix is not local"));
     assert.deepEqual(routed([wide, wide]), asks("the fix is not local"));
   });
 
-  test("10: a large fix is asked about, a medium one is not", () => {
+  test("11: a large fix is asked about, a medium one is not", () => {
     const large = confirmed({ size: "large" });
 
     assert.deepEqual(routed([large]), asks("a large fix"));
@@ -100,11 +150,11 @@ describe("routeFinding: each rule", () => {
     assert.equal(routed([confirmed({ size: "medium" })]).outcome, "FIX");
   });
 
-  test("11: a confirmed finding outside the chapter is asked about", () => {
+  test("12: a confirmed finding outside the chapter is asked about", () => {
     assert.deepEqual(routed([confirmed()], { outside: true }), asks("outside the chapter"));
   });
 
-  test("12: any other confirmed finding is fixed, with its kind", () => {
+  test("13: any other confirmed finding is fixed, with its kind", () => {
     for (const kind of ["behaviour", "test-quality", "docs", "cleanup"]) {
       assert.deepEqual(routed([confirmed({ kind })]), { outcome: "FIX", reason: kind });
       assert.deepEqual(routed([confirmed({ kind }), confirmed({ kind })]), { outcome: "FIX", reason: kind });
@@ -123,10 +173,10 @@ describe("routeFinding: each rule", () => {
 
 describe("routeFinding: when only one of two checks says so", () => {
   for (const [name, more, reason] of [
-    ["7", { specBehaviour: true }, "the fix changes behaviour a spec describes"],
-    ["8", { contractChange: true }, "the fix changes the API contract"],
-    ["9", { local: false }, "the fix is not local"],
-    ["10", { size: "large" }, "a large fix"],
+    ["8", { specBehaviour: true }, "the fix changes behaviour a spec describes"],
+    ["9", { contractChange: true }, "the fix changes the API contract"],
+    ["10", { local: false }, "the fix is not local"],
+    ["11", { size: "large" }, "a large fix"],
   ]) {
     test(`${name}: the reason ends with the disagreement, whichever check says it`, () => {
       const disagreeing = asks(`${reason}, and the two checks disagree on it`);
@@ -157,23 +207,52 @@ describe("routeFinding: the order of the rules", () => {
     assert.equal(routed([refuted(), unsure()], all).reason, "unsure");
   });
 
-  test("3 before 4: two verdicts that differ win over the reviewer's disagreement", () => {
+  // What the second check says of the first, on a verdict.
+  const disagreeing = (verdict) => ({ ...verdict, disagrees: "the size" });
+  const SECOND = "the second check disagrees with the first: the size";
+
+  test("1, 2 and 3 before 4: a missing result, an unsure verdict and two verdicts that differ win over the second check's disagreement", () => {
+    assert.equal(routed([null, disagreeing(confirmed())], all).reason, "a check returned no result");
+    assert.equal(routed([confirmed(), disagreeing(unsure())], all).reason, "unsure");
+    assert.equal(
+      routed([refuted(), disagreeing(confirmed(everything))], all).reason,
+      "the two checks disagree on the verdict",
+    );
+  });
+
+  test("4 before 5: the second check's disagreement wins over the reviewer's", () => {
+    assert.equal(routed([confirmed(), disagreeing(confirmed())], all).reason, SECOND);
+    assert.equal(routed([refuted(), disagreeing(refuted())], all).reason, SECOND);
+  });
+
+  test("4 before 6: the second check's disagreement wins over a decline", () => {
+    assert.deepEqual(routed([refuted(), disagreeing(refuted())]), asks(SECOND));
+    assert.deepEqual(routed([refuted(false), disagreeing(refuted(false))]), asks(SECOND));
+  });
+
+  test("4 before 7 and 8: the second check's disagreement wins over two kinds and over what the fix would be", () => {
+    assert.equal(routed([confirmed({ kind: "docs" }), disagreeing(confirmed({ kind: "cleanup" }))]).reason, SECOND);
+    assert.equal(routed([confirmed(everything), disagreeing(confirmed(everything))], { outside: true }).reason, SECOND);
+    assert.equal(routed([confirmed(), disagreeing(confirmed({ size: "large" }))]).reason, SECOND);
+  });
+
+  test("3 before 5: two verdicts that differ win over the reviewer's disagreement", () => {
     assert.equal(routed([refuted(), confirmed(everything)], all).reason, "the two checks disagree on the verdict");
   });
 
-  test("4 before 5: the reviewer's disagreement wins over a decline", () => {
+  test("5 before 6: the reviewer's disagreement wins over a decline", () => {
     assert.equal(routed([refuted(), refuted()], all).reason, "the reviewer disagrees with the verifier");
     assert.equal(routed([refuted(false)], all).reason, "the reviewer disagrees with the verifier");
   });
 
-  test("4 before 6: the reviewer's disagreement wins over two kinds", () => {
+  test("5 before 7: the reviewer's disagreement wins over two kinds", () => {
     assert.equal(
       routed([confirmed({ kind: "docs" }), confirmed({ kind: "cleanup" })], all).reason,
       "the reviewer disagrees with the verifier",
     );
   });
 
-  test("6 before 7: two kinds win over a spec's behaviour", () => {
+  test("7 before 8: two kinds win over a spec's behaviour", () => {
     assert.equal(
       routed([confirmed({ ...everything, kind: "docs" }), confirmed({ ...everything, kind: "cleanup" })], {
         outside: true,
@@ -182,7 +261,7 @@ describe("routeFinding: the order of the rules", () => {
     );
   });
 
-  test("7 before 8, 8 before 9, 9 before 10, 10 before 11, 11 before 12", () => {
+  test("8 before 9, 9 before 10, 10 before 11, 11 before 12, 12 before 13", () => {
     const outside = { outside: true };
     const reasonOf = (more) => routed([confirmed(more)], outside).reason;
 
@@ -194,7 +273,7 @@ describe("routeFinding: the order of the rules", () => {
     assert.deepEqual(routed([confirmed()]), { outcome: "FIX", reason: "behaviour" });
   });
 
-  test("among 7 to 10, the earlier rule wins also when a later one is said by both checks", () => {
+  test("among 8 to 11, the earlier rule wins also when a later one is said by both checks", () => {
     const r = routed([confirmed({ specBehaviour: true, size: "large" }), confirmed({ size: "large" })]);
 
     assert.equal(r.reason, "the fix changes behaviour a spec describes, and the two checks disagree on it");
@@ -253,6 +332,27 @@ describe("readFindings", () => {
       route(findings).map((r) => r.outcome),
       ["ASK", "ASK", "FIX"],
     );
+  });
+
+  test("takes `disagrees` on the second of two verdicts: true, false or the text, whatever the verdict", () => {
+    const findings = readFindings(
+      text([
+        one({ id: 1, verdicts: [confirmed(), confirmed({ disagrees: "the fix is larger than it says" })] }),
+        one({ id: 2, verdicts: [confirmed(), confirmed({ disagrees: true })] }),
+        one({ id: 3, verdicts: [confirmed(), confirmed({ disagrees: false })] }),
+        one({ id: 4, verdicts: [refuted(), { ...refuted(), disagrees: "the test it cites covers another case" }] }),
+        one({ id: 5, verdicts: [null, confirmed({ disagrees: true })] }),
+      ]),
+    );
+
+    assert.deepEqual(routeReport(route(findings)), [
+      "1 → ASK · the second check disagrees with the first: the fix is larger than it says",
+      "2 → ASK · the second check disagrees with the first",
+      "3 → FIX · behaviour",
+      "4 → ASK · the second check disagrees with the first: the test it cites covers another case",
+      "5 → ASK · a check returned no result",
+      "FIX 1 · DECLINE 0 · ASK 4",
+    ]);
   });
 
   describe("refuses, for the whole input, in one line that names the finding and the field", () => {
@@ -321,6 +421,23 @@ describe("readFindings", () => {
       refused(
         [one({ verdicts: [refuted(), { verdict: "refuted", evidence: "src/a.cs:3" }] })],
         /finding B-1: verdicts\[1\]\.evidence is "src\/a\.cs:3"; it is true or false/,
+      );
+    });
+
+    test("`disagrees` that is neither true, false nor a text, and one on another verdict than the second", () => {
+      const second = (disagrees) => [one({ verdicts: [confirmed(), confirmed({ disagrees })] })];
+
+      refused(second(1), /finding B-1: verdicts\[1\]\.disagrees is 1; it is true, false or the text/);
+      refused(second(""), /finding B-1: verdicts\[1\]\.disagrees is ""; it is true, false or the text of what/);
+      refused(second("  "), /finding B-1: verdicts\[1\]\.disagrees is " {2}"; it is true, false or the text/);
+      refused(second(null), /finding B-1: verdicts\[1\]\.disagrees is null; it is true, false or the text/);
+      refused(
+        [one({ verdicts: [confirmed({ disagrees: true }), confirmed()] })],
+        /finding B-1: verdicts\[0\]\.disagrees is true; only the second of two verdicts says whether it disagrees/,
+      );
+      refused(
+        [one({ verdicts: [{ verdict: "unsure", disagrees: "the kind" }] })],
+        /finding B-1: verdicts\[0\]\.disagrees is "the kind"; only the second of two verdicts/,
       );
     });
 
@@ -508,6 +625,21 @@ describe("readReport", () => {
       refused([...CONFIRMED, CONFIRMED[3]], /^FIX is given twice$/);
     });
 
+    test("a line that holds a long text, of which it quotes 80 characters, so that what the line may hold still fits", () => {
+      const long = "a made-up sketch that goes on and on, ".repeat(8).trim();
+      const quoted = `"${long.slice(0, 80)}…"`;
+
+      refused(
+        withLine("FIX", `FIX: ${long}`),
+        new RegExp(`^FIX is ${quoted}; it is <local \\| not local> · .* · <sketch>$`),
+      );
+      refused(
+        withLine("KIND", `KIND: ${long}`),
+        new RegExp(`^KIND is ${quoted}; it is one of: behaviour, test-quality, docs, cleanup$`),
+      );
+      refused(withLine("KIND", `KIND: ${"k".repeat(80)}`), new RegExp(`^KIND is "${"k".repeat(80)}"; it is one of: `));
+    });
+
     test("a refuted or a confirmed report without its evidence line", () => {
       refused(["VERDICT: refuted", "KIND: not applicable", "FIX: not applicable"], /^it has no EVIDENCE line$/);
       refused(withLine("EVIDENCE", null), /^it has no EVIDENCE line$/);
@@ -563,14 +695,203 @@ describe("readReport", () => {
     }
   });
 
+  describe("the second check's report", () => {
+    const REFUTED = ["VERDICT: refuted", "EVIDENCE: design.md D4 decides it", "KIND: not applicable"];
+    const second = (lines, firstPass) => readReport(report([...lines, `FIRST PASS: ${firstPass}`]), 2);
+
+    test("says whether it disagrees with the first: false for `agrees`, else the text of what it disagrees on", () => {
+      const first = readReport(report(CONFIRMED));
+
+      assert.deepEqual(second(CONFIRMED, "agrees"), { ...first, disagrees: false });
+      assert.deepEqual(second(CONFIRMED, "disagrees: the fix also changes the made-up contract"), {
+        ...first,
+        disagrees: "the fix also changes the made-up contract",
+      });
+      assert.deepEqual(second(REFUTED, "agrees"), { verdict: "refuted", evidence: true, disagrees: false });
+      assert.deepEqual(second(REFUTED, "disagrees: the guard it cites is never reached"), {
+        verdict: "refuted",
+        evidence: true,
+        disagrees: "the guard it cites is never reached",
+      });
+      assert.deepEqual(second(["VERDICT: unsure"], "disagrees: it is not settled"), {
+        verdict: "unsure",
+        disagrees: "it is not settled",
+      });
+    });
+
+    test("takes any amount of space in the line, and the line wherever it stands among the others", () => {
+      assert.equal(second(CONFIRMED, "  agrees  ").disagrees, false);
+      assert.equal(second(CONFIRMED, "disagrees:   the   size,\tit is large ").disagrees, "the size, it is large");
+      assert.equal(second(CONFIRMED, "disagrees:the size").disagrees, "the size");
+      assert.equal(readReport(report(["FIRST PASS: agrees", ...CONFIRMED]), 2).disagrees, false);
+      assert.equal(readReport(`﻿${[...CONFIRMED, "FIRST PASS:agrees"].join("\r\n")}\r\n`, 2).disagrees, false);
+    });
+
+    describe("refuses, in one line", () => {
+      const refused = (lines, check, pattern) => {
+        assert.throws(
+          () => readReport(report(lines), check),
+          (e) => {
+            assert.match(e.message, pattern);
+            assert.equal(e.message.includes("\n"), false, e.message);
+            return true;
+          },
+        );
+      };
+      const NO_LINE =
+        /^it has no FIRST PASS line, which a second check's report ends with: agrees \| disagrees: <on what>$/;
+
+      test("a second check's report without its FIRST PASS line, whatever its verdict", () => {
+        refused(CONFIRMED, 2, NO_LINE);
+        refused(REFUTED, 2, NO_LINE);
+        refused(["VERDICT: unsure"], 2, NO_LINE);
+        refused([...CONFIRMED, "First pass: agrees"], 2, NO_LINE);
+        refused([...CONFIRMED, "  FIRST PASS: agrees"], 2, NO_LINE);
+      });
+
+      test("a FIRST PASS line that says neither `agrees` nor on what it disagrees", () => {
+        for (const said of [
+          "",
+          "disagrees",
+          "disagrees:",
+          "Agrees",
+          "agrees.",
+          "agrees, mostly",
+          "yes",
+          "disagrees - the size",
+        ]) {
+          refused(
+            [...CONFIRMED, `FIRST PASS: ${said}`],
+            2,
+            new RegExp(`^FIRST PASS is "${said}"; it is agrees \\| disagrees: <on what>$`),
+          );
+        }
+      });
+
+      test("a FIRST PASS line given twice", () => {
+        refused(
+          [...CONFIRMED, "FIRST PASS: agrees", "FIRST PASS: disagrees: the size"],
+          2,
+          /^FIRST PASS is given twice$/,
+        );
+      });
+
+      test("what is wrong with the verdict or the fix before what is wrong with the FIRST PASS line", () => {
+        refused([...withLine("KIND", "KIND: bug"), "FIRST PASS: maybe"], 2, /^KIND is "bug"/);
+        refused(withLine("VERDICT", null), 2, /^it has no VERDICT line$/);
+      });
+
+      test("a first check's report that has a FIRST PASS line, which is the second's alone", () => {
+        const theSecondsAlone = /^it has a FIRST PASS line, which only a second check's report has$/;
+
+        refused([...CONFIRMED, "FIRST PASS: agrees"], 1, theSecondsAlone);
+        refused([...REFUTED, "FIRST PASS: disagrees: the size"], 1, theSecondsAlone);
+        refused([...CONFIRMED, "FIRST PASS: agrees"], undefined, theSecondsAlone); // the first check's by default
+      });
+    });
+  });
+
   test("names a finding's two report files", () => {
     assert.equal(reportFile("3", 1), "3-1.md");
     assert.equal(reportFile("B-2", 2), "B-2-2.md");
   });
 
+  test("reads the finding and the check back from a report file's name, and nothing from any other name", () => {
+    assert.deepEqual(reportOf("3-1.md"), { id: "3", check: 1 });
+    assert.deepEqual(reportOf("3-2.md"), { id: "3", check: 2 });
+    assert.deepEqual(reportOf("B-2-2.md"), { id: "B-2", check: 2 });
+    assert.deepEqual(reportOf("a_made.up-id-1.md"), { id: "a_made.up-id", check: 1 });
+    assert.deepEqual(reportOf(reportFile("14", 2)), { id: "14", check: 2 });
+    for (const name of [
+      "3.md",
+      "3-3.md",
+      "3-0.md",
+      "3-1.MD",
+      "3-1.md.txt",
+      "3-1.txt",
+      "-1.md",
+      "notes.md",
+      "3 -1.md",
+      "3-1 .md",
+      "reports/3-1.md",
+      "..\\3-1.md",
+      "",
+      undefined,
+    ]) {
+      assert.equal(reportOf(name), null, String(name));
+    }
+  });
+
+  describe("readReportOf: a report that is saved as a finding's report file", () => {
+    const first = { id: "3", check: 1 };
+    const second = { id: "3", check: 2 };
+    const saved = (lines) => `${lines.join("\n")}\n`;
+
+    test("is read as `readReport` reads it, when its ID line names the finding of the file", () => {
+      assert.deepEqual(readReportOf(saved(["ID: 3", ...CONFIRMED]), first), readReport(report(CONFIRMED)));
+      assert.deepEqual(readReportOf(saved(["ID:   3  ", ...CONFIRMED, "FIRST PASS: agrees"]), second), {
+        ...readReport(report(CONFIRMED)),
+        disagrees: false,
+      });
+      assert.deepEqual(readReportOf(saved(["ID: B-2", "VERDICT: unsure"]), { id: "B-2", check: 1 }), {
+        verdict: "unsure",
+      });
+      assert.deepEqual(
+        readReportOf(`﻿${["ID: 3", ...CONFIRMED].join("\r\n")}\r\n`, first),
+        readReport(report(CONFIRMED)),
+      );
+    });
+
+    describe("refuses, in one line that names the line that is wrong", () => {
+      const refused = (lines, of, pattern) => {
+        assert.throws(
+          () => readReportOf(saved(lines), of),
+          (e) => {
+            assert.match(e.message, pattern);
+            assert.equal(e.message.includes("\n"), false, e.message);
+            return true;
+          },
+        );
+      };
+
+      test("a report without an ID line, with two, or with the id of another finding", () => {
+        refused(CONFIRMED, first, /^it has no ID line$/);
+        refused(["Id: 3", ...CONFIRMED], first, /^it has no ID line$/);
+        refused(["ID: 3", ...CONFIRMED, "ID: 3"], first, /^ID is given twice$/);
+        refused(["ID: 4", ...CONFIRMED], first, /^ID is "4"; it is 3, the finding that 3-1\.md is about$/);
+        refused(["ID: #3", ...CONFIRMED], first, /^ID is "#3"; it is 3, the finding that 3-1\.md is about$/);
+        refused(["ID: finding 3", ...CONFIRMED], first, /^ID is "finding 3"; it is 3, /);
+        refused(
+          ["ID:", ...CONFIRMED, "FIRST PASS: agrees"],
+          second,
+          /^ID is ""; it is 3, the finding that 3-2\.md is about$/,
+        );
+      });
+
+      test("everything `readReport` refuses, for the check the file's name says", () => {
+        refused(["ID: 3", ...withLine("KIND", "KIND: bug")], first, /^KIND is "bug"; it is one of: /);
+        refused(["ID: 3"], first, /^it has no VERDICT line$/);
+        refused(["ID: 3", ...CONFIRMED], second, /^it has no FIRST PASS line, /);
+        refused(["ID: 3", ...CONFIRMED, "FIRST PASS: agrees"], first, /^it has a FIRST PASS line, /);
+        refused(["ID: 3", ...CONFIRMED, "FIRST PASS: perhaps"], second, /^FIRST PASS is "perhaps"; /);
+      });
+    });
+  });
+
   test("gives verdicts the rules take as they are", () => {
     const refuted = { verdict: "refuted", evidence: true };
 
+    assert.deepEqual(
+      routed([
+        readReport(report(CONFIRMED)),
+        readReport(report([...CONFIRMED, "FIRST PASS: disagrees: the fix is not small"]), 2),
+      ]),
+      asks("the second check disagrees with the first: the fix is not small"),
+    );
+    assert.deepEqual(
+      routed([readReport(report(CONFIRMED)), readReport(report([...CONFIRMED, "FIRST PASS: agrees"]), 2)]),
+      { outcome: "FIX", reason: "behaviour" },
+    );
     assert.deepEqual(routed([readReport(report(CONFIRMED)), readReport(report(CONFIRMED))]), {
       outcome: "FIX",
       reason: "behaviour",

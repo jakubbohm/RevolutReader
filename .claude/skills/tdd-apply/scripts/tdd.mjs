@@ -28,10 +28,19 @@
 //   stopped the command at its time limit, 127 when the command cannot be started. One command writes to stderr
 //   without refusing: `route --reports` names each report file it cannot read (`route: <file> cannot be read as a
 //   report: …`), sorts that finding as one whose check returned no result, and still exits 0.
-// - Every command that writes (init, triage-init, set, add, put, drop, commit) holds the working tree's lock from
-//   its first read to its last write, `commit` to the end of `git commit`, and every file is written whole or not
-//   at all (lock.mjs). `get`, `check`, `run`, `index`, `route` and `progress` take no lock. TDD_LOCK_WAIT_MS and
-//   TDD_LOCK_STALE_MS set the lock's wait limit and stale age in milliseconds: the tests use both.
+// - Every command that writes a state file, the reviews file, tasks.md or the pointer (init, triage-init, set, add,
+//   put, drop, commit, unguard) holds the working tree's lock from its first read to its last write, `commit` and
+//   `unguard` to the end of `git commit`, and every file is written whole or not at all (lock.mjs). `get`, `check`,
+//   `run`, `index`, `route`, `report` and `progress` take no lock. TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS set the
+//   lock's wait limit and stale age in milliseconds: the tests use both.
+// - `report` is how a review's check saves its report: the checks are read-only agents, and this command is the
+//   one way they have to write a file. So it writes nothing but a text that reads as the report of the check and
+//   the finding the file's name says (route.mjs), and never inside a repository: not this one, not another one,
+//   not through `..` and not through a link.
+// - `unguard` takes a finding's guard test out again. `git revert` cannot do that here: it would also reverse what
+//   the test's `red` commits did to the state file, the reviews file and tasks.md, so git refuses it while the
+//   state file has uncommitted changes, and it conflicts once a later commit changed that file. The command
+//   reverses the commits in every other path and leaves those three alone.
 // - TDD_GRAPH_CLI names another executable for the code graph's command line, and TDD_NO_GRAPH=1 skips indexing:
 //   the tests use both. The code graph is never indexed inside the lock: it can take minutes.
 // - Never prints or stores bank data or secrets: it handles paths, test names and totals, and of a test run it
@@ -49,11 +58,19 @@ import {
   statSync,
 } from "node:fs";
 import { constants, tmpdir } from "node:os";
-import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { guard, guardReport, parseStatus, STEPS } from "./guard.mjs";
 import { readText, withLock, writeAtomic } from "./lock.mjs";
-import { readFindings, readReport, reportFile, route as routed, routeReport } from "./route.mjs";
+import {
+  readFindings,
+  readReport,
+  readReportOf,
+  reportFile,
+  reportOf,
+  route as routed,
+  routeReport,
+} from "./route.mjs";
 import {
   addBullet,
   ALLOWED_FAILURES,
@@ -92,16 +109,19 @@ const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change
   commit       --type <test|feat|fix|docs|refactor|build|chore> --tag <step> --summary <text>
                [--tick <id>[,<id>...]] [--path <path> ...] [--body <text>] [--resume <text>]
                [--check <green|wire|close>] [--done <step text>]
+  unguard      --tag <step> --id <id> --red <commit>[,<commit>...] --outcome <declined|deferred> --body <text>
+               [--resume <text>] [--done <step text>]
   index
   run          --label <name> [--timeout <minutes, default 30>] -- <command> [args...]
   route        (--json <text> | --in <file> | --stdin | --reports <folder> --ids <id>[,<id>...])
+  report       --file <absolute path> --stdin
   progress     --step <step text>
 
 --change names an apply's change: its state file, reviews file and tasks.md, in its folder under openspec/changes or,
 once archived, under openspec/changes/archive. --pr names the triage that triage-init started in this working tree:
 its state file (.review-triage.md in the change's folder; without a change, triage-<id>.md in the working tree's
 git folder, never tracked), the scope of its commits, and no reviews file. init takes --change, triage-init --pr
-and maybe --change, every other command one of the two; route and progress need neither.
+and maybe --change, every other command one of the two; route, report and progress need neither.
 
 init creates the apply's state file; on one that exists it changes only the switches given. triage-init starts a
 round: it creates the triage's state file or, for a later round or a rerun, keeps it, updates its Run section and
@@ -109,10 +129,26 @@ adds the section "Round <n>" when missing; --scope is needed without --change. I
 "work: <folder>", the work folder to use from then on: the one an earlier start of the same PR and round took, while
 it is still there, else the one --work gives. drop removes one keyed bullet.
 commit --done and progress print "progress: <step text> completed at <HH:MM>". run adds a line on the failed tests
-that the state file's "Allowed failures" section lists, and NOT ALLOWED with the others. route prints each
-finding's FIX, DECLINE or ASK: from its verdicts as JSON, or with --reports from the report files of its two
-checks in that folder, <id>-1.md and <id>-2.md, for the findings --ids names; a report that is missing or cannot
-be read is a check without a result, the second also a line on stderr (route.mjs has the shapes and the rules).
+that the state file's "Allowed failures" section lists, and NOT ALLOWED with the others.
+
+unguard takes the guard test of a finding out again, once the finding is declined or deferred: it reverses the
+finding's red commits (--red names them by their hashes, in any order; the newest is reversed first) in every path
+but the state file, the reviews file and tasks.md, which it never touches, and commits the result as
+"test(<scope>): [<tag>] <id>: guard removed, <outcome>" with --body, --resume and --done as commit takes them. It is
+refused, with nothing changed, when a commit is not a red commit of that tag and id (its summary is
+"<id>: <text>, red"), or its reverse does not apply cleanly: a later commit or an uncommitted change touched the
+same lines.
+
+route prints each finding's FIX, DECLINE or ASK: from its verdicts as JSON, or with --reports from the report
+files of its two checks in that folder, <id>-1.md and <id>-2.md, for the findings --ids names; a report that is
+missing or cannot be read is a check without a result, the second also a line on stderr. A second check that says
+it disagrees with the first (its report's FIRST PASS line; in JSON, "disagrees" on the second verdict) is an ASK
+(route.mjs has the shapes and the rules).
+report saves the report of one check, read from standard input, as the file --file names: <id>-1.md for a first
+check's report and <id>-2.md for a second's, outside every repository. It is refused, in one line that names the
+line that is wrong, when the text cannot be read as that report: its ID line names another finding, a label route
+reads is missing or holds another word, a second check's report has no FIRST PASS line, or a first check's has
+one. It prints "report: <file> | <verdict>".
 
 In --text, --line, --value, --body and --resume the two characters \\n mean a line break; --stdin takes the text as
 it is. Exit codes: 0 done; 1 refused, with one line on stderr; 3 the guard found violations; 4 nothing to commit;
@@ -140,14 +176,24 @@ const OPTIONS = {
     check: "value",
     done: "value",
   },
+  unguard: {
+    tag: "value",
+    id: "value",
+    red: "list",
+    outcome: "value",
+    body: "value",
+    resume: "value",
+    done: "value",
+  },
   index: {},
   run: { label: "value", timeout: "value" },
   route: { json: "value", in: "value", stdin: "flag", reports: "value", ids: "list" },
+  report: { file: "value", stdin: "flag" },
   progress: { step: "value" },
 };
 
 // The commands that work on no file of a change or a triage, and so need neither --change nor --pr.
-const WITHOUT_FILES = ["route", "progress"];
+const WITHOUT_FILES = ["route", "report", "progress"];
 
 // A refusal the caller is told in one line: the message for stderr and the exit code.
 export class Failure extends Error {
@@ -246,14 +292,18 @@ export function tickTasks(text, ids) {
 
 const TYPES = ["test", "feat", "fix", "docs", "refactor", "build", "chore"];
 
+// A tag as a commit's subject holds it between its brackets: given with or without them.
+const tagName = (tag) =>
+  (tag ?? "")
+    .trim()
+    .replace(/^\[(.*)\]$/, "$1")
+    .trim();
+
 // The commit message: `<type>(<scope>): [<tag>] <summary>`, then the body after a blank line, then the trailers
 // after another (docs/conventions/workflow.md § 3). The tag may come with its brackets.
 export function commitMessage({ type, scope, tag, summary, body, trailers }) {
   if (!TYPES.includes(type)) throw new Failure(`--type is one of: ${TYPES.join(", ")}`);
-  const step = (tag ?? "")
-    .trim()
-    .replace(/^\[(.*)\]$/, "$1")
-    .trim();
+  const step = tagName(tag);
   if (!step || /[[\]\r\n]/.test(step)) throw new Failure("--tag is the step's name, such as red, green, wire or close");
   const subject = (summary ?? "").trim();
   if (!subject || /[\r\n]/.test(subject)) throw new Failure("--summary is one line of text");
@@ -263,6 +313,15 @@ export function commitMessage({ type, scope, tag, summary, body, trailers }) {
     if (text) parts.push(text);
   }
   return `${parts.join("\n\n")}\n`;
+}
+
+// Whether a commit's subject is that of a `red` commit of a finding's guard test in a fix round: the round's tag,
+// and a summary that starts with the finding's id and `: ` and ends with `, red`
+// (`test(c018): [review] 3: A guard, red`). A merged group's id is its numbers (`3, 7`). The id is compared
+// whole, so finding 3 is not taken for 13 or for `3, 7`.
+export function isRedCommit(subject, tag, id) {
+  const [, step, summary] = /^[a-z]+\([^)]*\): \[([^\]]+)\] (.*)$/.exec(subject ?? "") ?? [];
+  return step === tagName(tag) && summary.startsWith(`${id.trim()}: `) && summary.endsWith(", red");
 }
 
 const two = (n) => String(n).padStart(2, "0");
@@ -354,22 +413,28 @@ export function spawnPlan(command, args, { env = process.env, cwd = process.cwd(
 }
 
 // Runs git in the repository and answers spawnSync's result; a failure is refused in git's own words unless the
-// caller handles it (`mayFail`). `input` goes to git's standard input.
-function git(root, args, { input, mayFail = false } = {}) {
+// caller handles it (`mayFail`). `input` goes to git's standard input. With `bytes`, what git prints comes as
+// bytes and not as text: a patch may hold a file that is no UTF-8 text, and must reach `git apply` as it is.
+// `env` replaces the environment git runs in.
+function git(root, args, { input, mayFail = false, bytes = false, env } = {}) {
   const r = spawnSync("git", args, {
     cwd: root,
-    encoding: "utf8",
+    encoding: bytes ? "buffer" : "utf8",
     input,
+    env,
     maxBuffer: 256 * 1024 * 1024,
     windowsHide: true,
   });
   if (r.error) throw new Failure(`git could not be started: ${r.error.message}`);
   if (r.status !== 0 && !mayFail) {
     const verb = args.find((a) => !a.startsWith("-"));
-    throw new Failure(`git ${verb} failed: ${oneLine(r.stderr || r.stdout) || `exit ${r.status}`}`);
+    throw new Failure(`git ${verb} failed: ${gitSaid(r) || `exit ${r.status}`}`);
   }
   return r;
 }
+
+// What git wrote of a failure, on one line: its error output, or what it printed when that is empty.
+const gitSaid = (r) => oneLine(String(r.stderr ?? "")) || oneLine(String(r.stdout ?? ""));
 
 // The line endings a new file gets: those git would check it out with, so git has nothing to convert and nothing
 // to warn about (gitattributes(5): `text`, `eol`; git-config(1): core.autocrlf, core.eol). In this repository
@@ -867,13 +932,31 @@ function commit(ctx, options) {
   workBranch(ctx.root, "commit", ctx.branch);
   // Refused here, before anything is read or changed.
   commitMessage({ ...options, scope: ctx.scope });
-  if (options.done !== undefined) progressLine(options.done, new Date(), "--done");
+  return committing(ctx, options, () => committed(ctx, options));
+}
 
-  // The lock is held from the first read to the end of `git commit`, and released before the index.
-  const made = locked(ctx, () => committed(ctx, options));
+// Runs the work of a command that ends with a commit (`commit`, `unguard`), and prints its line. The lock is held
+// from the work's first read to the end of `git commit`, and released before the code graph is indexed. The work
+// answers the exit code when it made no commit, else the parts of the line to print and the time of the commit.
+function committing(ctx, options, work) {
+  // Refused here, before anything is read or changed.
+  if (options.done !== undefined) progressLine(options.done, new Date(), "--done");
+  const made = locked(ctx, work);
   if (typeof made === "number") return made;
   say([...made.parts, graphText(indexGraph(ctx.root))].join(" | "));
   if (options.done !== undefined) say(progressLine(options.done, made.at, "--done"));
+}
+
+// Commits what is staged with the message, or with `only` exactly those paths, whatever else is staged
+// (`commit --only`). Answers the new commit's short hash and the time. The message goes to git through standard
+// input, never through a shell; --cleanup=whitespace keeps a body line that starts with # whatever the machine's
+// commit.cleanup says.
+function gitCommit(root, message, only) {
+  const paths = only ? ["--only", "--", ...only] : [];
+  git(root, ["--literal-pathspecs", "commit", "--quiet", "--cleanup=whitespace", "-F", "-", ...paths], {
+    input: message,
+  });
+  return { at: new Date(), sha: git(root, ["rev-parse", "--short=7", "HEAD"]).stdout.trim() };
 }
 
 // `commit`'s work under the lock. Answers the exit code when it made no commit (3: the guard found violations,
@@ -921,33 +1004,191 @@ function committed(ctx, options) {
     return 4;
   }
 
-  // The message goes to git through standard input, never through a shell; --cleanup=whitespace keeps a body
-  // line that starts with # whatever the machine's commit.cleanup says.
   const trailers = state === null ? null : keyValue(state, "Run", "Commit trailers");
   const body = options.body === undefined ? undefined : newlines(options.body);
   const message = commitMessage({ ...options, scope: ctx.scope, body, trailers });
-  git(
-    ctx.root,
-    [
-      "--literal-pathspecs",
-      "commit",
-      "--quiet",
-      "--cleanup=whitespace",
-      "-F",
-      "-",
-      ...(only ? ["--only", ...paths] : []),
-    ],
-    {
-      input: message,
-    },
-  );
+  const { sha, at } = gitCommit(ctx.root, message, only);
 
-  const at = new Date();
-  const sha = git(ctx.root, ["rev-parse", "--short=7", "HEAD"]).stdout.trim();
   const parts = [`${sha} ${message.split("\n")[0]}`];
   if (tasks.ticked.length > 0) parts.push(`ticked ${tasks.ticked.join(", ")}`);
   if (tasks.already.length > 0) parts.push(`already ticked ${tasks.already.join(", ")}`);
   return { parts, at };
+}
+
+// Takes a finding's guard test out again, once the owner declined or deferred the finding: reverses the finding's
+// `red` commits and commits that as `test(<scope>): [<tag>] <id>: guard removed, <outcome>`, with the lock, the
+// trailers, `Resume here`, the progress line and the code graph as `commit` has them.
+function unguard(ctx, options) {
+  workBranch(ctx.root, "unguard", ctx.branch);
+  // Refused here, before anything is read or changed.
+  if (!options.id?.trim() || /[\r\n]/.test(options.id)) {
+    throw new Failure("unguard needs --id <id>: the finding's id, as its red commits' summaries start with it");
+  }
+  const outcome = oneOf(options.outcome, ["declined", "deferred"], "--outcome");
+  if (!options.body?.trim()) {
+    throw new Failure(
+      'unguard needs --body <text>: the outcome in one line, such as "Declined by the owner: <the reason>"',
+    );
+  }
+  const message = {
+    type: "test",
+    scope: ctx.scope,
+    tag: options.tag,
+    summary: `${options.id.trim()}: guard removed, ${outcome}`,
+    body: newlines(options.body),
+  };
+  commitMessage(message);
+  return committing(ctx, options, () => unguarded(ctx, options, message));
+}
+
+// The options every patch here is written with, so that `git apply` reads it whatever the machine's git is set
+// to: binary files whole, a rename as a deletion and an addition, no colour, no outside program, and the
+// prefixes a patch has by default.
+const PATCH = [
+  "diff",
+  "--binary",
+  "--full-index",
+  "--no-renames",
+  "--no-color",
+  "--no-ext-diff",
+  "--no-textconv",
+  "--src-prefix=a/",
+  "--dst-prefix=b/",
+];
+
+// The commits `--red` names, newest first, each with its whole and its short hash. Each is named by its hash,
+// whole or shortened, and must be a `red` commit of this tag and finding on the current branch.
+function redCommits(ctx, given, tag, id) {
+  const names = (given ?? [])
+    .flatMap((value) => value.split(","))
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (names.length === 0) {
+    throw new Failure("unguard needs --red <commit>[,<commit>...]: the hashes of the finding's red commits");
+  }
+  const reds = new Map();
+  for (const name of names) {
+    const sha = /^[0-9a-f]{4,64}$/i.test(name)
+      ? git(ctx.root, ["rev-parse", "--verify", "--quiet", `${name}^{commit}`], { mayFail: true }).stdout.trim()
+      : "";
+    if (!sha) {
+      throw new Failure(
+        `nothing was changed: --red ${oneLine(name)} names no commit; give each red commit's hash, as commit printed it`,
+      );
+    }
+    if (reds.has(sha)) continue;
+    const short = sha.slice(0, 7);
+    const subject = git(ctx.root, ["log", "-1", "--format=%s", sha]).stdout.trim();
+    if (!isRedCommit(subject, tag, id)) {
+      throw new Failure(
+        `nothing was changed: --red ${short} is not a red commit of finding ${id.trim()} with the tag ` +
+          `${tagName(tag)}; its subject is "${oneLine(subject)}"`,
+      );
+    }
+    if (git(ctx.root, ["merge-base", "--is-ancestor", sha, "HEAD"], { mayFail: true }).status !== 0) {
+      throw new Failure(`nothing was changed: --red ${short} is not a commit of the current branch`);
+    }
+    // How many commits the branch has made since: the fewer, the newer.
+    const since = Number(git(ctx.root, ["rev-list", "--count", `${sha}..HEAD`]).stdout.trim());
+    reds.set(sha, { sha, short, since });
+  }
+  return [...reds.values()].sort((a, b) => a.since - b.since);
+}
+
+// What reversing the red commits, newest first, does to HEAD: the paths it changes and the one patch that changes
+// them, the bookkeeping files (`kept`) left out. It is worked out in an index of its own, which starts as HEAD:
+// nothing of the working tree or its index is read or changed here, so a commit whose reverse does not apply is
+// refused with everything as it was.
+function reversal(ctx, reds, kept) {
+  const index = join(ctx.gitFolder, `unguard.${process.pid}.index`);
+  const env = { ...process.env, GIT_INDEX_FILE: index };
+  const others = ["--", ".", ...kept.map((path) => `:(exclude,literal)${path}`)];
+  try {
+    git(ctx.root, ["read-tree", "HEAD"], { env });
+    for (const red of reds) {
+      const patch = git(ctx.root, [...PATCH, red.sha, `${red.sha}~1`, ...others], { bytes: true }).stdout;
+      if (patch.length === 0) {
+        throw new Failure(
+          `nothing was changed: --red ${red.short} holds no guard test; it changed only the bookkeeping's own files ` +
+            "(the state file, the reviews file, tasks.md), which are never reversed",
+        );
+      }
+      const applied = git(ctx.root, ["apply", "--cached", "--whitespace=nowarn", "-"], {
+        env,
+        input: patch,
+        bytes: true,
+        mayFail: true,
+      });
+      if (applied.status !== 0) {
+        throw new Failure(
+          `nothing was changed: the reverse of ${red.short} does not apply cleanly; git says: ${gitSaid(applied)}`,
+        );
+      }
+    }
+    const paths = git(ctx.root, ["diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD"], { env })
+      .stdout.split("\0")
+      .filter(Boolean);
+    return { paths, patch: git(ctx.root, [...PATCH, "--cached", "HEAD"], { env, bytes: true }).stdout };
+  } finally {
+    rmSync(index, { force: true });
+    rmSync(`${index}.lock`, { force: true });
+  }
+}
+
+// `unguard`'s work under the lock. Everything that can be refused is refused before anything is changed; then the
+// one patch is applied to the working tree and the index, which git does whole or not at all, and committed. If
+// that commit fails, the patch is taken back, so that the command can be run again.
+function unguarded(ctx, options, message) {
+  const reds = redCommits(ctx, options.red, options.tag, options.id);
+  // The state file, the reviews file and tasks.md are never reversed, whatever a red commit did to them: they
+  // hold what was recorded since. (A triage has no reviews file, and one without a change keeps its state file
+  // in git's folder and has no tasks.md.)
+  const kept = [ctx.state, ctx.reviews, ctx.tasks].filter((file) => file?.inside).map((file) => file.shown);
+  const { paths, patch } = reversal(ctx, reds, kept);
+  if (paths.length === 0) {
+    throw new Failure("nothing was changed: the red commits undo each other, so reversing them changes no file");
+  }
+  const changed = parseStatus(
+    git(ctx.root, ["--literal-pathspecs", "status", "--porcelain", "--untracked-files=all", "-z", "--", ...paths])
+      .stdout,
+  ).map((entry) => entry.path);
+  if (changed.length > 0) {
+    const named = `${changed.slice(0, 5).join(", ")}${changed.length > 5 ? ` and ${changed.length - 5} more` : ""}`;
+    throw new Failure(`nothing was changed: the reverse does not apply cleanly; uncommitted changes in ${named}`);
+  }
+  const before = existsSync(ctx.state.path) ? readText(ctx.state.path) : null;
+  const resumed = options.resume !== undefined;
+  if (resumed && before === null) throw new Failure(`--resume: no ${ctx.state.shown}: run ${ctx.started} first`);
+  const state = resumed ? setSection(before, "Resume here", newlines(options.resume)) : before;
+  const trailers = state === null ? null : keyValue(state, "Run", "Commit trailers");
+  const text = commitMessage({ ...message, trailers });
+
+  const apply = (...how) =>
+    git(ctx.root, ["apply", "--index", "--whitespace=nowarn", ...how, "-"], {
+      input: patch,
+      bytes: true,
+      mayFail: true,
+    });
+  const applied = apply();
+  if (applied.status !== 0) {
+    throw new Failure(`nothing was changed: the reverse does not apply cleanly; git says: ${gitSaid(applied)}`);
+  }
+  // As for `commit --path`: exactly the reversed paths and, with --resume, the state file when it is one of the
+  // working tree's. Whatever else is changed or staged stays as it is.
+  const own = resumed && ctx.state.inside ? [ctx.state.shown] : [];
+  try {
+    if (resumed) writeAtomic(ctx.state.path, state);
+    if (own.length > 0) git(ctx.root, ["--literal-pathspecs", "add", "--", ...own]);
+    const { sha, at } = gitCommit(ctx.root, text, [...paths, ...own]);
+    return { parts: [`${sha} ${text.split("\n")[0]}`, `reversed ${reds.map((red) => red.short).join(", ")}`], at };
+  } catch (e) {
+    // No commit was made: the guard test goes back in, and `Resume here` back to what it said.
+    const back = apply("-R").status === 0;
+    if (resumed) writeAtomic(ctx.state.path, before);
+    if (own.length > 0) git(ctx.root, ["--literal-pathspecs", "reset", "--quiet", "--", ...own], { mayFail: true });
+    const left = back ? "nothing was changed" : "the reverse of the red commits stays applied and staged";
+    throw new Failure(`${left}: no commit was made; ${e.message}`, e instanceof Failure ? e.code : 1);
+  }
 }
 
 function index(ctx) {
@@ -1070,9 +1311,9 @@ function route(_ctx, options) {
 }
 
 // The findings of `--ids`, in that order, each with the verdicts of its two checks as their reports in the folder
-// say: `<id>-1.md` and `<id>-2.md`. A report that is not there is a check that returned no result. So is one that
-// cannot be read as a report, which is also said in one line on stderr: the other findings are still sorted, and
-// the exit code stays 0.
+// say: `<id>-1.md` and `<id>-2.md`, the second with whether it disagrees with the first. A report that is not
+// there is a check that returned no result. So is one that cannot be read as that check's report, which is also
+// said in one line on stderr: the other findings are still sorted, and the exit code stays 0.
 function reportedFindings(folder, given) {
   if (!statSync(folder, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Failure(`--reports: no folder ${oneLine(folder)}`);
@@ -1093,7 +1334,7 @@ function reportedFindings(folder, given) {
     const name = reportFile(id, check);
     if (!existsSync(join(folder, name))) return null;
     try {
-      return readReport(readText(join(folder, name)));
+      return readReport(readText(join(folder, name)), check);
     } catch (e) {
       process.stderr.write(`route: ${name} cannot be read as a report: ${oneLine(e.message)}\n`);
       return null;
@@ -1105,6 +1346,78 @@ function reportedFindings(folder, given) {
     reviewerDisagrees: false,
     verdicts: [verdict(id, 1), verdict(id, 2)],
   }));
+}
+
+// A path with every link in it followed: the real path of the longest part of it that exists, then the rest as
+// given. So a file that is not there yet is placed where writing it would put it, whatever `..` or link (a
+// symbolic link, a Windows junction) its path goes through.
+function realPlace(path) {
+  const rest = [];
+  for (let part = resolve(path); ; part = dirname(part)) {
+    try {
+      return join(realpathSync.native(part), ...rest);
+    } catch (e) {
+      if (dirname(part) === part) throw new Failure(`--file: ${oneLine(e.message)}`);
+      rest.unshift(basename(part));
+    }
+  }
+}
+
+// The repository a path lies in: the nearest folder above it that is a working tree's root (it holds `.git`, a
+// folder in the main working tree and a file in a linked one) or a git folder itself (it holds HEAD, objects and
+// refs); null when there is none. Found by looking and not by asking git, so that it holds for every repository
+// on the way up, also one the command was not started in, and no program runs in a folder the caller names.
+function repositoryAround(path) {
+  const isGitFolder = (folder) => ["HEAD", "objects", "refs"].every((name) => existsSync(join(folder, name)));
+  for (let folder = dirname(path); ; folder = dirname(folder)) {
+    if (existsSync(join(folder, ".git")) || isGitFolder(folder)) return folder;
+    if (dirname(folder) === folder) return null;
+  }
+}
+
+// Saves the report of one check of a finding, read from standard input, as the file `--file` names. The checks
+// are read-only agents, and this is the one way they have to write a file, so it writes only what `route
+// --reports` can read as the report the file's name says (`<id>-1.md`: the first check's on that finding,
+// `<id>-2.md`: the second's), and only outside every repository. The text is stored as given, with LF line breaks
+// and one line break at its end. A refusal names the line that is wrong, so that the check can correct its report
+// and run the command again.
+function report(_ctx, options) {
+  if (!options.stdin) throw new Failure("report needs --stdin: the report's text comes on standard input");
+  if (!options.file?.trim()) throw new Failure("report needs --file <absolute path>: where the report is saved");
+  const given = options.file.trim();
+  if (!isAbsolute(given)) throw new Failure(`--file is an absolute path: "${oneLine(given)}"`);
+  const file = resolve(given);
+  const name = basename(file);
+  const of = reportOf(name);
+  if (of === null) {
+    throw new Failure(
+      `--file is named <id>-1.md for a first check's report and <id>-2.md for a second's: "${oneLine(name)}"`,
+    );
+  }
+  const repository = repositoryAround(realPlace(file));
+  if (repository !== null) {
+    throw new Failure(
+      "--file lies inside a repository: a report is saved outside every repository, in the triage's work folder " +
+        `(the repository: ${slashed(repository)})`,
+    );
+  }
+  if (statSync(file, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Failure(`--file is a file, and ${slashed(file)} is a folder`);
+  }
+  const text = `${withoutByteOrderMark(readFileSync(0, "utf8")).replace(/\r\n?/g, "\n").replace(/\s+$/, "")}\n`;
+  let verdict;
+  try {
+    ({ verdict } = readReportOf(text, of));
+  } catch (e) {
+    throw new Failure(`not saved: ${name} cannot be read as a report: ${e.message}`);
+  }
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeAtomic(file, text);
+  } catch (e) {
+    throw new Failure(`not saved: ${slashed(file)} cannot be written: ${e.message}`);
+  }
+  say(`report: ${slashed(file)} | ${verdict}`);
 }
 
 // Prints the progress line of a step that ends without a commit; with one, `commit --done` prints it.
@@ -1122,9 +1435,11 @@ const COMMANDS = {
   drop,
   check,
   commit,
+  unguard,
   index,
   run,
   route,
+  report,
   progress,
 };
 

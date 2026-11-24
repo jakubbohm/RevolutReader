@@ -5,13 +5,17 @@
 // - An apply: for every change under openspec/changes/ (never the archive) whose state file says
 //   `Status: applying`, it adds to the session's context that /tdd-apply is under way for the change and that this
 //   session is its main session, the command that reads the state file by section, and the file's `Resume here`,
-//   `Agents` and `Open` sections.
+//   `Open` and `Agents` sections, in that order.
 // - A triage: when the working tree's pointer (`triage.json` in git's folder, written by `tdd.mjs triage-init`)
 //   names a state file that is there and says `Status: triaging`, it adds the same for /triage-review, with the
 //   PR, the round and the work folder, which no state file holds: it is a path of this machine, and the pointer
 //   alone has it. The pointer covers what the folders cannot: a PR without an OpenSpec change, whose state file
 //   lies in git's folder too, and a round after the change was archived.
-// - Everything it prints is cut at 4,000 characters, with a note that names the commands for the rest.
+// - Everything it prints is cut at 4,000 characters, with a note that names the commands for the rest. `Open`
+//   holds the questions that wait for the owner, whole, so it comes before `Agents`: when the text is cut, the
+//   list of agents is what goes, never where the work stands or what is open.
+// - The hook cannot tell whose session it runs in. The main session's is the one it means, so the text says that
+//   an agent the main session started (a runner, a reviewer) is not meant and goes on with its work.
 //
 // Never blocks a session: with nothing under way it prints nothing, and any error becomes one line on stderr,
 // nothing on stdout and exit 0. The files are read with the tdd-apply scripts' own functions (state.mjs for the
@@ -22,7 +26,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
 const LIMIT = 4000;
-const SHOWN = ["Resume here", "Agents", "Open"];
+// The sections it prints, in this order: what a cut drops is the end.
+const SHOWN = ["Resume here", "Open", "Agents"];
 // The command that reads a state file by section; `whose` is `--change <name>` or `--pr <id>`.
 const GET = (whose) => `node .claude/skills/tdd-apply/scripts/tdd.mjs get ${whose} --section`;
 
@@ -32,10 +37,11 @@ function git(cwd, args) {
 }
 
 // What the session is told about one state file: `under` says what is under way, `status` what the file says, and
-// `whose` names it to the command. Then the file's three sections as they stand.
+// `whose` names it to the command. Then the file's three sections as they stand, in SHOWN's order.
 function account(scripts, text, { under, status, whose }) {
   const intro =
-    `${under}: its state file says \`Status: ${status}\`. This session is its main session, the orchestrator. ` +
+    `${under}: its state file says \`Status: ${status}\`. This session is its main session. An agent that the ` +
+    "main session started (a runner, a reviewer) is not meant by this note and goes on with its work. " +
     `Read the state file by section, never whole: \`${GET(whose)} "<name>"\` ` +
     `(its sections: ${scripts.sectionNames(text).join(", ")}). Its ${SHOWN.join(", ")} sections as they stand:`;
   const sections = SHOWN.map(

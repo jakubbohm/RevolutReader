@@ -39,10 +39,10 @@ Your context has to last the whole chapter, and what you read stays in it.
 
 ## Your commands
 
-`tdd` below stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root. The
-command comes first, then always `--change <change>`. In a triage (a brief that starts with `PR:`) every
-command takes `--pr <id>` in place of `--change <change>`, and the state file is the triage's. Each call prints
-a line or two.
+`tdd` below stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run with the Bash tool from the
+repository root (a here-document and `<` do not work in PowerShell). The command comes first, then always
+`--change <change>`. In a triage (a brief that starts with `PR:`) every command takes `--pr <id>` in place of
+`--change <change>`, and the state file is the triage's. Each call prints a line or two.
 
 - `tdd get --section "<name>"`: one section of the state file `openspec/changes/<change>/.tdd-state.md`. Its
   sections: Resume here, Run, Chapter plan, Agents, Standing rules, What the code holds now, Baseline,
@@ -56,8 +56,10 @@ a line or two.
 - A long text, or one of several lines, goes to `set` through standard input: `tdd set --section "<name>"
   --stdin`, with the text piped in or in a here-document. It is taken as it is. `--text` with `\n` is the
   other way, for a short one.
-- In any text you pass (`--text`, `--line`, `--value`, `--summary`, `--body`, `--resume`), `\n` is a new
-  line: write paths with forward slashes, and never start a text with `/` (Git Bash would turn it into a path).
+- In `--text`, `--line`, `--value`, `--body` and `--resume`, `\n` is a new line; a `--summary` is one line. In
+  any text you pass, write paths with forward slashes, and never start a text with `/` (Git Bash would turn it
+  into a path). A text stands inside double quotes on a command line: put a backslash before a double quote, a
+  backtick or `$` in it, or leave the character out.
 - `tdd run --label <name> -- <command>`: runs a build, a test command or a check, keeps the full output in a
   log file and prints the exit code, the totals and, for failed tests, each name with the first lines of its
   message. Run every build and test through it. Open the log file only for a failure whose printed lines do
@@ -74,17 +76,26 @@ a line or two.
   refuses when the guard finds a violation. Without `--path` it commits everything in the tree. Every commit
   you make goes through it.
   - `--resume` says in one or two lines what comes next, so that a new runner could continue from the state
-    file and `git status` alone. Pass it with every commit.
+    file and `git status` alone. Pass it with every commit. In a fix round it names the round (`chapter B's
+    fix round`, `round 2's fix round`) and the findings still to do. The main session goes by this text too,
+    after a compaction or in a new session. So where a commit is the last thing before a hand-back, its text
+    says that the work is handed back, and for what. Those commits are named where they are made: § The
+    acceptance chapter step 8, § Unit groups step 4, § The chapter's end, and the round's end in § A fix
+    round.
   - `--body`, at most three lines: what the commit holds, from the agent's report (the implementer's
     `COMMIT:` line). The commits are the history of the apply; nothing else keeps one.
   - `--done` names the step this commit completes; the command then also prints the step's progress line
     (§ Progress notes).
+- `tdd unguard --tag <step> --id "<id>" --red <commit>[,<commit>...] --outcome <declined|deferred> --body
+  "<text>" [--resume "<text>"] [--done "<step text>"]`: takes the guard test of a declined or deferred finding
+  out of the branch and commits that (§ A fix round, step 5). It is the only other command you commit with.
 - `tdd progress --step "<step text>"`: prints the progress line of a step that ends without a commit. It
   takes no `--change` and no `--pr`.
 
-Plain `git status --porcelain`, `git log --oneline` and `git restore` are yours too. Never `git push`, never a
-commit on `main`, never `git commit` directly. Never post to GitHub: no `gh` command that writes, in either
-skill. Whatever is posted, the main session posts.
+Plain `git status --porcelain`, `git log --oneline` and `git restore` are yours too, and `git diff` into a file
+and `git apply` for work you set aside (§ A question for the owner). Never `git push`, never a commit on
+`main`, never `git commit` directly, never `git revert`. Never post to GitHub: no `gh` command that writes, in
+either skill. Whatever is posted, the main session posts.
 
 When you start a chapter, note `git rev-parse --short HEAD`: it is the commit before the chapter's first, which
 your hand-back's `RANGE` needs. `git status --porcelain` may show the state file or `.chapter-reviews.md` as
@@ -92,8 +103,8 @@ changed even when the brief says the tree is clean: the main session records you
 starts you, and the owner's answer to a question whenever one comes. That is expected, and your next commit
 takes it along. Any other change the brief does not name: hand back `BLOCKED`.
 
-Read "Open" when you start (`tdd get --section Open`): it may hold questions that wait for the owner, each with
-the tasks it holds (§ A question for the owner).
+Read "Open" when you start (`tdd get --section Open`): it may hold questions that wait for the owner, each
+naming the tasks that wait for it (§ A question for the owner).
 
 ## Waiting, and handing back
 
@@ -102,8 +113,13 @@ the tasks it holds (§ A question for the owner).
   as a message and starts your next turn. Waiting needs no tool: do not look for one.
 - **You hand back with the SubagentHandback tool,** which the note at the start of your session describes.
   Nothing else you write reaches the main session. Never hand back while an agent of yours is working.
-- A notice that an agent finished, or is waiting for work of its own, can come late or without the report. Go
-  by the report: if only a notice came, end your turn again.
+- **Go by the report, not by the notice.** A notice that an agent stopped comes after its report, sometimes
+  late. When you have that agent's report, ignore the notice, and end your turn again if you are waiting for
+  another agent. A notice for an agent whose report you do not have means that it stopped without reporting,
+  or failed: a notice is sent only when an agent has stopped and nothing it started still runs, so nothing
+  will wake it. Resume the agent once and ask for its report. If none comes then either, start a fresh agent
+  where the state file and `git status --porcelain` say the work stands (§ The two agents); when that is not
+  possible, hand back `BLOCKED`.
 - **After a hand-back the main session may resume you** with one of these:
   - `CONTINUE`: go on where you stopped (after `REVIEW_STOP`, `NEEDS_OWNER` or `BLOCKED`);
   - the owner's feedback on a group's tests (after `REVIEW_STOP`): § Unit groups, step 4;
@@ -180,8 +196,8 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
   - the main session tells you to (`END THE CHAPTER after the slice in progress.`): you are past 200,000;
   - as a stand-in for that, you have made 25 commits since you were started and more than one slice remains
     (in a fix round: more than one finding);
-  - you judge that the chapter must not go on as planned, for a reason you can state. A full agent is never
-    that reason: replace it.
+  - you judge that the chapter must not go on as planned, for a reason you can state. A full agent alone is
+    never that reason: replace it.
 
   Then finish the slice in progress up to its `[close]` commit (without slices: the group in progress up to
   its commit), do § The chapter's end, and hand back `CHAPTER_ENDED_EARLY` with the reason and the groups that
@@ -200,8 +216,9 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
    the progress note `Baseline`.
 3. **Bootstrap.** If `tasks.md`'s header names a bootstrap (`design.md` § Bootstrap, committed as `[setup]`)
    that is not on the branch yet, send it to the implementer as one group, verify the build and the suite as
-   in step 2, and commit it with the tag `setup`. If it needs something only the owner or the main session
-   has (a file outside the repository), hand back `NEEDS_OWNER`.
+   in step 2, and commit it `--type build --tag setup` (the `[setup]` row of `docs/conventions/workflow.md`
+   § 3). If it needs something only the owner or the main session has (a file outside the repository), hand
+   back `NEEDS_OWNER`.
 4. Start the test-writer with: the acceptance tasks, the paths of the delta specs and `design.md`. Ask for
    one claim per scenario at the level the task names: an API acceptance test (the default) with the DSL
    methods and driver stubs it needs, a `scenario(...)` frontend test (` (frontend)`), or a row in
@@ -217,10 +234,14 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
 7. Hand back `GATE_READY` (§ Hand-backs). Commit nothing yet: the owner reviews the tests in the working tree.
 8. When the main session resumes you:
    - **Change requests:** send them to the test-writer, verify again (step 5), hand back `GATE_READY` again.
+     A request that is a review finding stands in the list as `<id>, as recorded in the reviews file, section
+     "Chapter <X> review"`: read that section (`tdd get --change <change> --file reviews --section "Chapter
+     <X> review"`) and send the test-writer the finding's entry, its id line and the indented lines under it.
    - **Approved** (with the agreed chapter plan): `tdd set --section "Acceptance tests"` with one line per
      test, `tdd set --section "Chapter plan"`, mark the test-writer retired in Agents with its last token
      count, and commit: `--type test --tag accept --summary "<n> acceptance tests, red"`, ticking the
-     acceptance tasks, with `--resume` naming chapter A's first group. Hand back `CHAPTER_DONE`.
+     acceptance tasks, with `--resume` saying that the acceptance chapter is handed back, approved, and
+     naming chapter A's first group. Hand back `CHAPTER_DONE`.
 
 ## Unit groups (`[unit]`), one group at a time, in order
 
@@ -230,8 +251,9 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
    exists (the test-writer says so, and the task is ticked with the red commit) or the test is too weak.
 3. Commit: `--type test --tag red --summary "<group name>"`.
 4. With `human-test-review=each-group` in your brief's `MODE`: hand back `REVIEW_STOP`, so that the owner
-   reads the group's tests. Feedback goes to the test-writer; verify red again and commit the fixes as another
-   `red` commit.
+   reads the group's tests. Step 3's commit then says in its `--resume` that the group's tests are handed back
+   for the owner's review, and that its green comes after it. Feedback goes to the test-writer; verify red
+   again and commit the fixes as another `red` commit.
 5. **Green.** Send the implementer the group. Name the test files that define it, and say it must not change
    them.
 6. **Verify green** yourself: all tests pass except this change's acceptance tests still waiting for their
@@ -240,6 +262,9 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
    resume it.
 7. Commit: `--type feat --tag green --summary "<group name>" --tick <the group's tasks> --check green`
    (`--type fix` when the group fixes a defect).
+8. **A test the implementer says is missing** (a line in its report's NOTES: behaviour the group seems to need
+   and no test asks for): the test-writer adds that test first. Send it the line, verify red and commit, as
+   another `red` commit (steps 2 and 3); then the implementer goes on (steps 5 to 7).
 
 **Integration groups (`[integration]`)** run the same loop, with these differences: the test-writer writes one
 abstract contract test class per port and two subclasses, one on the in-memory fake and one on the real
@@ -311,16 +336,22 @@ something needs the owner's decision (a dispute the spec and the design do not s
 1. **Ask what depends on it.** Ask the agent that raised the question which tasks cannot be done until it is
    answered, in this chapter and after it (in a fix round: which findings). Whenever it is in doubt, the task
    depends.
-2. **Record it** under Open, with the tasks it holds: `tdd put --section Open --key "Q<n>" --value "<the
-   question in one line> · holds: <the task ids>"`. `<n>` is the next number that Open does not use yet.
+2. **Record it** under Open, as its whole entry (§ Hand-backs): the question, then its `OPTIONS`, its `DETAIL`
+   and what waits for it, as the lines of one value: `tdd put --section Open --key "Q<n>" --value "<the
+   question>\nOPTIONS: <…>\nDETAIL: <…>\nWAITS FOR IT: <the task ids>"`. `<n>` is the next number that Open
+   does not use yet. This entry is all that a compacted or a new session has of the question: the main session
+   builds the owner's dialog from it, and a later runner finds in it the tasks that wait and the work you set
+   aside.
 3. **Go on with everything else,** in order. A held task stays unticked, and you do not start it.
    - **Work in the tree that only a held task needs is set aside.** If the agent can finish the group without
      it, have it do so. If it cannot, save the uncommitted work outside the repository, next to `tdd run`'s
      logs (the folder of the log file a run's report names): `git diff HEAD -- <the changed paths> >
-     "<that folder>/parked-Q<n>.patch"`, and a copy of each new file under `<that folder>/parked-Q<n>/`
-     (`git status --porcelain --untracked-files=all` lists both kinds). Then restore the tree
-     (`git restore --source=HEAD -- <path>`; delete a new file) until `git status --porcelain` shows nothing
-     but the state file and `.chapter-reviews.md`. Name the patch in your hand-back.
+     "<that folder>/parked-Q<n>.patch"`, and a copy of each new file under `<that folder>/parked-Q<n>/`, at
+     its path from the repository's root (`git status --porcelain --untracked-files=all` lists both kinds).
+     Then restore the tree (`git restore --source=HEAD -- <path>`; delete a new file) until
+     `git status --porcelain` shows nothing but the state file and `.chapter-reviews.md`. Write the entry
+     again (step 2) with the patch's full path at the end of its `WAITS FOR IT` line; your hand-back names it
+     there too.
    - **A test of a held task that stays red goes on the list of allowed failures:** `tdd put --section
      "Allowed failures" --key "<the test's name as the run prints it>" --value "parked: question Q<n>, red
      commit <commit>"`. From then on `tdd run` tells you whether any other test failed.
@@ -331,17 +362,25 @@ something needs the owner's decision (a dispute the spec and the design do not s
    you work. No answer comes to that message: go straight on. Your next hand-back repeats the entry under
    `QUESTIONS:`. Do not hand back for the question alone while other work is left.
 
-An entry of Open that you did not write holds its tasks for you too: an earlier runner's question, or a review
-finding the main session parked under the finding's id. Leave its tasks out in the same way, and enter a red
-test of theirs on the list (a held slice's acceptance test). An entry that starts with `answered:` holds
-nothing back: the main session wrote the owner's decision there, with the tasks still to do.
+An entry of Open that you did not write holds its tasks for you too: an earlier runner's question (its `WAITS
+FOR IT` line names them), or a review finding the main session parked under the finding's id (the part after
+`· waits:` names them). Leave its tasks out in the same way, and enter a red test of theirs on the list (a
+held slice's acceptance test). An entry that starts with `answered:` holds its tasks all the same (the entry
+as it stood is under that line, and still names them): the owner has decided, but the main session's edit of
+the spec or `design.md` and its commit come first.
 
-**When the answer is there** (the main session resumes you with `ANSWER: <the entry's key>: <the decision>`,
-your brief names tasks freed by that key, or Open's entry starts with `answered:` and names tasks of your
-chapter): do those tasks, in their order, by the same loops as any group. A test the decision makes wrong goes
-to the test-writer first, committed as another `red`; the implementer may start from the work that was set
-aside. As each task is done, take its test off the list: `tdd drop --section "Allowed failures" --key "<the
-test's name>"`. After the last task the entry held: `tdd drop --section Open --key "<the entry's key>"`.
+**When the answer is there.** A task is freed in two ways, and in no other: the main session resumes you with
+`ANSWER: <the entry's key>: <the decision>`, or your brief names tasks freed by that key (`CHAPTER: <name>:
+tasks <ids>, freed by <key>`). Then do those tasks, in their order, by the same loops as any group:
+
+- A test the decision makes wrong goes to the test-writer first, committed as another `red`.
+- **Work that was set aside is put back by you,** before the implementer is resumed for the task: `git apply
+  "<the patch>"`, and each new file copied from `<the patch's folder>/parked-Q<n>/` back to its path. Open's
+  entry names the patch. If the patch is gone, or `git apply` refuses it (it then changes nothing), put
+  nothing back and tell the implementer that it does that part again.
+- **A task's tests come off the list before the run that verifies its green,** so that a task that is not done
+  fails that run: `tdd drop --section "Allowed failures" --key "<the test's name>"`.
+- After the last task the entry held: `tdd drop --section Open --key "<the entry's key>"`.
 
 ## The chapter's end
 
@@ -356,8 +395,9 @@ After the chapter's last group (not in the acceptance chapter, which ends at its
    open questions are in Open: the section never restates either, so leave such a line out if a report has
    one.
 3. Mark the pair retired in Agents with their last token counts.
-4. Commit `--type docs --tag chapter --summary "<chapter>'s state"` with `--resume` naming the next chapter
-   and its first group (after the last chapter: that the apply's groups are done).
+4. Commit `--type docs --tag chapter --summary "<chapter>'s state"` with `--resume` saying that the chapter is
+   handed back for its review, and naming the next chapter and its first group (after the last chapter: that
+   the apply's groups are done; ended early: the groups that remain).
 5. Hand back `CHAPTER_DONE`. Tasks that wait for an answer do not change that: your hand-back names them.
 
 Stay as you are after handing back: the main session may resume you for a fix round, or with an answer.
@@ -376,9 +416,25 @@ PAIR: <the chapter's own | fresh>
 BASELINE: <run | done>                                   (a triage only)
 MAY FAIL: <none | one line per finding: <id> · <its red commit> · <its guard tests' names>>   (a triage only)
 CLOSE CHECKS: <no | since <commit>>                      (a triage only)
-FINDINGS:
-<none, or each finding: its id, kind, file and line, title, the defect, a failure scenario and a sketch>
+FINDINGS: <the ids>, as recorded in the reviews file, section "Chapter <X> review"       (/tdd-apply)
+FINDINGS:                                                (a triage; then, on the lines below it:)
+<none, or each finding's entry>
 ```
+
+In `/tdd-apply` the message names the findings by their ids. Their entries are in the reviews file, as the
+chapter's reviewer recorded them: read that section once, `tdd get --change <change> --file reviews --section
+"Chapter <X> review"`. A finding's entry there is its id line, `<id> · <severity> · <verdict> · <kind> ·
+<file>:<line> · …`, and the indented lines under it (`DEFECT`, `SCENARIO`, `FIX`, `VERIFIER`, `BUILDS ON IT`,
+and `MERGED` or `AFFECTS` when it has them). Pass each named finding's entry on to the agent as it is. A line
+`OWNER: <id>: …` under `FINDINGS` belongs to that finding's entry (below).
+
+A fresh runner of `/tdd-apply` gets the round in its brief, not in a resume: the chapter's brief with `START
+AT: the fix round below`, then the message. Then you run no group of the chapter: only the fix round and the
+round's end. An earlier runner may have begun the round: before the first finding, look in `git log --oneline`
+for commits with the round's `TAG` and one of the message's ids (`[<TAG>] <id>: …`). A finding whose last such
+commit ends `, red` has its guard test and no fix: take it first, at step 3 of a behaviour finding (ask the
+test-writer which tests that commit added). A finding whose fix is committed already needs only the verifying
+run and its record.
 
 In a triage the message is your whole brief, and three lines come before it: `PR: <id>`, `CHANGE: <change |
 none>` and `INTENT: <the files that say what the pull request is meant to do>`. There a finding's entry is
@@ -390,10 +446,11 @@ not open them.
 - **A merged group** is several findings with one cause, fixed as one. Its first line starts with its numbers
   (`3, 7 · …`), and it has one `FINDING` and one `REPORTS` line per number. Its id is `3, 7` wherever a
   finding's id stands: in the commits' summaries, in `--done "Finding 3, 7"` and as the record's key.
-- **An `OWNER:` line** in an entry carries a decision the owner has already taken on that finding, with the
-  commit that wrote it into a spec or the design when there is one. Fix the finding as the line says. If the
-  decision changes or adds an acceptance scenario, that scenario's test goes to the test-writer like any
-  guard test: such a finding is not handed back.
+- **An `OWNER:` line** in an entry (in `/tdd-apply`: `OWNER: <id>: …` under the `FINDINGS` line) carries a
+  decision the owner has already taken on that finding, with the commit that wrote it into a spec or the
+  design when there is one. Fix the finding as the line says. If the decision changes or adds an acceptance
+  scenario, that scenario's test goes to the test-writer like any guard test: such a finding is not handed
+  back.
 
 - **`TAG`** is the tag of every commit of the round, and each summary starts with the finding's id (in a
   triage its number): `--tag <TAG> --summary "<id>: <summary>"`.
@@ -416,20 +473,26 @@ not open them.
 3. Send the progress note `Baseline`.
 
 **The findings.** Take them one at a time, ordered by file. A finding that `MAY FAIL` names starts at step 3
-of a behaviour finding: its guard test is there. A finding's `MERGED` and `AFFECTS` lines go to the agents with
-it: a merged finding has a second place to fix, and findings whose fixes affect each other are taken one right
-after the other. By kind:
+of a behaviour finding: its guard test is there. The exception is one whose entry's `OWNER:` line names a plan
+commit: the owner's decision changed a spec or the design after that test was written, so the test-writer
+corrects the test first (step 1; committed as another `red` in step 2, and a test that needs no change gets no
+commit). A finding's `MERGED` and `AFFECTS` lines go to the agents with it: a merged finding has a second
+place to fix, and findings whose fixes affect each other are taken one right after the other. By kind:
 
 - **behaviour:**
   1. The test-writer writes **one guard test that reproduces the finding**, at the level
      `docs/conventions/testing.md` § Where tests live gives it. Never a new acceptance scenario: that is a
-     spec change, so hand the finding back for the owner.
+     spec change, so report the finding as `handed back: <why>` in your `FINDINGS` line and go on with the
+     next finding.
   2. Verify red as for a unit group and commit `--type test --tag <TAG> --summary "<id>: <summary>, red"
      --body "Guard test: <the test's full name as the test run prints it>"` (one such line per test: a
      round that stops here is restarted from this commit, and the line says which test may fail). A guard
      test that passes at once refutes the finding: keep it, commit it with the summary
      `"<id>: guard, passes"`, and report the finding as refuted by that test.
-  3. The implementer fixes it without changing any test. Verify green as for a unit group and commit
+  3. The implementer fixes it without changing any test. If the finding's guard test is on the list of allowed
+     failures (a finding that `MAY FAIL` names, or a blocked one whose answer has come), take it off before
+     the verifying run, so that a fix that fixes nothing fails the verification: `tdd drop --section "Allowed
+     failures" --key "<the test's name>"`. Verify green as for a unit group and commit
      `--type fix --tag <TAG> --summary "<id>: <summary>" --check green`.
   4. The implementer returns `BLOCKED` (the test looks wrong): do not judge it alone, and do not stop the
      round. It is a question for the owner, parked as § A question for the owner says: the findings that
@@ -437,23 +500,44 @@ after the other. By kind:
      again; the red guard test stays and goes on the list of allowed failures, with the value `"blocked
      finding <id>, red commit <commit>"`; and the round goes on with the other findings.
   5. The answer to a blocked finding comes as `ANSWER: Q<n>: fix now: …`, `declined: …` or `deferred: …`.
-     **Fix now:** a wrong test goes to the test-writer first, committed as another `red`; then step 3, and
-     the implementer may start from the work set aside. **Declined or deferred:** `git revert --no-commit`
-     for each of the finding's `red` commits, newest first, committed `--type test --tag <TAG> --summary
-     "<id>: guard removed, declined"` (or `deferred`). Its `--body` is the outcome in one line, `Declined by
-     the owner: <the reason>` or `Deferred to <where>`: in a triage that line is the reply the finding's
-     thread gets, and a round that stops here takes it from this commit. Either way the test comes off the
-     list and the question out of Open (`tdd drop`), and the findings that waited for it are done next.
+     - **If you are not the runner that parked the question** (a fresh runner, a restart), the finding's
+       entry stands under that line: in a triage its short entry, in `/tdd-apply` the line `FINDING: <id>,
+       as recorded in the reviews file, section "Chapter <X> review"` (read it there, as above). The two
+       lines may then stand at the end of a fix-round message, after its `FINDINGS`: that message gives you
+       the round's `TAG` and `RECORD`, and you take the answer after the message's findings. Open's entry
+       `Q<n>` names the patch of the work set aside, and `git log --oneline` shows the finding's `red`
+       commits: their summaries start with `<id>:` and end with `, red`.
+     - **Fix now:** a wrong test goes to the test-writer first, committed as another `red`. Then put the work
+       set aside back (§ A question for the owner, When the answer is there) and go on at step 3.
+     - **Declined or deferred:** take the guard test out with `tdd unguard --tag <TAG> --id "<id>" --red <the
+       finding's red commits, with commas between them> --outcome <declined|deferred> --body "<the outcome
+       in one line>" --resume "<text>" --done "Finding <id>"`. It reverses those commits in every file but
+       the state file, the reviews file and `tasks.md`, and commits `test(<scope>): [<TAG>] <id>: guard
+       removed, <outcome>`. Never `git revert`: it would take the state file back too. The `--body` is
+       `Declined by the owner: <the reason>` or `Deferred to <where>`: in a triage that line is the reply the
+       finding's thread gets, and a round that stops here takes it from this commit. A refusal changes
+       nothing and names its cause. If the cause is that the reverse does not apply cleanly (a later commit
+       changed the same lines), the test-writer takes the guard test out by hand, and you commit that with
+       `tdd commit --type test --tag <TAG> --summary "<id>: guard removed, <outcome>"` and the same body.
+       Then take the test off the list of allowed failures (`tdd drop`).
+     - Either way the question comes out of Open (`tdd drop --section Open --key "Q<n>"`), and the findings
+       that waited for it are done next.
 - **test-quality:** the test-writer alone. Verify the suite. Commit `--type test --tag <TAG>`.
 - **docs** or **cleanup:** the implementer alone, verified as a green. Commit `--type docs` or
-  `--type refactor`, `--tag <TAG> --check green`. A docs finding under `openspec/` is not yours and not the
-  implementer's: report it back to the main session.
+  `--type refactor`, `--tag <TAG> --check green`. Two exceptions:
+  - A finding in test code (what the implementer may not touch: a file under `tests/`, a `*.test.*` file, the
+    frontend's test helpers) goes to the test-writer alone. Verify the suite and commit the same way, without
+    `--check`.
+  - A docs finding under `openspec/` is not yours and not the implementer's: report it as `handed back:
+    <why>` in your `FINDINGS` line and go on with the next finding.
 
 Pass `--done "Finding <id>"` to each finding's last commit and send the progress note. Then record the
 finding's outcome: `tdd put <RECORD's options> --key "<id>" --value "<file:line> · <title> · <outcome> ·
-<commits>"`, the outcome in the words of your hand-back's `FINDINGS` line. A finding that ends without a fix
-(blocked, waiting, handed back) is recorded the same way and gets no progress note. Then replace an agent that
-is past its budget (§ The two agents).
+<commits>"`, the outcome in the words of your hand-back's `FINDINGS` line, and `—` for a finding without a
+commit. In a triage the value ends ` · reply owed`: the record there has a fifth field, and the main session
+writes the reply over it when it has posted it. A finding that ends without a fix (blocked, waiting, handed
+back) is recorded the same way and gets no progress note. Then replace an agent that is past its budget
+(§ The two agents).
 
 **The close checks** (`CLOSE CHECKS: since <commit>`), after the last finding, each through `tdd run`:
 
@@ -473,10 +557,11 @@ A check that fails is reported in your hand-back, with what failed: change nothi
 progress note `Close checks`.
 
 **The round's end.** In `/tdd-apply`: run the full suite, update "What the code holds now" if a fix changed
-it, and commit the state with the tag `chapter`. In a triage: run the full suite, unless the close checks just
+it, and commit the state with the tag `chapter`, its `--resume` saying that the chapter's fix round is handed
+back and which of its findings are not fixed. In a triage: run the full suite, unless the close checks just
 did, and commit nothing more: the main session commits the state file when it closes the triage. Then hand
 back `FIX_ROUND_DONE`. With `FINDINGS: none` the round is only the baseline or the close checks the message
-asks for.
+asks for, and an answer that stands at the message's end (step 5).
 
 ## Hand-backs
 
@@ -503,7 +588,7 @@ without reading anything more:
 Q<n>: <the question, in one sentence that can be read on its own>
   OPTIONS: <two to four answers, a few words each; first the one you recommend, with its reason>
   DETAIL: <both sides, and the passage: file, heading, the lines>
-  HOLDS: <the tasks or findings that wait for the answer; the patch of any work you set aside>
+  WAITS FOR IT: <the tasks or findings that wait for the answer; the patch of any work you set aside>
 ```
 
 - `GATE_READY` adds: `TESTS:` one line per scenario, `<capability> / <scenario> → <test, frontend test or
@@ -526,11 +611,12 @@ Q<n>: <the question, in one sentence that can be read on its own>
 ## Rules
 
 - Never edit a file yourself. The state file changes only through `tdd`. Restoring or deleting a file the
-  implementer was not allowed to touch, restoring the tree after you set a held task's work aside, and
-  reverting a declined finding's guard test are the only changes you make to the working tree.
+  implementer was not allowed to touch, restoring the tree after you set a held task's work aside, putting
+  that work back when the task is freed, and taking a declined or deferred finding's guard test out with `tdd
+  unguard` are the only changes you make to the working tree.
 - Always run the tests yourself before you accept a report from the test-writer or the implementer.
 - Commit only on the change branch (in a triage: the pull request's branch), at the handoffs above, through
-  `tdd commit`.
+  `tdd commit` or `tdd unguard`.
 - You cannot ask the owner anything. Whatever needs the owner goes into a hand-back, and a question is parked
   first (§ A question for the owner).
 - If a tool you need is missing (Agent, SendMessage), hand back `BLOCKED` at once and say which. Waiting

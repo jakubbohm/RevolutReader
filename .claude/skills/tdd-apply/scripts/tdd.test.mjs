@@ -1,12 +1,13 @@
-// Tests for tdd.mjs: its pure functions, and every command run as the orchestrator runs it, `node tdd.mjs …`, in a
-// throwaway git repository in the OS temp folder (a made-up change with its tasks, some code and a test). Nothing
-// here reaches the network, Docker or the real code graph: the graph's command line is switched off
-// (TDD_NO_GRAPH=1) or replaced by a small fake (TDD_GRAPH_CLI), and the commands `run` wraps are Node one-liners
-// and, for the Windows shim, npm running a script of a made-up package. Every name, text and path is made up.
+// Tests for tdd.mjs: its pure functions, and every command run as the main session, the runner and their agents
+// run it, `node tdd.mjs …`, in a throwaway git repository in the OS temp folder (a made-up change with its tasks,
+// some code and a test). Nothing here reaches the network, Docker or the real code graph: the graph's command
+// line is switched off (TDD_NO_GRAPH=1) or replaced by a small fake (TDD_GRAPH_CLI), and the commands `run` wraps
+// are Node one-liners and, for the Windows shim, npm running a script of a made-up package. Every name, text and
+// path is made up.
 //
-// The apply's commands come first, then what both skills share (`drop`, the progress line, `route`, the tests
-// allowed to fail), then a triage (`triage-init`, the commands with `--pr`), then the lock. The lock's waiting and
-// its stale age are cut short with TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS.
+// The apply's commands come first, then what both skills share (`drop`, the progress line, `route`, `report`,
+// `unguard`, the tests allowed to fail), then a triage (`triage-init`, the commands with `--pr`), then the lock.
+// The lock's waiting and its stale age are cut short with TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS.
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
@@ -22,10 +23,11 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { basename, join, sep } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
@@ -43,6 +45,7 @@ import {
 import {
   changeScope,
   commitMessage,
+  isRedCommit,
   logFileName,
   newlines,
   progressLine,
@@ -152,7 +155,7 @@ function repository(t) {
   return dir;
 }
 
-// Runs the script as the orchestrator does. The code graph is switched off unless a test's `env` says otherwise.
+// Runs the script as its callers do. The code graph is switched off unless a test's `env` says otherwise.
 function tdd(cwd, args, { env = {}, input } = {}) {
   // npm, which one `run` test wraps, must not look for its own updates: no test reaches the network.
   const quiet = { TDD_NO_GRAPH: "1", TDD_GRAPH_CLI: "", NPM_CONFIG_UPDATE_NOTIFIER: "false" };
@@ -410,6 +413,38 @@ describe("commitMessage", () => {
   });
 });
 
+describe("isRedCommit", () => {
+  test("takes the red commit of a finding's guard test: the round's tag, the finding's id first, `, red` last", () => {
+    assert.equal(isRedCommit("test(c900): [review] 3: A made-up guard, red", "review", "3"), true);
+    assert.equal(isRedCommit("test(c900): [chapter-review] B-1: A made-up guard, red", "chapter-review", "B-1"), true);
+    assert.equal(isRedCommit("test(i900): [review] 3, 7: One guard for both, red", "review", "3, 7"), true);
+    assert.equal(isRedCommit("test(c900): [review] 3: A guard: with a colon, and a comma, red", "review", "3"), true);
+  });
+
+  test("takes the tag with or without its brackets, and the id with spaces around it", () => {
+    assert.equal(isRedCommit("test(c900): [review] 3: A made-up guard, red", "[review]", " 3 "), true);
+  });
+
+  test("takes no commit of another finding, of another tag, or one that is not red", () => {
+    const not = (subject, tag = "review", id = "3") => assert.equal(isRedCommit(subject, tag, id), false, subject);
+
+    not("test(c900): [review] 13: A made-up guard, red");
+    not("test(c900): [review] 3, 7: One guard for both, red");
+    not("test(c900): [review] 3: One guard for both, red", "review", "3, 7");
+    not("test(c900): [review] 4: A guard that names finding 3: there, red");
+    not("test(c900): [chapter-review] 3: A made-up guard, red");
+    not("test(c900): [red] 3: A made-up guard, red");
+    not("fix(c900): [review] 3: A made-up fix");
+    not("test(c900): [review] 3: guard, passes");
+    not("test(c900): [review] 3: guard removed, declined");
+    not("test(c900): [review] 3: A made-up guard, red, again");
+    not("3: A made-up guard, red");
+    not("chore: the made-up repository");
+    not("");
+    not(undefined);
+  });
+});
+
 describe("logFileName", () => {
   test("is the local time to the second and the label", () => {
     assert.equal(logFileName("unit", new Date(2026, 10, 23, 9, 5, 7)), "20261123-090507-unit.log");
@@ -593,11 +628,18 @@ describe("how the script is called", { concurrency: true }, () => {
     for (const command of ["init", "get", "set", "add", "put", "check", "commit", "index", "run"]) {
       assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
     }
-    for (const command of ["triage-init", "drop", "route", "progress"]) {
+    for (const command of ["triage-init", "drop", "route", "progress", "unguard", "report"]) {
       assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
     }
     for (const option of ["--agent-review", "--human-test-review", "--after-chapter", "--pr <id>", "--done"]) {
       assert.ok(r.out.includes(option), option);
+    }
+    for (const line of [
+      "  unguard      --tag <step> --id <id> --red <commit>[,<commit>...] --outcome <declined|deferred> --body <text>\n" +
+        "               [--resume <text>] [--done <step text>]\n",
+      "  report       --file <absolute path> --stdin\n",
+    ]) {
+      assert.ok(r.out.includes(line), line);
     }
   });
 
@@ -609,7 +651,8 @@ describe("how the script is called", { concurrency: true }, () => {
 
       assert.ok(
         r.err.includes(
-          "the commands are: init, triage-init, get, set, add, put, drop, check, commit, index, run, route, progress",
+          "the commands are: init, triage-init, get, set, add, put, drop, check, commit, unguard, index, run, route, " +
+            "report, progress",
         ),
         r.err,
       );
@@ -1335,7 +1378,7 @@ describe("check", { concurrency: true }, () => {
     ]);
   });
 
-  test("lets the orchestrator's own two files through", async (t) => {
+  test("lets the bookkeeping's own two files through", async (t) => {
     const dir = await initialized(t);
     await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
 
@@ -2388,6 +2431,533 @@ describe("commit --done", { concurrency: true }, () => {
   });
 });
 
+describe("unguard", { concurrency: true }, () => {
+  const GUARD = "tests/App.UnitTests/GuardTests.cs";
+  const TESTS = "tests/App.UnitTests/MappingTests.cs";
+  const short = async (dir) => (await lastCommit(dir)).sha.slice(0, 7);
+
+  // Commits through the script, as the runner does, and answers the new commit's short hash. `whose` is
+  // `withChange` or `withPr`.
+  async function committed(dir, whose, options) {
+    const r = await tdd(dir, whose("commit", options));
+    assert.equal(r.code, 0, r.err);
+    return short(dir);
+  }
+
+  // The red commit of a finding's guard test: a test file it adds and one it changes. `more` are further options
+  // of the commit, such as `resume`, with which the commit carries the state file too.
+  async function redCommit(dir, whose, tag, id, more = {}) {
+    write(dir, GUARD, "// the guard test of a made-up finding\n");
+    write(dir, TESTS, "// a test\n// and a helper the guard test needs\n");
+    return committed(dir, whose, {
+      type: "test",
+      tag,
+      summary: `${id}: A made-up guard, red`,
+      body: "Guard test: A_made_up_guard_test",
+      ...more,
+    });
+  }
+
+  // An apply in a chapter's fix round: the state file is committed, finding B-1's guard test is red (its commit
+  // carried the state file), a later commit fixed another finding and changed the state file again, and the state
+  // file has a change that is not committed. `git revert` of the red commit is refused here.
+  async function fixRound(t) {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    const red = await redCommit(dir, withChange, "chapter-review", "B-1", { resume: "Finding B-1: its guard is red." });
+    write(dir, "src/App/Mapping.cs", "// the fix of another finding\n");
+    await committed(dir, withChange, {
+      type: "fix",
+      tag: "chapter-review",
+      summary: "B-2: Another made-up fix",
+      resume: "Finding B-3 is next.",
+    });
+    const put = await tdd(dir, withChange("put", { section: "Open", key: "Q1", value: "answered: decline B-1" }));
+    assert.equal(put.code, 0, put.err);
+    return { dir, red };
+  }
+
+  const declined = (red, more = {}) =>
+    withChange("unguard", {
+      tag: "chapter-review",
+      id: "B-1",
+      red,
+      outcome: "declined",
+      body: "Declined by the owner: the case cannot happen.",
+      ...more,
+    });
+
+  // What a refused `unguard` must leave as it was: the last commit, what git reports as changed, the state file
+  // and the guard test's two files.
+  const stands = async (dir) => ({
+    head: (await lastCommit(dir)).sha,
+    status: await status(dir),
+    state: existsSync(join(dir, STATE)) ? read(dir, STATE) : null,
+    guard: existsSync(join(dir, GUARD)) ? read(dir, GUARD) : null,
+    tests: read(dir, TESTS),
+  });
+  const refused = (r, pattern) => {
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.out, "");
+    assert.match(r.err, pattern);
+    assert.ok(oneLine(r.err), r.err);
+  };
+
+  test("takes the guard test out and leaves the state file alone: its uncommitted change, and what a later commit did to it", async (t) => {
+    const { dir, red } = await fixRound(t);
+    const before = await stands(dir);
+    const revert = await started("git", ["revert", "--no-commit", red], { cwd: dir });
+    assert.notEqual(revert.code, 0, "git revert is refused here: the red commit carried the state file");
+    assert.deepEqual(await stands(dir), before);
+
+    const r = await tdd(dir, declined(red));
+
+    assert.equal(r.code, 0, r.err);
+    const made = await lastCommit(dir);
+    assert.equal(
+      r.out,
+      `${made.sha.slice(0, 7)} test(c900): [chapter-review] B-1: guard removed, declined | reversed ${red} | ` +
+        "graph: skipped\n",
+    );
+    assert.equal(
+      made.message,
+      "test(c900): [chapter-review] B-1: guard removed, declined\n\nDeclined by the owner: the case cannot happen.",
+    );
+    assert.deepEqual(made.files, [GUARD, TESTS]);
+    assert.equal((await git(dir, "rev-parse", "HEAD~1")).trim(), before.head);
+    assert.equal(existsSync(join(dir, GUARD)), false, "the file the red commit added is deleted");
+    assert.equal(read(dir, TESTS), "// a test\n", "the file it changed is restored");
+    assert.equal(read(dir, STATE), before.state, "the state file keeps every byte");
+    assert.equal(sectionBody(before.state, "Resume here"), "Finding B-3 is next.");
+    assert.equal(keyValue(before.state, "Open", "Q1"), "answered: decline B-1");
+    assert.deepEqual(await status(dir), [` M ${STATE}`]);
+    assert.equal(read(dir, "src/App/Mapping.cs"), "// the fix of another finding\n", "the later commit's work stays");
+    assert.deepEqual(readdirSync(gitFolder(dir)), [], "no lock and no index of its own is left");
+  });
+
+  test("with --resume, then writes `Resume here` and commits the state file with the rest, as commit does; with --done, prints the progress line", async (t) => {
+    const { dir, red } = await fixRound(t);
+    await tdd(dir, withChange("put", { section: "Run", key: "Commit trailers", value: "A-Trailer: one" }));
+    const before = clock();
+
+    const r = await tdd(
+      dir,
+      declined(red, { outcome: "deferred", resume: "Finding B-3 is next.\\nB-1 is settled.", done: "Finding B-1" }),
+    );
+
+    assert.equal(r.code, 0, r.err);
+    const [line, progress, ...rest] = r.out.trimEnd().split("\n");
+    assert.match(
+      line,
+      new RegExp(
+        `^[0-9a-f]{7} test\\(c900\\): \\[chapter-review\\] B-1: guard removed, deferred \\| reversed ${red} \\| graph: skipped$`,
+      ),
+    );
+    assert.ok(
+      [before, clock()].includes(/^progress: Finding B-1 completed at (\d\d:\d\d)$/.exec(progress)?.[1]),
+      r.out,
+    );
+    assert.deepEqual(rest, []);
+    const made = await lastCommit(dir);
+    assert.equal(
+      made.message,
+      "test(c900): [chapter-review] B-1: guard removed, deferred\n\nDeclined by the owner: the case cannot happen.\n\n" +
+        "A-Trailer: one",
+    );
+    assert.deepEqual(made.files, [STATE, GUARD, TESTS].sort());
+    const state = read(dir, STATE);
+    assert.equal(sectionBody(state, "Resume here"), "Finding B-3 is next.\nB-1 is settled.");
+    assert.equal(keyValue(state, "Open", "Q1"), "answered: decline B-1", "what was not committed is, with the rest");
+    assert.deepEqual(await status(dir), []);
+  });
+
+  test("never reverses what the red commit did to the reviews file and to tasks.md", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    await tdd(dir, withChange("add", { file: "reviews", section: "Chapter B", line: "B-1: confirmed, to fix" }));
+    const red = await redCommit(dir, withChange, "chapter-review", "B-1", { tick: "5.1", resume: "B-1: red." });
+    assert.deepEqual((await lastCommit(dir)).files, [REVIEWS, STATE, TASKS, GUARD, TESTS].sort());
+    const kept = { reviews: read(dir, REVIEWS), tasks: read(dir, TASKS), state: read(dir, STATE) };
+
+    const r = await tdd(dir, declined(red));
+
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual((await lastCommit(dir)).files, [GUARD, TESTS]);
+    assert.deepEqual({ reviews: read(dir, REVIEWS), tasks: read(dir, TASKS), state: read(dir, STATE) }, kept);
+    assert.ok(kept.tasks.includes("- [x] 5.1 A balance"));
+    assert.deepEqual(await status(dir), []);
+  });
+
+  for (const order of ["oldest first", "newest first", "one by one"]) {
+    test(`reverses two red commits of one finding, the newest first, whichever order they are given in (${order})`, async (t) => {
+      const { dir, red } = await fixRound(t);
+      write(dir, GUARD, "// the guard test of a made-up finding, corrected\n");
+      write(dir, "tests/App.UnitTests/GuardData.cs", "// what the corrected guard test reads\n");
+      const again = await committed(dir, withChange, {
+        type: "test",
+        tag: "chapter-review",
+        summary: "B-1: The guard corrected, red",
+        path: [GUARD, "tests/App.UnitTests/GuardData.cs"],
+      });
+      const given = {
+        "oldest first": `${red},${again}`,
+        "newest first": `${again}, ${red}`,
+        "one by one": [red, again],
+      };
+
+      const r = await tdd(dir, declined(given[order]));
+
+      assert.equal(r.code, 0, r.err);
+      assert.match(r.out, new RegExp(` \\| reversed ${again}, ${red} \\| graph: skipped\\n$`));
+      assert.deepEqual((await lastCommit(dir)).files, ["tests/App.UnitTests/GuardData.cs", GUARD, TESTS].sort());
+      assert.equal(existsSync(join(dir, GUARD)), false);
+      assert.equal(existsSync(join(dir, "tests/App.UnitTests/GuardData.cs")), false);
+      assert.equal(read(dir, TESTS), "// a test\n");
+      assert.deepEqual(await status(dir), [` M ${STATE}`]);
+    });
+  }
+
+  test("names a commit once when it is given twice, by its short and by its whole hash", async (t) => {
+    const { dir, red } = await fixRound(t);
+    const whole = (await git(dir, "rev-parse", red)).trim();
+
+    const r = await tdd(dir, declined([red, whole, red.toUpperCase()]));
+
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, new RegExp(` \\| reversed ${red} \\| graph: skipped\\n$`));
+  });
+
+  test("leaves whatever else is changed or staged as it is", async (t) => {
+    const { dir, red } = await fixRound(t);
+    write(dir, "src/App/Other.cs", "// someone's work in progress\n");
+    write(dir, "src/App/Staged.cs", "// staged by someone before\n");
+    await git(dir, "add", "src/App/Staged.cs");
+    write(dir, "src/App/Mapping.cs", "// the fix of another finding, being changed\n");
+
+    const r = await tdd(dir, declined(red));
+
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual((await lastCommit(dir)).files, [GUARD, TESTS]);
+    assert.deepEqual(await status(dir), [
+      ` M ${STATE}`,
+      " M src/App/Mapping.cs",
+      "A  src/App/Staged.cs",
+      "?? src/App/Other.cs",
+    ]);
+  });
+
+  test("restores a file that is no text byte for byte, and one whose line breaks git converts", async (t) => {
+    const dir = await initialized(t);
+    await git(dir, "config", "core.autocrlf", "true");
+    const bytes = Buffer.from([0xff, 0xfe, 0x00, 0x80, 0x0d, 0x0a, 0x0a, 0x0d, 0xc3, 0x28]);
+    writeFileSync(join(dir, "tests/App.UnitTests/Sample.bin"), bytes);
+    write(dir, "tests/App.UnitTests/Windows.cs", "// one\r\n// two\r\n// three\r\n");
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and two files" });
+    writeFileSync(join(dir, "tests/App.UnitTests/Sample.bin"), Buffer.from([0x00, 0xff, 0x80, 0x0a]));
+    writeFileSync(join(dir, "tests/App.UnitTests/Added.bin"), Buffer.from([0x80, 0x00, 0xfe]));
+    write(dir, "tests/App.UnitTests/Windows.cs", "// one\r\n// two, changed\r\n// three\r\n// four\r\n");
+    const red = await committed(dir, withChange, { type: "test", tag: "chapter-review", summary: "B-1: A guard, red" });
+
+    const r = await tdd(dir, declined(red));
+
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(readFileSync(join(dir, "tests/App.UnitTests/Sample.bin")), bytes);
+    assert.equal(existsSync(join(dir, "tests/App.UnitTests/Added.bin")), false);
+    assert.equal(read(dir, "tests/App.UnitTests/Windows.cs"), "// one\r\n// two\r\n// three\r\n");
+    assert.deepEqual(await status(dir), []);
+  });
+
+  for (const of of ["change", "none"]) {
+    test(`works in a triage, for a merged group's id, and leaves the triage's state file alone (${of})`, async (t) => {
+      const { dir, state } = await triaging(t, of);
+      await tdd(dir, withPr("put", { section: "Run", key: "Commit trailers", value: "A-Trailer: one" }));
+      const red = await redCommit(dir, withPr, "review", "3, 7", { resume: "Findings 3, 7: the guard is red." });
+      write(dir, "src/App/Mapping.cs", "// the fix of another finding\n");
+      await committed(dir, withPr, {
+        type: "fix",
+        tag: "review",
+        summary: "4: Another made-up fix",
+        resume: "5 is next.",
+      });
+      await tdd(dir, withPr("put", { section: "Round 1", key: "3, 7", value: "src/a.cs:19 · A title · blocked, Q1" }));
+      const before = readFileSync(state, "utf8");
+
+      const r = await tdd(
+        dir,
+        withPr("unguard", {
+          tag: "review",
+          id: "3, 7",
+          red,
+          outcome: "deferred",
+          body: "Deferred to #123",
+          done: "Finding 3, 7",
+        }),
+      );
+
+      assert.equal(r.code, 0, r.err);
+      const scope = of === "change" ? "c900" : "i900";
+      const made = await lastCommit(dir);
+      assert.match(
+        r.out,
+        new RegExp(
+          `^${made.sha.slice(0, 7)} test\\(${scope}\\): \\[review\\] 3, 7: guard removed, deferred \\| reversed ${red} \\| ` +
+            "graph: skipped\\nprogress: Finding 3, 7 completed at \\d\\d:\\d\\d\\n$",
+        ),
+      );
+      assert.equal(
+        made.message,
+        `test(${scope}): [review] 3, 7: guard removed, deferred\n\nDeferred to #123\n\nA-Trailer: one`,
+      );
+      assert.deepEqual(made.files, [GUARD, TESTS]);
+      assert.equal(existsSync(join(dir, GUARD)), false);
+      assert.equal(read(dir, TESTS), "// a test\n");
+      assert.equal(readFileSync(state, "utf8"), before, "the triage's state file keeps every byte");
+      assert.deepEqual(await status(dir), of === "change" ? [` M ${TRIAGE}`] : []);
+    });
+  }
+
+  test("in a triage, --resume writes the triage's `Resume here`, and commits its state file only when that is the working tree's", async (t) => {
+    for (const of of ["change", "none"]) {
+      const { dir, state } = await triaging(t, of);
+      const red = await redCommit(dir, withPr, "review", "3");
+
+      const r = await tdd(
+        dir,
+        withPr("unguard", {
+          tag: "[review]",
+          id: "3",
+          red,
+          outcome: "declined",
+          body: "Declined by the owner: no.",
+          resume: "Finding 4 is next.",
+        }),
+      );
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(sectionBody(readFileSync(state, "utf8"), "Resume here"), "Finding 4 is next.");
+      assert.deepEqual((await lastCommit(dir)).files, of === "change" ? [TRIAGE, GUARD, TESTS].sort() : [GUARD, TESTS]);
+      assert.deepEqual(await status(dir), []);
+    }
+  });
+
+  describe("refuses, in one line, with nothing changed", { concurrency: true }, () => {
+    test("a commit that is not a red commit of that tag and id", async (t) => {
+      const { dir, red } = await fixRound(t);
+      const fix = await short(dir);
+      write(dir, "tests/App.UnitTests/OtherGuardTests.cs", "// the guard test of another finding\n");
+      const other = await committed(dir, withChange, {
+        type: "test",
+        tag: "chapter-review",
+        summary: "B-3: Another guard, red",
+        path: "tests/App.UnitTests/OtherGuardTests.cs",
+      });
+      const before = await stands(dir);
+      const not = (hash, subject, tag = "chapter-review", id = "B-1") =>
+        new RegExp(
+          `^ERROR: nothing was changed: --red ${hash} is not a red commit of finding ${id} with the tag ${tag}; ` +
+            `its subject is "${subject}"\\n$`,
+        );
+
+      refused(
+        await tdd(dir, declined(other)),
+        not(other, "test\\(c900\\): \\[chapter-review\\] B-3: Another guard, red"),
+      );
+      refused(await tdd(dir, declined(fix)), not(fix, "fix\\(c900\\): \\[chapter-review\\] B-2: Another made-up fix"));
+      refused(await tdd(dir, declined([red, other])), not(other, ".+"));
+      refused(await tdd(dir, declined(red, { tag: "review" })), not(red, ".+", "review"));
+      refused(await tdd(dir, declined(red, { id: "B-10" })), not(red, ".+", "chapter-review", "B-10"));
+      refused(await tdd(dir, declined(red, { id: "B" })), not(red, ".+", "chapter-review", "B"));
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    });
+
+    test("a hash that names no commit, something that is no hash, and a commit of another branch", async (t) => {
+      const { dir, red } = await fixRound(t);
+      // A red commit of the same finding that the branch does not hold: made on `main`, with no checkout.
+      const subject = "test(c900): [chapter-review] B-1: A guard elsewhere, red";
+      const elsewhere = (await git(dir, "commit-tree", "HEAD^{tree}", "-p", "main", "-m", subject)).trim().slice(0, 7);
+      const before = await stands(dir);
+      const names = (name) =>
+        new RegExp(
+          `^ERROR: nothing was changed: --red ${name} names no commit; give each red commit's hash, as commit ` +
+            "printed it\\n$",
+        );
+
+      refused(await tdd(dir, declined("0123abc")), names("0123abc"));
+      refused(await tdd(dir, declined("HEAD~1")), names("HEAD~1"));
+      refused(await tdd(dir, declined(`${red},main`)), names("main"));
+      refused(
+        await tdd(dir, declined(elsewhere)),
+        new RegExp(`^ERROR: nothing was changed: --red ${elsewhere} is not a commit of the current branch\\n$`),
+      );
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("a red commit that changed nothing but the bookkeeping's own files", async (t) => {
+      const dir = await initialized(t);
+      await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+      await tdd(dir, withChange("add", { file: "reviews", section: "Chapter B", line: "B-1: confirmed" }));
+      const empty = await committed(dir, withChange, {
+        type: "test",
+        tag: "chapter-review",
+        summary: "B-1: Nothing but the records, red",
+        tick: "5.1",
+        resume: "B-1: red.",
+      });
+      const red = await redCommit(dir, withChange, "chapter-review", "B-1");
+      const before = await stands(dir);
+
+      const r = await tdd(dir, declined([red, empty]));
+
+      refused(
+        r,
+        new RegExp(
+          `^ERROR: nothing was changed: --red ${empty} holds no guard test; it changed only the bookkeeping's own ` +
+            "files \\(the state file, the reviews file, tasks\\.md\\), which are never reversed\\n$",
+        ),
+      );
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    });
+
+    test("a reverse that does not apply cleanly: a later commit changed the guard test", async (t) => {
+      const { dir, red } = await fixRound(t);
+      write(dir, GUARD, "// the guard test of a made-up finding, changed by a later commit\n");
+      await committed(dir, withChange, {
+        type: "test",
+        tag: "chapter-review",
+        summary: "B-4: A test reworked",
+        path: GUARD,
+      });
+      const before = await stands(dir);
+
+      const r = await tdd(dir, declined(red));
+
+      refused(
+        r,
+        new RegExp(
+          `^ERROR: nothing was changed: the reverse of ${red} does not apply cleanly; git says: .*GuardTests\\.cs.*\\n$`,
+        ),
+      );
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    });
+
+    test("a reverse that does not apply cleanly: the guard test has uncommitted changes, or a file it would bring back is there", async (t) => {
+      const { dir, red } = await fixRound(t);
+      write(dir, GUARD, "// the guard test of a made-up finding, being edited\n");
+      const edited = await stands(dir);
+
+      const dirty = await tdd(dir, declined(red));
+
+      refused(
+        dirty,
+        new RegExp(
+          `^ERROR: nothing was changed: the reverse does not apply cleanly; uncommitted changes in ${GUARD}\\n$`,
+        ),
+      );
+      assert.deepEqual(await stands(dir), edited);
+
+      await git(dir, "checkout", "--", GUARD);
+      await git(dir, "rm", "--quiet", "src/App/Mapping.cs");
+      const back = await committed(dir, withChange, {
+        type: "test",
+        tag: "chapter-review",
+        summary: "B-5: A file removed, red",
+      });
+      write(dir, "src/App/Mapping.cs", "// written anew, and not committed\n");
+      const untracked = await stands(dir);
+
+      const there = await tdd(dir, declined(back, { id: "B-5" }));
+
+      refused(
+        there,
+        /^ERROR: nothing was changed: the reverse does not apply cleanly; uncommitted changes in src\/App\/Mapping\.cs\n$/,
+      );
+      assert.deepEqual(await stands(dir), untracked);
+      assert.equal(read(dir, "src/App/Mapping.cs"), "// written anew, and not committed\n");
+    });
+
+    test("a call without its options, an outcome it does not know, and a text that the state file cannot hold", async (t) => {
+      const { dir, red } = await fixRound(t);
+      const before = await stands(dir);
+      const all = { tag: "chapter-review", id: "B-1", red, outcome: "declined", body: "Declined by the owner: no." };
+      const without = (name, more = {}) => withChange("unguard", { ...all, [name]: [], ...more });
+
+      for (const [args, message] of [
+        [without("red"), "unguard needs --red <commit>[,<commit>...]: the hashes of the finding's red commits"],
+        [
+          without("red", { red: " , " }),
+          "unguard needs --red <commit>[,<commit>...]: the hashes of the finding's red commits",
+        ],
+        [without("id"), "unguard needs --id <id>: the finding's id, as its red commits' summaries start with it"],
+        [
+          without("id", { id: " " }),
+          "unguard needs --id <id>: the finding's id, as its red commits' summaries start with it",
+        ],
+        [without("outcome"), "--outcome is one of: declined, deferred"],
+        [without("outcome", { outcome: "refuted" }), "--outcome is one of: declined, deferred"],
+        [
+          without("body"),
+          'unguard needs --body <text>: the outcome in one line, such as "Declined by the owner: <the reason>"',
+        ],
+        [without("tag"), "--tag is the step's name, such as red, green, wire or close"],
+        [
+          without("done", { done: " " }),
+          "--done is the step's name on one line, such as Baseline or Chapter B, slice 3",
+        ],
+        [without("resume", { resume: "Next.\\n## Sneaky" }), null],
+      ]) {
+        const r = await tdd(dir, args);
+
+        assert.equal(r.code, 1, args.join(" "));
+        assert.equal(r.out, "");
+        if (message !== null) assert.equal(r.err, `ERROR: ${message}\n`);
+        assert.ok(oneLine(r.err), r.err);
+      }
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    });
+
+    test("on main, as commit is, in the words of whose branch it is", async (t) => {
+      const dir = repository(t);
+      await git(dir, "checkout", "--quiet", "main");
+      const triage = await triaging(t, "none");
+      await git(triage.dir, "checkout", "--quiet", "main");
+
+      const apply = await tdd(dir, declined("0123abc"));
+      const pr = await tdd(
+        triage.dir,
+        withPr("unguard", { tag: "review", id: "3", red: "0123abc", outcome: "declined", body: "x" }),
+      );
+
+      assert.equal(apply.err, "ERROR: unguard works on the change's branch, and this is main\n");
+      assert.equal(pr.err, "ERROR: unguard works on the PR's branch, and this is main\n");
+    });
+
+    test("when git refuses the commit, here a hook: the guard test is put back, and `Resume here` too", async (t) => {
+      const { dir, red } = await fixRound(t);
+      write(dir, ".git/hooks/commit-msg", "#!/bin/sh\necho 'made-up hook: the message is refused' >&2\nexit 1\n");
+      chmodSync(join(dir, ".git/hooks/commit-msg"), 0o755);
+      const before = await stands(dir);
+
+      const r = await tdd(dir, declined(red, { resume: "B-1 is settled." }));
+
+      refused(
+        r,
+        /^ERROR: nothing was changed: no commit was made; git commit failed: .*made-up hook: the message is refused/,
+      );
+      assert.deepEqual(await stands(dir), before);
+      assert.equal(sectionBody(read(dir, STATE), "Resume here"), "Finding B-3 is next.");
+      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+
+      rmSync(join(dir, ".git/hooks/commit-msg"));
+      const again = await tdd(dir, declined(red, { resume: "B-1 is settled." }));
+      assert.equal(again.code, 0, `it can be run again: ${again.err}`);
+    });
+  });
+});
+
 describe("route", { concurrency: true }, () => {
   const confirmed = (more = {}) => ({
     verdict: "confirmed",
@@ -2529,7 +3099,8 @@ describe("route", { concurrency: true }, () => {
   });
 
   // A folder of the report files a triage's checks wrote: for each finding's id the lines of its first and of its
-  // second check's report; null for a check that wrote none.
+  // second check's report; null for a check that wrote none. The second check's report ends with its FIRST PASS
+  // line, which says `agrees` unless the lines given hold one (`NO_FIRST_PASS` among them leaves it out).
   const REPORT = {
     confirmed: [
       "VERDICT: confirmed",
@@ -2539,13 +3110,16 @@ describe("route", { concurrency: true }, () => {
     ],
     refuted: ["VERDICT: refuted", "EVIDENCE: design.md D4 decides it", "KIND: not applicable", "FIX: not applicable"],
   };
+  const NO_FIRST_PASS = "(this second check wrote no FIRST PASS line)";
   function reports(t, findings) {
     const folder = join(tempFolder(t), "reports");
     mkdirSync(folder);
     for (const [id, checks] of Object.entries(findings)) {
-      checks.forEach((lines, i) => {
-        if (lines !== null)
-          write(folder, `${id}-${i + 1}.md`, `# Finding ${id}\n\n${lines.join("\n")}\n\nALSO NOTICED: —\n`);
+      checks.forEach((given, i) => {
+        if (given === null) return;
+        const says = given.some((l) => l.startsWith("FIRST PASS:") || l === NO_FIRST_PASS);
+        const lines = i === 1 && !says ? [...given, "FIRST PASS: agrees"] : given.filter((l) => l !== NO_FIRST_PASS);
+        write(folder, `${id}-${i + 1}.md`, `# Finding ${id}\n\n${lines.join("\n")}\n\nALSO NOTICED: —\n`);
       });
     }
     return folder;
@@ -2595,6 +3169,81 @@ describe("route", { concurrency: true }, () => {
       'route: 2-2.md cannot be read as a report: KIND is "bug"; it is one of: behaviour, test-quality, docs, cleanup',
       "route: 3-1.md cannot be read as a report: it has no VERDICT line",
     ]);
+  });
+
+  test("with --reports, asks about a finding whose second check says it disagrees with the first, with on what", async (t) => {
+    const long = `the fix ${"is larger than the first check says and ".repeat(4)}touches the contract`;
+    const folder = reports(t, {
+      1: [REPORT.confirmed, [...REPORT.confirmed, "FIRST PASS: disagrees: the fix also changes the made-up contract"]],
+      2: [REPORT.refuted, [...REPORT.refuted, "FIRST PASS: disagrees: the guard it cites is never reached"]],
+      3: [REPORT.confirmed, [...REPORT.confirmed, "FIRST PASS: agrees"]],
+      4: [REPORT.confirmed, [...REPORT.refuted, "FIRST PASS: disagrees: design.md D4 decides it"]],
+      5: [REPORT.confirmed, [...REPORT.confirmed, `FIRST PASS: disagrees: ${long}`]],
+    });
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2,3,4,5"]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, "");
+    assert.equal(
+      r.out,
+      "1 → ASK · the second check disagrees with the first: the fix also changes the made-up contract\n" +
+        "2 → ASK · the second check disagrees with the first: the guard it cites is never reached\n" +
+        "3 → FIX · behaviour\n" +
+        "4 → ASK · the two checks disagree on the verdict\n" +
+        `5 → ASK · the second check disagrees with the first: ${long.slice(0, 120)}…\n` +
+        "FIX 1 · DECLINE 0 · ASK 4\n",
+    );
+    assert.ok(long.length > 120);
+  });
+
+  test("with --reports, a second check's report without its FIRST PASS line cannot be read as a report, nor a first check's with one", async (t) => {
+    const folder = reports(t, {
+      1: [REPORT.confirmed, [...REPORT.confirmed, NO_FIRST_PASS]],
+      2: [REPORT.refuted, [...REPORT.refuted, "FIRST PASS: perhaps"]],
+      3: [[...REPORT.confirmed, "FIRST PASS: agrees"], REPORT.confirmed],
+      4: [REPORT.refuted, REPORT.refuted],
+    });
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2,3,4"]);
+
+    assert.equal(r.code, 0, "the triage goes on with the other findings");
+    assert.equal(
+      r.out,
+      "1 → ASK · a check returned no result\n2 → ASK · a check returned no result\n" +
+        "3 → ASK · a check returned no result\n4 → DECLINE · refuted with evidence\nFIX 0 · DECLINE 1 · ASK 3\n",
+    );
+    assert.deepEqual(r.err.trimEnd().split("\n"), [
+      "route: 1-2.md cannot be read as a report: it has no FIRST PASS line, which a second check's report ends " +
+        "with: agrees | disagrees: <on what>",
+      'route: 2-2.md cannot be read as a report: FIRST PASS is "perhaps"; it is agrees | disagrees: <on what>',
+      "route: 3-1.md cannot be read as a report: it has a FIRST PASS line, which only a second check's report has",
+    ]);
+  });
+
+  test("with --json, asks about a finding whose second verdict carries `disagrees`, and refuses it on the first", async (t) => {
+    const findings = JSON.stringify([
+      { id: 1, verdicts: [confirmed(), confirmed({ disagrees: "the fix is larger than it says" })] },
+      { id: 2, verdicts: [confirmed(), confirmed({ disagrees: true })] },
+      { id: 3, verdicts: [confirmed(), confirmed({ disagrees: false })] },
+    ]);
+    const onTheFirst = JSON.stringify([{ id: 4, verdicts: [confirmed({ disagrees: true }), confirmed()] }]);
+
+    const r = await tdd(tempFolder(t), ["route", "--json", findings]);
+    const refused = await tdd(tempFolder(t), ["route", "--json", onTheFirst]);
+
+    assert.equal(
+      r.out,
+      "1 → ASK · the second check disagrees with the first: the fix is larger than it says\n" +
+        "2 → ASK · the second check disagrees with the first\n3 → FIX · behaviour\nFIX 1 · DECLINE 0 · ASK 2\n",
+    );
+    assert.equal(refused.code, 1);
+    assert.equal(refused.out, "");
+    assert.equal(
+      refused.err,
+      "ERROR: finding 4: verdicts[0].disagrees is true; only the second of two verdicts says whether it disagrees " +
+        "with the first\n",
+    );
   });
 
   test("with --reports, reads a report with a byte-order mark and CRLF line breaks, and one that is a folder as unreadable", async (t) => {
@@ -2689,6 +3338,301 @@ describe("route", { concurrency: true }, () => {
       assert.match(r.err, pattern);
       assert.ok(oneLine(r.err), r.err);
     }
+  });
+});
+
+describe("report", { concurrency: true }, () => {
+  // A check's report as review-verifier.md shapes it, for the finding `id`; `change` replaces or drops (null) the
+  // line of a label, and `more` follows the last line (the second check's FIRST PASS line).
+  const reportLines = (id, { change = {}, more = [] } = {}) =>
+    [
+      `ID: ${id}`,
+      "VERDICT: confirmed",
+      "EVIDENCE: src/App/Mapping.cs:19, and the test A_made_up_test",
+      "SEVERITY: important",
+      "KIND: behaviour",
+      "FIX: local · small · spec behaviour no · contract change no · return the field from the mapping",
+      "BUILDS ON IT: not applicable",
+      "ALSO NOTICED: nothing",
+      "NOTE: The reviewer read the made-up mapping right.",
+      ...more,
+    ]
+      .map((line) => {
+        const label = Object.keys(change).find((l) => line.startsWith(`${l}:`));
+        return label === undefined ? line : change[label];
+      })
+      .filter((line) => line !== null);
+  const reportText = (id, how) => `${reportLines(id, how).join("\n")}\n`;
+  const FIRST_PASS = ["FIRST PASS: disagrees: the fix also changes the made-up contract"];
+  const save = (cwd, file, input) => tdd(cwd, ["report", "--file", file, "--stdin"], { input });
+  // Every file and folder under a folder, git's own among them: a refused command must have added none.
+  const allIn = (folder) => readdirSync(folder, { recursive: true }).map(slashed).sort();
+
+  test("saves a first check's report as the file named, creating its folder, and needs no change and no repository", async (t) => {
+    const outside = tempFolder(t);
+    const file = join(tempFolder(t), "triage-review", "109", "reports", "3-1.md");
+
+    const r = await save(outside, file, reportText("3"));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, "");
+    assert.equal(r.out, `report: ${slashed(file)} | confirmed\n`);
+    assert.equal(readFileSync(file, "utf8"), reportText("3"));
+    assert.deepEqual(readdirSync(join(file, "..")), ["3-1.md"], "no temporary file is left");
+    assert.deepEqual(readdirSync(outside), []);
+  });
+
+  test("saves a second check's report, which ends with its FIRST PASS line, and prints its verdict", async (t) => {
+    const folder = tempFolder(t);
+    const refuted = reportText("B-2", {
+      change: {
+        VERDICT: "VERDICT: refuted",
+        EVIDENCE: "EVIDENCE: design.md D4 decides it",
+        KIND: "KIND: not applicable",
+      },
+      more: FIRST_PASS,
+    });
+
+    const agreed = await save(folder, join(folder, "3-2.md"), reportText("3", { more: ["FIRST PASS: agrees"] }));
+    const disagreed = await save(folder, join(folder, "B-2-2.md"), refuted);
+    const unsure = await save(
+      folder,
+      join(folder, "14-1.md"),
+      reportText("14", { change: { VERDICT: "VERDICT: unsure" } }),
+    );
+
+    assert.equal(agreed.out, `report: ${slashed(join(folder, "3-2.md"))} | confirmed\n`, agreed.err);
+    assert.equal(disagreed.out, `report: ${slashed(join(folder, "B-2-2.md"))} | refuted\n`, disagreed.err);
+    assert.equal(unsure.out, `report: ${slashed(join(folder, "14-1.md"))} | unsure\n`, unsure.err);
+    assert.equal(read(folder, "B-2-2.md"), refuted);
+    assert.deepEqual(readdirSync(folder).sort(), ["14-1.md", "3-2.md", "B-2-2.md"]);
+  });
+
+  test("stores the text as given, with LF line breaks and one line break at its end", async (t) => {
+    const folder = tempFolder(t);
+    const lines = ["# Finding 3, first check", "", "  An indented line, and a tab\tin it.", ...reportLines("3")];
+
+    const crlf = await save(folder, join(folder, "3-1.md"), `﻿${lines.join("\r\n")}\r\n\r\n  \r\n`);
+    const bare = await save(folder, join(folder, "4-1.md"), reportLines("4").join("\n"));
+
+    assert.equal(crlf.code, 0, crlf.err);
+    assert.equal(read(folder, "3-1.md"), `${lines.join("\n")}\n`);
+    assert.equal(bare.code, 0, bare.err);
+    assert.equal(read(folder, "4-1.md"), `${reportLines("4").join("\n")}\n`);
+  });
+
+  test("writes a corrected report over the one it saved before", async (t) => {
+    const folder = tempFolder(t);
+    const file = join(folder, "3-1.md");
+    await save(folder, file, reportText("3"));
+    const corrected = reportText("3", { change: { KIND: "KIND: docs" } });
+
+    const r = await save(folder, file, corrected);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(read(folder, "3-1.md"), corrected);
+    assert.deepEqual(readdirSync(folder), ["3-1.md"]);
+  });
+
+  test("takes the path with either kind of slash, and --change, --pr and --root without looking at them", async (t) => {
+    const folder = tempFolder(t);
+    const outside = tempFolder(t);
+
+    for (const [n, more] of [
+      ["--change", "c901-not-there"],
+      ["--pr", "not-started"],
+      ["--root", outside],
+    ].entries()) {
+      const file = join(folder, "reports", `${n + 1}-1.md`);
+
+      const r = await tdd(outside, ["report", ...more, "--file", slashed(file), "--stdin"], {
+        input: reportText(String(n + 1)),
+      });
+
+      assert.equal(r.out, `report: ${slashed(file)} | confirmed\n`, r.err);
+      assert.equal(readFileSync(file, "utf8"), reportText(String(n + 1)));
+    }
+    assert.deepEqual(readdirSync(outside), []);
+  });
+
+  test("what it saves is what `route --reports` reads", async (t) => {
+    const work = tempFolder(t);
+    const folder = join(work, "reports");
+    for (const [name, text] of [
+      ["3-1.md", reportText("3")],
+      ["3-2.md", reportText("3", { more: ["FIRST PASS: agrees"] })],
+      ["4-1.md", reportText("4")],
+      ["4-2.md", reportText("4", { more: FIRST_PASS })],
+    ]) {
+      assert.equal((await save(work, join(folder, name), text)).code, 0, name);
+    }
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "3,4"]);
+
+    assert.equal(r.err, "");
+    assert.equal(
+      r.out,
+      "3 → FIX · behaviour\n" +
+        "4 → ASK · the second check disagrees with the first: the fix also changes the made-up contract\n" +
+        "FIX 1 · DECLINE 0 · ASK 1\n",
+    );
+  });
+
+  describe("refuses, in one line, and writes nothing", { concurrency: true }, () => {
+    const refused = (r, message) => {
+      assert.equal(r.code, 1, r.out + r.err);
+      assert.equal(r.out, "");
+      if (typeof message === "string") assert.equal(r.err, `ERROR: ${message}\n`);
+      else assert.match(r.err, message);
+      assert.ok(oneLine(r.err), r.err);
+    };
+    // The refusal of a path inside a repository, which names the repository's folder.
+    const INSIDE =
+      /^ERROR: --file lies inside a repository: a report is saved outside every repository, in the triage's work folder \(the repository: (.+)\)\n$/;
+    const refusedAsInside = (r, repository) => {
+      refused(r, INSIDE);
+      samePath(INSIDE.exec(r.err)[1], repository);
+    };
+
+    test("a text that cannot be read as a report, naming the line that is wrong", async (t) => {
+      const folder = tempFolder(t);
+      const first = (how) => save(folder, join(folder, "3-1.md"), reportText("3", how));
+      const second = (how) => save(folder, join(folder, "3-2.md"), reportText("3", how));
+      const not = (name, why) => `not saved: ${name} cannot be read as a report: ${why}`;
+
+      refused(await save(folder, join(folder, "3-1.md"), ""), not("3-1.md", "it has no ID line"));
+      refused(await save(folder, join(folder, "3-1.md"), "The finding is real.\n"), not("3-1.md", "it has no ID line"));
+      refused(await first({ change: { ID: null } }), not("3-1.md", "it has no ID line"));
+      refused(
+        await first({ change: { ID: "ID: 4" } }),
+        not("3-1.md", 'ID is "4"; it is 3, the finding that 3-1.md is about'),
+      );
+      refused(await first({ change: { VERDICT: null } }), not("3-1.md", "it has no VERDICT line"));
+      refused(
+        await first({ change: { VERDICT: "VERDICT: real" } }),
+        not("3-1.md", 'VERDICT is "real"; it is one of: confirmed, refuted, unsure'),
+      );
+      refused(await first({ change: { EVIDENCE: null } }), not("3-1.md", "it has no EVIDENCE line"));
+      refused(
+        await first({ change: { KIND: "KIND: bug" } }),
+        not("3-1.md", 'KIND is "bug"; it is one of: behaviour, test-quality, docs, cleanup'),
+      );
+      refused(
+        await first({ change: { FIX: "FIX: local · tiny · spec behaviour no · contract change no · x" } }),
+        not("3-1.md", `FIX's second part is "tiny"; it is one of: small, medium, large`),
+      );
+      refused(await first({ more: ["VERDICT: refuted"] }), not("3-1.md", "VERDICT is given twice"));
+      refused(
+        await first({ more: ["FIRST PASS: agrees"] }),
+        not("3-1.md", "it has a FIRST PASS line, which only a second check's report has"),
+      );
+      refused(
+        await second(),
+        not(
+          "3-2.md",
+          "it has no FIRST PASS line, which a second check's report ends with: agrees | disagrees: <on what>",
+        ),
+      );
+      refused(
+        await second({ more: ["FIRST PASS: disagrees"] }),
+        not("3-2.md", 'FIRST PASS is "disagrees"; it is agrees | disagrees: <on what>'),
+      );
+      assert.deepEqual(readdirSync(folder), []);
+    });
+
+    test("a text that cannot be read, leaving the report saved before as it was", async (t) => {
+      const folder = tempFolder(t);
+      await save(folder, join(folder, "3-1.md"), reportText("3"));
+
+      const r = await save(folder, join(folder, "3-1.md"), reportText("3", { change: { KIND: "KIND: bug" } }));
+
+      assert.equal(r.code, 1);
+      assert.equal(read(folder, "3-1.md"), reportText("3"));
+      assert.deepEqual(readdirSync(folder), ["3-1.md"]);
+    });
+
+    test("a path that is not absolute, and a file's name of another form", async (t) => {
+      const folder = tempFolder(t);
+
+      refused(await save(folder, "reports/3-1.md", reportText("3")), '--file is an absolute path: "reports/3-1.md"');
+      refused(await save(folder, "3-1.md", reportText("3")), '--file is an absolute path: "3-1.md"');
+      for (const name of ["3.md", "3-3.md", "3-1.txt", "notes.md", "3-1.md.sh", "run.cmd"]) {
+        refused(
+          await save(folder, join(folder, name), reportText("3")),
+          `--file is named <id>-1.md for a first check's report and <id>-2.md for a second's: "${name}"`,
+        );
+      }
+      assert.deepEqual(readdirSync(folder), []);
+    });
+
+    test("a call without --stdin or without --file, and a --file that is a folder", async (t) => {
+      const folder = tempFolder(t);
+      mkdirSync(join(folder, "3-1.md"));
+
+      refused(
+        await tdd(folder, ["report", "--file", join(folder, "4-1.md")], { input: reportText("4") }),
+        "report needs --stdin: the report's text comes on standard input",
+      );
+      refused(
+        await tdd(folder, ["report", "--stdin"], { input: reportText("4") }),
+        "report needs --file <absolute path>: where the report is saved",
+      );
+      refused(
+        await save(folder, join(folder, "3-1.md"), reportText("3")),
+        `--file is a file, and ${slashed(join(folder, "3-1.md"))} is a folder`,
+      );
+      assert.deepEqual(readdirSync(folder), ["3-1.md"]);
+    });
+
+    test("a path inside the repository: in the working tree, in a folder that is not there yet, and in git's own folder", async (t) => {
+      const dir = repository(t);
+      const before = allIn(dir);
+
+      for (const file of [
+        join(dir, "3-1.md"),
+        join(dir, "src", "App", "3-1.md"),
+        join(dir, "not", "there", "yet", "3-1.md"),
+        join(dir, FOLDER, "3-2.md"),
+      ]) {
+        const text = reportText("3", { more: file.endsWith("-2.md") ? FIRST_PASS : [] });
+        refusedAsInside(await save(dir, file, text), dir);
+        refusedAsInside(await save(tempFolder(t), file, text), dir);
+      }
+      refusedAsInside(await save(dir, join(dir, ".git", "tdd", "3-1.md"), reportText("3")), join(dir, ".git"));
+      assert.deepEqual(allIn(dir), before);
+      assert.deepEqual(await status(dir), []);
+    });
+
+    test("a path that reaches the repository through `..` or through a link", async (t) => {
+      const dir = repository(t);
+      const outside = tempFolder(t);
+      symlinkSync(join(dir, "src"), join(outside, "link"), "junction");
+      symlinkSync(dir, join(outside, "whole"), "junction");
+      const before = allIn(dir);
+
+      for (const file of [
+        `${outside}${sep}..${sep}${basename(dir)}${sep}3-1.md`,
+        `${outside}${sep}reports${sep}..${sep}..${sep}${basename(dir)}${sep}src${sep}3-1.md`,
+        join(outside, "link", "3-1.md"),
+        join(outside, "link", "App", "New", "3-1.md"),
+        join(outside, "whole", "3-1.md"),
+      ]) {
+        refusedAsInside(await save(outside, file, reportText("3")), dir);
+      }
+      assert.deepEqual(allIn(dir), before);
+      assert.deepEqual(readdirSync(outside).sort(), ["link", "whole"]);
+    });
+
+    test("a path inside a linked working tree, also when the command runs in another", async (t) => {
+      const dir = repository(t);
+      const linked = join(tempFolder(t), "linked");
+      await git(dir, "worktree", "add", "--quiet", "-b", "feat/c901-another-made-up-thing", linked);
+
+      refusedAsInside(await save(dir, join(linked, "reports", "3-1.md"), reportText("3")), linked);
+      refusedAsInside(await save(linked, join(dir, "reports", "3-1.md"), reportText("3")), dir);
+      assert.equal(existsSync(join(linked, "reports")), false);
+      assert.equal(existsSync(join(dir, "reports")), false);
+    });
   });
 });
 
@@ -3553,6 +4497,7 @@ describe("the lock", { concurrency: true }, () => {
       withChange("drop", { section: "Allowed failures", key: "A_parked_test" }),
       withChange("add", { file: "reviews", section: "Chapter A", line: "x" }),
       withChange("commit", { type: "feat", tag: "green", summary: "Mapping", tick: "5.1", resume: "Next." }),
+      withChange("unguard", { tag: "chapter-review", id: "B-1", red: before.head, outcome: "declined", body: "x" }),
       withPr("set", { section: "Open", text: "x" }),
       withPr("triage-init", { round: "2", work: work, change: CHANGE }),
     ];
@@ -3578,6 +4523,7 @@ describe("the lock", { concurrency: true }, () => {
     const dir = await initialized(t);
     leftLock(dir, process.pid, 5_000);
     const findings = '[{"id":1,"verdicts":[{"verdict":"unsure"}]}]';
+    const saved = join(tempFolder(t), "1-1.md");
 
     for (const args of [
       withChange("get", { section: "Run" }),
@@ -3585,12 +4531,17 @@ describe("the lock", { concurrency: true }, () => {
       withChange("index"),
       withChange("run", { label: "x" }, "--", process.execPath, "-e", "0"),
       ["route", "--json", findings],
+      ["report", "--file", saved, "--stdin"],
       ["progress", "--step", "Baseline"],
     ]) {
-      const r = await tdd(dir, args, { env: { ...impatient, TEMP: dir, TMP: dir, TMPDIR: dir } });
+      const r = await tdd(dir, args, {
+        env: { ...impatient, TEMP: dir, TMP: dir, TMPDIR: dir },
+        input: "ID: 1\nVERDICT: unsure\n",
+      });
 
       assert.equal(r.code, 0, `${args[0]}: ${r.err}`);
     }
+    assert.equal(readFileSync(saved, "utf8"), "ID: 1\nVERDICT: unsure\n");
   });
 
   test("takes over a stale lock, one older than a minute, and leaves none", async (t) => {

@@ -20,9 +20,15 @@ Conventions: `docs/conventions/testing.md` § Test-first workflow, `docs/convent
 
 ## If your context was compacted
 
-This skill is attached again, and a hook adds "Resume here", "Agents" and "Open" from the state file. That is
-all you need: read nothing again until a step asks for it. A runner or a reviewer that was working is still
-working, so end your turn and wait for its hand-back.
+This skill is attached again, and a hook adds "Resume here", "Open" and "Agents" from the state file. Go by
+"Resume here", and read nothing else again until a step asks for it:
+
+- **It starts `Main session:`:** your own text. An agent it names as running still works: end your turn and
+  wait for its hand-back. A full stop it names still waits: ask again. Otherwise do what it says comes next.
+- **Any other text** is from a runner's commit: that runner still works, unless the text says that its work
+  is handed back. Then the next move is yours.
+- **A review or a fix round is never skipped.** What is left of one is in the reviews file: `tdd get --file
+  reviews --section "Chapter <X>" --section "Chapter <X> review"`.
 
 ## Rules for you
 
@@ -43,8 +49,15 @@ working, so end your turn and wait for its hand-back.
 - **You wait by ending your turn.** After you start or resume a runner or a reviewer, tell the owner in a
   line what is running, and stop there. Its hand-back arrives as a message and starts your next turn. Waiting
   needs no tool: do not look for one.
-- **Go by the hand-back, not by the notice.** A "finished" notice can come late or without the hand-back: if
-  only a notice came, end your turn again.
+- **Go by the hand-back, not by the notice.** A notice that an agent stopped comes after its hand-back, maybe
+  late: it adds only a size (§ 1). A notice for an agent whose hand-back you lack: it stopped without one, or failed,
+  and nothing wakes it. Resume it once and ask for it. If still none comes, the agent is lost: `once.md`
+  § A lost agent.
+- **To resume an agent,** SendMessage to its id (load the tool once with ToolSearch, `select:SendMessage`).
+- **Keep "Resume here" yours.** When a hand-back arrives, when you start an agent or resume one that has
+  handed back, and at a full stop: `tdd set --section "Resume here" --text "Main session: <where the chapter
+  stands · what runs, with the agent's id, or which stop waits · what comes next>"`. A runner's commits write
+  that section while it works; after its hand-back it is yours again.
 - **A progress note** is a message from a runner that is one line, `<step> completed at <HH:MM>`. Print it as
   it is and end your turn: no tool call, no reading, no reply. You act only on hand-backs.
 - **A report from a test-writer or an implementer can reach you directly,** after its runner has finished
@@ -56,42 +69,41 @@ working, so end your turn and wait for its hand-back.
 
 - **While anything can still go on, a question is plain text, never a dialog, and the run goes on.** A runner
   parks its own and sends you each at once, in a message that starts `Q<n>:`; its hand-back repeats them
-  (`QUESTIONS:`), and Open holds each with the tasks that wait for it. A finding routed ASK you park yourself
-  (§ 4). Tell the owner each question when you learn of it: what is asked, the options with the recommended
-  one first, and what waits for it. After a runner's `Q<n>:` message that is all: end your turn. Otherwise
-  start whatever does not wait for it. The owner may answer at any time.
+  (`QUESTIONS:`), and Open holds each one's whole entry: the question, its `OPTIONS`, its `DETAIL` and what
+  waits for it. A finding routed ASK you park yourself (§ 4). Tell the owner each question when you learn of
+  it: what is asked, the options with the recommended one first, and what waits for it. After a runner's
+  `Q<n>:` message that is all: end your turn. Otherwise start whatever does not wait for it. The owner may
+  answer at any time.
 - **Record an answer at once,** also while a runner works (the script locks the file):
   `tdd add --section "Standing rules" --line "<date>, the owner: <the decision>"`, and
   `tdd put --section Open --key "<key>" --value "answered: <the decision> · still to do: <the edit, the
-  tasks>"` (nothing left to do: `tdd drop --section Open --key "<key>"`). The rest waits for the next
-  hand-back: your edit of the spec or `design.md`, its commit (tag `plan`), and the tasks. The runner that
-  does the last task drops the entry; when no task is left, you do.
+  tasks>\n<the entry as it stood>"`: its lines name what waits and the work set aside (nothing left to do:
+  `tdd drop --section Open --key "<key>"`). The rest waits for the next hand-back: your edit of the spec or
+  `design.md`, its commit (tag `plan`), and the tasks. The runner that does the last task drops the entry;
+  when no task is left, you do.
 - **The tasks an answer frees** are a runner's. If the runner that parked them just handed back, resume it
   with `ANSWER: <key>: <the decision>` and the commit. Otherwise plan them as a chapter of their own
   (`CHAPTER: <name>: tasks <ids>, freed by <key>`), before the first chapter that needs them, else last.
-- **A full stop** is where the run stands still for the owner: the acceptance gate, `after-chapter=stop`,
-  `REVIEW_STOP`, `BLOCKED`, `NEEDS_OWNER`, and when only questions are left. There, and only there, use ONE
-  AskUserQuestion dialog: the stop's own question, then every question Open still holds. Each question stands
-  on its own (the owner may see the dialog alone): what is asked, and its options, the recommended one first.
-  Four questions per dialog at most; the next dialog follows at once. Details go in your text above it.
+- **A full stop** is where the run stands still for the owner: a failed check at the start, the acceptance
+  gate, `after-chapter=stop`, `REVIEW_STOP`, `BLOCKED`, `NEEDS_OWNER`, and when only questions are left.
+  There, and only there, use ONE AskUserQuestion dialog: the stop's own question, then every question Open
+  still holds. Each question stands on its own (the owner may see the dialog alone): what is asked, and its
+  options, the recommended one first. Four questions per dialog at most; the next dialog follows at once.
+  Details go in your text above it.
 - **The apply is not done while Open holds an entry.**
 
 ## Arguments
 
 `$ARGUMENTS`
 
-- First: the change name (a folder under `openspec/changes/`). If missing, list the active changes and ask.
-- Then three switches, the default first: `agent-review=each-chapter|acceptance|none` (§ 3),
-  `human-test-review=acceptance|each-group` (the owner reads the tests at the gate only, or also after each
-  unit and integration group's tests) and `after-chapter=continue|stop` (§ 4 step 7). One that is not given
-  is asked at the start (§ 0). On a resume nothing is asked: the recorded values hold, and a switch given now
-  wins.
+The change name, then the three switches of the hint. `once.md` § The arguments says what each means, and
+what to do when one is missing.
 
 ## Your commands
 
-`tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root. The command
-comes first, then always `--change <change>` (only `tdd route`, § 4, takes none). Each call prints a line or
-two.
+`tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root with the Bash
+tool (a here-document and `<` do not work in PowerShell). The command comes first, then always `--change
+<change>` (only `tdd route`, § 4, takes none). Each call prints a line or two.
 
 - `tdd get --section "<name>" [--section …]`: one or more sections of the state file
   `openspec/changes/<change>/.tdd-state.md`. Its sections: Resume here, Run, Chapter plan, Agents, Standing
@@ -104,17 +116,17 @@ two.
   every chapter's findings and what became of them.
 - `tdd commit --type docs --tag <plan|chapter|chapter-review> --summary "<text>" --path <file> [--path …]`.
 
-In a text you pass (`--text`, `--line`, `--value`, `--summary`, `--resume`), `\n` is a new line: write paths
-with forward slashes, and never start a text with `/` (Git Bash would turn it into a path).
+In `--text`, `--line`, `--value` and `--resume`, `\n` is a new line. In any text you pass, write paths with
+forward slashes, never start with `/` (Git Bash would turn it into a path), and use no double quote, backtick
+or `$`.
 
 The state file holds state only: what a new session needs to continue. The commits are the history.
 
 ## 0. Start, or resume
 
-The steps that happen once are in `.claude/skills/tdd-apply/once.md`. Read it now and follow its § A start,
-or § A resume when the state file exists and `Run` says `Status: applying`. A start asks every switch that
-was not given in ONE dialog, after its read-only checks; a resume asks nothing. A `design-fetcher` agent
-fetches the design files, never you.
+`.claude/skills/tdd-apply/once.md` has the steps that happen once, and the cases that come up now and then.
+Read it now and follow its § A start, or § A resume when the state file exists and `Run` says `Status:
+applying`. A `design-fetcher` agent fetches the design files, never you.
 
 ## 1. Run a chapter
 
@@ -128,19 +140,19 @@ fetches the design files, never you.
    TREE: clean | <what is uncommitted, when resuming mid-chapter>
    ```
 
-2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`. The runner expects
-   this one change in the tree.
+2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`, and set "Resume
+   here". The runner expects the state file changed in the tree.
 3. Wait for its hand-back: end your turn.
 4. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
    **200,000** with the chapter not done, resume it with `END THE CHAPTER after the slice in progress.`
-5. Act on the hand-back: first its `QUESTIONS:`, if any (§ Questions for the owner), then its `RESULT`:
+5. Act on the hand-back. First its `QUESTIONS:` (§ Questions for the owner); tell the owner its `DISPUTES:`
+   and `FOR THE OWNER:` lines. Its `NEXT:` says what remains: plan it (a final `[close]` that a parked task
+   holds back shows only there). Then its `RESULT`:
    - `GATE_READY`: § 2.
    - `REVIEW_STOP`: a full stop. Show the owner the group's tests (names, files, the commit). Resume the
      runner with the owner's feedback, or with `CONTINUE`.
-   - `BLOCKED`: one case is yours to clear: a command an agent left running and could not stop (the hand-back
-     names the task's id). Stop it with TaskStop (load it with ToolSearch, `select:TaskStop`), tell the owner
-     in a line, and resume the runner with `CONTINUE`. Any other `BLOCKED`, and `NEEDS_OWNER`: a full stop.
-     Tell the owner what stopped the runner or what it needs; once that is cleared, resume it with `CONTINUE`.
+   - `BLOCKED` or `NEEDS_OWNER`: a full stop, except for a command an agent left running, which you stop
+     yourself: `once.md` § A runner that is blocked.
    - `CHAPTER_ENDED_EARLY`: never a question and never a stop. Re-plan by yourself: what remains becomes a
      new chapter with a fresh runner (the rest of B is B2), `tdd set --section "Chapter plan"`. Tell the owner
      in a line, with the runner's `WHY`. Then go on as for `CHAPTER_DONE`.
@@ -170,8 +182,9 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
    The previous chapter's record has both (`tdd get --file reviews --section "Chapter <previous>"`): its
    `range` ends where that review ended, and its findings name their fix commits. The first review after the
    gate takes the runner's `RANGE` as it is, and `FIXES: none`.
-2. Record the range: `tdd put --file reviews --section "Chapter <X>" --key range --value "<the RANGE>"`. Wait
-   for the hand-back: end your turn. It holds every finding with a verifier's verdict.
+2. Record the range: `tdd put --file reviews --section "Chapter <X>" --key range --value "<the RANGE>"`, and
+   the reviewer: `tdd put --section Agents --key "<chapter> reviewer" --value "<agent id>"`. Set "Resume
+   here". Wait for the hand-back: end your turn. It holds every finding with a verifier's verdict.
 3. Route each finding (§ 4, step 1) and record it:
    `tdd put --file reviews --section "Chapter <X>" --key "<id>" --value "<severity> · <verdict> · <file:line> · <the defect in a few words> → <FIX|DECLINE|ASK>"`.
 
@@ -183,36 +196,28 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
    line and nothing to route. DECLINE: nothing more is done.
 2. Show the owner the routing in one table (id · severity · the finding · outcome · the reason in a few
    words). Do not wait: FIX and DECLINE are this skill's job. Park each ASK finding: `tdd put --section Open
-   --key "<id>" --value "<the finding in a line> · holds: <its BUILDS ON IT>"`, and tell the owner the
-   finding, the verifier's evidence, the trade-off and your recommendation. The owner answers fix now,
-   decline (with their reason) or defer (a GitHub issue, or a heads-up in the design of the step it belongs
-   to).
+   --key "<id>" --value "<the finding in a line> · ASK: <the reason> · its entry: reviews file, section
+   Chapter <X> review · waits: <its BUILDS ON IT>"`, and tell the owner the finding, the verifier's evidence,
+   the trade-off and your recommendation. The owner answers fix now, decline or defer (step 5).
 3. **Fix round.** Resume the chapter's own runner with the message below. If that runner is past 200,000
-   tokens, or another chapter has started since, start a fresh one with the chapter's brief and the same
-   message. Wait for the hand-back.
+   tokens, or another chapter has started since, start a fresh one with the chapter's brief, `START AT: the
+   fix round below`, and the same message. Wait for the hand-back.
 
    ```
    FIX ROUND: chapter <X>
    TAG: chapter-review
    RECORD: --file reviews --section "Chapter <X>"
    PAIR: the chapter's own
-   FINDINGS:
-   <each FIX finding as the reviewer wrote it: its id line and the lines under it>
+   FINDINGS: <the ids>, as recorded in the reviews file, section "Chapter <X> review"
    ```
 
 4. From its `FINDINGS:` lines: a finding refuted by its guard test is a DECLINE with that test as the
-   evidence. A docs finding under `openspec/` that came back is yours: read the passage, fix it, and commit
-   `tdd commit --type docs --tag chapter-review --summary "<id>: <summary>" --path <file>`. A finding handed
-   back for the owner joins the asks (step 2). A blocked one, and one that waits for it, is parked already:
-   the question is in the hand-back. Findings `not started` go to a fresh runner, as in step 3.
-5. **The owner's answer to an ask** (when you act on it: § Questions for the owner):
-   - Fix now: a spec or contract change is first written into the spec or `design.md` and committed with the
-     tag `plan`; then another fix round (step 3). A blocked finding goes back to its runner instead:
-     `ANSWER: <key>: fix now: <the test stands | what the test must say>`.
-   - Decline or defer: a blocked finding's runner takes its guard test out, on `ANSWER: <key>: declined:
-     <the reason>` or `deferred: <where>`. An issue: show the owner its text, create it only on their word.
-   - Record each answer: `tdd put --file reviews …` with the outcome.
-6. Commit the reviews file when you changed it after the runner's last commit:
+   evidence. One `handed back`: `once.md` § A finding handed back. A blocked one, and one that waits for it,
+   is parked already: the question is in the hand-back. Findings `not started` go to a fresh runner, as in
+   step 3.
+5. **The owner's answer to an ask** (when you act on it: § Questions for the owner): `once.md` § The owner's
+   answer to a finding.
+6. Commit the reviews file when it changed after the runner's last commit:
    `tdd commit --type docs --tag chapter-review --summary "chapter <X>: the review's record" --path <the reviews file>`.
 7. Then, as `after-chapter` says: `stop` reports the chapter (its commits, the suite's totals, the findings
    by outcome, the agents' context sizes) and is a full stop; `continue` reports it in a few lines and starts
@@ -221,4 +226,3 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
 ## 5. The end of the apply
 
 After the last chapter's review and fixes, and only with Open empty: follow `once.md` § The end of the apply.
-Its report tells the owner that `/code-review` and `/triage-review` start in a NEW session.
