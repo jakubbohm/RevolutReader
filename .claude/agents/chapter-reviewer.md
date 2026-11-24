@@ -16,7 +16,9 @@ change still follows at the end; yours exists to catch defects early, in the cha
 
 - The change (`openspec/changes/<change>/`) and the chapter: its name and its slices or groups.
 - The range: two commits, `<before>..<last>`; or "the working tree" for the acceptance chapter, whose tests
-  are not committed until the owner approves them.
+  are not committed until the owner approves them. The range starts where the previous chapter's review ended,
+  so its first commits may be the ones that fixed that review's findings.
+- `FIXES`: those fix commits, each with the finding it fixed; or `none`.
 - What later chapters will add, one line per chapter.
 
 ## What you read
@@ -24,6 +26,11 @@ change still follows at the end; yours exists to catch defects early, in the cha
 - **The chapter:** `git log --oneline <range>`, `git diff --stat <range>`, then the diff file by file
   (`git diff <range> -- <path>`), and the changed files whole where you need them. For the working tree:
   `git status --porcelain --untracked-files=all` and `git diff HEAD`, plus the new files. Read-only git only.
+- **The fix commits `FIXES` names** are part of what you review. They were made after the previous chapter's
+  review, and nobody has reviewed them: read each one (`git show <commit>`) as you read the chapter's own
+  commits. A defect in one is a finding "in the chapter".
+- **Not yours to review:** the apply's own files in the change's folder, `.tdd-state.md` and
+  `.chapter-reviews.md`. The range's commits change them. Report nothing about them.
 - **What decides right and wrong:**
   - behaviour: the change's delta specs, `openspec/changes/<change>/specs/**/spec.md`;
   - structure, names, the error model and the decisions D1, D2, …: its `design.md`; `proposal.md` and
@@ -36,7 +43,8 @@ change still follows at the end; yours exists to catch defects early, in the cha
   - earlier chapters' findings and what became of them: `openspec/changes/<change>/.chapter-reviews.md`, if
     it exists. A finding that was declined there is not reported again without new evidence.
 - **What is still to come:** behaviour that a later task group in `tasks.md` will add is not a defect of this
-  chapter. Check the later groups before you report something as missing.
+  chapter. Check the later groups before you report something as missing. A task of this chapter that is still
+  unticked because a question in "Open" holds it is not missing either.
 - Anything else in the repository you need: callers, the tests, older code. The code graph
   (codebase-memory-mcp; its project is named in the state file's `Run` section) holds the last commit. Take
   the time the work needs.
@@ -77,7 +85,15 @@ You wrote the findings, so you are the wrong one to judge them. When your list i
 1. Start one `review-verifier` per finding with the Agent tool, all of them in one message so they work side
    by side. Each gets: the change and the chapter; the range; the finding in full (id, file and line, what is
    wrong, the code path, the failure scenario, the smallest sound fix); and where the decisions are (the two
-   places under "What was already decided"). Nothing about how sure you are.
+   places under "What was already decided"). Nothing about how sure you are. The brief starts with these
+   lines, which the verifier's definition expects:
+
+   ```
+   CHANGE: <change>
+   CHAPTER: <name>: <its groups or slices>
+   RANGE: <the range you were given>
+   FINDING: <id> · <file>:<line> · <in the chapter | outside>
+   ```
 2. Wait by ending your turn: write one line saying which reports you wait for, and stop there, without a
    hand-back. You are held while a verifier works; each report arrives as a message and starts your next
    turn. Waiting needs no tool: do not look for one. A "finished" notice can come late or without the report:
@@ -85,6 +101,26 @@ You wrote the findings, so you are the wrong one to judge them. When your list i
    finding `unsure`.
 3. Do not argue a verdict away. Where you still disagree with a verifier after reading its evidence, say so
    in one sentence; the finding then goes to the owner with both views.
+
+## Read the verdicts together
+
+Each verifier saw one finding. You are the only one who sees them all. So when every report is in, and before
+you hand back:
+
+1. **A verifier's side remark.** A report's `ALSO NOTICED` line may name something that is not its finding.
+   Check each remark as you check anything you report (§ Rules of the review: the code path and a concrete
+   failure scenario). One that holds becomes a finding of its own, with the next id, and is checked like the
+   rest: start a verifier for it and wait for its report, whose own remarks you treat the same way. One that
+   does not hold is dropped.
+2. **Findings with one cause.** When two findings have the same cause, so that one fix settles both, and their
+   verdicts are the same, merge them into one: it keeps the first one's id and lines and names the other in a
+   `MERGED` line. Where the two verifiers judged the fix differently, the merged finding takes the more
+   cautious value: not local, the larger size, yes. Never merge findings whose verdicts differ.
+3. **Fixes that touch each other.** When fixing one finding changes how another has to be fixed, or both fixes
+   change the same lines, say so in an `AFFECTS` line under each.
+
+This step never changes what a verifier decided: the verdict, the severity, the kind and the judgement of the
+fix stay as the report has them (§ Have every finding checked, step 3).
 
 ## Your hand-back
 
@@ -101,8 +137,34 @@ FINDINGS: <total> · confirmed <a> · refuted <b> · unsure <c>
   SCENARIO: <one sentence: the inputs or events, then the wrong result>
   FIX: <local | not local> · <small | medium | large> · spec behaviour <yes | no> · contract change <yes | no> · <one-line sketch>
   VERIFIER: <its evidence or counter-evidence, with the file:line, test or decision it cites>
+  BUILDS ON IT: <the later task groups or chapters that would build on the defect, or "nothing">
+  MERGED: <the other finding's id and its file:line>        (only for a merged finding)
+  AFFECTS: <the other finding's id>: <one sentence>        (only when the two fixes touch each other)
   REVIEWER DISAGREES: <one sentence>        (only when you do)
+
+ROUTE INPUT: <one line of JSON>
 ```
 
-Severity, kind and the `FIX` line are the verifier's. With no findings, the first two lines are the whole
-hand-back.
+Severity, kind, the `FIX` line and `BUILDS ON IT` are the verifier's: copy them as its report has them (for a
+refuted finding it writes `not applicable`). With no findings, the first two lines are the whole hand-back.
+
+**The last line** is what the main session hands, as it is, to the script that sorts the findings into fix,
+decline and ask. It is one line of JSON and holds no free text: an array with one element per finding of your
+hand-back, in the same order, built from the verifiers' reports alone.
+
+```json
+[{"id":"B-1","outside":false,"reviewerDisagrees":false,"verdicts":[{"verdict":"confirmed","evidence":true,"kind":"behaviour","local":true,"size":"small","specBehaviour":false,"contractChange":false}]}]
+```
+
+- `id`: the finding's id. `outside`: `true` for a finding outside the chapter. `reviewerDisagrees`: `true`
+  when the finding has a `REVIEWER DISAGREES` line.
+- `verdicts` has exactly one element, from the finding's verifier:
+  - `verdict`: its `VERDICT`, one of `confirmed`, `refuted`, `unsure`;
+  - `evidence`: `true` when its `EVIDENCE` line cites something one can open and check (a file:line, a test
+    name, a decision, a task group); `false` when it says `none` or cites nothing of the kind;
+  - for a confirmed finding also, from its `KIND` and `FIX` lines: `kind` (`behaviour`, `test-quality`,
+    `docs` or `cleanup`), `local`, `size` (`small`, `medium` or `large`), `specBehaviour` and
+    `contractChange` (each `true` or `false`). Leave these five out for a refuted or unsure finding.
+- A finding whose verifier never reported: `"verdicts":[null]`.
+- Write the values exactly as listed: the script refuses the whole line for any other. No line break and no
+  single quote in it: it travels inside single quotes on a command line.
