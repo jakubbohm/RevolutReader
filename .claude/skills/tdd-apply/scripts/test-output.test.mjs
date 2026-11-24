@@ -1,6 +1,6 @@
-// Tests for test-output.mjs's pure functions: the totals and the failed tests read from a test run's output, and
-// the short report `tdd.mjs run` prints. The outputs are real ones, saved in fixtures/ with only the machine's
-// folders replaced by D:\repo:
+// Tests for test-output.mjs's pure functions: the totals and the failed tests read from a test run's output, the
+// short report `tdd.mjs run` prints, and what it says about the tests allowed to fail. The outputs are real ones,
+// saved in fixtures/ with only the machine's folders replaced by D:\repo:
 //
 // - dotnet-test-passed.txt: `dotnet test --project tests/RevolutReader.UnitTests` in this repository (2026-11-23,
 //   .NET SDK 11.0.100, TUnit 1.80.0 on Microsoft.Testing.Platform).
@@ -22,7 +22,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { formatDuration, readTestOutput, runReport, stripAnsi } from "./test-output.mjs";
+import { allowedFailuresLine, formatDuration, readTestOutput, runReport, stripAnsi } from "./test-output.mjs";
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
@@ -407,5 +407,151 @@ describe("runReport", () => {
     const lines = runReport(run({ code: 1, output: "\u001b[31merror\u001b[39m: made up\n" }));
 
     assert.equal(lines[1], "error: made up");
+  });
+
+  test("says nothing about allowed failures without a list, and for a green run with an empty one", () => {
+    const red = fixture("dotnet-test-failed.txt");
+
+    assert.equal(runReport(run({ code: 2, output: red })).length, 15);
+    assert.equal(runReport(run({ code: 2, output: red, allowed: undefined })).length, 15);
+    assert.equal(runReport(run({ output: fixture("dotnet-test-passed.txt"), allowed: [] })).length, 1);
+    assert.equal(runReport(run({ output: fixture("vitest-passed.txt"), allowed: [] })).length, 1);
+  });
+
+  test("with a list, says on its second line which failed tests are on it and which are not", () => {
+    const lines = runReport(
+      run({ code: 2, output: fixture("dotnet-test-failed.txt"), allowed: ["A_stub_is_not_written_yet"] }),
+    );
+
+    assert.deepEqual(lines.slice(0, 3), [
+      "exit 2 | 3 passed, 4 failed, 2 skipped | 12.3s | log: C:\\Temp\\tdd-runs\\c900\\x.log",
+      "allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: A_case_ends_as_its_path_says(throws) | " +
+        "A_list_holds_what_was_added | A_test_that_writes_output_and_fails",
+      "- A_stub_is_not_written_yet",
+    ]);
+    assert.equal(lines.length, 16, "one line more than without a list");
+  });
+
+  test("with a list, says how many failed tests are on it also when the run failed otherwise", () => {
+    const lines = runReport(run({ code: 1, output: fixture("dotnet-build-error.txt"), allowed: ["A_parked_test"] }));
+
+    assert.equal(lines[1], "allowed failures: 0 of 0 failed tests are on the list");
+    assert.equal(lines.at(-1), "Build failed with exit code: 1.");
+  });
+});
+
+describe("allowedFailuresLine", () => {
+  const failed = (...names) => ({ totals: null, failed: names.map((name) => ({ name, message: [] })) });
+  const dotnet = readTestOutput(fixture("dotnet-test-failed.txt"));
+  const vitest = readTestOutput(fixture("vitest-failed.txt"));
+
+  test("says nothing when no test is listed and none failed", () => {
+    assert.equal(allowedFailuresLine([], failed()), null);
+    assert.equal(allowedFailuresLine([], readTestOutput(fixture("dotnet-test-passed.txt"))), null);
+  });
+
+  test("says that none failed when tests are listed and the run is green", () => {
+    assert.equal(
+      allowedFailuresLine(["A_parked_test"], readTestOutput(fixture("dotnet-test-passed.txt"))),
+      "allowed failures: 0 of 0 failed tests are on the list",
+    );
+  });
+
+  test("says only how many when every failed test is on the list", () => {
+    const keys = [
+      "A_stub_is_not_written_yet",
+      "A_case_ends_as_its_path_says(throws)",
+      "A_list_holds_what_was_added",
+      "A_test_that_writes_output_and_fails",
+    ];
+
+    assert.equal(allowedFailuresLine(keys, dotnet), "allowed failures: 4 of 4 failed tests are on the list");
+  });
+
+  test("names, on the same line, the failed tests that are not on the list, also when the list is empty", () => {
+    assert.equal(
+      allowedFailuresLine(["A_list_holds_what_was_added"], dotnet),
+      "allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: A_stub_is_not_written_yet | " +
+        "A_case_ends_as_its_path_says(throws) | A_test_that_writes_output_and_fails",
+    );
+    assert.equal(
+      allowedFailuresLine([], failed("A_made_up_test")),
+      "allowed failures: 0 of 1 failed tests are on the list; NOT ALLOWED: A_made_up_test",
+    );
+  });
+
+  test("is one line whatever it says", () => {
+    for (const keys of [[], ["A_list_holds_what_was_added"], ["A_"]]) {
+      assert.equal(allowedFailuresLine(keys, dotnet).includes("\n"), false);
+    }
+  });
+
+  test("takes a key for a failed test whose printed name contains it, in the same case", () => {
+    const one = (key) =>
+      allowedFailuresLine([key], failed("Made.Up.Tests.A_case_ends_as_its_path_says(throws)")).split(";")[0];
+
+    assert.equal(one("A_case_ends_as_its_path_says(throws)"), "allowed failures: 1 of 1 failed tests are on the list");
+    assert.equal(one("A_case_ends"), "allowed failures: 1 of 1 failed tests are on the list");
+    assert.equal(one("a_case_ends"), "allowed failures: 0 of 1 failed tests are on the list");
+    assert.equal(one("A_case_ends_as_its_path_says(returns)"), "allowed failures: 0 of 1 failed tests are on the list");
+  });
+
+  test("lets one key cover every failed test that contains it, and counts a test once for several keys", () => {
+    const run = failed("Group_A_first", "Group_A_second", "Group_B_first");
+
+    assert.equal(
+      allowedFailuresLine(["Group_A", "A_first", "Group_A_first"], run),
+      "allowed failures: 2 of 3 failed tests are on the list; NOT ALLOWED: Group_B_first",
+    );
+  });
+
+  test("reads Vitest's names the same: a test by its full name, a file that cannot be loaded by its own", () => {
+    assert.equal(
+      allowedFailuresLine(
+        ["a made-up group > a stub is not written yet", "src/gamma.test.js [ src/gamma.test.js ]"],
+        vitest,
+      ),
+      "allowed failures: 2 of 4 failed tests are on the list; NOT ALLOWED: " +
+        "src/alpha.test.js > a made-up group > a list holds what was added | " +
+        "src/alpha.test.js > a top-level test with a message",
+    );
+  });
+
+  test("names at most 10 tests that are not allowed, then how many more there are", () => {
+    const names = Array.from({ length: 14 }, (_, i) => `Test_${i + 1}`);
+
+    assert.equal(
+      allowedFailuresLine(["Test_14"], failed(...names)),
+      `allowed failures: 1 of 14 failed tests are on the list; NOT ALLOWED: ${names.slice(0, 10).join(" | ")} | … and 3 more`,
+    );
+    assert.equal(
+      allowedFailuresLine([], failed(...names.slice(0, 10))),
+      `allowed failures: 0 of 10 failed tests are on the list; NOT ALLOWED: ${names.slice(0, 10).join(" | ")}`,
+    );
+  });
+
+  test("counts the failed tests the output did not name as not allowed", () => {
+    const cut = { totals: { passed: 5, failed: 4, skipped: 0 }, failed: failed("Test_1", "Test_2").failed };
+    const unnamed = { totals: { passed: 5, failed: 3, skipped: 0 }, failed: [] };
+
+    assert.equal(
+      allowedFailuresLine(["Test_1"], cut),
+      "allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: Test_2 | … and 2 more",
+    );
+    assert.equal(
+      allowedFailuresLine(["Test_1", "Test_2"], cut),
+      "allowed failures: 2 of 4 failed tests are on the list; NOT ALLOWED: 2 failed tests the output does not name",
+    );
+    assert.equal(
+      allowedFailuresLine(["Test_1"], unnamed),
+      "allowed failures: 0 of 3 failed tests are on the list; NOT ALLOWED: 3 failed tests the output does not name",
+    );
+  });
+
+  test("cuts a long name", () => {
+    assert.equal(
+      allowedFailuresLine([], failed("N".repeat(400))),
+      `allowed failures: 0 of 1 failed tests are on the list; NOT ALLOWED: ${"N".repeat(200)}…`,
+    );
   });
 });

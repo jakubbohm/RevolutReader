@@ -1,23 +1,30 @@
 // Tests for state.mjs's pure functions: how a state file's text is read and changed by section (the body of a
-// section, replacing it, appending a bullet, a keyed bullet's value), what a new state file and a new reviews file
-// hold, and that an edit keeps the file's own line endings and every other line as it was. Texts in, texts out:
-// nothing here touches a file, git or the code graph, and every change name and value is made up.
+// section, replacing it, appending a bullet, a keyed bullet's value, dropping a keyed bullet), what a new state
+// file, a new reviews file and a triage's state file at the start of a round hold, and that an edit keeps the
+// file's own line endings and every other line as it was. Texts in, texts out: nothing here touches a file, git or
+// the code graph, and every change name and value is made up.
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   addBullet,
+  ALLOWED_FAILURES,
+  dropKey,
   EMPTY,
   keyValue,
   newReviewsText,
   newStateText,
   putKey,
+  roundSection,
   sectionBody,
+  sectionKeys,
   sectionName,
   sectionNames,
   setSection,
   STATE_SECTIONS,
+  TRIAGE_SECTIONS,
+  triageText,
 } from "./state.mjs";
 
 // A small state file of three sections, with the line endings a test asks for.
@@ -32,7 +39,7 @@ const sample = (eol = "\n") =>
     "## Run",
     "",
     "- **Status:** applying",
-    "- **Review mode:** acceptance",
+    "- **Human test review:** acceptance",
     "",
     "## Open",
     "",
@@ -55,6 +62,7 @@ describe("newStateText", () => {
       "Baseline",
       "Acceptance tests",
       "Open",
+      "Allowed failures",
       "Design files",
     ]);
     assert.deepEqual(sectionNames(text), STATE_SECTIONS);
@@ -98,7 +106,7 @@ describe("newReviewsText", () => {
 
 describe("sectionBody", () => {
   test("gives a section's lines without the blank lines around them", () => {
-    assert.equal(sectionBody(sample(), "Run"), "- **Status:** applying\n- **Review mode:** acceptance");
+    assert.equal(sectionBody(sample(), "Run"), "- **Status:** applying\n- **Human test review:** acceptance");
     assert.equal(sectionBody(sample(), "Resume here"), "Chapter A, group 2.");
   });
 
@@ -108,7 +116,7 @@ describe("sectionBody", () => {
   });
 
   test("gives LF line breaks for a CRLF file", () => {
-    assert.equal(sectionBody(sample("\r\n"), "Run"), "- **Status:** applying\n- **Review mode:** acceptance");
+    assert.equal(sectionBody(sample("\r\n"), "Run"), "- **Status:** applying\n- **Human test review:** acceptance");
   });
 
   test("keeps the blank lines and sub-headings inside a body", () => {
@@ -122,7 +130,7 @@ describe("sectionBody", () => {
 
   test("finds a section whatever the case of its name and the spaces around it", () => {
     assert.equal(sectionBody(sample(), "resume HERE"), "Chapter A, group 2.");
-    assert.equal(sectionBody(sample(), "  Run "), "- **Status:** applying\n- **Review mode:** acceptance");
+    assert.equal(sectionBody(sample(), "  Run "), "- **Status:** applying\n- **Human test review:** acceptance");
   });
 
   test("gives null for a section the file does not have", () => {
@@ -276,7 +284,7 @@ describe("addBullet", () => {
   test("appends after the lines the section already has", () => {
     const text = addBullet(sample(), "Run", "a note");
 
-    assert.equal(sectionBody(text, "Run"), "- **Status:** applying\n- **Review mode:** acceptance\n- a note");
+    assert.equal(sectionBody(text, "Run"), "- **Status:** applying\n- **Human test review:** acceptance\n- a note");
   });
 
   test("keeps a bullet of several lines one list item, its later lines indented", () => {
@@ -310,7 +318,7 @@ describe("putKey", () => {
 
     assert.equal(
       sectionBody(text, "Run"),
-      "- **Status:** applying\n- **Review mode:** acceptance\n- **Branch:** feat/c900-add-made-up-thing",
+      "- **Status:** applying\n- **Human test review:** acceptance\n- **Branch:** feat/c900-add-made-up-thing",
     );
   });
 
@@ -335,7 +343,7 @@ describe("putKey", () => {
   test("replaces a value with a blank line inside it as a whole, and reads it back whole", () => {
     const before = putKey(sample(), "Run", "Status", "applying\n\nsecond paragraph");
     assert.equal(keyValue(before, "Run", "Status"), "applying\n\nsecond paragraph");
-    assert.equal(keyValue(before, "Run", "Review mode"), "acceptance");
+    assert.equal(keyValue(before, "Run", "Human test review"), "acceptance");
 
     const after = putKey(before, "Run", "Status", "done");
 
@@ -352,7 +360,7 @@ describe("putKey", () => {
 
     assert.equal(
       sectionBody(text, "Run"),
-      "- **Status:** applying\n- **Review mode:** acceptance\n" +
+      "- **Status:** applying\n- **Human test review:** acceptance\n" +
         "- **Commit trailers:** Co-Authored-By: Someone <someone@example.com>\n  A-Second: line",
     );
   });
@@ -365,10 +373,10 @@ describe("putKey", () => {
   });
 
   test("does not take a key that only starts like another for it", () => {
-    const text = putKey(sample(), "Run", "Review", "x");
+    const text = putKey(sample(), "Run", "Human test", "x");
 
-    assert.equal(keyValue(text, "Run", "Review mode"), "acceptance");
-    assert.equal(keyValue(text, "Run", "Review"), "x");
+    assert.equal(keyValue(text, "Run", "Human test review"), "acceptance");
+    assert.equal(keyValue(text, "Run", "Human test"), "x");
   });
 
   test("keeps a CRLF file CRLF", () => {
@@ -391,10 +399,194 @@ describe("putKey", () => {
   });
 });
 
+describe("dropKey", () => {
+  // The sample with two tests allowed to fail, the second with a value of several lines.
+  const parked = (eol = "\n") => {
+    let text = `${sample(eol)}${eol}## ${ALLOWED_FAILURES}${eol}${eol}${EMPTY}${eol}`;
+    text = putKey(text, ALLOWED_FAILURES, "A_made_up_test(1)", "parked: question Q2, red commit 1a2b3c4");
+    return putKey(
+      text,
+      ALLOWED_FAILURES,
+      "src/a.test.ts > a made-up group > a test",
+      "blocked finding 5\nsince 0f9e8d7",
+    );
+  };
+
+  test("removes the keyed bullet and leaves every other line as it was", () => {
+    const text = dropKey(parked(), ALLOWED_FAILURES, "A_made_up_test(1)");
+
+    assert.equal(
+      sectionBody(text, ALLOWED_FAILURES),
+      "- **src/a.test.ts > a made-up group > a test:** blocked finding 5\n  since 0f9e8d7",
+    );
+    assert.equal(text, parked().replace("- **A_made_up_test(1):** parked: question Q2, red commit 1a2b3c4\n", ""));
+  });
+
+  test("removes a bullet of several lines whole", () => {
+    const text = dropKey(parked(), ALLOWED_FAILURES, "src/a.test.ts > a made-up group > a test");
+
+    assert.equal(
+      sectionBody(text, ALLOWED_FAILURES),
+      "- **A_made_up_test(1):** parked: question Q2, red commit 1a2b3c4",
+    );
+  });
+
+  test("leaves the section empty when it held nothing else", () => {
+    const one = dropKey(parked(), ALLOWED_FAILURES, "A_made_up_test(1)");
+
+    const text = dropKey(one, ALLOWED_FAILURES, " src/a.test.ts > a made-up group > a test ");
+
+    assert.equal(sectionBody(text, ALLOWED_FAILURES), EMPTY);
+    assert.equal(text, `${sample()}\n## ${ALLOWED_FAILURES}\n\n${EMPTY}\n`);
+  });
+
+  test("removes a key where it stands among others, also in the middle", () => {
+    const text = dropKey(putKey(sample(), "Run", "Branch", "feat/made-up"), "Run", "Human test review");
+
+    assert.equal(sectionBody(text, "Run"), "- **Status:** applying\n- **Branch:** feat/made-up");
+  });
+
+  test("keeps a CRLF file CRLF", () => {
+    const text = dropKey(parked("\r\n"), ALLOWED_FAILURES, "A_made_up_test(1)");
+
+    assert.equal(/(?<!\r)\n/.test(text), false, "no bare LF");
+    assert.deepEqual(sectionKeys(text, ALLOWED_FAILURES), ["src/a.test.ts > a made-up group > a test"]);
+  });
+
+  test("refuses a key the section does not have, naming the keys it has", () => {
+    assert.throws(
+      () => dropKey(parked(), ALLOWED_FAILURES, "A_made_up_test"),
+      /no key "A_made_up_test" in Allowed failures; its keys are: "A_made_up_test\(1\)", "src\/a\.test\.ts > /,
+    );
+    assert.throws(() => dropKey(sample(), "Open", "A"), /no key "A" in Open; it has no keyed bullet/);
+  });
+
+  test("does not take a key that only starts like another, nor a plain bullet, for it", () => {
+    const text = addBullet(parked(), ALLOWED_FAILURES, "A_made_up_test: a plain bullet");
+
+    assert.throws(() => dropKey(text, ALLOWED_FAILURES, "A_made_up_test"), /no key/);
+  });
+
+  test("refuses a section the file does not have, an empty key and a key of several lines", () => {
+    assert.throws(() => dropKey(sample(), "Agents", "A"), /no section "Agents"/);
+    assert.throws(() => dropKey(parked(), ALLOWED_FAILURES, " "));
+    assert.throws(() => dropKey(parked(), ALLOWED_FAILURES, "a\nb"));
+  });
+});
+
+describe("sectionKeys", () => {
+  test("gives the keys of a section's keyed bullets, in order", () => {
+    assert.deepEqual(sectionKeys(sample(), "Run"), ["Status", "Human test review"]);
+    assert.deepEqual(sectionKeys(sample("\r\n"), "run"), ["Status", "Human test review"]);
+  });
+
+  test("gives none for an empty section and for a section that is not there", () => {
+    assert.deepEqual(sectionKeys(sample(), "Open"), []);
+    assert.deepEqual(sectionKeys(sample(), "Agents"), []);
+  });
+
+  test("takes only the lines that start a keyed bullet: no plain bullet, and no later line of a value", () => {
+    let text = putKey(sample(), "Open", "A_test(with: a colon)", "why\n- **Not a key:** an indented line");
+    text = addBullet(text, "Open", "a plain bullet");
+    text = putKey(text, "Open", "Another", "");
+
+    assert.deepEqual(sectionKeys(text, "Open"), ["A_test(with: a colon)", "Another"]);
+  });
+});
+
+describe("triageText", () => {
+  const run = (round, more = []) => [["Status", "triaging"], ["PR", "109"], ["Round", String(round)], ...more];
+
+  test("for a new file, holds the title, the fixed sections in order, Run's facts and the round's section", () => {
+    const text = triageText(null, "c900-add-made-up-thing", run(1), 1, "\n");
+
+    assert.equal(text.split("\n")[0], "# Review triage: c900-add-made-up-thing");
+    assert.deepEqual(TRIAGE_SECTIONS, ["Resume here", "Run", "Agents", "Open", "Allowed failures"]);
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 1"]);
+    assert.equal(roundSection(1), "Round 1");
+    assert.equal(sectionBody(text, "Run"), "- **Status:** triaging\n- **PR:** 109\n- **Round:** 1");
+    for (const name of sectionNames(text).filter((n) => n !== "Run")) assert.equal(sectionBody(text, name), EMPTY);
+    assert.ok(text.endsWith(`## Round 1\n\n${EMPTY}\n`));
+  });
+
+  test("starts a new file at the round given, and uses the line endings given", () => {
+    const text = triageText(null, "PR 109", run(3), 3, "\r\n");
+
+    assert.equal(text.split("\r\n")[0], "# Review triage: PR 109");
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 3"]);
+    assert.equal(/(?<!\r)\n/.test(text), false, "no bare LF");
+  });
+
+  // A triage after its first round: the findings recorded, an agent, an open question and the commit trailers.
+  const afterRoundOne = (eol = "\n") => {
+    let text = triageText(null, "c900-add-made-up-thing", run(1, [["Source", "pr"]]), 1, eol);
+    text = putKey(text, "Run", "Commit trailers", "A-Trailer: one");
+    text = putKey(text, "Run", "Status", "done");
+    text = putKey(text, "Agents", "Runner", "r1s2t3");
+    text = setSection(text, "Resume here", "Round 1 is closed.");
+    text = putKey(text, "Round 1", "1", "src/a.cs:19 · A made-up title · FIX · 1a2b3c4 · posted");
+    return putKey(text, "Round 1", "2", "src/b.ts:142 · Another · DECLINE · — · posted\n  with a second line");
+  };
+
+  test("for a later round, changes Run's facts where they stand and appends the round's section", () => {
+    const before = afterRoundOne();
+
+    const text = triageText(before, "ignored for a file that exists", run(2), 2, "\r\n");
+
+    assert.equal(
+      text,
+      `${before
+        .replace("- **Status:** done", "- **Status:** triaging")
+        .replace("- **Round:** 1", "- **Round:** 2")}\n## Round 2\n\n${EMPTY}\n`,
+    );
+    assert.equal(keyValue(text, "Run", "Commit trailers"), "A-Trailer: one");
+    assert.equal(keyValue(text, "Run", "Source"), "pr");
+  });
+
+  test("leaves an earlier round's section byte for byte", () => {
+    const before = afterRoundOne("\r\n");
+    const roundOne = before.slice(before.indexOf("## Round 1"));
+
+    const text = triageText(triageText(before, "x", run(2), 2, "\n"), "x", run(3), 3, "\n");
+
+    assert.ok(text.includes(roundOne), "round 1 as it was");
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 1", "Round 2", "Round 3"]);
+    assert.equal(/(?<!\r)\n/.test(text), false, "the file's own line endings, not those given");
+  });
+
+  test("for a rerun of the same round, changes nothing but what Run's facts changed", () => {
+    const before = afterRoundOne();
+
+    assert.equal(
+      triageText(before, "x", run(1), 1, "\n"),
+      before.replace("- **Status:** done", "- **Status:** triaging"),
+    );
+    const underWay = triageText(before, "x", run(1), 1, "\n");
+    assert.equal(triageText(underWay, "x", run(1), 1, "\n"), underWay);
+  });
+
+  test("appends a fact Run does not hold yet, after those it holds", () => {
+    const text = triageText(afterRoundOne(), "x", run(1, [["Branch", "fix/made-up-thing"]]), 1, "\n");
+
+    assert.deepEqual(sectionKeys(text, "Run"), ["Status", "PR", "Round", "Source", "Commit trailers", "Branch"]);
+  });
+
+  test("gives a file that lacks a fixed section that section, at the end, and keeps the rest", () => {
+    const before = "# Review triage: an older file\n\nA line before any section.\n\n## Agents\n\n| a | table |\n";
+
+    const text = triageText(before, "x", run(2), 2, "\n");
+
+    assert.ok(text.startsWith(before));
+    assert.deepEqual(sectionNames(text), ["Agents", "Run", "Resume here", "Open", "Allowed failures", "Round 2"]);
+    assert.equal(sectionBody(text, "Agents"), "| a | table |");
+    assert.equal(keyValue(text, "Run", "Round"), "2");
+  });
+});
+
 describe("keyValue", () => {
   test("gives a keyed bullet's value", () => {
     assert.equal(keyValue(sample(), "Run", "Status"), "applying");
-    assert.equal(keyValue(sample("\r\n"), "Run", "Review mode"), "acceptance");
+    assert.equal(keyValue(sample("\r\n"), "Run", "Human test review"), "acceptance");
   });
 
   test("gives a value of several lines without their indent", () => {

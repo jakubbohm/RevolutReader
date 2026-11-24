@@ -4,6 +4,10 @@
 // (TDD_NO_GRAPH=1) or replaced by a small fake (TDD_GRAPH_CLI), and the commands `run` wraps are Node one-liners
 // and, for the Windows shim, npm running a script of a made-up package. Every name, text and path is made up.
 //
+// The apply's commands come first, then what both skills share (`drop`, the progress line, `route`, the tests
+// allowed to fail), then a triage (`triage-init`, the commands with `--pr`), then the lock. The lock's waiting and
+// its stale age are cut short with TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS.
+//
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -21,11 +25,30 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { EMPTY, keyValue, sectionBody, sectionNames, STATE_SECTIONS } from "./state.mjs";
-import { changeScope, commitMessage, logFileName, newlines, tickTasks, windowsCommandLine } from "./tdd.mjs";
+import {
+  addBullet,
+  EMPTY,
+  keyValue,
+  putKey,
+  sectionBody,
+  sectionKeys,
+  sectionNames,
+  setSection,
+  STATE_SECTIONS,
+  TRIAGE_SECTIONS,
+} from "./state.mjs";
+import {
+  changeScope,
+  commitMessage,
+  logFileName,
+  newlines,
+  progressLine,
+  tickTasks,
+  windowsCommandLine,
+} from "./tdd.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./tdd.mjs", import.meta.url));
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
@@ -35,6 +58,9 @@ const FOLDER = `openspec/changes/${CHANGE}`;
 const STATE = `${FOLDER}/.tdd-state.md`;
 const REVIEWS = `${FOLDER}/.chapter-reviews.md`;
 const TASKS = `${FOLDER}/tasks.md`;
+const TRIAGE = `${FOLDER}/.review-triage.md`;
+const ARCHIVED = `openspec/changes/archive/2026-11-23-${CHANGE}`;
+const PR = "109";
 const WINDOWS = process.platform === "win32";
 
 const TASKS_TEXT = [
@@ -66,6 +92,9 @@ function started(file, args, { cwd, env, input } = {}) {
         err: Buffer.concat(printed.err).toString("utf8"),
       });
     });
+    // A program that ends without reading its input may have closed the pipe before this end reaches it (seen
+    // on Linux, under load): that is no failure of the program, whose exit code and output the test still judges.
+    child.stdin.on("error", () => {});
     child.stdin.end(input ?? "");
   });
 }
@@ -141,17 +170,70 @@ const optionsAsArguments = (given) =>
         value === true ? [`--${name}`] : [value].flat().flatMap((one) => [`--${name}`, one]),
       );
 
+// The apply's three switches as `init` takes them, each at its default.
+const SWITCHES = { "agent-review": "each-chapter", "human-test-review": "acceptance", "after-chapter": "continue" };
+
 // A repository whose change has the state file of a fresh `init`.
 async function initialized(t) {
   const dir = repository(t);
-  const r = await tdd(dir, withChange("init", { review: "acceptance", checkpoint: "stop" }));
+  const r = await tdd(dir, withChange("init", SWITCHES));
   assert.equal(r.code, 0, r.err);
   return dir;
 }
 
+// A command line for the made-up triage: the command, `--pr`, then the arguments as `withChange` takes them.
+const withPr = (command, ...args) => [command, "--pr", PR, ...args.flatMap(optionsAsArguments)];
+
+// The made-up repository with its change archived, as `openspec archive` leaves it, committed.
+async function archivedRepository(t) {
+  const dir = repository(t);
+  mkdirSync(join(dir, "openspec/changes/archive"), { recursive: true });
+  renameSync(join(dir, FOLDER), join(dir, ARCHIVED));
+  await git(dir, "add", "-A");
+  await git(dir, "commit", "--quiet", "-m", "chore: the change archived");
+  return dir;
+}
+
+// The working tree's own folder in git's folder, with the lock, the triage's pointer and, for a PR without a
+// change, the triage's state file.
+const gitFolder = (dir) => join(dir, ".git", "tdd");
+const pointer = (dir) => JSON.parse(readFileSync(join(gitFolder(dir), "triage.json"), "utf8"));
+const prState = (dir, pr = PR) => join(gitFolder(dir), `triage-${pr}.md`);
+// A folder's path as `triage-init` prints it: with forward slashes on every system.
+const slashed = (path) => path.split(sep).join("/");
+// The line `triage-init` prints: what it did to which state file, the round, the code graph (skipped in most
+// tests) and the work folder in use.
+const startLine = (what, round, work, graph = "skipped") =>
+  `${what} | round ${round} | graph: ${graph} | work: ${slashed(work)}\n`;
+
+// A repository in which round 1 of the made-up PR's triage has started, as `triage-init` leaves it, with the work
+// folder outside it and the state file's path. `of` says whose triage: `change` (the made-up change's, its state
+// file in the change's folder), `archived` (the same once the change is archived) or `none` (a PR without a
+// change: its state file in git's folder).
+async function triaging(t, of = "change") {
+  const dir = of === "archived" ? await archivedRepository(t) : repository(t);
+  const work = tempFolder(t);
+  const whose = of === "none" ? { scope: "i900" } : { change: CHANGE };
+  const r = await tdd(dir, withPr("triage-init", { round: "1", work, ...whose }));
+  assert.equal(r.code, 0, r.err);
+  const shown = { change: TRIAGE, archived: `${ARCHIVED}/.review-triage.md`, none: slashed(prState(dir)) }[of];
+  return { dir, work, shown, state: of === "none" ? prState(dir) : join(dir, shown) };
+}
+// A lock as a command of the process `pid` that took it so long ago would have left it.
+function leftLock(dir, pid, agoMs) {
+  mkdirSync(gitFolder(dir), { recursive: true });
+  const time = new Date(Date.now() - agoMs).toISOString();
+  writeFileSync(join(gitFolder(dir), "state.lock"), JSON.stringify({ pid, time }));
+}
+
+// The local time as the progress line prints it.
+const clock = (date = new Date()) =>
+  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
 // A stand-in for the code graph's command line, outside the repository: it records its arguments and answers as
 // FAKE_GRAPH_MODE says (a project, a failure, or text that is not JSON). On Windows it is a .cmd file, which also
-// proves the script can start one.
+// proves the script can start one. With FAKE_GRAPH_LOCK naming the working tree's lock file, it also records
+// whether the lock is there while it runs (`lockSeen`).
 function fakeGraph(t) {
   const dir = tempFolder(t);
   const calls = join(dir, "calls.jsonl");
@@ -159,8 +241,10 @@ function fakeGraph(t) {
     dir,
     "fake-graph.mjs",
     [
-      'import { appendFileSync } from "node:fs";',
+      'import { appendFileSync, existsSync } from "node:fs";',
       'appendFileSync(process.env.FAKE_GRAPH_CALLS, JSON.stringify(process.argv.slice(2)) + "\\n");',
+      "const lock = process.env.FAKE_GRAPH_LOCK;",
+      'if (lock) appendFileSync(process.env.FAKE_GRAPH_CALLS + ".lock", JSON.stringify(existsSync(lock)) + "\\n");',
       'const mode = process.env.FAKE_GRAPH_MODE ?? "ok";',
       'if (mode === "fail") {',
       '  process.stderr.write("made-up failure: the index is locked\\n");',
@@ -185,14 +269,14 @@ function fakeGraph(t) {
     FAKE_GRAPH_CALLS: calls,
     FAKE_GRAPH_MODE: mode,
   });
-  const received = () =>
-    existsSync(calls)
-      ? read(dir, "calls.jsonl")
+  const recorded = (file) =>
+    existsSync(join(dir, file))
+      ? read(dir, file)
           .trim()
           .split("\n")
           .map((l) => JSON.parse(l))
       : [];
-  return { env, received };
+  return { env, received: () => recorded("calls.jsonl"), lockSeen: () => recorded("calls.jsonl.lock") };
 }
 
 const samePath = (a, b) => assert.equal(realpathSync(a).toLowerCase(), realpathSync(b).toLowerCase());
@@ -343,6 +427,41 @@ describe("logFileName", () => {
   });
 });
 
+describe("progressLine", () => {
+  test("is the step and the local time on the 24-hour clock, to the minute", () => {
+    assert.equal(progressLine("Baseline", new Date(2026, 10, 24, 16, 24, 59)), "progress: Baseline completed at 16:24");
+    assert.equal(
+      progressLine("Chapter B, slice 3", new Date(2026, 10, 24, 9, 5, 0)),
+      "progress: Chapter B, slice 3 completed at 09:05",
+    );
+    assert.equal(
+      progressLine("Finding B-2", new Date(2026, 10, 24, 0, 0, 0)),
+      "progress: Finding B-2 completed at 00:00",
+    );
+    assert.equal(
+      progressLine("Close checks", new Date(2026, 10, 24, 23, 59, 0)),
+      "progress: Close checks completed at 23:59",
+    );
+  });
+
+  test("drops the spaces around the step and keeps the step as it is", () => {
+    assert.equal(
+      progressLine("  Acceptance tests  ", new Date(2026, 10, 24, 12, 30)),
+      "progress: Acceptance tests completed at 12:30",
+    );
+  });
+
+  test("refuses no step, an empty one and one of several lines, naming the option", () => {
+    const now = new Date(2026, 10, 24, 12, 30);
+
+    assert.throws(() => progressLine(undefined, now), /^Error: --step is the step's name on one line/);
+    assert.throws(() => progressLine(" ", now), /--step is the step's name on one line/);
+    assert.throws(() => progressLine("one\ntwo", now), /--step/);
+    assert.throws(() => progressLine("one\\ntwo", now), /--step/, "the two characters \\n are a line break");
+    assert.throws(() => progressLine("", now, "--done"), /--done is the step's name on one line/);
+  });
+});
+
 describe("windowsCommandLine", () => {
   // What cmd.exe is given to run a .cmd file: every character cmd reads specially carries carets, twice for an
   // argument, because cmd parses the batch file's own line again once the arguments are in it. That the arguments
@@ -474,6 +593,78 @@ describe("how the script is called", { concurrency: true }, () => {
     for (const command of ["init", "get", "set", "add", "put", "check", "commit", "index", "run"]) {
       assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
     }
+    for (const command of ["triage-init", "drop", "route", "progress"]) {
+      assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
+    }
+    for (const option of ["--agent-review", "--human-test-review", "--after-chapter", "--pr <id>", "--done"]) {
+      assert.ok(r.out.includes(option), option);
+    }
+  });
+
+  test("names every command when it is given none or one it does not know", async (t) => {
+    const dir = repository(t);
+
+    for (const args of [[], withChange("explode")]) {
+      const r = await tdd(dir, args);
+
+      assert.ok(
+        r.err.includes(
+          "the commands are: init, triage-init, get, set, add, put, drop, check, commit, index, run, route, progress",
+        ),
+        r.err,
+      );
+    }
+  });
+
+  test("refuses --change and --pr together, and neither of them, in one line", async (t) => {
+    const { dir } = await triaging(t);
+
+    const both = await tdd(dir, [...withChange("get", { section: "Run" }), "--pr", PR]);
+    const neither = await tdd(dir, ["get", "--section", "Run"]);
+
+    assert.equal(both.code, 1);
+    assert.equal(both.err, "ERROR: --change and --pr are given together: --change is an apply's, --pr a triage's\n");
+    assert.equal(neither.code, 1);
+    assert.equal(neither.err, "ERROR: --change <change-name> is missing (an apply's), or --pr <id> (a triage's)\n");
+  });
+
+  test("finds an archived change's folder for every command, by the change's name", async (t) => {
+    const dir = await archivedRepository(t);
+    const shown = `${ARCHIVED}/.tdd-state.md`;
+
+    const init = await tdd(dir, withChange("init", SWITCHES));
+    const put = await tdd(dir, withChange("put", { section: "Run", key: "Status", value: "done" }));
+    const get = await tdd(dir, withChange("get", { section: "Run" }));
+    const check = await tdd(dir, withChange("check", { step: "green" }));
+    const commit = await tdd(dir, withChange("commit", { type: "docs", tag: "close", summary: "Done", tick: "5.1" }));
+
+    assert.equal(init.out, `created ${shown} | graph: skipped\n`);
+    assert.equal(put.code, 0, put.err);
+    assert.match(get.out, /^- \*\*Status:\*\* done\n/);
+    assert.equal(check.out, `ok: 1 changed paths\n  ?? ${shown}\n`);
+    assert.equal(commit.code, 0, commit.err);
+    assert.deepEqual((await lastCommit(dir)).files, [shown, `${ARCHIVED}/tasks.md`]);
+    assert.equal(existsSync(join(dir, FOLDER)), false, "nothing is created under the change's old place");
+  });
+
+  test("prefers the change's own folder to an archived one of the same name", async (t) => {
+    const dir = await archivedRepository(t);
+    write(dir, TASKS, TASKS_TEXT);
+
+    const r = await tdd(dir, withChange("init", SWITCHES));
+
+    assert.equal(r.out, `created ${STATE} | graph: skipped\n`);
+  });
+
+  test("refuses a change with two folders in the archive, naming both", async (t) => {
+    const dir = await archivedRepository(t);
+    write(dir, `openspec/changes/archive/2026-12-01-${CHANGE}/tasks.md`, TASKS_TEXT);
+
+    const r = await tdd(dir, withChange("get", { section: "Run" }));
+
+    assert.equal(r.code, 1);
+    assert.match(r.err, new RegExp(`^ERROR: .*2026-11-23-${CHANGE}, 2026-12-01-${CHANGE}\\n$`));
+    assert.ok(oneLine(r.err), r.err);
   });
 });
 
@@ -482,7 +673,10 @@ describe("init", { concurrency: true }, () => {
     const dir = repository(t);
     const day = today();
 
-    const r = await tdd(dir, withChange("init", { review: "all", checkpoint: "continue" }));
+    const r = await tdd(
+      dir,
+      withChange("init", { "agent-review": "none", "human-test-review": "each-group", "after-chapter": "stop" }),
+    );
 
     assert.equal(r.code, 0, r.err);
     assert.equal(r.out, `created ${STATE} | graph: skipped\n`);
@@ -495,16 +689,18 @@ describe("init", { concurrency: true }, () => {
     assert.deepEqual(keys, [
       "Status",
       "Started",
-      "Review mode",
-      "Checkpoint mode",
+      "Agent review",
+      "Human test review",
+      "After chapter",
       "Branch",
       "Folder",
       "Code graph project",
     ]);
     assert.equal(keyValue(text, "Run", "Status"), "applying");
     assert.ok([day, today()].includes(keyValue(text, "Run", "Started")));
-    assert.equal(keyValue(text, "Run", "Review mode"), "all");
-    assert.equal(keyValue(text, "Run", "Checkpoint mode"), "continue");
+    assert.equal(keyValue(text, "Run", "Agent review"), "none");
+    assert.equal(keyValue(text, "Run", "Human test review"), "each-group");
+    assert.equal(keyValue(text, "Run", "After chapter"), "stop");
     assert.equal(keyValue(text, "Run", "Branch"), BRANCH);
     samePath(keyValue(text, "Run", "Folder"), dir);
     assert.equal(keyValue(text, "Run", "Code graph project"), "not indexed: skipped (TDD_NO_GRAPH=1)");
@@ -515,7 +711,7 @@ describe("init", { concurrency: true }, () => {
     const dir = repository(t);
     const graph = fakeGraph(t);
 
-    const r = await tdd(dir, withChange("init", { review: "acceptance", checkpoint: "stop" }), {
+    const r = await tdd(dir, withChange("init", SWITCHES), {
       env: graph.env(),
     });
 
@@ -532,7 +728,7 @@ describe("init", { concurrency: true }, () => {
     const dir = repository(t);
     const graph = fakeGraph(t);
 
-    const r = await tdd(dir, withChange("init", { review: "acceptance", checkpoint: "stop" }), {
+    const r = await tdd(dir, withChange("init", SWITCHES), {
       env: graph.env("fail"),
     });
 
@@ -545,7 +741,7 @@ describe("init", { concurrency: true }, () => {
     for (const issue of ["67", "#67"]) {
       const dir = repository(t);
 
-      assert.equal((await tdd(dir, withChange("init", { review: "all", checkpoint: "stop", issue: issue }))).code, 0);
+      assert.equal((await tdd(dir, withChange("init", { ...SWITCHES, issue: issue }))).code, 0);
 
       const text = read(dir, STATE);
       assert.equal(keyValue(text, "Run", "Issue"), "#67");
@@ -553,27 +749,76 @@ describe("init", { concurrency: true }, () => {
     }
   });
 
-  test("refuses an issue that is no number, and a mode it does not know", async (t) => {
+  test("takes every value of the three switches", async (t) => {
+    for (const switches of [
+      { "agent-review": "each-chapter", "human-test-review": "acceptance", "after-chapter": "continue" },
+      { "agent-review": "acceptance", "human-test-review": "each-group", "after-chapter": "stop" },
+      { "agent-review": "none", "human-test-review": "acceptance", "after-chapter": "continue" },
+    ]) {
+      const dir = repository(t);
+
+      assert.equal((await tdd(dir, withChange("init", switches))).code, 0);
+
+      const text = read(dir, STATE);
+      assert.equal(keyValue(text, "Run", "Agent review"), switches["agent-review"]);
+      assert.equal(keyValue(text, "Run", "Human test review"), switches["human-test-review"]);
+      assert.equal(keyValue(text, "Run", "After chapter"), switches["after-chapter"]);
+    }
+  });
+
+  test("refuses an issue that is no number, and a switch's value it does not know", async (t) => {
     const dir = repository(t);
 
-    for (const args of [
-      ["--review", "all", "--checkpoint", "stop", "--issue", "sixty-seven"],
-      ["--review", "everything", "--checkpoint", "stop"],
-      ["--review", "all", "--checkpoint", "sometimes"],
+    for (const options of [
+      { ...SWITCHES, issue: "sixty-seven" },
+      { ...SWITCHES, "agent-review": "everything" },
+      { ...SWITCHES, "agent-review": "all" },
+      { ...SWITCHES, "human-test-review": "all" },
+      { ...SWITCHES, "human-test-review": "none" },
+      { ...SWITCHES, "after-chapter": "sometimes" },
     ]) {
-      const r = await tdd(dir, withChange("init", ...args));
+      const r = await tdd(dir, withChange("init", options));
 
-      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.code, 1, JSON.stringify(options));
       assert.ok(oneLine(r.err), r.err);
     }
     assert.equal(existsSync(join(dir, STATE)), false);
   });
 
-  test("needs both modes to create the file", async (t) => {
+  test("names a switch's values when it refuses one", async (t) => {
     const dir = repository(t);
 
-    assert.equal((await tdd(dir, withChange("init", { review: "all" }))).code, 1);
-    assert.equal((await tdd(dir, withChange("init", { checkpoint: "stop" }))).code, 1);
+    const r = await tdd(dir, withChange("init", { ...SWITCHES, "agent-review": "all" }));
+
+    assert.equal(r.err, "ERROR: --agent-review is one of: each-chapter, acceptance, none\n");
+  });
+
+  test("no longer takes the options of before the switches were renamed", async (t) => {
+    const dir = repository(t);
+
+    for (const old of [{ review: "all" }, { checkpoint: "stop" }]) {
+      const r = await tdd(dir, withChange("init", { ...SWITCHES, ...old }));
+
+      assert.equal(r.code, 1, JSON.stringify(old));
+      assert.match(r.err, /^ERROR: unknown option --(review|checkpoint); init takes: /);
+    }
+    assert.equal(existsSync(join(dir, STATE)), false);
+  });
+
+  test("needs all three switches to create the file, and names them", async (t) => {
+    const dir = repository(t);
+
+    for (const missing of Object.keys(SWITCHES)) {
+      const r = await tdd(dir, withChange("init", { ...SWITCHES, [missing]: [] }));
+
+      assert.equal(r.code, 1, missing);
+      assert.equal(
+        r.err,
+        "ERROR: init needs --agent-review <each-chapter|acceptance|none>, " +
+          "--human-test-review <acceptance|each-group>, --after-chapter <continue|stop> to create the state file\n",
+      );
+    }
+    assert.equal((await tdd(dir, withChange("init"))).code, 1);
     assert.equal(existsSync(join(dir, STATE)), false);
   });
 
@@ -585,25 +830,43 @@ describe("init", { concurrency: true }, () => {
     const r = await tdd(dir, withChange("init"));
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, `exists: ${STATE} | review: acceptance | checkpoint: stop\n`);
+    assert.equal(
+      r.out,
+      `exists: ${STATE} | agent-review: each-chapter | human-test-review: acceptance | after-chapter: continue\n`,
+    );
     assert.equal(read(dir, STATE), before);
   });
 
-  test("changes only the modes given in a file that exists", async (t) => {
+  test("changes only the switches given in a file that exists", async (t) => {
     const dir = await initialized(t);
     await tdd(dir, withChange("set", { section: "Resume here", text: "Chapter B, group 7." }));
     const before = read(dir, STATE);
 
-    const r = await tdd(dir, withChange("init", { review: "all", issue: "99" }));
+    const r = await tdd(dir, withChange("init", { "human-test-review": "each-group", issue: "99" }));
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, `exists: ${STATE} | review: all (was acceptance) | checkpoint: stop\n`);
-    assert.equal(read(dir, STATE), before.replace("- **Review mode:** acceptance", "- **Review mode:** all"));
+    assert.equal(
+      r.out,
+      `exists: ${STATE} | agent-review: each-chapter | human-test-review: each-group (was acceptance) | ` +
+        "after-chapter: continue\n",
+    );
+    assert.equal(
+      read(dir, STATE),
+      before.replace("- **Human test review:** acceptance", "- **Human test review:** each-group"),
+    );
 
-    const again = await tdd(dir, withChange("init", { review: "all", checkpoint: "continue" }));
+    const again = await tdd(
+      dir,
+      withChange("init", { "agent-review": "none", "human-test-review": "each-group", "after-chapter": "stop" }),
+    );
 
-    assert.equal(again.out, `exists: ${STATE} | review: all | checkpoint: continue (was stop)\n`);
-    assert.equal(keyValue(read(dir, STATE), "Run", "Checkpoint mode"), "continue");
+    assert.equal(
+      again.out,
+      `exists: ${STATE} | agent-review: none (was each-chapter) | human-test-review: each-group | ` +
+        "after-chapter: stop (was continue)\n",
+    );
+    assert.equal(keyValue(read(dir, STATE), "Run", "Agent review"), "none");
+    assert.equal(keyValue(read(dir, STATE), "Run", "After chapter"), "stop");
   });
 
   test("refuses on main, on master and on a detached HEAD, and creates nothing", async (t) => {
@@ -611,7 +874,7 @@ describe("init", { concurrency: true }, () => {
       const dir = repository(t);
       await git(dir, "checkout", "--quiet", ...checkout);
 
-      const r = await tdd(dir, withChange("init", { review: "all", checkpoint: "stop" }));
+      const r = await tdd(dir, withChange("init", SWITCHES));
 
       assert.equal(r.code, 1, checkout.join(" "));
       assert.ok(oneLine(r.err), r.err);
@@ -636,7 +899,7 @@ describe("init", { concurrency: true }, () => {
       await git(dir, "config", "core.autocrlf", autocrlf);
       if (attributes) write(dir, ".gitattributes", attributes);
 
-      assert.equal((await tdd(dir, withChange("init", { review: "all", checkpoint: "stop" }))).code, 0);
+      assert.equal((await tdd(dir, withChange("init", SWITCHES))).code, 0);
       assert.equal(
         (await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }))).code,
         0,
@@ -661,7 +924,7 @@ describe("init", { concurrency: true }, () => {
       const dir = repository(t);
       write(dir, ".gitattributes", attributes);
 
-      await tdd(dir, withChange("init", { review: "all", checkpoint: "stop" }));
+      await tdd(dir, withChange("init", SWITCHES));
 
       const text = read(dir, STATE);
       assert.equal(/\r\n/.test(text), expected === "\r\n");
@@ -718,7 +981,7 @@ describe("get", { concurrency: true }, () => {
     assert.match((await tdd(dir, withChange("get", { section: "Run" }))).err, /^ERROR: .*init/);
     assert.equal((await tdd(dir, withChange("get", { section: "Run" }))).code, 1);
 
-    await tdd(dir, withChange("init", { review: "all", checkpoint: "stop" }));
+    await tdd(dir, withChange("init", SWITCHES));
     const r = await tdd(dir, withChange("get"));
 
     assert.equal(r.code, 1);
@@ -1823,5 +2086,1622 @@ describe("run", { concurrency: true }, () => {
       assert.ok(oneLine(r.err), r.err);
     }
     assert.equal(existsSync(join(temp, "tdd-runs")), false);
+  });
+
+  // The tests allowed to fail: `run` reads the state file's `Allowed failures` section and says, in one line right
+  // under its first, how many of the failed tests are on it and which are not.
+  const allowing = (dir, key, value) =>
+    tdd(dir, withChange("put", { section: "Allowed failures", key: key, value: value }));
+
+  test("says which failed tests are not on the state file's list of allowed failures, an empty list too", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+
+    const r = await wrapped(dir, temp, "all", printing("dotnet-test-failed.txt", 2));
+
+    assert.equal(r.code, 2);
+    assert.deepEqual(r.out.trimEnd().split("\n").slice(1, 3), [
+      "allowed failures: 0 of 4 failed tests are on the list; NOT ALLOWED: A_stub_is_not_written_yet | " +
+        "A_case_ends_as_its_path_says(throws) | A_list_holds_what_was_added | A_test_that_writes_output_and_fails",
+      "- A_stub_is_not_written_yet",
+    ]);
+    assert.equal(r.out.trimEnd().split("\n").length, 16, "one line more than without a state file");
+  });
+
+  test("counts the failed tests that are on the list, and keeps the command's exit code", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+    assert.equal((await allowing(dir, "A_stub_is_not_written_yet", "parked: question Q2, red commit 1a2b3c4")).code, 0);
+
+    const one = await wrapped(dir, temp, "all", printing("dotnet-test-failed.txt", 2));
+    for (const key of ["A_case_ends_as_its_path_says(throws)", "A_list_holds", "A_test_that_writes_output_and_fails"]) {
+      await allowing(dir, key, "blocked finding 5, red commit 0f9e8d7");
+    }
+    const all = await wrapped(dir, temp, "all", printing("dotnet-test-failed.txt", 2));
+
+    assert.equal(one.code, 2);
+    assert.deepEqual(one.out.trimEnd().split("\n").slice(1, 3), [
+      "allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: A_case_ends_as_its_path_says(throws) | " +
+        "A_list_holds_what_was_added | A_test_that_writes_output_and_fails",
+      "- A_stub_is_not_written_yet",
+    ]);
+    assert.equal(all.code, 2, "every failure is allowed, and the run is still red");
+    assert.deepEqual(all.out.trimEnd().split("\n").slice(1, 3), [
+      "allowed failures: 4 of 4 failed tests are on the list",
+      "- A_stub_is_not_written_yet",
+    ]);
+  });
+
+  test("goes back to not allowed once a test is dropped from the list", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+    await allowing(dir, "a made-up group > a stub is not written yet", "parked: question Q2");
+    const parked = await wrapped(dir, temp, "web", printing("vitest-failed.txt", 1));
+
+    const drop = await tdd(
+      dir,
+      withChange("drop", { section: "Allowed failures", key: "a made-up group > a stub is not written yet" }),
+    );
+    const settled = await wrapped(dir, temp, "web", printing("vitest-failed.txt", 1));
+
+    assert.match(parked.out.split("\n")[1], /^allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: /);
+    assert.doesNotMatch(parked.out.split("\n")[1], /NOT ALLOWED: .*a stub is not written yet/);
+    assert.equal(drop.code, 0, drop.err);
+    assert.match(
+      settled.out.split("\n")[1],
+      /^allowed failures: 0 of 4 failed tests are on the list; NOT ALLOWED: src\/gamma\.test\.js \[ src\/gamma\.test\.js \] \| .* a stub is not written yet/,
+    );
+  });
+
+  test("says that none failed for a green run while tests are on the list, and nothing while none is", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+
+    const plain = await wrapped(dir, temp, "unit", printing("dotnet-test-passed.txt", 0));
+    await allowing(dir, "A_parked_test", "parked: question Q2");
+    const listed = await wrapped(dir, temp, "unit", printing("dotnet-test-passed.txt", 0));
+
+    assert.ok(oneLine(plain.out), plain.out);
+    assert.equal(listed.code, 0);
+    assert.deepEqual(listed.out.trimEnd().split("\n").slice(1), [
+      "allowed failures: 0 of 0 failed tests are on the list",
+    ]);
+  });
+
+  test("puts the line on allowed failures before the last lines of a run that failed otherwise", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+    await allowing(dir, "A_parked_test", "parked: question Q2");
+
+    const r = await wrapped(
+      dir,
+      temp,
+      "build",
+      node("console.error('error MADEUP1: the build failed'); process.exit(1);"),
+    );
+
+    assert.deepEqual(r.out.trimEnd().split("\n").slice(1), [
+      "allowed failures: 0 of 0 failed tests are on the list",
+      "error MADEUP1: the build failed",
+    ]);
+  });
+
+  test("in a triage, reads the triage's list and writes its logs under tdd-runs/pr-<id>", async (t) => {
+    for (const of of ["change", "none"]) {
+      const { dir } = await triaging(t, of);
+      const temp = tempFolder(t);
+      if (of === "change") {
+        await tdd(dir, withChange("init", SWITCHES));
+        await allowing(dir, "A_stub_is_not_written_yet", "the apply's list, which a triage does not read");
+      }
+      await tdd(dir, withPr("put", { section: "Allowed failures", key: "A_list_holds", value: "blocked finding 5" }));
+
+      const r = await tdd(dir, withPr("run", { label: "all" }, "--", ...printing("dotnet-test-failed.txt", 2)), {
+        env: tempEnv(temp),
+      });
+
+      assert.equal(r.code, 2, of);
+      assert.match(
+        r.out.split("\n")[1],
+        /^allowed failures: 1 of 4 failed tests are on the list; NOT ALLOWED: A_stub/,
+        of,
+      );
+      samePath(join(firstLine(r).log, ".."), join(temp, "tdd-runs", `pr-${PR}`));
+    }
+  });
+});
+
+describe("drop", { concurrency: true }, () => {
+  test("removes one keyed bullet and says so in one line", async (t) => {
+    const dir = await initialized(t);
+    await tdd(dir, withChange("put", { section: "Allowed failures", key: "A_made_up_test(1)", value: "parked: Q2" }));
+    await tdd(
+      dir,
+      withChange("put", { section: "Allowed failures", key: "Another_test", value: "blocked\\nsince 1a2b3c4" }),
+    );
+    const before = read(dir, STATE);
+
+    const r = await tdd(dir, withChange("drop", { section: "Allowed failures", key: "Another_test" }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "dropped: Allowed failures / Another_test\n");
+    assert.equal(sectionBody(read(dir, STATE), "Allowed failures"), "- **A_made_up_test(1):** parked: Q2");
+    const eol = /\r\n/.test(before) ? "\r\n" : "\n";
+    assert.equal(read(dir, STATE), before.replace(`- **Another_test:** blocked${eol}  since 1a2b3c4${eol}`, ""));
+  });
+
+  test("leaves the section empty when it held nothing else, and the file as `init` made it", async (t) => {
+    const dir = await initialized(t);
+    const fresh = read(dir, STATE);
+    await tdd(dir, withChange("put", { section: "Allowed failures", key: "A_made_up_test(1)", value: "parked: Q2" }));
+
+    const r = await tdd(dir, withChange("drop", { section: "allowed failures", key: " A_made_up_test(1) " }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(read(dir, STATE), fresh);
+  });
+
+  test("refuses a key the section does not have, naming those it has, and changes nothing", async (t) => {
+    const dir = await initialized(t);
+    await tdd(dir, withChange("put", { section: "Allowed failures", key: "A_made_up_test(1)", value: "parked: Q2" }));
+    const before = read(dir, STATE);
+
+    const r = await tdd(dir, withChange("drop", { section: "Allowed failures", key: "A_made_up_test" }));
+
+    assert.equal(r.code, 1);
+    assert.equal(r.out, "");
+    assert.equal(r.err, 'ERROR: no key "A_made_up_test" in Allowed failures; its keys are: "A_made_up_test(1)"\n');
+    assert.equal(read(dir, STATE), before);
+  });
+
+  test("fails with one line without a key or a section, for a section that is not there, and before `init`", async (t) => {
+    const dir = await initialized(t);
+    const before = read(dir, STATE);
+
+    for (const options of [
+      { section: "Allowed failures" },
+      { key: "A" },
+      { section: "Disputes", key: "A" },
+      { section: "Open", key: "A" },
+    ]) {
+      const r = await tdd(dir, withChange("drop", options));
+
+      assert.equal(r.code, 1, JSON.stringify(options));
+      assert.ok(oneLine(r.err), r.err);
+    }
+    assert.equal(read(dir, STATE), before);
+    const none = await tdd(repository(t), withChange("drop", { section: "Open", key: "A" }));
+    assert.match(none.err, /^ERROR: .*init/);
+  });
+
+  test("works on the reviews file with --file reviews, and creates neither a file nor a section", async (t) => {
+    const dir = await initialized(t);
+
+    const none = await tdd(dir, withChange("drop", { file: "reviews", section: "Chapter A", key: "Verdict" }));
+    await tdd(dir, withChange("put", { file: "reviews", section: "Chapter A", key: "Verdict", value: "clean" }));
+    const r = await tdd(dir, withChange("drop", { file: "reviews", section: "Chapter A", key: "Verdict" }));
+
+    assert.equal(none.code, 1);
+    assert.ok(oneLine(none.err), none.err);
+    assert.equal(r.out, "dropped: Chapter A / Verdict\n");
+    assert.equal(sectionBody(read(dir, REVIEWS), "Chapter A"), EMPTY);
+  });
+});
+
+describe("progress", { concurrency: true }, () => {
+  test("prints exactly one line with the step and the clock's time, and needs no change and no repository", async (t) => {
+    const outside = tempFolder(t);
+    const before = clock();
+
+    const r = await tdd(outside, ["progress", "--step", "Chapter B, slice 3"]);
+
+    assert.equal(r.code, 0, r.err);
+    const time = /^progress: Chapter B, slice 3 completed at (\d\d:\d\d)\n$/.exec(r.out)?.[1];
+    assert.ok([before, clock()].includes(time), r.out);
+  });
+
+  test("takes --change, --pr and --root without looking at them", async (t) => {
+    const outside = tempFolder(t);
+
+    for (const more of [
+      ["--change", "c901-not-there"],
+      ["--pr", "not-started"],
+      ["--root", outside],
+    ]) {
+      const r = await tdd(outside, ["progress", "--step", "Baseline", ...more]);
+
+      assert.equal(r.code, 0, r.err);
+      assert.match(r.out, /^progress: Baseline completed at \d\d:\d\d\n$/);
+    }
+  });
+
+  test("fails with one line without a step, and for one that is empty or of two lines", async (t) => {
+    const outside = tempFolder(t);
+
+    for (const args of [[], ["--step", " "], ["--step", "one\\ntwo"], ["--step", "Baseline", "--done", "Baseline"]]) {
+      const r = await tdd(outside, ["progress", ...args]);
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.ok(oneLine(r.err), r.err);
+    }
+  });
+});
+
+describe("commit --done", { concurrency: true }, () => {
+  test("prints the step's progress line after the commit's own line", async (t) => {
+    const dir = await initialized(t);
+    write(dir, "src/App/Mapping.cs", "// the mapping\n");
+    const before = clock();
+
+    const r = await tdd(
+      dir,
+      withChange("commit", { type: "feat", tag: "close", summary: "Slice 3", tick: "5.1", done: "Chapter B, slice 3" }),
+    );
+
+    assert.equal(r.code, 0, r.err);
+    const [made, progress, ...rest] = r.out.trimEnd().split("\n");
+    assert.match(made, /^[0-9a-f]{7,} feat\(c900\): \[close\] Slice 3 \| ticked 5\.1 \| graph: skipped$/);
+    const time = /^progress: Chapter B, slice 3 completed at (\d\d:\d\d)$/.exec(progress)?.[1];
+    assert.ok([before, clock()].includes(time), r.out);
+    assert.deepEqual(rest, []);
+    assert.equal((await lastCommit(dir)).message, "feat(c900): [close] Slice 3", "the step is not in the message");
+  });
+
+  test("prints no progress line when there is nothing to commit, and none when the guard stops it", async (t) => {
+    const dir = repository(t);
+
+    const nothing = await tdd(
+      dir,
+      withChange("commit", { type: "feat", tag: "close", summary: "x", done: "Baseline" }),
+    );
+    write(dir, "tests/App.UnitTests/MappingTests.cs", "// changed by the implementer\n");
+    const stopped = await tdd(
+      dir,
+      withChange("commit", { type: "feat", tag: "green", summary: "x", check: "green", done: "Baseline" }),
+    );
+
+    assert.equal(nothing.code, 4);
+    assert.equal(nothing.out, "");
+    assert.equal(stopped.code, 3);
+    assert.doesNotMatch(stopped.out, /progress:/);
+  });
+
+  test("refuses a step that is empty or of two lines before anything is changed", async (t) => {
+    const dir = await initialized(t);
+    write(dir, "src/App/Mapping.cs", "// the mapping\n");
+    const head = (await lastCommit(dir)).sha;
+
+    for (const done of [" ", "one\\ntwo"]) {
+      const r = await tdd(
+        dir,
+        withChange("commit", { type: "feat", tag: "close", summary: "x", tick: "5.1", resume: "Next.", done: done }),
+      );
+
+      assert.equal(r.code, 1, done);
+      assert.match(r.err, /^ERROR: --done is the step's name on one line/);
+      assert.ok(oneLine(r.err), r.err);
+    }
+    assert.equal((await lastCommit(dir)).sha, head);
+    assert.equal(read(dir, TASKS), TASKS_TEXT);
+    assert.equal(sectionBody(read(dir, STATE), "Resume here"), EMPTY);
+  });
+});
+
+describe("route", { concurrency: true }, () => {
+  const confirmed = (more = {}) => ({
+    verdict: "confirmed",
+    evidence: true,
+    kind: "behaviour",
+    local: true,
+    size: "small",
+    specBehaviour: false,
+    contractChange: false,
+    ...more,
+  });
+  // Three findings, one for each outcome, as the chapter-reviewer's line carries them.
+  const FINDINGS = JSON.stringify([
+    { id: "B-1", outside: false, reviewerDisagrees: false, verdicts: [confirmed()] },
+    { id: "B-2", verdicts: [{ verdict: "refuted", evidence: true }] },
+    { id: "B-3", verdicts: [confirmed({ local: false })] },
+  ]);
+  const ROUTED =
+    "B-1 → FIX · behaviour\nB-2 → DECLINE · refuted with evidence\nB-3 → ASK · the fix is not local\n" +
+    "FIX 1 · DECLINE 1 · ASK 1\n";
+
+  test("sorts the findings given with --json, one line each and the counts, without a change or a repository", async (t) => {
+    const outside = tempFolder(t);
+
+    const r = await tdd(outside, ["route", "--json", FINDINGS]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, ROUTED);
+    assert.equal(r.err, "");
+    assert.deepEqual(readdirSync(outside), []);
+  });
+
+  test("takes the line with the label the chapter-reviewer's hand-back puts before it", async (t) => {
+    const r = await tdd(tempFolder(t), ["route", "--json", `ROUTE INPUT: ${FINDINGS}`]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, ROUTED);
+  });
+
+  test("reads the findings from a file with --in, from the folder it is called in or by its whole path", async (t) => {
+    const dir = tempFolder(t);
+    write(dir, "work/results.json", `\uFEFF${FINDINGS}\n`);
+
+    const relative = await tdd(dir, ["route", "--in", "work/results.json"]);
+    const absolute = await tdd(tempFolder(t), ["route", "--in", join(dir, "work", "results.json")]);
+
+    assert.equal(relative.code, 0, relative.err);
+    assert.equal(relative.out, ROUTED);
+    assert.equal(absolute.out, ROUTED);
+    assert.equal(read(dir, "work/results.json"), `\uFEFF${FINDINGS}\n`, "the file is left as it was");
+  });
+
+  test("reads the findings from standard input with --stdin", async (t) => {
+    const r = await tdd(tempFolder(t), ["route", "--stdin"], { input: `${FINDINGS}\n` });
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, ROUTED);
+  });
+
+  test("sorts a triage's two verdicts per finding, and says when only one of the two checks says so", async (t) => {
+    const findings = JSON.stringify([
+      { id: 1, verdicts: [confirmed({ kind: "docs" }), confirmed({ kind: "docs" })] },
+      { id: 2, verdicts: [confirmed({ size: "large" }), confirmed()] },
+      { id: 3, verdicts: [confirmed(), null] },
+      {
+        id: 4,
+        verdicts: [
+          { verdict: "refuted", evidence: true },
+          { verdict: "refuted", evidence: false },
+        ],
+      },
+    ]);
+
+    const r = await tdd(tempFolder(t), ["route", "--json", findings]);
+
+    assert.equal(
+      r.out,
+      "1 → FIX · docs\n2 → ASK · a large fix, and the two checks disagree on it\n" +
+        "3 → ASK · a check returned no result\n4 → ASK · refuted without concrete evidence\n" +
+        "FIX 1 · DECLINE 0 · ASK 3\n",
+    );
+  });
+
+  test("works next to --change and inside a repository too, and changes nothing there", async (t) => {
+    const dir = await initialized(t);
+    const before = await status(dir);
+
+    const r = await tdd(dir, [...withChange("route"), "--json", FINDINGS]);
+
+    assert.equal(r.out, ROUTED);
+    assert.deepEqual(await status(dir), before);
+    assert.equal(existsSync(gitFolder(dir)), true, "only `init` made git's folder for the lock");
+    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+  });
+
+  test("needs exactly one of --json, --in, --stdin and --reports", async (t) => {
+    const dir = tempFolder(t);
+    write(dir, "results.json", FINDINGS);
+    write(dir, "reports/3-1.md", "VERDICT: unsure\n");
+
+    for (const args of [
+      [],
+      ["--json", FINDINGS, "--stdin"],
+      ["--json", FINDINGS, "--in", "results.json"],
+      ["--json", FINDINGS, "--reports", "reports", "--ids", "3"],
+      ["--in", "results.json", "--reports", "reports", "--ids", "3"],
+      ["--stdin", "--reports", "reports", "--ids", "3"],
+      ["--ids", "3"],
+    ]) {
+      const r = await tdd(dir, ["route", ...args], { input: FINDINGS });
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.equal(
+        r.err,
+        "ERROR: route needs one of --json <text>, --in <file>, --stdin and --reports <folder> with --ids\n",
+      );
+    }
+  });
+
+  test("takes --ids with --reports only, and needs it there", async (t) => {
+    const dir = tempFolder(t);
+    write(dir, "results.json", FINDINGS);
+    write(dir, "reports/3-1.md", "VERDICT: unsure\n");
+
+    for (const [args, message] of [
+      [["--json", FINDINGS, "--ids", "3"], "--ids goes with --reports <folder>: it names the findings there"],
+      [["--in", "results.json", "--ids", "3"], "--ids goes with --reports <folder>: it names the findings there"],
+      [["--stdin", "--ids", "3"], "--ids goes with --reports <folder>: it names the findings there"],
+      [["--reports", "reports"], "route --reports needs --ids <id>[,<id>...]: the findings to sort"],
+      [["--reports", "reports", "--ids", " , "], "route --reports needs --ids <id>[,<id>...]: the findings to sort"],
+    ]) {
+      const r = await tdd(dir, ["route", ...args], { input: FINDINGS });
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.equal(r.err, `ERROR: ${message}\n`);
+    }
+  });
+
+  // A folder of the report files a triage's checks wrote: for each finding's id the lines of its first and of its
+  // second check's report; null for a check that wrote none.
+  const REPORT = {
+    confirmed: [
+      "VERDICT: confirmed",
+      "EVIDENCE: src/App/Mapping.cs:19, and the test A_made_up_test",
+      "KIND: behaviour",
+      "FIX: local · small · spec behaviour no · contract change no · return the field from the mapping",
+    ],
+    refuted: ["VERDICT: refuted", "EVIDENCE: design.md D4 decides it", "KIND: not applicable", "FIX: not applicable"],
+  };
+  function reports(t, findings) {
+    const folder = join(tempFolder(t), "reports");
+    mkdirSync(folder);
+    for (const [id, checks] of Object.entries(findings)) {
+      checks.forEach((lines, i) => {
+        if (lines !== null)
+          write(folder, `${id}-${i + 1}.md`, `# Finding ${id}\n\n${lines.join("\n")}\n\nALSO NOTICED: —\n`);
+      });
+    }
+    return folder;
+  }
+
+  test("with --reports, sorts each finding of --ids from the report files of its two checks", async (t) => {
+    const folder = reports(t, {
+      1: [REPORT.confirmed, REPORT.confirmed],
+      2: [REPORT.confirmed, REPORT.refuted],
+      3: [REPORT.confirmed, null],
+      4: [REPORT.refuted, REPORT.refuted],
+      5: [REPORT.confirmed, REPORT.confirmed.map((l) => l.replace("FIX: local", "FIX: not local"))],
+    });
+    const before = readdirSync(folder);
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2,3,4,5"]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, "");
+    assert.equal(
+      r.out,
+      "1 → FIX · behaviour\n2 → ASK · the two checks disagree on the verdict\n" +
+        "3 → ASK · a check returned no result\n4 → DECLINE · refuted with evidence\n" +
+        "5 → ASK · the fix is not local, and the two checks disagree on it\n" +
+        "FIX 1 · DECLINE 1 · ASK 3\n",
+    );
+    assert.deepEqual(readdirSync(folder), before, "the folder is left as it was");
+  });
+
+  test("with --reports, sorts a finding with a report it cannot read as one without that check's result, says why on stderr, and goes on", async (t) => {
+    const folder = reports(t, {
+      1: [REPORT.confirmed, REPORT.confirmed],
+      2: [REPORT.confirmed, REPORT.confirmed.map((l) => l.replace("KIND: behaviour", "KIND: bug"))],
+      3: [["The finding is real."], REPORT.confirmed],
+      4: [REPORT.refuted, REPORT.refuted],
+    });
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2,3,4"]);
+
+    assert.equal(r.code, 0, "the triage goes on with the other findings");
+    assert.equal(
+      r.out,
+      "1 → FIX · behaviour\n2 → ASK · a check returned no result\n3 → ASK · a check returned no result\n" +
+        "4 → DECLINE · refuted with evidence\nFIX 1 · DECLINE 1 · ASK 2\n",
+    );
+    assert.deepEqual(r.err.trimEnd().split("\n"), [
+      'route: 2-2.md cannot be read as a report: KIND is "bug"; it is one of: behaviour, test-quality, docs, cleanup',
+      "route: 3-1.md cannot be read as a report: it has no VERDICT line",
+    ]);
+  });
+
+  test("with --reports, reads a report with a byte-order mark and CRLF line breaks, and one that is a folder as unreadable", async (t) => {
+    const folder = reports(t, { 7: [REPORT.confirmed, REPORT.confirmed] });
+    writeFileSync(join(folder, "7-1.md"), `﻿${REPORT.confirmed.join("\r\n")}\r\n`);
+    mkdirSync(join(folder, "8-1.md"));
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "7,8"]);
+
+    assert.equal(r.code, 0);
+    assert.equal(r.out, "7 → FIX · behaviour\n8 → ASK · a check returned no result\nFIX 1 · DECLINE 0 · ASK 1\n");
+    assert.match(r.err, /^route: 8-1\.md cannot be read as a report: .+\n$/);
+    assert.ok(oneLine(r.err), r.err);
+  });
+
+  test("with --reports, takes the findings in the order of --ids, given at once or one by one, and only those", async (t) => {
+    const folder = reports(t, {
+      "B-1": [REPORT.confirmed, REPORT.confirmed],
+      "B-2": [REPORT.refuted, REPORT.refuted],
+      "B-3": [REPORT.confirmed, REPORT.confirmed],
+    });
+
+    const atOnce = await tdd(folder, ["route", "--reports", ".", "--ids", "B-2, B-1"]);
+    const oneByOne = await tdd(folder, ["route", "--reports", folder, "--ids", "B-2", "--ids", "B-1"]);
+
+    assert.equal(
+      atOnce.out,
+      "B-2 → DECLINE · refuted with evidence\nB-1 → FIX · behaviour\nFIX 1 · DECLINE 1 · ASK 0\n",
+    );
+    assert.equal(oneByOne.out, atOnce.out);
+  });
+
+  test("with --reports, refuses a folder that is not there, an id that is no id and an id given twice", async (t) => {
+    const folder = reports(t, { 1: [REPORT.confirmed, REPORT.confirmed] });
+
+    for (const [args, pattern] of [
+      [["--reports", join(folder, "not-there"), "--ids", "1"], /^ERROR: --reports: no folder .*not-there\n$/],
+      [["--reports", join(folder, "1-1.md"), "--ids", "1"], /^ERROR: --reports: no folder .*1-1\.md\n$/],
+      [["--reports", folder, "--ids", "1,../1"], /^ERROR: not a finding's id: "\.\.\/1"; an id is letters, digits, /],
+      [["--reports", folder, "--ids", "1,a b"], /^ERROR: not a finding's id: "a b"; /],
+      [["--reports", folder, "--ids", "1,2,1"], /^ERROR: finding 1: the id is given twice\n$/],
+    ]) {
+      const r = await tdd(tempFolder(t), ["route", ...args]);
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.match(r.err, pattern);
+      assert.ok(oneLine(r.err), r.err);
+    }
+  });
+
+  test("refuses the whole input in one line that names the finding and the field, and prints no outcome", async (t) => {
+    const dir = tempFolder(t);
+    const wrong = JSON.stringify([
+      { id: "B-1", verdicts: [confirmed()] },
+      { id: "B-2", verdicts: [confirmed({ size: "huge" })] },
+    ]);
+    write(dir, "results.json", wrong);
+
+    for (const [args, input] of [
+      [["--json", wrong], ""],
+      [["--in", "results.json"], ""],
+      [["--stdin"], wrong],
+    ]) {
+      const r = await tdd(dir, ["route", ...args], { input });
+
+      assert.equal(r.code, 1, args[0]);
+      assert.equal(r.out, "");
+      assert.equal(
+        r.err,
+        'ERROR: finding B-2: verdicts[0].size is "huge"; it is one of: small, medium, large\n',
+        args[0],
+      );
+    }
+  });
+
+  test("fails with one line for input that is no JSON, an empty one, and a file that is not there", async (t) => {
+    const dir = tempFolder(t);
+
+    for (const [args, input, pattern] of [
+      [["--json", "B-1: confirmed"], "", /^ERROR: the input is not JSON: /],
+      [["--json", ""], "", /^ERROR: the input is not JSON: /],
+      [["--stdin"], "", /^ERROR: the input is not JSON: /],
+      [["--json", '{"id":"B-1"}'], "", /^ERROR: the input is not a JSON array of findings\n$/],
+      [["--in", "not-there.json"], "", /^ERROR: --in: no file not-there\.json\n$/],
+      [["--in", "."], "", /^ERROR: --in: no file \.\n$/],
+    ]) {
+      const r = await tdd(dir, ["route", ...args], { input });
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.match(r.err, pattern);
+      assert.ok(oneLine(r.err), r.err);
+    }
+  });
+});
+
+describe("triage-init", { concurrency: true }, () => {
+  // The keys `triage-init` writes into `Run`, in the file's order: none of them a path of this machine.
+  const RUN_KEYS = ["Status", "PR", "Round", "Scope", "Source", "Branch", "Code graph project"];
+
+  test("with a change, creates the state file in the change's folder and the pointer to it", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, change: CHANGE }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, startLine(`created ${TRIAGE}`, 1, work));
+    const text = read(dir, TRIAGE);
+    assert.equal(text.split(/\r?\n/)[0], `# Review triage: ${CHANGE}`);
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 1"]);
+    assert.deepEqual(sectionKeys(text, "Run"), RUN_KEYS);
+    assert.equal(keyValue(text, "Run", "Status"), "triaging");
+    assert.equal(keyValue(text, "Run", "PR"), PR);
+    assert.equal(keyValue(text, "Run", "Round"), "1");
+    assert.equal(keyValue(text, "Run", "Scope"), "c900");
+    assert.equal(keyValue(text, "Run", "Source"), "pr");
+    assert.equal(keyValue(text, "Run", "Branch"), BRANCH);
+    assert.equal(keyValue(text, "Run", "Code graph project"), "not indexed: skipped (TDD_NO_GRAPH=1)");
+    for (const name of sectionNames(text).filter((n) => n !== "Run")) assert.equal(sectionBody(text, name), EMPTY);
+
+    const points = pointer(dir);
+    assert.deepEqual(Object.keys(points), ["pr", "round", "change", "scope", "work", "state"]);
+    assert.deepEqual(
+      { pr: points.pr, round: points.round, change: points.change, scope: points.scope },
+      { pr: PR, round: 1, change: CHANGE, scope: "c900" },
+    );
+    samePath(points.work, work);
+    samePath(points.state, join(dir, TRIAGE));
+    assert.deepEqual(await status(dir), [`?? ${TRIAGE}`], "the pointer is not in the working tree");
+    assert.deepEqual(readdirSync(work), [], "nothing is written to the work folder");
+  });
+
+  test("holds no path of this machine in the state file: neither the work folder nor the repository's", async (t) => {
+    for (const of of ["change", "none"]) {
+      const { dir, work, state } = await triaging(t, of);
+
+      const text = readFileSync(state, "utf8");
+
+      assert.deepEqual(sectionKeys(text, "Run"), RUN_KEYS, of);
+      assert.equal(keyValue(text, "Run", "Work folder"), null, of);
+      assert.equal(keyValue(text, "Run", "Folder"), null, of);
+      for (const path of [work, slashed(work), dir, slashed(dir)]) assert.equal(text.includes(path), false, path);
+      samePath(pointer(dir).work, work);
+    }
+  });
+
+  test("without a change, keeps the state file in git's folder, next to the pointer, where git status never lists it", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, scope: "i900" }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, startLine(`created ${slashed(prState(dir))}`, 1, work));
+    const text = readFileSync(prState(dir), "utf8");
+    assert.equal(text.split("\n")[0], `# Review triage: PR ${PR}`);
+    assert.equal(text.includes("\r"), false, "LF: git never sees the file");
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 1"]);
+    assert.deepEqual(sectionKeys(text, "Run"), RUN_KEYS);
+    assert.equal(keyValue(text, "Run", "Scope"), "i900");
+    const points = pointer(dir);
+    assert.deepEqual(
+      { pr: points.pr, round: points.round, change: points.change, scope: points.scope },
+      { pr: PR, round: 1, change: null, scope: "i900" },
+    );
+    samePath(points.state, prState(dir));
+    samePath(points.work, work);
+    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"]);
+    assert.deepEqual(await status(dir), [], "nothing in the working tree");
+    assert.equal(await git(dir, "status", "--porcelain", "--untracked-files=all", "--ignored"), "", "nor ignored");
+    assert.deepEqual(readdirSync(work), [], "nothing is written to the work folder");
+  });
+
+  test("prints the work folder with forward slashes", async (t) => {
+    const dir = repository(t);
+    const work = join(tempFolder(t), "triage-review", "109");
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, scope: "i900" }));
+
+    const printed = / \| work: (.+)\n$/.exec(r.out)?.[1];
+    assert.ok(printed, r.out);
+    assert.equal(printed.includes("\\"), false, printed);
+    assert.ok(printed.endsWith("/triage-review/109"), printed);
+    samePath(printed, work);
+  });
+
+  test("with an archived change, creates the state file in the change's folder in the archive", async (t) => {
+    const dir = await archivedRepository(t);
+    const work = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "2", work: work, change: CHANGE }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, startLine(`created ${ARCHIVED}/.review-triage.md`, 2, work));
+    assert.deepEqual(sectionNames(read(dir, `${ARCHIVED}/.review-triage.md`)), [...TRIAGE_SECTIONS, "Round 2"]);
+    assert.equal(pointer(dir).change, CHANGE);
+    samePath(pointer(dir).state, join(dir, ARCHIVED, ".review-triage.md"));
+    assert.equal(existsSync(join(dir, FOLDER)), false);
+  });
+
+  test("takes the scope from the change, another one when given, and needs one without a change", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+
+    const none = await tdd(dir, withPr("triage-init", { round: "1", work: work }));
+    assert.equal(none.code, 1);
+    assert.equal(
+      none.err,
+      "ERROR: triage-init needs --scope <scope> without --change: the scope of the round's commits\n",
+    );
+    assert.equal(existsSync(gitFolder(dir)), false, "no pointer");
+
+    await tdd(dir, withPr("triage-init", { round: "1", work: work, change: CHANGE, scope: "c900b" }));
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Scope"), "c900b");
+    assert.equal(pointer(dir).scope, "c900b");
+  });
+
+  test("records the source: pr unless chat is given, and keeps it at a later start that names none", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+    const start = (more) => tdd(dir, withPr("triage-init", { round: "1", work: work, change: CHANGE, ...more }));
+
+    await start({});
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Source"), "pr");
+    await start({ source: "chat" });
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Source"), "chat");
+    await start({});
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Source"), "chat");
+    await start({ source: "pr" });
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Source"), "pr");
+  });
+
+  test("takes the PR's number with its #, and any token of letters, digits and dashes", async (t) => {
+    for (const [given, id] of [
+      ["#109", "109"],
+      ["local", "local"],
+      ["trial-2", "trial-2"],
+    ]) {
+      const dir = repository(t);
+
+      const r = await tdd(dir, [
+        "triage-init",
+        "--pr",
+        given,
+        "--round",
+        "1",
+        "--work",
+        tempFolder(t),
+        "--scope",
+        "i900",
+      ]);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(pointer(dir).pr, id);
+      assert.equal((await tdd(dir, ["get", "--pr", given, "--section", "Run"])).out.split("\n")[1], `- **PR:** ${id}`);
+    }
+  });
+
+  test("creates the work folder when it is not there", async (t) => {
+    for (const whose of [{ scope: "i900" }, { change: CHANGE }]) {
+      const dir = repository(t);
+      const work = join(tempFolder(t), "triage-review", "109-r2");
+
+      const r = await tdd(dir, withPr("triage-init", { round: "2", work: work, ...whose }));
+
+      assert.equal(r.code, 0, r.err);
+      assert.deepEqual(readdirSync(work), []);
+    }
+  });
+
+  test("writes a new state file in the change's folder as git would check it out", async (t) => {
+    for (const [attributes, crlf] of [
+      ["*.md text eol=crlf\n", true],
+      ["*.md text eol=lf\n", false],
+    ]) {
+      const dir = repository(t);
+      write(dir, ".gitattributes", attributes);
+
+      await tdd(dir, withPr("triage-init", { round: "1", work: tempFolder(t), change: CHANGE }));
+
+      const text = read(dir, TRIAGE);
+      assert.equal(/\r\n/.test(text), crlf);
+      assert.equal(/(?<!\r)\n/.test(text), !crlf);
+    }
+  });
+
+  // A triage whose first round is closed: findings recorded, an agent, an open question, the commit trailers.
+  // The state file `triage-init` made is filled in with state.mjs's own functions, as the section commands do it.
+  async function afterRoundOne(t, of) {
+    const started = await triaging(t, of);
+    let text = readFileSync(started.state, "utf8");
+    text = setSection(text, "Resume here", "Round 1 is closed.");
+    text = putKey(text, "Agents", "Runner", "r1s2t3, 61k tokens");
+    text = addBullet(text, "Open", "finding 2: deferred to an issue");
+    text = putKey(text, "Allowed failures", "A_parked_test", "blocked finding 2");
+    text = putKey(text, "Run", "Commit trailers", "A-Trailer: one\nB-Trailer: two");
+    text = putKey(text, "Round 1", "1", "src/a.cs:19 · A made-up title · FIX · 1a2b3c4 · posted");
+    text = putKey(text, "Round 1", "2", "src/b.ts:142 · Another · ASK → defer · — · posted");
+    writeFileSync(started.state, putKey(text, "Run", "Status", "done"));
+    return started;
+  }
+
+  test("for a later round, keeps everything, updates Run and appends the round's section", async (t) => {
+    const { dir, state, shown } = await afterRoundOne(t, "change");
+    const before = readFileSync(state, "utf8");
+    const eol = /\r\n/.test(before) ? "\r\n" : "\n";
+    const laterWork = join(tempFolder(t), "109-r2");
+
+    const r = await tdd(dir, withPr("triage-init", { round: "2", work: laterWork, change: CHANGE }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, startLine(`exists: ${shown}`, "2, a new section", laterWork));
+    const after = readFileSync(state, "utf8");
+    assert.equal(
+      after,
+      before.replace("- **Status:** done", "- **Status:** triaging").replace("- **Round:** 1", "- **Round:** 2") +
+        `${eol}## Round 2${eol}${eol}${EMPTY}${eol}`,
+    );
+    assert.equal(keyValue(after, "Run", "Commit trailers"), "A-Trailer: one\nB-Trailer: two");
+    assert.deepEqual(sectionNames(after), [...TRIAGE_SECTIONS, "Round 1", "Round 2"]);
+    assert.deepEqual({ round: pointer(dir).round, work: pointer(dir).work }, { round: 2, work: laterWork });
+    assert.deepEqual(readdirSync(laterWork), [], "a new round takes the folder given, and creates it");
+  });
+
+  test("a PR without a change keeps one state file across rounds started with different work folders", async (t) => {
+    const { dir, work, state } = await afterRoundOne(t, "none");
+    const before = readFileSync(state);
+    const roundOne = before.subarray(before.indexOf("## Round 1"));
+    const laterWork = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "2", work: laterWork, scope: "i900" }));
+    await tdd(dir, withPr("put", { section: "Round 2", key: "1", value: "src/c.cs:7 · A later one · FIX" }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, startLine(`exists: ${slashed(prState(dir))}`, "2, a new section", laterWork));
+    const after = readFileSync(state);
+    const at = after.indexOf("## Round 1");
+    assert.deepEqual(after.subarray(at, at + roundOne.length), roundOne, "round 1 byte for byte");
+    assert.deepEqual(sectionNames(after.toString()), [...TRIAGE_SECTIONS, "Round 1", "Round 2"]);
+    assert.equal(keyValue(after.toString(), "Round 2", "1"), "src/c.cs:7 · A later one · FIX");
+    assert.equal(keyValue(after.toString(), "Run", "Commit trailers"), "A-Trailer: one\nB-Trailer: two");
+    samePath(pointer(dir).state, state);
+    samePath(pointer(dir).work, laterWork);
+    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"], "one state file");
+    assert.deepEqual([readdirSync(work), readdirSync(laterWork)], [[], []], "no state file in a work folder");
+    assert.deepEqual(await status(dir), []);
+  });
+
+  for (const of of ["change", "none"]) {
+    test(`a rerun of the same round keeps the work folder in use while it is there, and takes the one given when it is gone (${of})`, async (t) => {
+      const { dir, work, shown } = await triaging(t, of);
+      const whose = of === "none" ? { scope: "i900" } : { change: CHANGE };
+      const another = join(tempFolder(t), "another-session");
+      const rerun = () => tdd(dir, withPr("triage-init", { round: "1", work: another, ...whose }));
+
+      const kept = await rerun();
+      assert.equal(kept.out, startLine(`exists: ${shown}`, 1, work));
+      samePath(pointer(dir).work, work);
+      assert.equal(existsSync(another), false, "the folder given is not created while it is not used");
+
+      rmSync(work, { recursive: true });
+      const taken = await rerun();
+      assert.equal(taken.out, startLine(`exists: ${shown}`, 1, another));
+      samePath(pointer(dir).work, another);
+      assert.deepEqual(readdirSync(another), []);
+
+      const again = await tdd(dir, withPr("triage-init", { round: "1", work: tempFolder(t), ...whose }));
+      assert.equal(again.out, startLine(`exists: ${shown}`, 1, another), "and that one is kept from then on");
+    });
+  }
+
+  test("a new round takes the work folder given, also while the earlier round's is still there", async (t) => {
+    const { dir, work } = await triaging(t, "none");
+    const laterWork = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "2", work: laterWork, scope: "i900" }));
+
+    assert.equal(r.out, startLine(`exists: ${slashed(prState(dir))}`, "2, a new section", laterWork));
+    assert.equal(existsSync(work), true);
+    samePath(pointer(dir).work, laterWork);
+  });
+
+  test("keeps the work folder only for the same PR: another PR's start takes the folder given", async (t) => {
+    const { dir } = await triaging(t, "none");
+    const otherWork = tempFolder(t);
+
+    const r = await tdd(dir, ["triage-init", "--pr", "110", "--round", "1", "--work", otherWork, "--scope", "i901"]);
+
+    assert.equal(r.out, startLine(`created ${slashed(prState(dir, "110"))}`, 1, otherWork));
+    samePath(pointer(dir).work, otherWork);
+    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), ["triage-109.md", "triage-110.md", "triage.json"]);
+  });
+
+  test("takes the work folder given when the pointer cannot be read, and writes the pointer anew", async (t) => {
+    const { dir, shown } = await triaging(t, "change");
+    writeFileSync(join(gitFolder(dir), "triage.json"), "not json");
+    const work = tempFolder(t);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, change: CHANGE }));
+
+    assert.equal(r.out, startLine(`exists: ${shown}`, 1, work));
+    samePath(pointer(dir).work, work);
+  });
+
+  test("leaves the work folder and the repository's folder in a Run that has them from before, as they are", async (t) => {
+    const { dir, state, work, shown } = await triaging(t, "change");
+    const older = putKey(
+      putKey(readFileSync(state, "utf8"), "Run", "Work folder", "<scratchpad>/triage-review/109/"),
+      "Run",
+      "Folder",
+      "a made-up folder",
+    );
+    writeFileSync(state, older);
+
+    const r = await tdd(dir, withPr("triage-init", { round: "2", work: tempFolder(t), change: CHANGE }));
+
+    assert.equal(r.code, 0, r.err);
+    const after = readFileSync(state, "utf8");
+    assert.equal(keyValue(after, "Run", "Work folder"), "<scratchpad>/triage-review/109/");
+    assert.equal(keyValue(after, "Run", "Folder"), "a made-up folder");
+    assert.equal(keyValue(after, "Run", "Round"), "2");
+    assert.equal(after.includes(slashed(work)), false, shown);
+  });
+
+  for (const of of ["change", "archived", "none"]) {
+    test(`leaves an earlier round's section byte for byte, round after round (${of})`, async (t) => {
+      const { dir, work, state } = await afterRoundOne(t, of);
+      const before = readFileSync(state);
+      const roundOne = before.subarray(before.indexOf("## Round 1"));
+      const whose = of === "none" ? { scope: "i900" } : { change: CHANGE };
+
+      for (const round of ["2", "3"]) {
+        const r = await tdd(dir, withPr("triage-init", { round: round, work: work, ...whose }));
+        assert.equal(r.code, 0, r.err);
+        await tdd(dir, withPr("put", { section: `Round ${round}`, key: "1", value: "src/c.cs:7 · A later one · FIX" }));
+      }
+
+      const after = readFileSync(state);
+      const at = after.indexOf("## Round 1");
+      assert.deepEqual(after.subarray(at, at + roundOne.length), roundOne);
+      assert.deepEqual(sectionNames(after.toString()), [...TRIAGE_SECTIONS, "Round 1", "Round 2", "Round 3"]);
+      assert.equal(keyValue(after.toString(), "Round 3", "1"), "src/c.cs:7 · A later one · FIX");
+    });
+  }
+
+  for (const of of ["change", "none"]) {
+    test(`for a rerun of the same round, changes nothing in a round under way (${of})`, async (t) => {
+      const { dir, work, state, shown } = await triaging(t, of);
+      await tdd(dir, withPr("put", { section: "Round 1", key: "1", value: "src/a.cs:19 · A made-up title · FIX" }));
+      await tdd(dir, withPr("set", { section: "Resume here", text: "The fix round: finding 2 is next." }));
+      const before = readFileSync(state);
+      const whose = of === "none" ? { scope: "i900" } : { change: CHANGE };
+
+      const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, ...whose }));
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, startLine(`exists: ${shown}`, 1, work));
+      assert.deepEqual(readFileSync(state), before);
+    });
+  }
+
+  test("for a rerun of a round that was closed, sets the status back and changes nothing else", async (t) => {
+    const { dir, work, state } = await afterRoundOne(t, "none");
+    const before = readFileSync(state, "utf8");
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, scope: "i900" }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(readFileSync(state, "utf8"), before.replace("- **Status:** done", "- **Status:** triaging"));
+  });
+
+  test("takes an earlier round's number too: Run says it, and no section is added or removed", async (t) => {
+    const { dir, work, state, shown } = await afterRoundOne(t, "none");
+    await tdd(dir, withPr("triage-init", { round: "2", work: work, scope: "i900" }));
+
+    const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, scope: "i900" }));
+
+    assert.equal(r.out, startLine(`exists: ${shown}`, 1, work));
+    const text = readFileSync(state, "utf8");
+    assert.equal(keyValue(text, "Run", "Round"), "1");
+    assert.deepEqual(sectionNames(text), [...TRIAGE_SECTIONS, "Round 1", "Round 2"]);
+    assert.equal(pointer(dir).round, 1);
+  });
+
+  test("indexes the code graph at every start, outside the lock, and records the project", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+    const graph = fakeGraph(t);
+    const start = (round, mode) =>
+      tdd(dir, withPr("triage-init", { round: round, work: work, change: CHANGE }), { env: graph.env(mode) });
+
+    const first = await start("1");
+    assert.equal(first.out, startLine(`created ${TRIAGE}`, 1, work, "made-up-project"));
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Code graph project"), "made-up-project");
+
+    const failed = await start("2", "fail");
+    assert.equal(failed.code, 0, failed.err);
+    assert.match(failed.out, /^exists: .* \| round 2, a new section \| graph: failed: .*the index is locked/);
+    assert.match(keyValue(read(dir, TRIAGE), "Run", "Code graph project"), /^not indexed: .*the index is locked/);
+
+    const calls = graph.received();
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0].slice(0, 4), ["cli", "--quiet", "index_repository", "--repo-path"]);
+    samePath(calls[0][4], dir);
+  });
+
+  test("refuses a state file that is another PR's triage, and leaves it and the pointer as they were", async (t) => {
+    const { dir, work, state } = await triaging(t, "change");
+    const before = readFileSync(state);
+
+    const r = await tdd(dir, ["triage-init", "--pr", "110", "--round", "1", "--work", work, "--change", CHANGE]);
+
+    assert.equal(r.code, 1);
+    assert.equal(r.err, `ERROR: ${TRIAGE} is the triage of PR ${PR}, not of PR 110\n`);
+    assert.deepEqual(readFileSync(state), before);
+    assert.equal(pointer(dir).pr, PR);
+  });
+
+  test("points at the triage started last in the working tree", async (t) => {
+    const { dir } = await triaging(t, "change");
+    const work = tempFolder(t);
+
+    const r = await tdd(dir, ["triage-init", "--pr", "110", "--round", "1", "--work", work, "--scope", "i901"]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(
+      { pr: pointer(dir).pr, change: pointer(dir).change, scope: pointer(dir).scope },
+      { pr: "110", change: null, scope: "i901" },
+    );
+    assert.equal(
+      (await tdd(dir, withPr("get", { section: "Run" }))).code,
+      1,
+      "the earlier PR's is no longer under way",
+    );
+    assert.equal((await tdd(dir, ["get", "--pr", "110", "--section", "Run"])).code, 0);
+  });
+
+  test("refuses on main, on master and on a detached HEAD, and creates nothing", async (t) => {
+    for (const checkout of [["main"], ["-b", "master"], ["--detach"]]) {
+      const dir = repository(t);
+      const work = tempFolder(t);
+      await git(dir, "checkout", "--quiet", ...checkout);
+
+      const r = await tdd(dir, withPr("triage-init", { round: "1", work: work, change: CHANGE }));
+
+      assert.equal(r.code, 1, checkout.join(" "));
+      assert.match(r.err, /^ERROR: triage-init works on the PR's branch, and /);
+      assert.ok(oneLine(r.err), r.err);
+      assert.equal(existsSync(join(dir, TRIAGE)), false);
+      assert.equal(existsSync(gitFolder(dir)), false);
+    }
+  });
+
+  test("refuses what it cannot go by, each in one line, and creates nothing", async (t) => {
+    const dir = repository(t);
+    const work = tempFolder(t);
+    write(work, "a-file.txt", "made up\n");
+    const whole = { pr: PR, round: "1", work: work, change: CHANGE };
+
+    for (const [options, pattern] of [
+      [{ ...whole, pr: [] }, /--pr <id>/],
+      [{ ...whole, pr: "a b" }, /--pr is the PR's number/],
+      [{ ...whole, pr: "../109" }, /--pr is the PR's number/],
+      [{ ...whole, round: [] }, /--round <n>/],
+      [{ ...whole, round: "0" }, /--round <n>/],
+      [{ ...whole, round: "two" }, /--round <n>/],
+      [{ ...whole, round: "1.5" }, /--round <n>/],
+      [{ ...whole, work: [] }, /--work <absolute folder>/],
+      [{ ...whole, work: "relative/work" }, /--work is an absolute path/],
+      [{ ...whole, work: join(work, "a-file.txt") }, /--work is a folder/],
+      [{ ...whole, source: "mail" }, /--source is one of: pr, chat/],
+      [{ ...whole, scope: "a b" }, /--scope is the scope/],
+      [{ ...whole, change: "c901-not-there" }, /c901-not-there/],
+      [{ ...whole, change: `../changes/${CHANGE}` }, /not a path/],
+      [{ ...whole, change: [], scope: "i900", work: join(dir, "work") }, /--work lies inside the repository/],
+    ]) {
+      const r = await tdd(dir, ["triage-init", ...optionsAsArguments(options)]);
+
+      assert.equal(r.code, 1, JSON.stringify(options));
+      assert.equal(r.out, "");
+      assert.match(r.err, pattern);
+      assert.match(r.err, /^ERROR: /);
+      assert.ok(oneLine(r.err), r.err);
+    }
+    assert.equal(existsSync(join(dir, TRIAGE)), false);
+    assert.equal(existsSync(join(gitFolder(dir), "triage.json")), false);
+    assert.deepEqual(readdirSync(work), ["a-file.txt"]);
+    assert.equal(existsSync(join(dir, "work")), false, "no work folder is made for a start that is refused");
+    assert.deepEqual(await status(dir), []);
+  });
+});
+
+describe("a triage's commands, with --pr", { concurrency: true }, () => {
+  for (const of of ["change", "archived", "none"]) {
+    test(`get, set, add, put and drop work on the triage's state file (${of})`, async (t) => {
+      const { dir, state } = await triaging(t, of);
+
+      const set = await tdd(dir, withPr("set", { section: "Resume here", text: "Gathering.\\nSix findings." }));
+      const add = await tdd(dir, withPr("add", { section: "Open", line: "finding 5: asked" }));
+      const put = await tdd(dir, withPr("put", { section: "Round 1", key: "3", value: "src/a.cs:19 · A title · FIX" }));
+      await tdd(dir, withPr("put", { section: "Round 1", key: "4", value: "src/b.cs:2 · Another · DECLINE" }));
+      const drop = await tdd(dir, withPr("drop", { section: "Round 1", key: "4" }));
+      const get = await tdd(dir, withPr("get", { section: ["Round 1", "open", "Resume here"] }));
+
+      assert.equal(set.out, "set: Resume here | 2 lines\n", set.err);
+      assert.equal(add.out, "added: Open | 1 line\n", add.err);
+      assert.equal(put.out, "put: Round 1 / 3\n", put.err);
+      assert.equal(drop.out, "dropped: Round 1 / 4\n", drop.err);
+      assert.equal(
+        get.out,
+        "## Round 1\n- **3:** src/a.cs:19 · A title · FIX\n\n## Open\n- finding 5: asked\n\n" +
+          "## Resume here\nGathering.\nSix findings.\n",
+      );
+      assert.equal(keyValue(readFileSync(state, "utf8"), "Round 1", "3"), "src/a.cs:19 · A title · FIX");
+    });
+  }
+
+  test("set, add and put create a section the triage's state file does not have yet, at the end", async (t) => {
+    const { dir, state } = await triaging(t, "none");
+
+    const put = await tdd(dir, withPr("put", { section: "Round 2", key: "1", value: "src/a.cs:19 · A title · FIX" }));
+    const add = await tdd(dir, withPr("add", { section: "Notes", line: "a made-up note" }));
+    const set = await tdd(dir, withPr("set", { section: "Close", text: "All threads answered." }));
+    const again = await tdd(dir, withPr("put", { section: "round 2", key: "2", value: "src/b.cs:2 · Another · ASK" }));
+
+    assert.equal(put.out, "put: Round 2 / 1 | new section\n", put.err);
+    assert.equal(add.out, "added: Notes | 1 line | new section\n", add.err);
+    assert.equal(set.out, "set: Close | 1 line | new section\n", set.err);
+    assert.equal(again.out, "put: Round 2 / 2\n", again.err);
+    assert.deepEqual(sectionNames(readFileSync(state, "utf8")), [
+      ...TRIAGE_SECTIONS,
+      "Round 1",
+      "Round 2",
+      "Notes",
+      "Close",
+    ]);
+  });
+
+  test("get and drop do not create a section, and say which sections there are", async (t) => {
+    const { dir, state } = await triaging(t, "change");
+    const before = readFileSync(state);
+
+    const get = await tdd(dir, withPr("get", { section: "Round 2" }));
+    const drop = await tdd(dir, withPr("drop", { section: "Round 2", key: "1" }));
+
+    assert.equal(get.code, 1);
+    assert.match(get.err, /Round 2.*Resume here, Run, Agents, Open, Allowed failures, Round 1/);
+    assert.equal(drop.code, 1);
+    assert.ok(oneLine(drop.err), drop.err);
+    assert.deepEqual(readFileSync(state), before);
+  });
+
+  test("is refused in one line while no triage is under way in the working tree", async (t) => {
+    const dir = await initialized(t);
+
+    for (const args of [
+      withPr("get", { section: "Run" }),
+      withPr("set", { section: "Open", text: "x" }),
+      withPr("check", { step: "green" }),
+      withPr("commit", { type: "fix", tag: "review", summary: "3: x" }),
+      withPr("index"),
+      withPr("run", { label: "x" }, "--", process.execPath, "-e", "0"),
+    ]) {
+      const r = await tdd(dir, args);
+
+      assert.equal(r.code, 1, args[0]);
+      assert.equal(r.out, "");
+      assert.equal(
+        r.err,
+        `ERROR: no triage is under way in this working tree: run triage-init --pr ${PR} first\n`,
+        args[0],
+      );
+    }
+  });
+
+  test("is refused in one line when the triage under way is another PR's", async (t) => {
+    const { dir, state } = await triaging(t, "change");
+    const before = readFileSync(state);
+
+    for (const args of [
+      ["get", "--pr", "110", "--section", "Run"],
+      ["put", "--pr", "110", "--section", "Run", "--key", "Status", "--value", "done"],
+      ["commit", "--pr", "#110", "--type", "fix", "--tag", "review", "--summary", "3: x"],
+    ]) {
+      const r = await tdd(dir, args);
+
+      assert.equal(r.code, 1, args[0]);
+      assert.equal(r.err, `ERROR: the triage under way in this working tree is PR ${PR}'s, not PR 110's\n`);
+    }
+    assert.deepEqual(readFileSync(state), before);
+    assert.equal((await tdd(dir, ["get", "--pr", `#${PR}`, "--section", "Run"])).code, 0, "the # is taken");
+  });
+
+  test("is refused when the pointer's state file is gone, naming the command that makes it", async (t) => {
+    const { dir, state } = await triaging(t, "none");
+    rmSync(state);
+
+    for (const args of [withPr("get", { section: "Run" }), withPr("add", { section: "Open", line: "x" })]) {
+      const r = await tdd(dir, args);
+
+      assert.equal(r.code, 1);
+      assert.match(r.err, /^ERROR: no .*triage-109\.md: run triage-init first\n$/);
+    }
+  });
+
+  test("is refused for init, which is the apply's, and with --file reviews, which a triage has not", async (t) => {
+    const { dir } = await triaging(t, "change");
+
+    const init = await tdd(dir, withPr("init", SWITCHES));
+    const reviews = await tdd(dir, withPr("get", { file: "reviews", section: "Chapter A" }));
+    const written = await tdd(dir, withPr("set", { file: "reviews", section: "Chapter A", text: "x" }));
+
+    assert.equal(init.err, "ERROR: init is the apply's: it takes --change\n");
+    assert.equal(reviews.err, "ERROR: --file reviews: a triage has no reviews file, only its state file\n");
+    assert.equal(written.code, 1);
+    assert.equal(existsSync(join(dir, REVIEWS)), false);
+    assert.equal(existsSync(join(dir, STATE)), false);
+  });
+
+  test("with --change alone everything is the apply's, next to a triage of the same change", async (t) => {
+    const { dir } = await triaging(t, "change");
+    await tdd(dir, withChange("init", SWITCHES));
+    await tdd(dir, withChange("set", { section: "Resume here", text: "The apply's." }));
+    await tdd(dir, withPr("set", { section: "Resume here", text: "The triage's." }));
+
+    const apply = await tdd(dir, withChange("get", { section: ["Resume here", "Run"] }));
+    const triage = await tdd(dir, withPr("get", { section: ["Resume here", "Run"] }));
+
+    assert.match(apply.out, /^## Resume here\nThe apply's\.\n\n## Run\n- \*\*Status:\*\* applying\n/);
+    assert.match(triage.out, /^## Resume here\nThe triage's\.\n\n## Run\n- \*\*Status:\*\* triaging\n/);
+  });
+
+  test("commit takes the scope and the trailers from the triage, and writes its Resume here", async (t) => {
+    const { dir } = await triaging(t, "change");
+    await tdd(dir, withPr("put", { section: "Run", key: "Commit trailers", value: "A-Trailer: one" }));
+    write(dir, "src/App/Mapping.cs", "// the fix\n");
+
+    const r = await tdd(
+      dir,
+      withPr("commit", {
+        type: "fix",
+        tag: "review",
+        summary: "3: A made-up fix",
+        resume: "Finding 4 is next.",
+        done: "Finding 3",
+      }),
+    );
+
+    assert.equal(r.code, 0, r.err);
+    assert.match(
+      r.out,
+      /^[0-9a-f]{7,} fix\(c900\): \[review\] 3: A made-up fix \| graph: skipped\nprogress: Finding 3 completed at \d\d:\d\d\n$/,
+    );
+    const made = await lastCommit(dir);
+    assert.equal(made.message, "fix(c900): [review] 3: A made-up fix\n\nA-Trailer: one");
+    assert.deepEqual(made.files, [TRIAGE, "src/App/Mapping.cs"]);
+    assert.equal(sectionBody(read(dir, TRIAGE), "Resume here"), "Finding 4 is next.");
+    assert.deepEqual(await status(dir), []);
+  });
+
+  test("commit for a PR without a change: the scope given at the start, and the state file in git's folder is never committed", async (t) => {
+    const { dir, state } = await triaging(t, "none");
+    await tdd(dir, withPr("put", { section: "Run", key: "Commit trailers", value: "A-Trailer: one" }));
+    write(dir, "src/App/Mapping.cs", "// the fix\n");
+    write(dir, "src/App/Other.cs", "// not for this commit\n");
+
+    const whole = await tdd(
+      dir,
+      withPr("commit", { type: "test", tag: "review", summary: "3: A guard test, red", resume: "Finding 3, the fix." }),
+    );
+    write(dir, "src/App/Mapping.cs", "// the fix, again\n");
+    const paths = await tdd(
+      dir,
+      withPr("commit", {
+        type: "fix",
+        tag: "review",
+        summary: "3: A made-up fix",
+        resume: "Finding 4 is next.",
+        path: "src/App/Mapping.cs",
+      }),
+    );
+
+    assert.equal(whole.code, 0, whole.err);
+    assert.equal(paths.code, 0, paths.err);
+    const made = await lastCommit(dir);
+    assert.equal(made.message, "fix(i900): [review] 3: A made-up fix\n\nA-Trailer: one");
+    assert.deepEqual(made.files, ["src/App/Mapping.cs"]);
+    assert.equal(sectionBody(readFileSync(state, "utf8"), "Resume here"), "Finding 4 is next.");
+    assert.deepEqual(await status(dir), []);
+  });
+
+  test("commit --tick ticks the change's tasks in a triage that has a change, and is refused in one that has none", async (t) => {
+    const withChangeOf = await triaging(t, "archived");
+    const without = await triaging(t, "none");
+    write(withChangeOf.dir, "src/App/Mapping.cs", "// the fix\n");
+    write(without.dir, "src/App/Mapping.cs", "// the fix\n");
+    const commit = withPr("commit", { type: "fix", tag: "review", summary: "3: A made-up fix", tick: "5.1" });
+
+    const ticked = await tdd(withChangeOf.dir, commit);
+    const refused = await tdd(without.dir, commit);
+
+    assert.equal(ticked.code, 0, ticked.err);
+    assert.match(ticked.out, / \| ticked 5\.1 \| /);
+    assert.ok(read(withChangeOf.dir, `${ARCHIVED}/tasks.md`).includes("- [x] 5.1 A balance"));
+    assert.equal(refused.code, 1);
+    assert.equal(refused.err, "ERROR: --tick: a triage without a change has no tasks.md\n");
+    assert.deepEqual(await status(without.dir), [" M src/App/Mapping.cs"]);
+  });
+
+  test("commit refuses on main as for an apply, in the triage's words", async (t) => {
+    const { dir } = await triaging(t, "none");
+    await git(dir, "checkout", "--quiet", "main");
+    write(dir, "src/App/Mapping.cs", "// the fix\n");
+
+    const r = await tdd(dir, withPr("commit", { type: "fix", tag: "review", summary: "3: x" }));
+
+    assert.equal(r.err, "ERROR: commit works on the PR's branch, and this is main\n");
+  });
+
+  test("check lets the triage's own state file through, and no other file under openspec/", async (t) => {
+    for (const of of ["change", "archived"]) {
+      const { dir, shown } = await triaging(t, of);
+      write(dir, "src/App/Mapping.cs", "// the fix\n");
+
+      const clean = await tdd(dir, withPr("check", { step: "green" }));
+      write(dir, shown.replace(".review-triage.md", ".tdd-state.md"), "# written past the script\n");
+      write(dir, shown.replace(".review-triage.md", "design.md"), "# Design, changed\n");
+      const stopped = await tdd(dir, withPr("check", { step: "green" }));
+
+      assert.equal(clean.code, 0, clean.out);
+      assert.deepEqual(clean.out.trimEnd().split("\n"), [
+        "ok: 2 changed paths",
+        "   M src/App/Mapping.cs",
+        `  ?? ${shown}`,
+      ]);
+      assert.equal(stopped.code, 3);
+      assert.deepEqual(stopped.out.trimEnd().split("\n"), [
+        "violations (2):",
+        `   M ${shown.replace(".review-triage.md", "design.md")}`,
+        `  ?? ${shown.replace(".review-triage.md", ".tdd-state.md")}`,
+        "other changed paths (2):",
+        "   M src/App/Mapping.cs",
+        `  ?? ${shown}`,
+      ]);
+    }
+  });
+
+  test("check has no own file for a PR without a change: its state file is not in the working tree", async (t) => {
+    const { dir } = await triaging(t, "none");
+
+    const clean = await tdd(dir, withPr("check", { step: "close" }));
+    write(dir, TRIAGE, "# not this triage's\n");
+    const stopped = await tdd(dir, withPr("commit", { type: "fix", tag: "review", summary: "3: x", check: "green" }));
+
+    assert.equal(clean.out, "ok: 0 changed paths\n");
+    assert.equal(stopped.code, 3);
+    assert.match(stopped.out, new RegExp(`^violations \\(1\\):\\n {2}\\?\\? ${TRIAGE.replace(/\./g, "\\.")}\\n`));
+  });
+
+  test("index needs the triage only to find the working tree", async (t) => {
+    const { dir } = await triaging(t, "none");
+    const graph = fakeGraph(t);
+
+    const r = await tdd(join(dir, "src", "App"), withPr("index"), { env: graph.env() });
+
+    assert.equal(r.out, "graph: made-up-project\n");
+    samePath(graph.received()[0][4], dir);
+  });
+});
+
+describe("the lock", { concurrency: true }, () => {
+  // The lock's wait limit cut to a third of a second: a command that finds the lock held is refused then.
+  const impatient = { TDD_LOCK_WAIT_MS: "300" };
+  const lockFile = (dir) => join(gitFolder(dir), "state.lock");
+  const refusedAsLocked = (r, pid) => {
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.out, "");
+    assert.match(r.err, new RegExp(`^ERROR: the state files are locked by process ${pid}, .*; run it again `));
+    assert.ok(oneLine(r.err), r.err);
+  };
+
+  test("loses no update when many commands write the same state file at once", async (t) => {
+    const dir = await initialized(t);
+    const numbers = Array.from({ length: 10 }, (_, i) => i + 1);
+
+    const ended = await Promise.all([
+      ...numbers.map((n) => tdd(dir, withChange("add", { section: "Open", line: `question ${n}` }))),
+      ...numbers.map((n) => tdd(dir, withChange("put", { section: "Agents", key: `Agent ${n}`, value: `a${n}` }))),
+      tdd(dir, withChange("set", { section: "Resume here", text: "Chapter B, group 7." })),
+    ]);
+
+    for (const r of ended) assert.equal(r.code, 0, r.err);
+    const text = read(dir, STATE);
+    assert.deepEqual(sectionBody(text, "Open").split("\n").sort(), numbers.map((n) => `- question ${n}`).sort());
+    assert.deepEqual(sectionKeys(text, "Agents").sort(), numbers.map((n) => `Agent ${n}`).sort());
+    assert.equal(sectionBody(text, "Resume here"), "Chapter B, group 7.");
+    assert.deepEqual(sectionNames(text), STATE_SECTIONS);
+    assert.deepEqual(readdirSync(gitFolder(dir)), [], "no lock is left");
+    assert.deepEqual(readdirSync(join(dir, FOLDER)).sort(), [".tdd-state.md", "design.md", "tasks.md"]);
+  });
+
+  test("loses no update across the files of a working tree: the reviews file, and a triage's file in git's folder", async (t) => {
+    const { dir, state } = await triaging(t, "none");
+    await tdd(dir, withChange("init", SWITCHES));
+    const numbers = Array.from({ length: 6 }, (_, i) => i + 1);
+
+    const ended = await Promise.all([
+      ...numbers.map((n) => tdd(dir, withPr("put", { section: "Round 1", key: String(n), value: `finding ${n}` }))),
+      ...numbers.map((n) =>
+        tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: `finding ${n}` })),
+      ),
+      ...numbers.map((n) => tdd(dir, withChange("add", { section: "Open", line: `question ${n}` }))),
+    ]);
+
+    for (const r of ended) assert.equal(r.code, 0, r.err);
+    assert.deepEqual(sectionKeys(readFileSync(state, "utf8"), "Round 1").sort(), numbers.map(String));
+    assert.equal(sectionBody(read(dir, REVIEWS), "Chapter A").split("\n").length, 6);
+    assert.equal(sectionBody(read(dir, STATE), "Open").split("\n").length, 6);
+    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"], "no lock, no leftover");
+  });
+
+  test("lets a reader through while writers write: `get` never fails and never sees half a file", async (t) => {
+    const dir = await initialized(t);
+    const long = Array.from({ length: 400 }, (_, i) => `- a made-up line ${i + 1}`).join("\n");
+    await tdd(dir, withChange("set", { section: "What the code holds now", stdin: true }), { input: long });
+
+    const ended = await Promise.all(
+      Array.from({ length: 24 }, (_, i) =>
+        i % 2 === 0
+          ? tdd(dir, withChange("add", { section: "Open", line: `question ${i}` }))
+          : tdd(dir, withChange("get", { section: ["What the code holds now", "Design files"] })),
+      ),
+    );
+
+    for (const [i, r] of ended.entries()) {
+      assert.equal(r.code, 0, r.err);
+      if (i % 2 === 1) assert.equal(r.out, `## What the code holds now\n${long}\n\n## Design files\n${EMPTY}\n`);
+    }
+  });
+
+  test("refuses every writing command in one line while the lock is held, and changes nothing", async (t) => {
+    const { dir, work } = await triaging(t, "change");
+    await tdd(dir, withChange("init", SWITCHES));
+    await tdd(dir, withChange("put", { section: "Allowed failures", key: "A_parked_test", value: "parked: Q2" }));
+    write(dir, "src/App/Mapping.cs", "// the mapping\n");
+    const before = { state: read(dir, STATE), triage: read(dir, TRIAGE), head: (await lastCommit(dir)).sha };
+    leftLock(dir, process.pid, 5_000);
+
+    const commands = [
+      withChange("init", { "after-chapter": "stop" }),
+      withChange("set", { section: "Open", text: "x" }),
+      withChange("add", { section: "Open", line: "x" }),
+      withChange("put", { section: "Run", key: "Status", value: "done" }),
+      withChange("drop", { section: "Allowed failures", key: "A_parked_test" }),
+      withChange("add", { file: "reviews", section: "Chapter A", line: "x" }),
+      withChange("commit", { type: "feat", tag: "green", summary: "Mapping", tick: "5.1", resume: "Next." }),
+      withPr("set", { section: "Open", text: "x" }),
+      withPr("triage-init", { round: "2", work: work, change: CHANGE }),
+    ];
+    const ended = await Promise.all(commands.map((args) => tdd(dir, args, { env: impatient })));
+
+    for (const r of ended) refusedAsLocked(r, process.pid);
+    assert.deepEqual({ state: read(dir, STATE), triage: read(dir, TRIAGE), head: (await lastCommit(dir)).sha }, before);
+    assert.equal(read(dir, TASKS), TASKS_TEXT);
+    assert.equal(existsSync(join(dir, REVIEWS)), false);
+    assert.equal(pointer(dir).round, 1);
+    assert.equal(JSON.parse(readFileSync(lockFile(dir), "utf8")).pid, process.pid, "the lock is left to its owner");
+  });
+
+  test("refuses `init` creating a state file while the lock is held", async (t) => {
+    const dir = repository(t);
+    leftLock(dir, process.pid, 5_000);
+
+    refusedAsLocked(await tdd(dir, withChange("init", SWITCHES), { env: impatient }), process.pid);
+    assert.equal(existsSync(join(dir, STATE)), false);
+  });
+
+  test("lets every command that only reads through while the lock is held", async (t) => {
+    const dir = await initialized(t);
+    leftLock(dir, process.pid, 5_000);
+    const findings = '[{"id":1,"verdicts":[{"verdict":"unsure"}]}]';
+
+    for (const args of [
+      withChange("get", { section: "Run" }),
+      withChange("check", { step: "green" }),
+      withChange("index"),
+      withChange("run", { label: "x" }, "--", process.execPath, "-e", "0"),
+      ["route", "--json", findings],
+      ["progress", "--step", "Baseline"],
+    ]) {
+      const r = await tdd(dir, args, { env: { ...impatient, TEMP: dir, TMP: dir, TMPDIR: dir } });
+
+      assert.equal(r.code, 0, `${args[0]}: ${r.err}`);
+    }
+  });
+
+  test("takes over a stale lock, one older than a minute, and leaves none", async (t) => {
+    const dir = await initialized(t);
+    leftLock(dir, 4242, 61_000);
+
+    const r = await tdd(dir, withChange("add", { section: "Open", line: "a dispute" }), { env: impatient });
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(sectionBody(read(dir, STATE), "Open"), "- a dispute");
+    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+  });
+
+  test("takes the stale age and the wait limit from the environment", async (t) => {
+    const dir = await initialized(t);
+    leftLock(dir, 4242, 2_000);
+    const add = withChange("add", { section: "Open", line: "a dispute" });
+    const started = Date.now();
+
+    const waited = await tdd(dir, add, { env: { TDD_LOCK_WAIT_MS: "600" } });
+    const took = Date.now() - started;
+    const stale = await tdd(dir, add, { env: { TDD_LOCK_WAIT_MS: "600", TDD_LOCK_STALE_MS: "1000" } });
+
+    refusedAsLocked(waited, 4242);
+    assert.ok(took >= 600, `refused after ${took} ms`);
+    assert.equal(stale.code, 0, stale.err);
+  });
+
+  test("commit holds the lock until git has committed, and has released it when the code graph is indexed", async (t) => {
+    const dir = await initialized(t);
+    const out = tempFolder(t);
+    // git's own hook says whether the lock is there while the commit is made; the stand-in for the code graph's
+    // command line says the same for the index.
+    write(
+      dir,
+      ".git/hooks/pre-commit",
+      `#!/bin/sh\nif [ -f .git/tdd/state.lock ]; then echo held; else echo free; fi > "$LOCK_SEEN_BY_GIT"\n`,
+    );
+    chmodSync(join(dir, ".git/hooks/pre-commit"), 0o755);
+    const graph = fakeGraph(t);
+    write(dir, "src/App/Mapping.cs", "// the mapping\n");
+
+    const r = await tdd(
+      dir,
+      withChange("commit", { type: "feat", tag: "green", summary: "Mapping", resume: "Next." }),
+      {
+        env: { ...graph.env(), LOCK_SEEN_BY_GIT: join(out, "git.txt"), FAKE_GRAPH_LOCK: lockFile(dir) },
+      },
+    );
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(read(out, "git.txt").trim(), "held");
+    assert.deepEqual(graph.lockSeen(), [false]);
+    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+  });
+
+  test("init and triage-init index the code graph outside the lock", async (t) => {
+    const dir = repository(t);
+    const graph = fakeGraph(t);
+    const env = { ...graph.env(), FAKE_GRAPH_LOCK: lockFile(dir) };
+
+    const init = await tdd(dir, withChange("init", SWITCHES), { env });
+    const triage = await tdd(dir, withPr("triage-init", { round: "1", work: tempFolder(t), change: CHANGE }), { env });
+
+    assert.equal(init.code, 0, init.err);
+    assert.equal(triage.code, 0, triage.err);
+    assert.deepEqual(graph.lockSeen(), [false, false]);
+  });
+
+  test("releases the lock when a command is refused or fails inside it", async (t) => {
+    const dir = await initialized(t);
+    write(dir, ".git/hooks/commit-msg", "#!/bin/sh\necho 'made-up hook: the message is refused' >&2\nexit 1\n");
+    chmodSync(join(dir, ".git/hooks/commit-msg"), 0o755);
+    write(dir, "src/App/Mapping.cs", "// the mapping\n");
+    write(dir, "tests/App.UnitTests/MappingTests.cs", "// changed by the implementer\n");
+
+    for (const [args, code] of [
+      [withChange("set", { section: "Disputes", text: "x" }), 1],
+      [withChange("drop", { section: "Open", key: "not there" }), 1],
+      [withChange("commit", { type: "feat", tag: "green", summary: "Mapping", tick: "9.9" }), 1],
+      [withChange("commit", { type: "feat", tag: "green", summary: "Mapping", check: "green" }), 3],
+      [withChange("commit", { type: "feat", tag: "green", summary: "Mapping" }), 1],
+      [withChange("commit", { type: "feat", tag: "green", summary: "Mapping", path: "src/App/Unchanged.cs" }), 1],
+    ]) {
+      const r = await tdd(dir, args);
+
+      assert.equal(r.code, code, `${args.join(" ")}: ${r.err}`);
+      assert.deepEqual(readdirSync(gitFolder(dir)), [], args.join(" "));
+    }
+    const clean = repository(t);
+    const nothing = await tdd(clean, withChange("commit", { type: "feat", tag: "green", summary: "Mapping" }));
+    assert.equal(nothing.code, 4);
+    assert.deepEqual(readdirSync(gitFolder(clean)), []);
+  });
+
+  test("a linked working tree has a lock and a pointer of its own", async (t) => {
+    const dir = repository(t);
+    const linked = join(tempFolder(t), "linked");
+    await git(dir, "worktree", "add", "--quiet", "-b", "feat/c901-another-made-up-thing", linked);
+    leftLock(dir, process.pid, 5_000);
+
+    const r = await tdd(linked, withPr("triage-init", { round: "1", work: tempFolder(t), change: CHANGE }), {
+      env: impatient,
+    });
+    const own = await tdd(linked, withPr("add", { section: "Open", line: "a question" }), { env: impatient });
+    const main = await tdd(dir, withPr("get", { section: "Open" }), { env: impatient });
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(own.code, 0, own.err);
+    assert.equal(main.code, 1, "the main working tree has no triage under way");
+    assert.equal(existsSync(join(gitFolder(dir), "triage.json")), false);
+    assert.equal(existsSync(join(dir, ".git", "worktrees", "linked", "tdd", "triage.json")), true);
   });
 });

@@ -1,6 +1,7 @@
 // What `tdd.mjs run` reads from a test run's output: the totals and the failed tests, and the short report it
-// prints in place of the output. Nothing here runs anything; the formats are those of real runs, saved next to the
-// tests in fixtures/ (test-output.test.mjs says where each came from):
+// prints in place of the output, with which of the failed tests are on the state file's list of tests allowed to
+// fail (a parked task's or a blocked finding's red test). Nothing here runs anything or reads a file; the formats
+// are those of real runs, saved next to the tests in fixtures/ (test-output.test.mjs says where each came from):
 //
 // - `dotnet test` on Microsoft.Testing.Platform with TUnit. A failed test is a `failed <name> (<duration>)` line at
 //   the start of a line, then its message, then `from <assembly>`, the exception with the message again and the
@@ -136,21 +137,50 @@ const MESSAGE_LINES = 3; // the most lines of a failed test's message it prints
 const TAIL_LINES = 25; // the lines of output it prints when the run failed and it could name no failed test
 const WIDTH = 200; // where it cuts a name or a message line
 const TAIL_WIDTH = 400; // where it cuts a line of the tail: a compiler's error line with its two paths fits
+const NOT_ALLOWED_LISTED = 10; // the most failed tests it names as not allowed to fail
 
 const cut = (text, width) => (text.length > width ? `${text.slice(0, width)}…` : text);
 
+// How many tests failed: those the output names, or the summary's count when that is higher (an output cut short
+// names fewer).
+const failedCount = (totals, failed) => Math.max(failed.length, (totals?.failed ?? 0) + (totals?.failedSuites ?? 0));
+
+// The one line a run's report says about the tests allowed to fail; null when it has nothing to say. `keys` are the
+// keys of the state file's `Allowed failures` section; a key matches a failed test whose printed name contains
+// it, in the same case.
+// - Nothing, when no key is listed and no test failed.
+// - Else `allowed failures: <k> of <n> failed tests are on the list`, in the same words for any count.
+// - On the same line, when a failed test is not on the list: `; NOT ALLOWED: ` and those tests' names with ` | `
+//   between them: at most 10, then `… and <m> more`, which also counts the failed tests the output did not name.
+export function allowedFailuresLine(keys, { totals, failed }) {
+  const all = failedCount(totals, failed);
+  if (keys.length === 0 && all === 0) return null;
+  const others = failed.filter((test) => !keys.some((key) => test.name.includes(key)));
+  const line = `allowed failures: ${failed.length - others.length} of ${all} failed tests are on the list`;
+  const unnamed = all - failed.length;
+  if (others.length + unnamed === 0) return line;
+  const named = others.slice(0, NOT_ALLOWED_LISTED).map((test) => cut(test.name, WIDTH));
+  const more = others.length - named.length + unnamed;
+  const rest = named.length === 0 ? `${more} failed tests the output does not name` : `… and ${more} more`;
+  return `${line}; NOT ALLOWED: ${[...named, ...(more > 0 ? [rest] : [])].join(" | ")}`;
+}
+
 // The report of one run, as lines. `code` is the command's exit code, `timedOutAfterMinutes` is set when the run
-// was stopped at its time limit, `output` is everything the command printed.
+// was stopped at its time limit, `output` is everything the command printed, and `allowed` holds the keys of the
+// state file's `Allowed failures` section, or is left out when there is no state file to read them from.
 // - Line 1: `exit <code> | <totals> | <duration> | log: <path>`.
+// - Line 2, with `allowed`: what `allowedFailuresLine` says, when it says anything.
 // - Then up to 25 failed tests, each as `- <name>` and at most 3 lines of its message, and `… and <k> more failed`
 //   for the rest, counting those the summary reports and the output did not name.
 // - Or, when the exit code is not 0 and no failed test was recognised (a build error, a lint error, no test run):
 //   the last 25 lines of the output, without blank lines.
-export function runReport({ code, timedOutAfterMinutes, durationMs, logPath, output }) {
+export function runReport({ code, timedOutAfterMinutes, durationMs, logPath, output, allowed }) {
   const { totals, failed } = readTestOutput(output);
   const exit =
     timedOutAfterMinutes === undefined ? `exit ${code}` : `exit ${code} (stopped after ${timedOutAfterMinutes} min)`;
   const lines = [`${exit} | ${totalsText(totals)} | ${formatDuration(durationMs)} | log: ${logPath}`];
+  const onAllowed = allowed === undefined ? null : allowedFailuresLine(allowed, { totals, failed });
+  if (onAllowed !== null) lines.push(onAllowed);
   const listed = failed.slice(0, FAILED_LISTED);
   for (const test of listed) {
     lines.push(
@@ -159,7 +189,7 @@ export function runReport({ code, timedOutAfterMinutes, durationMs, logPath, out
     );
   }
   if (failed.length > 0) {
-    const all = Math.max(failed.length, (totals?.failed ?? 0) + (totals?.failedSuites ?? 0));
+    const all = failedCount(totals, failed);
     if (all > listed.length) lines.push(`… and ${all - listed.length} more failed`);
   } else if (code !== 0) {
     const printed = linesOf(output).filter((l) => l.trim());

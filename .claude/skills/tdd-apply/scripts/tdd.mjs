@@ -1,18 +1,39 @@
-// The /tdd-apply orchestrator's command line: one short call at each handoff in place of hand-written shell, each
-// answering in a line or two (GitHub issue 67, cut context growth in /tdd-apply).
+// The bookkeeping command line of /tdd-apply and /triage-review: one short call at each handoff in place of
+// hand-written shell, each answering in a line or two (GitHub issue 67, cut context growth in /tdd-apply). The main
+// session, the runner and the runner's agents all call it.
 //
-//   node .claude/skills/tdd-apply/scripts/tdd.mjs <command> --change <change-name> [--root <path>] [options]
+//   node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change <change-name> | --pr <id>) [--root <path>]
+//        [options]
 //
 // Run from anywhere inside the repository; USAGE below lists the commands. The pieces live next to this file:
-// state.mjs (the state file's sections), guard.mjs (the paths the implementer must not change), test-output.mjs
-// (what a test run printed). This file holds what touches the world: the arguments, git, the files, the code
+// state.mjs (the state files' sections), guard.mjs (the paths the implementer must not change), test-output.mjs
+// (what a test run printed, and which failed tests are allowed to fail), route.mjs (the sorting rules of a review's
+// findings, and how a check's report is read), triage.mjs (the pointer to the triage under way) and lock.mjs (the
+// lock and the atomic writes). This file holds what touches the world: the arguments, git, the files, the code
 // graph's command line, and the commands `run` wraps.
 //
+// - Whose files a command works on: with --change an apply's, in the change's folder under openspec/changes (or,
+//   once the change is archived, its one folder under openspec/changes/archive): the state file .tdd-state.md,
+//   the chapter reviews file and tasks.md. With --pr a triage's: the state file `triage-init` made, which is
+//   .review-triage.md in the change's folder, or for a PR without a change triage-<id>.md in the working tree's
+//   git folder: one file for every round and every session of that PR, never tracked. `triage-init` leaves a
+//   pointer next to it (triage.mjs), and --pr is refused when there is none or it names another PR. Never both,
+//   but for `triage-init` itself.
+// - A triage's work folder is some session's scratchpad, which the next session does not share. The pointer holds
+//   it, and `triage-init` ends its line with `work: <the folder in use>`: the pointer's while it names one for the
+//   same PR and round that is still there, else the one given with --work. No tracked file holds a path of this
+//   machine for a triage: its `Run` has neither the work folder nor the repository's.
 // - A refusal is one line on stderr (`ERROR: …`) and exit 1, never a stack trace (TDD_DEBUG=1 adds it). Exit 3:
 //   the guard found violations. Exit 4: nothing to commit. `run` exits with its command's own code, 124 when it
-//   stopped the command at its time limit, 127 when the command cannot be started.
+//   stopped the command at its time limit, 127 when the command cannot be started. One command writes to stderr
+//   without refusing: `route --reports` names each report file it cannot read (`route: <file> cannot be read as a
+//   report: …`), sorts that finding as one whose check returned no result, and still exits 0.
+// - Every command that writes (init, triage-init, set, add, put, drop, commit) holds the working tree's lock from
+//   its first read to its last write, `commit` to the end of `git commit`, and every file is written whole or not
+//   at all (lock.mjs). `get`, `check`, `run`, `index`, `route` and `progress` take no lock. TDD_LOCK_WAIT_MS and
+//   TDD_LOCK_STALE_MS set the lock's wait limit and stale age in milliseconds: the tests use both.
 // - TDD_GRAPH_CLI names another executable for the code graph's command line, and TDD_NO_GRAPH=1 skips indexing:
-//   the tests use both.
+//   the tests use both. The code graph is never indexed inside the lock: it can take minutes.
 // - Never prints or stores bank data or secrets: it handles paths, test names and totals, and of a test run it
 //   prints what the runner printed, cut as test-output.mjs says.
 import { spawn, spawnSync } from "node:child_process";
@@ -21,55 +42,92 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs";
 import { constants, tmpdir } from "node:os";
-import { delimiter, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { guard, guardReport, parseStatus, STEPS } from "./guard.mjs";
+import { readText, withLock, writeAtomic } from "./lock.mjs";
+import { readFindings, readReport, reportFile, route as routed, routeReport } from "./route.mjs";
 import {
   addBullet,
+  ALLOWED_FAILURES,
+  dropKey,
   keyValue,
   newReviewsText,
   newStateText,
   putKey,
   REVIEWS_FILE,
+  roundSection,
   sectionBody,
+  sectionKeys,
   sectionName,
   sectionNames,
   setSection,
   STATE_FILE,
+  TRIAGE_FILE,
+  triageText,
 } from "./state.mjs";
 import { runReport } from "./test-output.mjs";
+import { archivedAs, POINTER_FILE, pointerText, prId, prStateFile, readPointer } from "./triage.mjs";
 
-const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> --change <change-name> [--root <path>] [options]
+const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change <change-name> | --pr <id>) [--root <path>]
+     [options]
 
-  init    --review <acceptance|all> --checkpoint <stop|continue> [--issue <n>]
-  get     --section <name> [--section <name> ...] [--file state|reviews]
-  set     --section <name> (--text <text> | --stdin) [--file state|reviews]
-  add     --section <name> --line <text> [--file state|reviews]
-  put     --section <name> --key <key> --value <value> [--file state|reviews]
-  check   --step <green|wire|close>
-  commit  --type <test|feat|fix|docs|refactor|build|chore> --tag <step> --summary <text>
-          [--tick <id>[,<id>...]] [--path <path> ...] [--body <text>] [--resume <text>] [--check <green|wire|close>]
+  init         --agent-review <each-chapter|acceptance|none> --human-test-review <acceptance|each-group>
+               --after-chapter <continue|stop> [--issue <n>]
+  triage-init  --pr <id> --round <n> --work <absolute folder> [--change <change-name>] [--scope <scope>]
+               [--source <pr|chat>]
+  get          --section <name> [--section <name> ...] [--file state|reviews]
+  set          --section <name> (--text <text> | --stdin) [--file state|reviews]
+  add          --section <name> --line <text> [--file state|reviews]
+  put          --section <name> --key <key> --value <value> [--file state|reviews]
+  drop         --section <name> --key <key> [--file state|reviews]
+  check        --step <green|wire|close>
+  commit       --type <test|feat|fix|docs|refactor|build|chore> --tag <step> --summary <text>
+               [--tick <id>[,<id>...]] [--path <path> ...] [--body <text>] [--resume <text>]
+               [--check <green|wire|close>] [--done <step text>]
   index
-  run     --label <name> [--timeout <minutes, default 30>] -- <command> [args...]
+  run          --label <name> [--timeout <minutes, default 30>] -- <command> [args...]
+  route        (--json <text> | --in <file> | --stdin | --reports <folder> --ids <id>[,<id>...])
+  progress     --step <step text>
+
+--change names an apply's change: its state file, reviews file and tasks.md, in its folder under openspec/changes or,
+once archived, under openspec/changes/archive. --pr names the triage that triage-init started in this working tree:
+its state file (.review-triage.md in the change's folder; without a change, triage-<id>.md in the working tree's
+git folder, never tracked), the scope of its commits, and no reviews file. init takes --change, triage-init --pr
+and maybe --change, every other command one of the two; route and progress need neither.
+
+init creates the apply's state file; on one that exists it changes only the switches given. triage-init starts a
+round: it creates the triage's state file or, for a later round or a rerun, keeps it, updates its Run section and
+adds the section "Round <n>" when missing; --scope is needed without --change. Its line ends with
+"work: <folder>", the work folder to use from then on: the one an earlier start of the same PR and round took, while
+it is still there, else the one --work gives. drop removes one keyed bullet.
+commit --done and progress print "progress: <step text> completed at <HH:MM>". run adds a line on the failed tests
+that the state file's "Allowed failures" section lists, and NOT ALLOWED with the others. route prints each
+finding's FIX, DECLINE or ASK: from its verdicts as JSON, or with --reports from the report files of its two
+checks in that folder, <id>-1.md and <id>-2.md, for the findings --ids names; a report that is missing or cannot
+be read is a check without a result, the second also a line on stderr (route.mjs has the shapes and the rules).
 
 In --text, --line, --value, --body and --resume the two characters \\n mean a line break; --stdin takes the text as
 it is. Exit codes: 0 done; 1 refused, with one line on stderr; 3 the guard found violations; 4 nothing to commit;
 run: the command's own, 124 when stopped at its time limit, 127 when it cannot be started.`;
 
-// What each command takes besides --change and --root: an option with a value, one that may repeat, or a flag.
+// What each command takes besides --change, --pr and --root: an option with a value, one that may repeat, or a
+// flag.
 const OPTIONS = {
-  init: { review: "value", checkpoint: "value", issue: "value" },
+  init: { "agent-review": "value", "human-test-review": "value", "after-chapter": "value", issue: "value" },
+  "triage-init": { round: "value", work: "value", scope: "value", source: "value" },
   get: { section: "list", file: "value" },
   set: { section: "value", text: "value", stdin: "flag", file: "value" },
   add: { section: "value", line: "value", file: "value" },
   put: { section: "value", key: "value", value: "value", file: "value" },
+  drop: { section: "value", key: "value", file: "value" },
   check: { step: "value" },
   commit: {
     type: "value",
@@ -80,10 +138,16 @@ const OPTIONS = {
     body: "value",
     resume: "value",
     check: "value",
+    done: "value",
   },
   index: {},
   run: { label: "value", timeout: "value" },
+  route: { json: "value", in: "value", stdin: "flag", reports: "value", ids: "list" },
+  progress: { step: "value" },
 };
+
+// The commands that work on no file of a change or a triage, and so need neither --change nor --pr.
+const WITHOUT_FILES = ["route", "progress"];
 
 // A refusal the caller is told in one line: the message for stderr and the exit code.
 export class Failure extends Error {
@@ -116,7 +180,7 @@ export function parseArguments(argv) {
   if (!Object.hasOwn(OPTIONS, command)) {
     throw new Failure(`unknown command "${oneLine(command)}"; the commands are: ${commands}`);
   }
-  const kinds = { change: "value", root: "value", ...OPTIONS[command] };
+  const kinds = { change: "value", pr: "value", root: "value", ...OPTIONS[command] };
   const options = {};
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--") {
@@ -201,10 +265,22 @@ export function commitMessage({ type, scope, tag, summary, body, trailers }) {
   return `${parts.join("\n\n")}\n`;
 }
 
+const two = (n) => String(n).padStart(2, "0");
+
+// The one line that tells the main session a step is done: `progress: <step> completed at <HH:MM>`, the local
+// time on the 24-hour clock. The runner passes on what follows `progress: ` as it is. The step is one line of
+// text, such as `Baseline` or `Chapter B, slice 3`; `option` names it in the refusal.
+export function progressLine(step, date, option = "--step") {
+  const text = newlines(step ?? "").trim();
+  if (!text || text.includes("\n")) {
+    throw new Failure(`${option} is the step's name on one line, such as Baseline or Chapter B, slice 3`);
+  }
+  return `progress: ${text} completed at ${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
 // A run's log file: the local time to the second and the label, of which only letters, digits, dots, dashes and
 // underscores are kept.
 export function logFileName(label, date) {
-  const two = (n) => String(n).padStart(2, "0");
   const day = `${date.getFullYear()}${two(date.getMonth() + 1)}${two(date.getDate())}`;
   const time = `${two(date.getHours())}${two(date.getMinutes())}${two(date.getSeconds())}`;
   const name = (label ?? "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -346,35 +422,148 @@ export function indexGraph(root, env = process.env) {
 
 const graphText = (graph) => `graph: ${graph.skipped ? "skipped" : (graph.project ?? `failed: ${graph.failed}`)}`;
 
-// What every command works with: the repository's root, the change, and its files.
-function context(options) {
-  const change = options.change;
-  if (!change) throw new Failure("--change <change-name> is missing");
+// What the state file's `Code graph project` says: the project's name, or why there is none.
+const graphProject = (graph) =>
+  graph.project ?? `not indexed: ${graph.skipped ? "skipped (TDD_NO_GRAPH=1)" : graph.failed}`;
+
+// The working tree the command is run in, or that --root names a folder of: the repository's `root`, and
+// `gitFolder`, the folder of the tree's own files in git's folder, which holds the lock and the triage's pointer.
+// It is never tracked, and a linked working tree has its own. One call of git answers both; it names the second
+// from the folder it runs in.
+function workingTree(options) {
+  const from = options.root === undefined ? process.cwd() : resolve(options.root);
+  if (!statSync(from, { throwIfNoEntry: false })?.isDirectory()) throw new Failure(`--root: no folder ${from}`);
+  const answered = git(from, ["rev-parse", "--show-toplevel", "--git-path", "tdd"], { mayFail: true });
+  if (answered.status !== 0) {
+    throw new Failure(`${from} is not inside a git repository; run from inside one or give --root <path>`);
+  }
+  const [top, folder] = answered.stdout.split(/\r?\n/);
+  return { root: resolve(top), gitFolder: resolve(from, folder) };
+}
+
+// The change's folder, from the repository's root: under openspec/changes, or once the change is archived its one
+// folder under openspec/changes/archive, whose name starts with the day.
+function changeFolder(root, change) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(change)) {
     throw new Failure(
       `--change is the name of the change's folder under openspec/changes, not a path: "${oneLine(change)}"`,
     );
   }
-  const from = options.root === undefined ? process.cwd() : resolve(options.root);
-  if (!statSync(from, { throwIfNoEntry: false })?.isDirectory()) throw new Failure(`--root: no folder ${from}`);
-  const top = git(from, ["rev-parse", "--show-toplevel"], { mayFail: true });
-  if (top.status !== 0) {
-    throw new Failure(`${from} is not inside a git repository; run from inside one or give --root <path>`);
-  }
-  const root = resolve(top.stdout.trim());
   const folder = `openspec/changes/${change}`;
-  if (!existsSync(join(root, folder))) throw new Failure(`no change folder ${folder} in ${root}`);
-  const file = (name) => ({ path: join(root, folder, name), shown: `${folder}/${name}` });
-  return { root, change, state: file(STATE_FILE), reviews: file(REVIEWS_FILE), tasks: file("tasks.md") };
+  if (existsSync(join(root, folder))) return folder;
+  const archive = join(root, "openspec", "changes", "archive");
+  const folders = existsSync(archive)
+    ? readdirSync(archive, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+    : [];
+  const archived = archivedAs(
+    folders.map((entry) => entry.name),
+    change,
+  );
+  if (archived.length > 1) {
+    throw new Failure(`${change} has more than one folder in openspec/changes/archive: ${archived.join(", ")}`);
+  }
+  if (archived.length === 0) throw new Failure(`no change folder ${folder} in ${root}, and none in its archive`);
+  return `openspec/changes/archive/${archived[0]}`;
 }
 
-// The current branch; `main`, `master` and a detached HEAD are refused: the apply works on the change's branch.
-function changeBranch(root, command) {
+// A file as a command knows it: its path, whether it is one of the working tree's (`inside`: under the
+// repository's root, and not in git's own folder, where a triage without a change keeps its state file), and how
+// it is shown and named to git: its path from the repository's root, or its whole path for a file that is not
+// the working tree's, with forward slashes either way.
+function placed({ root, gitFolder }, path) {
+  const inside = within(root, path) && !within(gitFolder, path);
+  return { path, shown: slashed(inside ? relative(root, path) : path), inside };
+}
+
+// Whether a path is the folder or lies in it.
+function within(folder, path) {
+  const from = relative(folder, path);
+  return from !== ".." && !from.startsWith(`..${sep}`) && !isAbsolute(from);
+}
+
+// A path as a command prints it: with forward slashes on every system, so that it can be pasted into any shell.
+const slashed = (path) => path.split(sep).join("/");
+
+// Runs `work` while holding the working tree's lock (lock.mjs) and answers what it answers.
+const locked = (ctx, work) => withLock(ctx.gitFolder, work);
+
+// The pointer to the triage under way in the working tree; null when there is none.
+function pointerOf(gitFolder) {
+  const path = join(gitFolder, POINTER_FILE);
+  return existsSync(path) ? readPointer(readText(path)) : null;
+}
+
+// What a command of an apply works with: the working tree, the change, and its files.
+function applyContext({ root, gitFolder }, change) {
+  const folder = changeFolder(root, change);
+  const file = (name) => placed({ root, gitFolder }, join(root, folder, name));
+  const [state, reviews] = [file(STATE_FILE), file(REVIEWS_FILE)];
+  return {
+    root,
+    gitFolder,
+    change,
+    scope: changeScope(change),
+    runs: change,
+    started: "init",
+    branch: "the change's branch",
+    state,
+    reviews,
+    tasks: file("tasks.md"),
+    own: [state.shown, reviews.shown],
+  };
+}
+
+// What a command of a triage works with: the files of the triage the pointer names. Its state file is the
+// triage's, it has no reviews file, and tasks.md only with a change, next to the state file.
+function triageContext({ root, gitFolder }, given) {
+  const pr = prId(given);
+  const pointer = pointerOf(gitFolder);
+  if (pointer === null) {
+    throw new Failure(`no triage is under way in this working tree: run triage-init --pr ${pr} first`);
+  }
+  if (pointer.pr !== pr) {
+    throw new Failure(`the triage under way in this working tree is PR ${pointer.pr}'s, not PR ${pr}'s`);
+  }
+  const placedHere = (path) => placed({ root, gitFolder }, path);
+  const state = placedHere(pointer.state);
+  return {
+    root,
+    gitFolder,
+    change: pointer.change,
+    triage: true,
+    scope: pointer.scope,
+    runs: `pr-${pr}`,
+    started: "triage-init",
+    branch: "the PR's branch",
+    state,
+    reviews: null,
+    tasks: pointer.change === null ? null : placedHere(join(dirname(pointer.state), "tasks.md")),
+    own: state.inside ? [state.shown] : [],
+  };
+}
+
+// What a command works with. `triage-init` finds its files itself: it makes the pointer the others go by.
+function context(options, command) {
+  if (command === "triage-init") return workingTree(options);
+  if (options.change !== undefined && options.pr !== undefined) {
+    throw new Failure("--change and --pr are given together: --change is an apply's, --pr a triage's");
+  }
+  if (options.change === undefined && options.pr === undefined) {
+    throw new Failure("--change <change-name> is missing (an apply's), or --pr <id> (a triage's)");
+  }
+  if (options.pr !== undefined && command === "init") throw new Failure("init is the apply's: it takes --change");
+  const tree = workingTree(options);
+  return options.pr !== undefined ? triageContext(tree, options.pr) : applyContext(tree, options.change);
+}
+
+// The current branch; `main`, `master` and a detached HEAD are refused: the apply works on the change's branch,
+// the triage on the PR's (`whose` says which).
+function workBranch(root, command, whose) {
   const r = git(root, ["symbolic-ref", "--short", "-q", "HEAD"], { mayFail: true });
   const branch = r.status === 0 ? r.stdout.trim() : null;
-  if (branch === null) throw new Failure(`${command} works on the change's branch, and HEAD is detached`);
+  if (branch === null) throw new Failure(`${command} works on ${whose}, and HEAD is detached`);
   if (branch === "main" || branch === "master") {
-    throw new Failure(`${command} works on the change's branch, and this is ${branch}`);
+    throw new Failure(`${command} works on ${whose}, and this is ${branch}`);
   }
   return branch;
 }
@@ -384,56 +573,168 @@ const oneOf = (value, allowed, option) => {
   return value;
 };
 
+// The apply's three switches: the option, its key in the state file's `Run`, and its values, the default first.
+const SWITCHES = [
+  ["agent-review", "Agent review", ["each-chapter", "acceptance", "none"]],
+  ["human-test-review", "Human test review", ["acceptance", "each-group"]],
+  ["after-chapter", "After chapter", ["continue", "stop"]],
+];
+
 function init(ctx, options) {
-  const branch = changeBranch(ctx.root, "init");
-  const modes = [
-    ["review", "Review mode", ["acceptance", "all"]],
-    ["checkpoint", "Checkpoint mode", ["stop", "continue"]],
-  ];
-  for (const [option, , allowed] of modes) {
+  const branch = workBranch(ctx.root, "init", ctx.branch);
+  for (const [option, , allowed] of SWITCHES) {
     if (options[option] !== undefined) oneOf(options[option], allowed, `--${option}`);
   }
   const issue = options.issue === undefined ? null : /^#?(\d+)$/.exec(options.issue.trim())?.[1];
   if (issue === undefined) throw new Failure("--issue is the issue's number");
 
-  if (existsSync(ctx.state.path)) {
-    const before = readFileSync(ctx.state.path, "utf8");
+  // A state file that exists: only the switches given change. Null when there is none.
+  const existing = () => {
+    if (!existsSync(ctx.state.path)) return null;
+    const before = readText(ctx.state.path);
     let text = before;
-    const notes = modes.map(([option, key]) => {
+    const notes = SWITCHES.map(([option, key]) => {
       const was = keyValue(text, "Run", key);
       if (options[option] === undefined || options[option] === was) return `${option}: ${was ?? "not set"}`;
       text = putKey(text, "Run", key, options[option]);
       return `${option}: ${options[option]} (was ${was ?? "not set"})`;
     });
-    if (text !== before) writeFileSync(ctx.state.path, text);
-    return say(`exists: ${ctx.state.shown} | ${notes.join(" | ")}`);
-  }
+    if (text !== before) writeAtomic(ctx.state.path, text);
+    return `exists: ${ctx.state.shown} | ${notes.join(" | ")}`;
+  };
+  const found = locked(ctx, existing);
+  if (found !== null) return say(found);
 
-  if (options.review === undefined || options.checkpoint === undefined) {
-    throw new Failure("init needs --review <acceptance|all> and --checkpoint <stop|continue> to create the state file");
+  if (SWITCHES.some(([option]) => options[option] === undefined)) {
+    const needed = SWITCHES.map(([option, , allowed]) => `--${option} <${allowed.join("|")}>`);
+    throw new Failure(`init needs ${needed.join(", ")} to create the state file`);
   }
   const graph = indexGraph(ctx.root);
-  const notIndexed = graph.skipped ? "skipped (TDD_NO_GRAPH=1)" : graph.failed;
   const now = new Date();
-  const two = (n) => String(n).padStart(2, "0");
   const run = [
     ["Status", "applying"],
     ["Started", `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`],
-    ["Review mode", options.review],
-    ["Checkpoint mode", options.checkpoint],
+    ...SWITCHES.map(([option, key]) => [key, options[option]]),
     ["Branch", branch],
     ["Folder", ctx.root],
-    ["Code graph project", graph.project ?? `not indexed: ${notIndexed}`],
+    ["Code graph project", graphProject(graph)],
     ...(issue === null ? [] : [["Issue", `#${issue}`]]),
   ];
-  writeFileSync(ctx.state.path, newStateText(ctx.change, run, newFileEol(ctx.root, ctx.state.shown)));
-  say(`created ${ctx.state.shown} | ${graphText(graph)}`);
+  // The index ran outside the lock, so another `init` may have created the file meanwhile: then it is kept.
+  const created = locked(ctx, () => {
+    const meanwhile = existing();
+    if (meanwhile !== null) return meanwhile;
+    writeAtomic(ctx.state.path, newStateText(ctx.change, run, newFileEol(ctx.root, ctx.state.shown)));
+    return `created ${ctx.state.shown} | ${graphText(graph)}`;
+  });
+  say(created);
 }
 
-// The file a section command works on: the state file, or with `--file reviews` the chapter reviews file.
+// The folder `--work` names: an absolute path, of a folder or of nothing yet.
+function workFolder(given) {
+  if (!given?.trim()) throw new Failure("triage-init needs --work <absolute folder>, the triage's work folder");
+  if (!isAbsolute(given.trim())) throw new Failure(`--work is an absolute path: "${oneLine(given)}"`);
+  const work = resolve(given.trim());
+  const there = statSync(work, { throwIfNoEntry: false });
+  if (there && !there.isDirectory()) throw new Failure(`--work is a folder, and ${work} is a file`);
+  return work;
+}
+
+// The work folder a round of a triage uses. A session proposes its own scratchpad with --work, and another
+// session has another one: while the pointer names a folder for this PR and this round and that folder is still
+// there, it stays the one in use, so that a session that takes the round over finds the round's files. A new
+// round, or a folder that is gone, takes the folder given.
+function workInUse(gitFolder, pr, round, given) {
+  let pointer = null;
+  try {
+    pointer = pointerOf(gitFolder);
+  } catch {
+    // a pointer that cannot be read is written anew below
+  }
+  const kept =
+    pointer !== null &&
+    pointer.pr === pr &&
+    pointer.round === round &&
+    statSync(pointer.work, { throwIfNoEntry: false })?.isDirectory();
+  return kept ? pointer.work : given;
+}
+
+// Starts a round of a triage: its state file, created or kept, and the pointer the other commands' --pr goes by.
+// The state file of a PR without a change lies in git's folder, next to the pointer: one file for every round and
+// every session of that PR in this working tree, never tracked, and with no path of this machine in a file that
+// is.
+function triageInit({ root, gitFolder }, options) {
+  if (options.pr === undefined) throw new Failure("triage-init needs --pr <id>");
+  const pr = prId(options.pr);
+  const round = /^[1-9]\d*$/.test(options.round?.trim() ?? "") ? Number(options.round) : null;
+  if (round === null) throw new Failure("triage-init needs --round <n>, the round's number from 1");
+  const source = options.source === undefined ? undefined : oneOf(options.source, ["pr", "chat"], "--source");
+  const change = options.change ?? null;
+  const folder = change === null ? null : changeFolder(root, change);
+  if (options.scope === undefined && change === null) {
+    throw new Failure("triage-init needs --scope <scope> without --change: the scope of the round's commits");
+  }
+  const scope = options.scope?.trim() ?? changeScope(change);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(scope)) {
+    throw new Failure(`--scope is the scope of the round's commits, such as c018 or i67: "${oneLine(scope)}"`);
+  }
+  const branch = workBranch(root, "triage-init", "the PR's branch");
+  const given = workFolder(options.work);
+  if (folder === null && within(root, given)) {
+    throw new Failure(`--work lies inside the repository: without a change the triage's files stay outside it`);
+  }
+  const state = placed(
+    { root, gitFolder },
+    folder === null ? join(gitFolder, prStateFile(pr)) : join(root, folder, TRIAGE_FILE),
+  );
+
+  const graph = indexGraph(root);
+  const line = locked({ gitFolder }, () => {
+    const before = existsSync(state.path) ? readText(state.path) : null;
+    const was = before === null ? null : keyValue(before, "Run", "PR");
+    if (was !== null && was.replace(/^#/, "") !== pr) {
+      throw new Failure(`${state.shown} is the triage of PR ${was}, not of PR ${pr}`);
+    }
+    const work = workInUse(gitFolder, pr, round, given);
+    mkdirSync(work, { recursive: true });
+    // `Run` holds no path of this machine: the state file of a change is tracked. The pointer holds the work
+    // folder, and a file that has such a key from before keeps it as it is.
+    const run = [
+      ["Status", "triaging"],
+      ["PR", pr],
+      ["Round", String(round)],
+      ["Scope", scope],
+      ...(source === undefined && before !== null && keyValue(before, "Run", "Source") !== null
+        ? []
+        : [["Source", source ?? "pr"]]),
+      ["Branch", branch],
+      ["Code graph project", graphProject(graph)],
+    ];
+    // A new file in the working tree gets the line endings git would check it out with; one in git's folder, LF.
+    const eol = before === null && state.inside ? newFileEol(root, state.shown) : "\n";
+    const after = triageText(before, change ?? `PR ${pr}`, run, round, eol);
+    if (after !== before) writeAtomic(state.path, after);
+    writeAtomic(join(gitFolder, POINTER_FILE), pointerText({ pr, round, change, scope, work, state: state.path }));
+    const newRound = before !== null && sectionBody(before, roundSection(round)) === null;
+    return [
+      before === null ? `created ${state.shown}` : `exists: ${state.shown}`,
+      `round ${round}${newRound ? ", a new section" : ""}`,
+      graphText(graph),
+      `work: ${slashed(work)}`,
+    ].join(" | ");
+  });
+  say(line);
+}
+
+// The file a section command works on: the context's state file, or with `--file reviews` the chapter reviews
+// file. `create` says whether a section the file does not have may be created: in the reviews file and in a
+// triage's state file, whose sections come as the work does; never in the apply's state file, whose sections are
+// fixed.
 function sectionFile(ctx, options) {
   const which = oneOf(options.file ?? "state", ["state", "reviews"], "--file");
-  return { ...ctx[which], reviews: which === "reviews" };
+  if (ctx[which] === null) throw new Failure("--file reviews: a triage has no reviews file, only its state file");
+  const reviews = which === "reviews";
+  return { ...ctx[which], reviews, create: reviews || ctx.triage === true };
 }
 
 const neededSection = (options) => {
@@ -446,10 +747,12 @@ function get(ctx, options) {
   if (!options.section?.length) throw new Failure("get needs --section <name>, once for each section");
   if (!existsSync(file.path)) {
     throw new Failure(
-      file.reviews ? `no ${file.shown} yet: no chapter review is written` : `no ${file.shown}: run init first`,
+      file.reviews
+        ? `no ${file.shown} yet: no chapter review is written`
+        : `no ${file.shown}: run ${ctx.started} first`,
     );
   }
-  const text = readFileSync(file.path, "utf8");
+  const text = readText(file.path);
   const missing = options.section.filter((name) => sectionBody(text, name) === null);
   if (missing.length > 0) {
     const names = sectionNames(text).join(", ") || "none yet";
@@ -462,30 +765,30 @@ function get(ctx, options) {
   say(options.section.map((name, i) => `## ${sectionName(text, name)}\n${bodies[i]}`).join("\n\n"));
 }
 
-// Changes one section of the state file or the reviews file with `change` (the text in, the new text out), and
-// says so in one line. The reviews file is created when it is not there, and a section it does not have yet too.
+// Changes one section of the state file or the reviews file with `change` (the text in, the new text out), under
+// the lock from its read to its write, and answers what `edited` prints. The reviews file is created when it is
+// not there, and a section it does not have yet too; a triage's state file also gets a section it does not have.
 function editSection(ctx, options, verb, change) {
   const file = sectionFile(ctx, options);
   const name = neededSection(options);
-  const newFile = !existsSync(file.path);
-  if (newFile && !file.reviews) throw new Failure(`no ${file.shown}: run init first`);
-  const before = newFile
-    ? newReviewsText(ctx.change, newFileEol(ctx.root, file.shown))
-    : readFileSync(file.path, "utf8");
-  const newSection = sectionBody(before, name) === null;
-  const after = change(before, name, { create: file.reviews });
-  writeFileSync(file.path, after);
-  const shown = sectionName(after, name);
-  return {
-    shown,
-    lines: sectionBody(after, name).split("\n").length,
-    notes: [...(newSection ? ["new section"] : []), ...(newFile ? ["new file"] : [])],
-    verb,
-  };
+  return locked(ctx, () => {
+    const newFile = !existsSync(file.path);
+    if (newFile && !file.reviews) throw new Failure(`no ${file.shown}: run ${ctx.started} first`);
+    const before = newFile ? newReviewsText(ctx.change, newFileEol(ctx.root, file.shown)) : readText(file.path);
+    const newSection = sectionBody(before, name) === null;
+    const after = change(before, name, { create: file.create });
+    writeAtomic(file.path, after);
+    return {
+      shown: sectionName(after, name),
+      lines: sectionBody(after, name).split("\n").length,
+      notes: [...(newSection ? ["new section"] : []), ...(newFile ? ["new file"] : [])],
+      verb,
+    };
+  });
 }
 
 // The one line a section command prints: what it did to which section, how many lines the section now has (or,
-// for `put`, the key), and whether the section or the file is new.
+// for `put` and `drop`, the key), and whether the section or the file is new.
 function edited({ verb, shown, lines, notes }, key) {
   const what = key === undefined ? [`${verb}: ${shown}`, plural(lines, "line")] : [`${verb}: ${shown} / ${key}`];
   say([...what, ...notes].join(" | "));
@@ -515,12 +818,24 @@ function put(ctx, options) {
   edited(result, options.key.trim());
 }
 
+// Removes one keyed bullet, such as a test from `Allowed failures` once its task is settled. A key the section
+// does not have is refused, with the keys it has.
+function drop(ctx, options) {
+  if (!options.key?.trim()) throw new Failure("drop needs --key <key>");
+  edited(
+    editSection(ctx, options, "dropped", (text, name) => dropKey(text, name, options.key)),
+    options.key.trim(),
+  );
+}
+
 // The guard's verdict on the working tree: every path git reports as changed or new, each new file by its own
-// path, read with -z so that no path is quoted.
+// path, read with -z so that no path is quoted. The context's own files pass: the apply's state file and reviews
+// file, or the triage's state file when it is one of the working tree's (a change's; a PR without a change keeps
+// its own in git's folder, which git never reports).
 function guarded(ctx, step) {
   if (!STEPS.includes(step)) throw new Failure(`the step is one of: ${STEPS.join(", ")}`);
   const changed = git(ctx.root, ["status", "--porcelain", "--untracked-files=all", "-z"]).stdout;
-  return guard(parseStatus(changed), step, ctx.change);
+  return guard(parseStatus(changed), step, ctx.own);
 }
 
 function check(ctx, options) {
@@ -546,12 +861,25 @@ function repositoryPath(root, given) {
   return path;
 }
 
+// Commits, and afterwards indexes the code graph. With --done it then prints the step's progress line, so a step
+// that ends with a commit needs no second call.
 function commit(ctx, options) {
-  changeBranch(ctx.root, "commit");
+  workBranch(ctx.root, "commit", ctx.branch);
+  // Refused here, before anything is read or changed.
+  commitMessage({ ...options, scope: ctx.scope });
+  if (options.done !== undefined) progressLine(options.done, new Date(), "--done");
 
-  // Everything that can be refused is refused here, before anything is changed.
-  const scope = changeScope(ctx.change);
-  commitMessage({ ...options, scope });
+  // The lock is held from the first read to the end of `git commit`, and released before the index.
+  const made = locked(ctx, () => committed(ctx, options));
+  if (typeof made === "number") return made;
+  say([...made.parts, graphText(indexGraph(ctx.root))].join(" | "));
+  if (options.done !== undefined) say(progressLine(options.done, made.at, "--done"));
+}
+
+// `commit`'s work under the lock. Answers the exit code when it made no commit (3: the guard found violations,
+// which it printed; 4: nothing to commit), else the parts of the line to print and the time of the commit.
+function committed(ctx, options) {
+  // Everything else that can be refused is refused here, before anything is changed.
   if (options.check !== undefined) {
     const result = guarded(ctx, options.check);
     if (result.violations.length > 0) {
@@ -563,24 +891,26 @@ function commit(ctx, options) {
     .flatMap((value) => value.split(","))
     .map((id) => id.trim())
     .filter(Boolean);
+  if (ids.length > 0 && ctx.tasks === null) throw new Failure("--tick: a triage without a change has no tasks.md");
   if (ids.length > 0 && !existsSync(ctx.tasks.path)) throw new Failure(`no ${ctx.tasks.shown} to tick in`);
-  const tasks = ids.length > 0 ? tickTasks(readFileSync(ctx.tasks.path, "utf8"), ids) : { ticked: [], already: [] };
-  let state = existsSync(ctx.state.path) ? readFileSync(ctx.state.path, "utf8") : null;
+  const tasks = ids.length > 0 ? tickTasks(readText(ctx.tasks.path), ids) : { ticked: [], already: [] };
+  let state = existsSync(ctx.state.path) ? readText(ctx.state.path) : null;
   const resumed = options.resume !== undefined;
-  if (resumed && state === null) throw new Failure(`--resume: no ${ctx.state.shown}: run init first`);
+  if (resumed && state === null) throw new Failure(`--resume: no ${ctx.state.shown}: run ${ctx.started} first`);
   if (resumed) state = setSection(state, "Resume here", newlines(options.resume));
   const given = options.path?.map((path) => repositoryPath(ctx.root, path));
 
-  if (tasks.ticked.length > 0) writeFileSync(ctx.tasks.path, tasks.text);
-  if (resumed) writeFileSync(ctx.state.path, state);
+  if (tasks.ticked.length > 0) writeAtomic(ctx.tasks.path, tasks.text);
+  if (resumed) writeAtomic(ctx.state.path, state);
 
   // With --path: exactly those paths and the files this command changed itself. Whatever else is changed, or
-  // already staged, stays as it is: `commit --only` takes the named paths alone.
+  // already staged, stays as it is: `commit --only` takes the named paths alone. A triage's state file in git's
+  // folder is no file of the working tree, and is never committed.
   const only = given && [
     ...new Set([
       ...given,
       ...(tasks.ticked.length > 0 ? [ctx.tasks.shown] : []),
-      ...(resumed ? [ctx.state.shown] : []),
+      ...(resumed && ctx.state.inside ? [ctx.state.shown] : []),
     ]),
   ];
   if (only) git(ctx.root, ["--literal-pathspecs", "add", "--", ...only]);
@@ -595,7 +925,7 @@ function commit(ctx, options) {
   // line that starts with # whatever the machine's commit.cleanup says.
   const trailers = state === null ? null : keyValue(state, "Run", "Commit trailers");
   const body = options.body === undefined ? undefined : newlines(options.body);
-  const message = commitMessage({ ...options, scope, body, trailers });
+  const message = commitMessage({ ...options, scope: ctx.scope, body, trailers });
   git(
     ctx.root,
     [
@@ -612,12 +942,12 @@ function commit(ctx, options) {
     },
   );
 
+  const at = new Date();
   const sha = git(ctx.root, ["rev-parse", "--short=7", "HEAD"]).stdout.trim();
   const parts = [`${sha} ${message.split("\n")[0]}`];
   if (tasks.ticked.length > 0) parts.push(`ticked ${tasks.ticked.join(", ")}`);
   if (tasks.already.length > 0) parts.push(`already ticked ${tasks.already.join(", ")}`);
-  parts.push(graphText(indexGraph(ctx.root)));
-  say(parts.join(" | "));
+  return { parts, at };
 }
 
 function index(ctx) {
@@ -653,8 +983,9 @@ function stopTree(pid) {
 }
 
 // Runs a command in the repository's root, where CLAUDE.md § Commands says every command runs, with its standard
-// output and error output going, in the order written, to one log file. Prints test-output.mjs's short report and
-// answers the command's exit code.
+// output and error output going, in the order written, to one log file under the temp folder's tdd-runs (an
+// apply's in a folder named after the change, a triage's in `pr-<id>`). Prints test-output.mjs's short report,
+// which says which failed tests the state file allows to fail, and answers the command's exit code.
 async function run(ctx, options, command) {
   if (!command?.length) throw new Failure("run needs a command after --: run --label <name> -- <command> [args...]");
   const minutes = options.timeout === undefined ? 30 : Number(options.timeout);
@@ -662,7 +993,7 @@ async function run(ctx, options, command) {
   const name = logFileName(options.label, new Date());
   const plan = spawnPlan(command[0], command.slice(1), { cwd: ctx.root });
 
-  const folder = join(tmpdir(), "tdd-runs", ctx.change);
+  const folder = join(tmpdir(), "tdd-runs", ctx.runs);
   mkdirSync(folder, { recursive: true });
   const log = openLog(folder, name);
   const started = Date.now();
@@ -702,18 +1033,100 @@ async function run(ctx, options, command) {
   }
 
   const code = ended.timedOut ? 124 : (ended.code ?? 128 + (constants.signals[ended.signal] ?? 0));
+  // The tests allowed to fail are read after the run, as the state file then stands; without a state file there
+  // is no list, and the report says nothing about it.
+  const allowed = existsSync(ctx.state.path) ? sectionKeys(readText(ctx.state.path), ALLOWED_FAILURES) : undefined;
   const report = runReport({
     code,
     timedOutAfterMinutes: ended.timedOut ? minutes : undefined,
     durationMs: Date.now() - started,
     logPath: log.path,
     output: readFileSync(log.path, "utf8"),
+    allowed,
   });
   say(...report);
   return code;
 }
 
-const COMMANDS = { init, get, set, add, put, check, commit, index, run };
+// Sorts a review's findings into FIX, DECLINE and ASK by route.mjs's rules, prints, and changes nothing. The
+// findings come with their verdicts as JSON, from the command line, a file or standard input, or with --reports
+// from the report files the triage's checks wrote.
+function route(_ctx, options) {
+  const sources = ["json", "in", "stdin", "reports"].filter((name) => options[name] !== undefined);
+  if (sources.length !== 1) {
+    throw new Failure("route needs one of --json <text>, --in <file>, --stdin and --reports <folder> with --ids");
+  }
+  if (options.reports !== undefined) return say(...routeReport(routed(reportedFindings(options.reports, options.ids))));
+  if (options.ids !== undefined) throw new Failure("--ids goes with --reports <folder>: it names the findings there");
+  let text = options.json;
+  if (options.stdin) text = readFileSync(0, "utf8");
+  if (options.in !== undefined) {
+    if (!statSync(options.in, { throwIfNoEntry: false })?.isFile()) {
+      throw new Failure(`--in: no file ${oneLine(options.in)}`);
+    }
+    text = readText(options.in);
+  }
+  say(...routeReport(routed(readFindings(withoutByteOrderMark(text)))));
+}
+
+// The findings of `--ids`, in that order, each with the verdicts of its two checks as their reports in the folder
+// say: `<id>-1.md` and `<id>-2.md`. A report that is not there is a check that returned no result. So is one that
+// cannot be read as a report, which is also said in one line on stderr: the other findings are still sorted, and
+// the exit code stays 0.
+function reportedFindings(folder, given) {
+  if (!statSync(folder, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Failure(`--reports: no folder ${oneLine(folder)}`);
+  }
+  const ids = (given ?? [])
+    .flatMap((value) => value.split(","))
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (ids.length === 0) throw new Failure("route --reports needs --ids <id>[,<id>...]: the findings to sort");
+  const odd = ids.filter((id) => !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id));
+  if (odd.length > 0) {
+    const named = odd.map((id) => `"${oneLine(id)}"`).join(", ");
+    throw new Failure(`not a finding's id: ${named}; an id is letters, digits, dots, dashes and underscores`);
+  }
+  const twice = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (twice !== undefined) throw new Failure(`finding ${twice}: the id is given twice`);
+  const verdict = (id, check) => {
+    const name = reportFile(id, check);
+    if (!existsSync(join(folder, name))) return null;
+    try {
+      return readReport(readText(join(folder, name)));
+    } catch (e) {
+      process.stderr.write(`route: ${name} cannot be read as a report: ${oneLine(e.message)}\n`);
+      return null;
+    }
+  };
+  return ids.map((id) => ({
+    id,
+    outside: false,
+    reviewerDisagrees: false,
+    verdicts: [verdict(id, 1), verdict(id, 2)],
+  }));
+}
+
+// Prints the progress line of a step that ends without a commit; with one, `commit --done` prints it.
+function progress(_ctx, options) {
+  say(progressLine(options.step, new Date()));
+}
+
+const COMMANDS = {
+  init,
+  "triage-init": triageInit,
+  get,
+  set,
+  add,
+  put,
+  drop,
+  check,
+  commit,
+  index,
+  run,
+  route,
+  progress,
+};
 
 // Runs one command line and answers the exit code.
 export async function main(argv) {
@@ -723,7 +1136,8 @@ export async function main(argv) {
       say(USAGE);
       return 0;
     }
-    return (await COMMANDS[command](context(options), options, after)) ?? 0;
+    const ctx = WITHOUT_FILES.includes(command) ? null : context(options, command);
+    return (await COMMANDS[command](ctx, options, after)) ?? 0;
   } catch (e) {
     process.stderr.write(`ERROR: ${oneLine(e.message)}\n`);
     if (process.env.TDD_DEBUG === "1") process.stderr.write(`${e.stack}\n`);

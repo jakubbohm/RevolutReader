@@ -1,6 +1,7 @@
 // Tests for guard.mjs's pure functions: which paths are test code or OpenSpec artifacts the implementer must not
-// change, the folders each step allows, how git's status list is read (renames included), and the report the
-// check prints. Nothing here calls git; the paths are made up or name this repository's folders.
+// change, the folders each step allows, the bookkeeping's own files that pass (an apply's, an archived change's,
+// a triage's), how git's status list is read (renames included), and the report the check prints. Nothing here
+// calls git; the paths are made up or name this repository's folders.
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
@@ -96,6 +97,43 @@ describe("isForbidden", () => {
     assert.equal(forbidden("openspec/changes/c901-another/.chapter-reviews.md"), true);
     assert.equal(forbidden(`openspec/changes/archive/2026-11-23-${CHANGE}/.tdd-state.md`), true);
     assert.equal(forbidden(`openspec/changes/${CHANGE}/specs/.tdd-state.md`), true);
+  });
+
+  test("takes the own files as a list of paths instead: an archived change's two files", () => {
+    const archived = `openspec/changes/archive/2026-11-23-${CHANGE}`;
+    const own = [`${archived}/.tdd-state.md`, `${archived}/.chapter-reviews.md`];
+
+    assert.equal(isForbidden(`${archived}/.tdd-state.md`, "green", own), false);
+    assert.equal(isForbidden(`${archived}/.chapter-reviews.md`, "close", own), false);
+    assert.equal(isForbidden(`${archived}/tasks.md`, "green", own), true);
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.tdd-state.md`, "green", own), true, "not in the list");
+  });
+
+  test("in a triage, lets the triage's state file through and nothing else under openspec/", () => {
+    const own = [`openspec/changes/${CHANGE}/.review-triage.md`];
+
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.review-triage.md`, "green", own), false);
+    assert.equal(isForbidden(`openspec\\changes\\${CHANGE}\\.review-triage.md`, "wire", own), false);
+    assert.equal(isForbidden(`./openspec/changes/${CHANGE}/.review-triage.md`, "close", own), false);
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.tdd-state.md`, "green", own), true, "the apply's");
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.chapter-reviews.md`, "green", own), true, "the apply's");
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/design.md`, "green", own), true);
+    assert.equal(isForbidden("openspec/changes/c901-another/.review-triage.md", "green", own), true);
+    assert.equal(isForbidden("tests/RevolutReader.UnitTests/ATests.cs", "green", own), true);
+    assert.equal(isForbidden("src/RevolutReader.Api/Check/AccountCheck.cs", "green", own), false);
+  });
+
+  test("with an apply's change, does not let a triage's state file through, nor anything with no own file", () => {
+    assert.equal(forbidden(`openspec/changes/${CHANGE}/.review-triage.md`), true);
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.review-triage.md`, "green", []), true);
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.tdd-state.md`, "green", []), true);
+    assert.equal(isForbidden("src/RevolutReader.Api/Check/AccountCheck.cs", "green", []), false);
+  });
+
+  test("takes a list's paths with either kind of slash", () => {
+    const own = [`openspec\\changes\\${CHANGE}\\.review-triage.md`];
+
+    assert.equal(isForbidden(`openspec/changes/${CHANGE}/.review-triage.md`, "green", own), false);
   });
 
   test("allows the acceptance drivers in wire and close, and not in green", () => {
@@ -237,6 +275,25 @@ describe("guard", () => {
     ];
 
     assert.deepEqual(guard(copied, "green", CHANGE).violations, []);
+  });
+
+  test("with a list of own files, lets those through and counts the apply's state file as a violation", () => {
+    const changed = [
+      { status: " M", path: `openspec/changes/${CHANGE}/.review-triage.md` },
+      { status: " M", path: `openspec/changes/${CHANGE}/.tdd-state.md` },
+      { status: " M", path: "src/RevolutReader.Api/Check/AccountCheck.cs" },
+    ];
+
+    const { violations, others } = guard(changed, "green", [`openspec/changes/${CHANGE}/.review-triage.md`]);
+
+    assert.deepEqual(
+      violations.map((e) => e.path),
+      [`openspec/changes/${CHANGE}/.tdd-state.md`],
+    );
+    assert.deepEqual(
+      others.map((e) => e.path),
+      [`openspec/changes/${CHANGE}/.review-triage.md`, "src/RevolutReader.Api/Check/AccountCheck.cs"],
+    );
   });
 });
 

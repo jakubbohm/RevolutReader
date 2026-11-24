@@ -1,6 +1,7 @@
 // The guard that the implementer changed no test code and no OpenSpec artifact (docs/conventions/testing.md
-// § Test-first workflow; the tdd-apply skill's § 2 step 6): which paths are forbidden in which step, how git's
-// status list is read, and the report `tdd.mjs check` prints. Nothing here calls git.
+// § Test-first workflow), for /tdd-apply's task groups and for the fixes of a review's findings alike: which paths
+// are forbidden in which step, how git's status list is read, and the report `tdd.mjs check` prints. Nothing here
+// calls git.
 //
 // Keep the path rules consistent with .claude/hooks/deny-test-edits.mjs, the second layer, which stops the
 // implementer's Edit and Write calls on the same paths before they happen. This guard is the primary one: it also
@@ -30,19 +31,29 @@ const TEST_CODE = [
 
 const OPENSPEC = /(^|\/)openspec\//i; // specs, design and tasks are not the implementer's to change
 
-// The orchestrator's own files in the change's folder, which it edits itself.
-const ownFiles = (change) => [
-  `openspec/changes/${change}/.tdd-state.md`,
-  `openspec/changes/${change}/.chapter-reviews.md`,
-];
+// The bookkeeping's own files, which the main session and the runner write through tdd.mjs and the implementer
+// never touches: they lie under openspec/ and pass all the same. `own` says whose they are:
+// - a change's name: an apply's state file and chapter reviews file in the change's folder under
+//   openspec/changes;
+// - a list of paths from the repository's root: those files themselves. tdd.mjs gives the list: the same two
+//   files wherever the change's folder lies (an archived change's is under openspec/changes/archive), or in a
+//   triage its state file alone, .review-triage.md, when that lies in the repository.
+const ownFiles = (own) =>
+  typeof own === "string"
+    ? [`openspec/changes/${own}/.tdd-state.md`, `openspec/changes/${own}/.chapter-reviews.md`]
+    : own.map(normal);
+
+// A path from the repository's root with forward slashes and no `./` before it.
+const normal = (path) => path.replace(/\\/g, "/").replace(/^(\.\/)+/, "");
 
 // Whether a changed path (from the repository's root, either kind of slash) is one the implementer must not have
-// changed in this step of this change: test code or an OpenSpec artifact, outside the step's allowed folders.
-export function isForbidden(path, step, change) {
+// changed in this step: test code or an OpenSpec artifact, outside the step's allowed folders and not one of the
+// bookkeeping's own files (`own`, above).
+export function isForbidden(path, step, own) {
   if (!STEPS.includes(step)) throw new Error(`unknown step "${step}"; the steps are: ${STEPS.join(", ")}`);
-  const p = path.replace(/\\/g, "/").replace(/^(\.\/)+/, "");
+  const p = normal(path);
   if (ALLOWED.some((a) => a.steps.includes(step) && a.folder.test(p))) return false;
-  if (ownFiles(change).includes(p)) return false;
+  if (ownFiles(own).includes(p)) return false;
   return OPENSPEC.test(p) || TEST_CODE.some((r) => r.test(p));
 }
 
@@ -62,13 +73,13 @@ export function parseStatus(z) {
 }
 
 // The changed paths split into those the step forbids and the others, each in git's order. A rename counts by
-// both its paths, since the old one is gone; a copy by its new path only.
-export function guard(entries, step, change) {
+// both its paths, since the old one is gone; a copy by its new path only. `own` is `isForbidden`'s.
+export function guard(entries, step, own) {
   const violations = [];
   const others = [];
   for (const entry of entries) {
     const paths = entry.from !== undefined && entry.status.includes("R") ? [entry.path, entry.from] : [entry.path];
-    (paths.some((p) => isForbidden(p, step, change)) ? violations : others).push(entry);
+    (paths.some((p) => isForbidden(p, step, own)) ? violations : others).push(entry);
   }
   return { violations, others };
 }

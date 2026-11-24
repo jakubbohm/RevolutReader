@@ -1,7 +1,8 @@
-// The /tdd-apply state file and the chapter reviews file as texts of sections: reading a section's body, replacing
-// it, appending a bullet, and keyed bullets (`- **<key>:** <value>`). Shared by tdd.mjs, which reads and writes the
-// files, and by the hook .claude/hooks/tdd-resume.mjs, which only reads. Texts in, texts out: nothing here touches
-// a file.
+// The state files of /tdd-apply and /triage-review as texts of sections: the apply's state file, its chapter
+// reviews file and a triage's state file. Reading a section's body, replacing it, appending a bullet, and keyed
+// bullets (`- **<key>:** <value>`): putting one, reading its value, dropping it. Shared by tdd.mjs, which reads
+// and writes the files, and by the hook .claude/hooks/tdd-resume.mjs, which only reads. Texts in, texts out:
+// nothing here touches a file.
 //
 // - A section is a `## <name>` line and the lines up to the next one; a `## ` line inside a code fence is not a
 //   heading. A section's body is its lines without the blank lines around them, and an empty body is the single
@@ -13,8 +14,13 @@
 
 export const STATE_FILE = ".tdd-state.md";
 export const REVIEWS_FILE = ".chapter-reviews.md";
+export const TRIAGE_FILE = ".review-triage.md";
 
-// The state file's sections, in the file's order.
+// The section of both state files that lists the tests allowed to fail: each a keyed bullet, the key the test's
+// name as the test runner prints it (or a part of it that names one test), the value why and since when.
+export const ALLOWED_FAILURES = "Allowed failures";
+
+// The apply's state file's sections, in the file's order.
 export const STATE_SECTIONS = [
   "Resume here",
   "Run",
@@ -25,26 +31,56 @@ export const STATE_SECTIONS = [
   "Baseline",
   "Acceptance tests",
   "Open",
+  ALLOWED_FAILURES,
   "Design files",
 ];
+
+// A triage's state file's fixed sections, in the file's order; one section per round follows them.
+export const TRIAGE_SECTIONS = ["Resume here", "Run", "Agents", "Open", ALLOWED_FAILURES];
+
+// The name of a round's section in a triage's state file. Its findings are keyed bullets, the key the finding's
+// number.
+export const roundSection = (round) => `Round ${round}`;
 
 // The body of an empty section.
 export const EMPTY = "—";
 
-// A new state file: its title, then every section, empty but `Run`, which holds `run`'s `[key, value]` pairs as
-// keyed bullets in the order given.
-export function newStateText(change, run, eol) {
-  const lines = [`# .tdd-state: ${change}`];
-  for (const name of STATE_SECTIONS) {
+// A new file of sections: its title, then every section named, empty but `Run`, which holds `run`'s
+// `[key, value]` pairs as keyed bullets in the order given.
+function newText(title, names, run, eol) {
+  const lines = [title];
+  for (const name of names) {
     const body = name === "Run" ? run.flatMap(([key, value]) => keyedItem(key, value)) : [EMPTY];
     lines.push("", `## ${name}`, "", ...body);
   }
   return lines.join(eol) + eol;
 }
 
+// A new state file of an apply: its title, then every section, empty but `Run`.
+export function newStateText(change, run, eol) {
+  return newText(`# .tdd-state: ${change}`, STATE_SECTIONS, run, eol);
+}
+
 // A new chapter reviews file: its title; a chapter's section is appended when it is first written.
 export function newReviewsText(change, eol) {
   return `# Chapter reviews: ${change}${eol}`;
+}
+
+// A triage's state file at the start of a round. With no text before (`before` is null): a new file of the title
+// (`of` says whose triage: the change's name, or the PR), the fixed sections, `Run` holding `run`'s pairs, and
+// the round's section. With the text of an earlier round or an earlier start of this one: that text with `run`'s
+// pairs put into `Run` (a key it has is replaced where it stands; whatever else `Run` holds stays), a fixed
+// section it lacks appended, and the round's section appended when it is not there. Nothing else changes: an
+// earlier round's section keeps every byte.
+export function triageText(before, of, run, round, eol) {
+  const rounds = roundSection(round);
+  if (before === null) return newText(`# Review triage: ${of}`, [...TRIAGE_SECTIONS, rounds], run, eol);
+  let text = before;
+  for (const [key, value] of run) text = putKey(text, "Run", key, value, { create: true });
+  for (const name of [...TRIAGE_SECTIONS, rounds]) {
+    if (sectionBody(text, name) === null) text = setSection(text, name, "", { create: true });
+  }
+  return text;
 }
 
 // The names of the text's sections, in order.
@@ -90,6 +126,30 @@ export function putKey(text, name, key, value, { create = false } = {}) {
     else lines.push(...keyedItem(key, value));
     return lines;
   });
+}
+
+// The text with the section's keyed bullet of this key removed, its later lines included; a section that held
+// nothing else is left empty. A key the section does not have is an error that names the keys it has: a key
+// mistyped must not look dropped.
+export function dropKey(text, name, key) {
+  if (!key.trim() || /[\r\n]/.test(key)) throw new Error("a key is one line of text");
+  return edit(text, name, false, (body) => {
+    const lines = filled(body);
+    const at = keyedAt(lines, key.trim());
+    if (!at) {
+      const keys = keysAmong(lines).map((k) => `"${k}"`);
+      const has = keys.length > 0 ? `its keys are: ${keys.join(", ")}` : "it has no keyed bullet";
+      throw new Error(`no key "${key.trim()}" in ${name.trim()}; ${has}`);
+    }
+    lines.splice(at.from, at.to - at.from);
+    return lines;
+  });
+}
+
+// The keys of the section's keyed bullets, in order; none when the section is not there.
+export function sectionKeys(text, name) {
+  const body = sectionBody(text, name);
+  return body === null ? [] : keysAmong(body.split("\n"));
 }
 
 // The value of the section's keyed bullet, its later lines without their indent; null when the section or the key
@@ -169,6 +229,10 @@ function item(text) {
 
 const keyPrefix = (key) => `- **${key}:**`;
 const keyedItem = (key, value) => item(`**${key.trim()}:** ${value}`.trimEnd());
+
+// The keys of the keyed bullets among a body's lines: of each line that starts one, the text up to the first
+// `:**` that a space or the line's end follows.
+const keysAmong = (lines) => lines.map((l) => /^- \*\*(.+?):\*\*(?= |$)/.exec(l)?.[1]).filter(Boolean);
 
 // Where the keyed bullet stands among the body's lines: its first line and the line after its last; null when no
 // bullet has the key. Its later lines are the indented ones that follow, with any blank lines between them.
