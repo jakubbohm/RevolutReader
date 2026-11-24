@@ -1,7 +1,7 @@
 # Builds and tests everything on every pull request: the solution (c002 design.md D2, D8), the
 # frontend (c003 design.md D12), the image and the Bicep that the deploy uses (c005 design.md
-# D7, D14), and the triage-review skill's scripts (in the frontend job;
-# docs/software-factory/lessons.md R-103).
+# D7, D14), and the scripts of the triage-review and tdd-apply skills and the hooks (in the frontend
+# job; docs/software-factory/lessons.md R-103, R-104).
 # The job names `build-and-test`, `frontend` and `image-and-infra` are required checks in the
 # ruleset on main (docs/operations/main-ruleset.json): renaming one means updating the ruleset in
 # the same PR. No job here holds a credential or publishes anything (docs/conventions/workflow.md § 4).
@@ -67,11 +67,16 @@ jobs:
             src/RevolutReader.Web/package-lock.json
             tools/api-client/package-lock.json
 
-      # The triage-review skill's scripts (docs/conventions/testing.md § Where tests live): in this job
-      # because it has Node, whose own test runner needs no install.
-      - name: Triage scripts' tests
+      # The skills' scripts and the hooks (docs/conventions/testing.md § Where tests live): the
+      # triage-review skill's scripts, then the tdd-apply skill's (the bookkeeping script both skills
+      # call, and the measurement script's own tests; the script itself is run by hand, never here)
+      # with the hooks' tests. In this job because it has Node, whose own test runner needs no
+      # install. The same two commands as CLAUDE.md § Commands.
+      - name: Skill scripts' and hooks' tests (triage-review, tdd-apply, .claude/hooks)
         working-directory: .
-        run: node --test ".claude/skills/triage-review/scripts/*.test.mjs"
+        run: |
+          node --test ".claude/skills/triage-review/scripts/*.test.mjs"
+          node --test ".claude/skills/tdd-apply/scripts/*.test.mjs" ".claude/hooks/*.test.mjs"
 
       - name: Install
         run: npm ci
