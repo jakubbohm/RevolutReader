@@ -16,7 +16,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const LIMIT = 15_000;
-const FILES = [".claude/skills/tdd-apply/SKILL.md"];
+const FILES = [".claude/skills/tdd-apply/SKILL.md", ".claude/skills/triage-review/SKILL.md"];
 
 // The repository's root: this file lies four folders below it.
 const ROOT = new URL("../../../../", import.meta.url);

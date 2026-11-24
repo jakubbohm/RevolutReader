@@ -1,5 +1,8 @@
-// /triage-review § 1: posts a code review's findings that are only in the conversation (`/code-review` ran without
-// `--comment`) as review comments on the pull request, so the gather takes them like any other thread.
+// /triage-review (the skill's rare.md, § A review from the conversation and § What the workflow found): posts
+// findings that have no review thread yet as review comments on the pull request, so the gather takes them like any
+// other thread. They are a code review's findings that are only in the conversation (`/code-review` ran without
+// `--comment`), or the new findings the check's together step returns: side remarks of the verifiers that hold
+// after an agent checked their code path.
 //
 //   node .claude/skills/triage-review/scripts/post-findings.mjs <pr> <chat-findings-file> [--dry-run]
 //

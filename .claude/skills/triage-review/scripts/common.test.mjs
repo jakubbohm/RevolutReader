@@ -1,7 +1,9 @@
-// Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
-// submitted, a text's first line, the lines of a diff a comment can attach to, how a chat review's findings become
-// review comments to post, when the PR's last triage summary was posted and whether a round's summary already is,
-// and which references in a text would post a backlink outside the repository and the refusal that names them.
+// Tests for common.mjs's pure functions: how review comments become numbered findings, with every thread's replies,
+// and when each one's review was submitted, a text's first line, the lines of a diff a comment can attach to, how a
+// chat review's findings become review comments to post, when the PR's last triage summary was posted and whether a
+// round's summary already is, and which references in a text would post a backlink outside the repository and the
+// refusal that names them. The round and its restart (roundOf, ownCommits, classifyRound and what they rest on) are
+// tested in round.test.mjs beside this file.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
 // REST API's, and every other repository named is made up.
 //
@@ -309,6 +311,115 @@ describe("findingsFrom", () => {
     const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.equal(findings[0].title, "Important: one");
+  });
+
+  // `all` is what the gather sorts a round's findings from (classifyRound; its tests are in round.test.mjs).
+  // A made-up reply in the thread that the comment `to` starts.
+  const replyTo = (id, to, hour, body) =>
+    comment(id, { in_reply_to_id: to, body, created_at: at(hour), user: { login: "the-owner" } });
+
+  test("lists every numbered comment, resolved or not, in the order of the numbers", () => {
+    // The paths would order them otherwise (1902, 1903, 1901); 1902 is resolved.
+    const comments = [
+      comment(1903, { path: "docs/b.md" }),
+      comment(1901, { path: "src/z.mjs" }),
+      comment(1902, { path: "docs/a.md" }),
+    ];
+
+    const { all, findings } = findingsFrom(comments, new Set([1902]), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all.map((f) => [f.id, f.commentId, f.resolved]),
+      [
+        [1, 1901, false],
+        [2, 1902, true],
+        [3, 1903, false],
+      ],
+    );
+    assert.deepEqual(
+      findings.map((f) => f.id),
+      [3, 1],
+    );
+  });
+
+  test("gives each of them a finding's fields, whether its thread is resolved, and its replies", () => {
+    const comments = [comment(1911, { path: "src/a.mjs", line: 7, body: "Important: one\nmore" })];
+
+    const { all } = findingsFrom(comments, new Set([1911]), submittedInIdOrder(comments));
+
+    assert.deepEqual(all, [
+      {
+        id: 1,
+        commentId: 1911,
+        path: "src/a.mjs",
+        line: 7,
+        title: "Important: one",
+        body: "Important: one\nmore",
+        author: "a-reviewer",
+        url: "https://github.com/example/repo/pull/1#discussion_r1911",
+        resolved: true,
+        replies: [],
+      },
+    ]);
+  });
+
+  test("gives each thread its own replies, in the order they were posted", () => {
+    // 1924 has the lowest reply id but was posted last; 1926 answers the other thread.
+    const comments = [
+      comment(1921),
+      comment(1922),
+      replyTo(1925, 1921, 11, "Fixed in `0123abc`: the heading."),
+      replyTo(1926, 1922, 10, "Declined: design.md D4 decides this."),
+      replyTo(1924, 1921, 12, "Thanks."),
+      replyTo(1927, 1921, 9, "Is the old behaviour wanted?"),
+    ];
+
+    const { all } = findingsFrom(comments, new Set([1921]), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all.map((f) => [f.commentId, f.replies]),
+      [
+        [
+          1921,
+          [
+            { body: "Is the old behaviour wanted?", createdAt: at(9), author: "the-owner" },
+            { body: "Fixed in `0123abc`: the heading.", createdAt: at(11), author: "the-owner" },
+            { body: "Thanks.", createdAt: at(12), author: "the-owner" },
+          ],
+        ],
+        [1922, [{ body: "Declined: design.md D4 decides this.", createdAt: at(10), author: "the-owner" }]],
+      ],
+    );
+  });
+
+  test("orders replies posted at the same time by their ids", () => {
+    const comments = [comment(1931), replyTo(1933, 1931, 9, "Second."), replyTo(1932, 1931, 9, "First.")];
+
+    const { all } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all[0].replies.map((r) => r.body),
+      ["First.", "Second."],
+    );
+  });
+
+  test("leaves a comment of a pending review out of them too", () => {
+    const comments = [comment(1941), comment(1942), comment(1943)];
+    const submitted = new Map([
+      [1941, at(9)],
+      [1942, null],
+      [1943, at(10)],
+    ]);
+
+    const { all } = findingsFrom(comments, new Set([1942, 1943]), submitted);
+
+    assert.deepEqual(
+      all.map((f) => [f.id, f.commentId, f.resolved]),
+      [
+        [1, 1941, false],
+        [2, 1943, true],
+      ],
+    );
   });
 });
 
