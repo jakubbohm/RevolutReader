@@ -22,10 +22,10 @@
 //   two, `disagrees` on another verdict than the second, or an id given twice is refused for the whole input, in
 //   one line that names the finding and the field.
 //
-// In the triage the verdicts come from files instead: each of a finding's two checks saves its report as a file,
-// `<id>-1.md` (the first check) and `<id>-2.md` (the second), and `readReport` turns a report into a verdict, so
-// that no model retypes one. A report is labelled lines, the label first on its line; every other line is not
-// read:
+// In both skills the verdicts come from files instead: each check of a finding saves its report as a file,
+// `<id>-1.md` (the first check, the only one in a chapter review) and `<id>-2.md` (the second, in a triage), and
+// `readReport` turns a report into a verdict, so that no model retypes one. A report is labelled lines, the label
+// first on its line; every other line is not read:
 //
 //   VERDICT: confirmed | refuted | unsure
 //   EVIDENCE: <text>        (`evidence` is false when the text is empty or `none`, in any case; true otherwise)
@@ -45,14 +45,16 @@
 // name that finding. So a report that cannot be read is refused while its writer can still correct it.
 //
 // RULES below is the order: the first rule that matches decides.
+//
+// Findings with one cause are merged: a group, sorted as one (`route`'s second argument, the groups' ids). Each
+// member is still sorted by the rules on its own verdicts, and the group's outcome follows from theirs
+// (`groupOutcome`): no model works it out. Findings whose fixes touch each other are tied: one that is fixed waits
+// while one it is tied to is asked about (`waiting`).
 
 export const OUTCOMES = ["FIX", "DECLINE", "ASK"];
-const VERDICTS = ["confirmed", "refuted", "unsure"];
-const KINDS = ["behaviour", "test-quality", "docs", "cleanup"];
+export const VERDICTS = ["confirmed", "refuted", "unsure"];
+export const KINDS = ["behaviour", "test-quality", "docs", "cleanup"];
 const SIZES = ["small", "medium", "large"];
-
-// The label the chapter-reviewer's hand-back puts before its input line; the line may be passed with it.
-const LABEL = /^\s*ROUTE INPUT:/;
 
 // What a confirmed finding's fix may be that sends it to the owner, in the rules' order: which verdicts say so,
 // and the reason.
@@ -126,16 +128,85 @@ export function routeFinding(finding) {
   throw new Error("no rule matched"); // the last rule always does
 }
 
-// Every finding with its outcome and reason, in the input's order.
-export function route(findings) {
-  return findings.map((finding) => ({ id: finding.id, ...routeFinding(finding) }));
+// What a group of merged findings comes to, from its members' own outcomes: the entries to print. `members` are
+// the group's findings in the group's order, each with its id, outcome and reason.
+// - Any member is an ASK: the group is one ASK, and its reason names each such member, `<id>: <its reason>`.
+// - Else they all have one outcome: the group is that. A FIX's kind is `behaviour` when any member's is (its fix
+//   then needs a guard test first), else the first member's.
+// - Else some are fixed and some declined: they are not one finding after all. Each is given on its own, and a note
+//   says that they were not merged.
+function groupOutcome(members) {
+  const id = members.map((m) => m.id).join(", ");
+  const asked = members.filter((m) => m.outcome === "ASK");
+  if (asked.length > 0) return [{ id, ...ask(asked.map((m) => `${m.id}: ${m.reason}`).join("; ")) }];
+  if (differ(members, "outcome")) return [...members, { note: `${id}: not merged, their outcomes differ` }];
+  const [{ outcome, reason }] = members;
+  if (outcome !== "FIX") return [{ id, outcome, reason }];
+  return [{ id, outcome, reason: members.some((m) => m.reason === "behaviour") ? "behaviour" : reason }];
 }
 
-// The lines `route` prints: one per finding, `<id> → <outcome> · <reason>`, then the three counts.
-export function routeReport(routed) {
+// Every finding with its outcome and reason, in the input's order. `groups` are the merged findings: each a list
+// of two or more ids, in the order its line names them. A group is one entry, `<id>, <id>`, where its first
+// member stands in the input, unless its members come out as fixed and declined: then each is an entry of its own
+// there, followed by a note (an entry with `note` alone). Throws for a group that names a finding the input does
+// not have, one finding only, or a finding of another group.
+export function route(findings, groups = []) {
+  const routed = new Map(findings.map((finding) => [finding.id, { id: finding.id, ...routeFinding(finding) }]));
+  const groupOf = new Map();
+  for (const group of groups) {
+    if (group.length < 2) throw new Error(`a group of merged findings names two findings or more: ${group.join(", ")}`);
+    for (const id of group) {
+      if (!routed.has(id)) throw new Error(`finding ${id} is merged, and is not among the findings`);
+      if (groupOf.has(id)) throw new Error(`finding ${id} is merged twice`);
+      groupOf.set(id, group);
+    }
+  }
+  const done = new Set();
+  return findings.flatMap(({ id }) => {
+    const group = groupOf.get(id);
+    if (group === undefined) return [routed.get(id)];
+    if (done.has(group)) return [];
+    done.add(group);
+    return groupOutcome(group.map((member) => routed.get(member)));
+  });
+}
+
+// The findings that are fixed but have to wait: `routed` is `route`'s answer for `groups`, and `ties` are the
+// pairs of findings whose fixes touch each other, in either order. A FIX that a tie joins to an ASK waits for the
+// owner's answer to that one, since the answer may change its fix; a group waits when any of its members is tied
+// so. Answers one line for each, in `routed`'s order: `<id>: waits for <ask id>[ and <ask id>]`, the asks joined by
+// ` and ` because a merged ASK is named by its key, commas and all, so that one merged ask reads apart from two:
+// `A-3: waits for A-1, A-4` waits for one, `A-3: waits for A-1, A-4 and A-6` for two.
+export function waiting(routed, groups, ties) {
+  const entryOf = new Map(routed.filter((entry) => entry.note === undefined).map((entry) => [entry.id, entry]));
+  for (const group of groups) {
+    const merged = entryOf.get(group.join(", "));
+    if (merged !== undefined) for (const id of group) entryOf.set(id, merged);
+  }
+  const eitherWay = ties.flatMap(([a, b]) => [
+    [a, b],
+    [b, a],
+  ]);
+  const asksOf = (fixed) =>
+    routed.filter(
+      (asked) =>
+        asked.outcome === "ASK" && eitherWay.some(([a, b]) => entryOf.get(a) === fixed && entryOf.get(b) === asked),
+    );
+  return routed
+    .filter((entry) => entry.outcome === "FIX")
+    .map((fixed) => [fixed, asksOf(fixed)])
+    .filter(([, asks]) => asks.length > 0)
+    .map(([fixed, asks]) => `${fixed.id}: waits for ${asks.map((asked) => asked.id).join(" and ")}`);
+}
+
+// The lines `route` prints: one per finding or group, `<id> → <outcome> · <reason>`, a note as it is, then the
+// lines of the findings that wait (`waits`, `waiting`'s answer), then the three counts, in which a group counts
+// once.
+export function routeReport(routed, waits = []) {
   const count = (outcome) => routed.filter((r) => r.outcome === outcome).length;
   return [
-    ...routed.map((r) => `${r.id} → ${r.outcome} · ${r.reason}`),
+    ...routed.map((r) => r.note ?? `${r.id} → ${r.outcome} · ${r.reason}`),
+    ...waits,
     OUTCOMES.map((outcome) => `${outcome} ${count(outcome)}`).join(" · "),
   ];
 }
@@ -146,7 +217,7 @@ export function routeReport(routed) {
 export function readFindings(text) {
   let input;
   try {
-    input = JSON.parse(String(text ?? "").replace(LABEL, ""));
+    input = JSON.parse(String(text ?? ""));
   } catch (e) {
     throw new Error(`the input is not JSON: ${e.message}`);
   }

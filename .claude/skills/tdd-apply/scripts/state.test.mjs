@@ -1,8 +1,9 @@
 // Tests for state.mjs's pure functions: how a state file's text is read and changed by section (the body of a
 // section, replacing it, appending a bullet, a keyed bullet's value, dropping a keyed bullet), what a new state
-// file, a new reviews file and a triage's state file at the start of a round hold, and that an edit keeps the
-// file's own line endings and every other line as it was. Texts in, texts out: nothing here touches a file, git or
-// the code graph, and every change name and value is made up.
+// file, a new reviews file and a triage's state file at the start of a round hold, that an edit keeps the file's
+// own line endings and every other line as it was, and how a section reads from a state file and its local file
+// together. Texts in, texts out: nothing here touches a file, git or the code graph, and every change name and
+// value is made up.
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
@@ -13,8 +14,10 @@ import {
   dropKey,
   EMPTY,
   keyValue,
+  newLocalText,
   newReviewsText,
   newStateText,
+  overlaidBody,
   putKey,
   roundSection,
   sectionBody,
@@ -605,5 +608,82 @@ describe("keyValue", () => {
 
     assert.equal(sectionBody(text, "Run").split("\n").at(-1), "- **Issue:**");
     assert.equal(keyValue(text, "Run", "Issue"), "");
+  });
+});
+
+describe("newLocalText", () => {
+  test("holds the title alone, and takes a section when it is first written", () => {
+    const text = newLocalText("c900-add-made-up-thing", "\n");
+
+    assert.equal(text, "# This machine's values: c900-add-made-up-thing\n");
+    assert.deepEqual(sectionNames(text), []);
+    assert.equal(
+      putKey(text, "Run", "Code graph project", "made-up-project", { create: true }),
+      "# This machine's values: c900-add-made-up-thing\n\n## Run\n\n- **Code graph project:** made-up-project\n",
+    );
+  });
+});
+
+describe("overlaidBody", () => {
+  const RUN = "- **Status:** applying\n- **Branch:** feat/made-up";
+
+  test("is the state file's body when the local file has no such section, and the other way round", () => {
+    assert.equal(overlaidBody(RUN, null), RUN);
+    assert.equal(
+      overlaidBody(null, "- **Code graph project:** made-up-project"),
+      "- **Code graph project:** made-up-project",
+    );
+    assert.equal(overlaidBody(null, null), null);
+  });
+
+  test("puts a key that only the local file holds after the state file's lines", () => {
+    assert.equal(
+      overlaidBody(RUN, "- **Code graph project:** made-up-project"),
+      `${RUN}\n- **Code graph project:** made-up-project`,
+    );
+  });
+
+  test("gives a key that both hold once, where the state file has it, with the local value", () => {
+    const committed = "- **Status:** applying\n- **Code graph project:** another-machines\n- **Branch:** feat/made-up";
+
+    assert.equal(
+      overlaidBody(committed, "- **Code graph project:** made-up-project"),
+      "- **Status:** applying\n- **Code graph project:** made-up-project\n- **Branch:** feat/made-up",
+    );
+  });
+
+  test("takes a value of several lines whole, on either side", () => {
+    const committed = "- **Folders:** one\n  two\n- **Status:** applying";
+    const local = "- **Folders:** three\n  four\n  five";
+
+    assert.equal(overlaidBody(committed, local), "- **Folders:** three\n  four\n  five\n- **Status:** applying");
+    assert.equal(overlaidBody("- **Status:** applying", local), `- **Status:** applying\n${local}`);
+  });
+
+  test("puts whatever else the local body holds after the state file's lines, in its own order", () => {
+    const committed = "Fetched 2026-11-25.\n- **Design system:** version 7";
+    const local =
+      "- **Design system folder:** /made/up/ds\na note of this machine\n- **Screens design folder:** /made/up/screens";
+
+    assert.equal(overlaidBody(committed, local), `${committed}\n${local}`);
+  });
+
+  test("reads an empty body on either side as nothing", () => {
+    assert.equal(overlaidBody(EMPTY, "- **A:** one"), "- **A:** one");
+    assert.equal(overlaidBody(RUN, EMPTY), RUN);
+    assert.equal(overlaidBody(EMPTY, EMPTY), EMPTY);
+  });
+
+  test("reads the two files' sections as tdd.mjs get hands them over", () => {
+    const state = putKey(sample(), "Run", "Code graph project", "another-machines");
+    const local = putKey(newLocalText("c900-add-made-up-thing", "\n"), "run", "Code graph project", "mine", {
+      create: true,
+    });
+
+    assert.equal(
+      overlaidBody(sectionBody(state, "Run"), sectionBody(local, "Run")),
+      "- **Status:** applying\n- **Human test review:** acceptance\n- **Code graph project:** mine",
+    );
+    assert.equal(overlaidBody(sectionBody(state, "Open"), sectionBody(local, "Open")), EMPTY);
   });
 });

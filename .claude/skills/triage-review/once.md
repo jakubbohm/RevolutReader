@@ -2,9 +2,19 @@
 
 `SKILL.md` beside this file holds the role, the rules, the commands (`tdd`) and the loop that repeats for the
 findings: the check, the sorting, the fix round, the questions and the replies. It sends you here for the
-steps that happen once in a round, § 0 and § 1 at its start and § 5 at its end, and for the form of a reply
-(§ Replies), which you need whenever a finding ends. The cases that only some rounds have are in `rare.md`,
-of which you read one section at a time, as `SKILL.md` says. Every rule of `SKILL.md` holds here too.
+steps that happen once in a round, § 0 and § 1 at its start and § 5 at its end, for the scripts that read and
+post on GitHub (§ The scripts), and for the form of a reply (§ Replies), which you need whenever a finding
+ends. The cases that only some rounds have are in `rare.md`, of which you read one section at a time, as
+`SKILL.md` says. Every rule of `SKILL.md` holds here too.
+
+## The scripts
+
+The triage's own scripts are in `.claude/skills/triage-review/scripts/`: `gather-findings.mjs`, and the three
+that post, `post-findings.mjs`, `reply-finding.mjs` and `post-summary.mjs`. Each file's header has the
+details. Run each as it is, as one call of the Bash tool from the repository root: never rewrite or inline
+one, and never post to the PR another way. An `ERROR:` line says what failed: fix that cause, or stop and
+report; never work around the script. The three that post take `--dry-run`, and refuse a text that would make
+GitHub post a backlink outside this repository, saying how to rewrite it.
 
 ## 0. Prepare
 
@@ -26,10 +36,11 @@ is recorded nowhere.
    - With a change, the **intent files** are its `proposal.md`, its `design.md` and every `specs/**/spec.md`
      in it (Glob), as absolute paths. The scope of the round's commits is the change's number part (`c018`);
      the script takes it from the change's name.
-   - Without one, the scope is the roadmap step in lower case (`c13`) or, for work that lives only in a
-     GitHub issue, `i` and the issue's number (`i67`). The intent file is the text of the issue the PR closes
-     or belongs to, saved in step 6. If neither the PR's body nor its branch names that issue, that is a full
-     stop too: ask the owner which issue it is.
+   - Without one, the scope is the one the PR's own commits carry (`docs/conventions/workflow.md` § 3): a
+     step's id in lower case (`c13`) or, for work that lives only in a GitHub issue, `i` and the issue's
+     number (`i67`). The one intent file is the text of the issue the PR closes or belongs to, saved in step
+     6: nothing is read from `pm/roadmap.md`. If neither the PR's body nor its branch names that issue, that
+     is a full stop too: ask the owner which issue it is.
 3. The round `<n>`: each closed round left one summary comment headed `## Review triage`, and the round is
    their count plus one:
    `gh pr view <PR> --json comments --jq '[.comments[].body | select(startswith("## Review triage"))] | length'`.

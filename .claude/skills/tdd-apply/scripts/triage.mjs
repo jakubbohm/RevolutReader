@@ -17,8 +17,13 @@
 
 export const POINTER_FILE = "triage.json";
 
+// The name a PR's triage has among what a working tree's git folder keeps for the bookkeeping: its state file when
+// the PR has no change, its local file (this machine's values) and its shelved work. An apply's name there is its
+// change's.
+export const triageAccount = (pr) => `triage-${pr}`;
+
 // The name of the state file of a PR without a change, in the pointer's folder.
-export const prStateFile = (pr) => `triage-${pr}.md`;
+export const prStateFile = (pr) => `${triageAccount(pr)}.md`;
 
 // A PR's id as the pointer holds it: the PR's number, with or without its `#`, or for a trial without a PR any
 // token of letters, digits and dashes, such as `local`. Throws for anything else.

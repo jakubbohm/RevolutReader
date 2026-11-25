@@ -436,9 +436,15 @@ export function replyOutcome(body) {
 //   heads-up                  docs(<scope>): [review] <id>: heads-up for <step>
 //   docs fix                  docs(<scope>): [review] <id>: …               any other docs commit: a docs fix
 //   cleanup                   refactor(<scope>): [review] <id>: …           a cleanup fix
+//   repair                    <type>(<scope>): [review] <id>: close check <name> repaired, of any type
+//                             the repair of a close check that a commit of the finding broke: one the runner made at
+//                             once (a format, lint or type-check failure; refactor, or test in test code), or one the
+//                             owner ordered after a failed check (fix when it changes what production code does). It
+//                             comes after the finding's own commits, whatever they said, and its type is not read:
+//                             the summary alone makes it a repair
 //   unknown                   any other type, e.g. feat(<scope>): [review] <id>: … or test(<scope>): [plan] <id>: …
 // The texts after the number are exact: `guard, passes`, `guard removed, declined`, `guard removed, deferred`, a
-// summary that ends with `, red`, and one that starts with `heads-up for `.
+// summary that ends with `, red`, one that starts with `heads-up for `, and `close check <name> repaired`.
 const FINDING_NUMBERS = String.raw`\d+(?:\s*,\s*\d+)*`;
 const ROUND_COMMIT = new RegExp(String.raw`^([a-z]+)\(([^()\s]+)\): \[(review|plan)\] (${FINDING_NUMBERS}): (\S.*)$`);
 // A subject that names findings as a round's commit does, wherever in it and whatever its type: so that git's own
@@ -461,8 +467,12 @@ export function guardTests(body) {
   return [...new Set(names.filter(Boolean))];
 }
 
+// The summary of a close check's repair commit: the check's name between the fixed words.
+const REPAIR = /^close check \S.* repaired$/;
+
 function commitKind(type, tag, summary) {
   if (tag === "plan") return type === "docs" ? "plan" : "unknown";
+  if (REPAIR.test(summary)) return "repair";
   if (type === "fix") return "fix";
   if (type === "refactor") return "cleanup";
   if (type === "docs") return summary.startsWith("heads-up for ") ? "heads-up" : "docs fix";
@@ -523,6 +533,13 @@ export function ownCommits(commits, earlierNumbers, carried = []) {
 // So a fix never comes without a red commit before it, a guard is never removed that no red commit added, no
 // outcome is read while a guard test may still fail, a finding once declined or deferred is not fixed after all
 // without the owner being asked, and neither is one partly fixed then declined or deferred.
+// A `repair` commit is no step of the fix: the round's close checks found a failure that a commit of the finding
+// caused, and the repair put it right. The runner makes one at once for a format, lint or type-check failure in a
+// file that a commit of the finding touched last; the owner orders one for any other failure, a failed test among
+// them, and that one may be a `fix` commit. It is read past in every state and whatever its type, so it changes
+// neither the finding's outcome nor where its fix resumes, whether the finding was fixed, refuted (its guard test's
+// file may be the one repaired), left with its guard test removed, or left at a red commit. Repairs alone are no
+// story: a finding that nothing but repair commits name is `broken`.
 // Where the commits stop decides: `planned`, and `red` or `red again` when the last commit is a plan, resume at the
 // test-writer (`next`); `red` and `red again` otherwise resume at the implementer; every other state is an `outcome`
 // (OUTCOME_OF_STATE). `mayFail` are the `red` commits no later fix, `guard, passes` or `guard removed` commit
@@ -566,13 +583,18 @@ function commitStory(commits) {
   if (unknown) {
     return broken(`${shortSha(unknown.sha)} names it but is none of the round's commit shapes: ${unknown.subject}`);
   }
+  // The steps of the fix: every commit but a close check's repair, which is read past.
+  const steps = commits.filter((c) => c.kind !== "repair");
+  if (steps.length === 0) {
+    return broken(`only close-check repairs name it, and a repair fixes no finding: ${kinds.join(" → ")}`);
+  }
   let state = "start";
-  for (const kind of kinds) {
+  for (const { kind } of steps) {
     state = NEXT_STATE[state]?.[PLAIN_FIXES.has(kind) ? "plain" : kind];
     if (!state) return broken(`its commits are in an order the fix round does not produce: ${kinds.join(" → ")}`);
   }
 
-  const last = commits.at(-1);
+  const last = steps.at(-1);
   const stop = `${shortSha(last.sha)} ${last.subject}`;
   if (last.kind === "plan") {
     return { next: "test-writer", says: `its commits stop at the plan commit ${stop}`, mayFail };

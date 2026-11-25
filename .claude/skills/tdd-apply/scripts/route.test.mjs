@@ -1,10 +1,11 @@
 // Tests for route.mjs's pure functions: every sorting rule, the order the rules are applied in, the wording when
 // only one of two checks says something, every input that is refused, how a check's report is read into a verdict
 // (the first check's and the second's, and every report that cannot be read), what a report must say to be saved
-// as a finding's report file, and the lines `tdd.mjs route` prints. Objects and texts in, objects and lines out:
-// nothing here touches a file or git, and every id, path and report is made up. (That the command reads its input
-// from --json, --in, --stdin and a folder of report files, and that `tdd.mjs report` writes such a file, is tested
-// in tdd.test.mjs.)
+// as a finding's report file, what a group of merged findings comes to, which fixed findings wait for one the
+// owner is asked about, and the lines `tdd.mjs route` prints.
+// Objects and texts in, objects and lines out: nothing here touches a file or git, and every id, path and report
+// is made up. (That the command reads its input from --json, --in, --stdin, a folder of report files and a
+// chapter's record, and that `tdd.mjs report` writes such a file, is tested in tdd.test.mjs.)
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
@@ -19,6 +20,7 @@ import {
   route,
   routeFinding,
   routeReport,
+  waiting,
 } from "./route.mjs";
 
 // A confirmed verdict whose fix is the smallest there is, changed by `more`.
@@ -300,11 +302,6 @@ describe("readFindings", () => {
       readFindings(text([one({ id: 3 }), one({ id: " 14 " })])).map((f) => f.id),
       ["3", "14"],
     );
-  });
-
-  test("takes the line with the label the chapter-reviewer's hand-back puts before it", () => {
-    assert.equal(readFindings(`ROUTE INPUT: ${text([one()])}`)[0].id, "B-1");
-    assert.equal(readFindings(`  ROUTE INPUT:${text([one()])}\n`)[0].id, "B-1");
   });
 
   test("takes an empty list", () => {
@@ -908,7 +905,262 @@ describe("readReport", () => {
   });
 });
 
+describe("route: findings merged into a group", () => {
+  const fixed = (id, kind = "docs") => finding([confirmed({ kind })], { id });
+  const declined = (id) => finding([refuted()], { id });
+  const asked = (id) => finding([unsure()], { id });
+
+  test("a group whose findings are all fixed is one FIX, under its ids in the group's order", () => {
+    assert.deepEqual(route([fixed("3"), fixed("7")], [["3", "7"]]), [{ id: "3, 7", outcome: "FIX", reason: "docs" }]);
+    assert.deepEqual(route([fixed("B-1"), fixed("B-4")], [["B-4", "B-1"]]), [
+      { id: "B-4, B-1", outcome: "FIX", reason: "docs" },
+    ]);
+  });
+
+  test("a fixed group's kind is behaviour when any of its findings is, else the first one's", () => {
+    const kindOf = (...kinds) =>
+      route(
+        kinds.map((kind, i) => fixed(String(i + 1), kind)),
+        [kinds.map((_, i) => String(i + 1))],
+      )[0].reason;
+
+    assert.equal(kindOf("docs", "behaviour"), "behaviour");
+    assert.equal(kindOf("behaviour", "cleanup"), "behaviour");
+    assert.equal(kindOf("cleanup", "docs", "test-quality"), "cleanup");
+    assert.equal(kindOf("test-quality", "docs"), "test-quality");
+  });
+
+  test("a group whose findings are all declined is one DECLINE", () => {
+    assert.deepEqual(route([declined("3"), declined("7")], [["3", "7"]]), [
+      { id: "3, 7", outcome: "DECLINE", reason: "refuted with evidence" },
+    ]);
+  });
+
+  test("a group with a finding to ask about is one ASK, whose reason names each such finding", () => {
+    assert.deepEqual(route([fixed("3"), asked("7")], [["3", "7"]]), [
+      { id: "3, 7", outcome: "ASK", reason: "7: unsure" },
+    ]);
+    assert.deepEqual(
+      route(
+        [finding([confirmed({ size: "large" })], { id: "3" }), declined("7"), finding([null], { id: "9" })],
+        [["3", "7", "9"]],
+      ),
+      [{ id: "3, 7, 9", outcome: "ASK", reason: "3: a large fix; 9: a check returned no result" }],
+    );
+  });
+
+  test("a group whose findings come out fixed and declined is not merged: each on its own, then a note", () => {
+    assert.deepEqual(route([fixed("3"), declined("7")], [["3", "7"]]), [
+      { id: "3", outcome: "FIX", reason: "docs" },
+      { id: "7", outcome: "DECLINE", reason: "refuted with evidence" },
+      { note: "3, 7: not merged, their outcomes differ" },
+    ]);
+  });
+
+  test("a group stands where its first finding stands in the input, and the others keep their places", () => {
+    const routed = route(
+      [fixed("1"), fixed("2"), asked("3"), fixed("4"), declined("5")],
+      [
+        ["2", "4"],
+        ["3", "5"],
+      ],
+    );
+
+    assert.deepEqual(
+      routed.map((r) => r.id),
+      ["1", "2, 4", "3, 5"],
+    );
+    assert.deepEqual(
+      routed.map((r) => r.outcome),
+      ["FIX", "FIX", "ASK"],
+    );
+  });
+
+  test("each finding of a group is sorted by the rules on its own verdicts", () => {
+    const two = (id, second) => finding([confirmed(), second], { id });
+
+    assert.deepEqual(route([two("3", confirmed()), two("7", refuted())], [["3", "7"]]), [
+      { id: "3, 7", outcome: "ASK", reason: "7: the two checks disagree on the verdict" },
+    ]);
+    assert.deepEqual(
+      route(
+        [finding([confirmed()], { id: "B-1", outside: true }), finding([confirmed()], { id: "B-o1" })],
+        [["B-1", "B-o1"]],
+      ),
+      [{ id: "B-1, B-o1", outcome: "ASK", reason: "B-1: outside the chapter" }],
+    );
+  });
+
+  test("without a group, every finding is sorted on its own, as before", () => {
+    assert.deepEqual(route([fixed("3"), declined("7")]), [
+      { id: "3", outcome: "FIX", reason: "docs" },
+      { id: "7", outcome: "DECLINE", reason: "refuted with evidence" },
+    ]);
+    assert.deepEqual(route([fixed("3")], []), [{ id: "3", outcome: "FIX", reason: "docs" }]);
+  });
+
+  test("refuses a group of one, a finding that is not among the findings, and a finding in two groups", () => {
+    const findings = [fixed("3"), fixed("7"), fixed("9")];
+
+    assert.throws(() => route(findings, [["3"]]), /^Error: a group of merged findings names two findings or more: 3$/);
+    assert.throws(() => route(findings, [["3", "8"]]), /^Error: finding 8 is merged, and is not among the findings$/);
+    assert.throws(
+      () =>
+        route(findings, [
+          ["3", "7"],
+          ["7", "9"],
+        ]),
+      /^Error: finding 7 is merged twice$/,
+    );
+    assert.throws(() => route(findings, [["3", "3"]]), /^Error: finding 3 is merged twice$/);
+  });
+});
+
+describe("waiting: fixes that touch a finding the owner is asked about", () => {
+  const fixed = (id) => finding([confirmed({ kind: "docs" })], { id });
+  const declined = (id) => finding([refuted()], { id });
+  const asked = (id) => finding([unsure()], { id });
+  // The lines for these findings, groups and ties.
+  const waits = (findings, ties, groups = []) => waiting(route(findings, groups), groups, ties);
+
+  test("a fixed finding waits for the asked one it is tied to, whichever of the two the tie names first", () => {
+    const findings = [fixed("B-1"), asked("B-2"), fixed("B-3")];
+
+    assert.deepEqual(waits(findings, [["B-1", "B-2"]]), ["B-1: waits for B-2"]);
+    assert.deepEqual(waits(findings, [["B-2", "B-1"]]), ["B-1: waits for B-2"]);
+    assert.deepEqual(
+      waits(findings, [
+        ["B-1", "B-2"],
+        ["B-2", "B-1"],
+      ]),
+      ["B-1: waits for B-2"],
+      "a tie named from both sides is one tie",
+    );
+  });
+
+  test("nothing waits without a tie, or for a tie between two fixes, two asks, or a fix and a decline", () => {
+    const findings = [fixed("B-1"), fixed("B-2"), asked("B-3"), asked("B-4"), declined("B-5")];
+
+    assert.deepEqual(waits(findings, []), []);
+    assert.deepEqual(
+      waits(findings, [
+        ["B-1", "B-2"],
+        ["B-3", "B-4"],
+        ["B-1", "B-5"],
+        ["B-5", "B-3"],
+      ]),
+      [],
+    );
+  });
+
+  test("a finding tied to several asked ones names them all, in the order they are sorted, joined by `and`", () => {
+    const findings = [asked("B-1"), fixed("B-2"), asked("B-3"), fixed("B-4"), asked("B-5")];
+
+    assert.deepEqual(
+      waits(findings, [
+        ["B-3", "B-2"],
+        ["B-2", "B-1"],
+        ["B-4", "B-3"],
+      ]),
+      ["B-2: waits for B-1 and B-3", "B-4: waits for B-3"],
+    );
+    assert.deepEqual(
+      waits(findings, [
+        ["B-2", "B-5"],
+        ["B-2", "B-3"],
+        ["B-1", "B-2"],
+      ]),
+      ["B-2: waits for B-1 and B-3 and B-5"],
+    );
+  });
+
+  test("a merged asked group is named by its key, commas and all, and apart from another asked one by `and`", () => {
+    const findings = [asked("A-1"), fixed("A-3"), asked("A-4"), asked("A-6"), fixed("A-7")];
+    const groups = [["A-1", "A-4"]];
+
+    assert.deepEqual(waits(findings, [["A-3", "A-4"]], groups), ["A-3: waits for A-1, A-4"]);
+    assert.deepEqual(
+      waits(
+        findings,
+        [
+          ["A-6", "A-3"],
+          ["A-3", "A-1"],
+          ["A-7", "A-6"],
+        ],
+        groups,
+      ),
+      ["A-3: waits for A-1, A-4 and A-6", "A-7: waits for A-6"],
+    );
+  });
+
+  test("a merged group waits when any of its findings is tied to an asked one, and is waited for as a group", () => {
+    const findings = [fixed("B-1"), fixed("B-2"), asked("B-3"), fixed("B-4"), asked("B-5"), fixed("B-6")];
+    const groups = [
+      ["B-1", "B-2"],
+      ["B-4", "B-5"],
+    ];
+
+    assert.deepEqual(
+      waits(
+        findings,
+        [
+          ["B-2", "B-3"],
+          ["B-6", "B-4"],
+        ],
+        groups,
+      ),
+      ["B-1, B-2: waits for B-3", "B-6: waits for B-4, B-5"],
+    );
+    assert.deepEqual(waits(findings, [["B-1", "B-2"]], groups), [], "a tie inside a group is no wait");
+  });
+
+  test("the findings of a group that is not merged after all wait each for itself", () => {
+    const findings = [fixed("B-1"), declined("B-2"), asked("B-3")];
+
+    assert.deepEqual(waits(findings, [["B-3", "B-1"]], [["B-1", "B-2"]]), ["B-1: waits for B-3"]);
+    assert.deepEqual(waits(findings, [["B-3", "B-2"]], [["B-1", "B-2"]]), []);
+  });
+});
+
 describe("routeReport", () => {
+  test("prints the findings that wait after the outcomes and before the counts", () => {
+    const findings = [finding([confirmed({ kind: "docs" })], { id: "B-1" }), finding([unsure()], { id: "B-2" })];
+    const routed = route(findings);
+
+    assert.deepEqual(routeReport(routed, waiting(routed, [], [["B-1", "B-2"]])), [
+      "B-1 → FIX · docs",
+      "B-2 → ASK · unsure",
+      "B-1: waits for B-2",
+      "FIX 1 · DECLINE 0 · ASK 1",
+    ]);
+  });
+
+  test("prints a group as one line and counts it once, and a note as it is, uncounted", () => {
+    const fixed = (id) => finding([confirmed({ kind: "docs" })], { id });
+    const declined = (id) => finding([refuted()], { id });
+
+    assert.deepEqual(
+      routeReport(
+        route(
+          [fixed("1"), fixed("2"), fixed("3"), declined("4"), fixed("5"), finding([unsure()], { id: "6" })],
+          [
+            ["1", "2"],
+            ["3", "4"],
+            ["5", "6"],
+          ],
+        ),
+      ),
+      [
+        "1, 2 → FIX · docs",
+        "3 → FIX · docs",
+        "4 → DECLINE · refuted with evidence",
+        "3, 4: not merged, their outcomes differ",
+        "5, 6 → ASK · 6: unsure",
+        "FIX 2 · DECLINE 1 · ASK 1",
+      ],
+    );
+  });
+
   test("prints one line per finding in the input's order, then the three counts", () => {
     const findings = readFindings(
       JSON.stringify([

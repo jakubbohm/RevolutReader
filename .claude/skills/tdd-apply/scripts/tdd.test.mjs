@@ -5,9 +5,14 @@
 // are Node one-liners and, for the Windows shim, npm running a script of a made-up package. Every name, text and
 // path is made up.
 //
-// The apply's commands come first, then what both skills share (`drop`, the progress line, `route`, `report`,
-// `unguard`, the tests allowed to fail), then a triage (`triage-init`, the commands with `--pr`), then the lock.
-// The lock's waiting and its stale age are cut short with TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS.
+// The apply's commands come first, then what both skills share (`drop`, the local file with `--local`, the
+// progress line, `unguard`, `shelve` and `unshelve`, `route`, `report`, the tests allowed to fail) and a chapter
+// review's own (`reports`, `review`, `route --chapter`), then a triage (`triage-init`, the commands with `--pr`),
+// then the lock. The lock's waiting and its stale age are cut short with TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS;
+// the reports of a chapter review and the logs of `run` go under a temp folder the test names (TEMP, TMP, TMPDIR);
+// and what `shelve` and `unshelve` do when a step fails after the first change is tested twice: with stand-ins for
+// the steps and the readings of the state (`setAside`, `putBack`, `throwAway`), and through the commands, a step or
+// a reading made to fail with TDD_FAIL_STEP, or for real, by a filter that cannot write a file or read one again.
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
@@ -47,8 +52,12 @@ import {
   commitMessage,
   isRedCommit,
   logFileName,
+  mergedOrRefused,
   newlines,
   progressLine,
+  putBack,
+  setAside,
+  throwAway,
   tickTasks,
   windowsCommandLine,
 } from "./tdd.mjs";
@@ -202,6 +211,15 @@ async function archivedRepository(t) {
 const gitFolder = (dir) => join(dir, ".git", "tdd");
 const pointer = (dir) => JSON.parse(readFileSync(join(gitFolder(dir), "triage.json"), "utf8"));
 const prState = (dir, pr = PR) => join(gitFolder(dir), `triage-${pr}.md`);
+// The local file of a state file, with this machine's values: the made-up change's, or a PR's triage's.
+const localFile = (dir, of = CHANGE) => join(gitFolder(dir), `${of}.local.md`);
+const prLocalFile = (dir, pr = PR) => localFile(dir, `triage-${pr}`);
+// What that folder holds besides the local files, which `init` and `triage-init` write: a lock or an index that a
+// command left, the triage's pointer, the state file of a PR without a change. In the order of the names.
+const leftInGitFolder = (dir) =>
+  readdirSync(gitFolder(dir))
+    .filter((name) => !name.endsWith(".local.md"))
+    .sort();
 // A folder's path as `triage-init` prints it: with forward slashes on every system.
 const slashed = (path) => path.split(sep).join("/");
 // The line `triage-init` prints: what it did to which state file, the round, the code graph (skipped in most
@@ -525,6 +543,462 @@ describe("windowsCommandLine", () => {
   });
 });
 
+// The steps of `shelve` and `unshelve` that change something, with stand-ins for the steps and for the readings of
+// the state after a failure: each test names the steps that fail and what the readings answer, and reads which
+// steps ran and what the caller is told. Every branch of what is done and said is here; the commands' own tests
+// below reach them with git (TDD_FAIL_STEP, and a filter that fails for real).
+describe("setAside, putBack and throwAway: what is done and said when a step fails", () => {
+  const LONG = `git checkout failed: ${"a path that cannot be written, ".repeat(20)}and so on`;
+  // Stand-ins for the steps named, of which `failing` throw their cause (`causes` gives one per step, else "the
+  // disk is full"); `ran` lists the steps run and the readings asked. `looks` gives what each reading answers, an
+  // Error for one that cannot read. `paths` are the paths the reading of the tree covers.
+  const PATHS = ["src/App/Mapping.cs", "src/App/Parked/Half.cs"];
+  function steps(names, failing, { causes = {}, looks = {} } = {}) {
+    const ran = [];
+    const stand = (name) => () => {
+      ran.push(name);
+      if (failing.includes(name)) throw new Error(causes[name] ?? "the disk is full");
+    };
+    const look = (name) => () => {
+      ran.push(name);
+      if (looks[name] instanceof Error) throw looks[name];
+      return looks[name];
+    };
+    const all = Object.fromEntries(names.map((name) => [name, stand(name)]));
+    return { ran, steps: { ...all, keyHolds: look("keyHolds"), treeHolds: look("treeHolds"), paths: PATHS } };
+  }
+  const SHELVE = ["keep", "clear", "writeBack", "forget"];
+  const UNSHELVE = ["write", "undo", "forget"];
+  // What the caller is told: the message, and whether it is a line that is never cut.
+  const said = (work) => {
+    try {
+      work();
+      return null;
+    } catch (e) {
+      return { message: e.message, whole: e.whole };
+    }
+  };
+  const told = (message) => ({ message, whole: true });
+  const GONE = new Error("git cannot read the repository");
+  const UNREAD = "reading the state again: git cannot read the repository";
+  const OUT = "the way out, once the cause is gone:";
+  const THREE = (key) =>
+    `${OUT} shelve --key <another> (takes what is left), then unshelve --key ${key}, then unshelve --key <another> ` +
+    "--drop";
+  // A line that names no way out: neither the commands nor "nothing is left to undo".
+  const noWayOut = (message) => {
+    assert.doesNotMatch(message, /the way out|nothing is left to undo/, message);
+  };
+
+  describe("setAside", () => {
+    test("keeps the work under the key, then clears the tree, and no more", () => {
+      const { ran, steps: all } = steps(SHELVE, []);
+
+      assert.equal(
+        said(() => setAside("Q2", all)),
+        null,
+      );
+      assert.deepEqual(ran, ["keep", "clear"]);
+    });
+
+    test("when the key cannot take the work and holds none, nothing was changed and the tree is not touched", () => {
+      const { ran, steps: all } = steps(SHELVE, ["keep"], { looks: { keyHolds: false } });
+
+      assert.deepEqual(
+        said(() => setAside("Q2", all)),
+        told("nothing was changed: the work could not be kept under the key Q2: the disk is full"),
+      );
+      assert.deepEqual(ran, ["keep", "keyHolds"]);
+    });
+
+    test("when the key cannot take the work and cannot be read again, the line says only what is known, names no way out, and the tree is not touched", () => {
+      const { ran, steps: all } = steps(SHELVE, ["keep"], { looks: { keyHolds: GONE } });
+
+      const answer = said(() => setAside("Q2", all));
+
+      assert.deepEqual(
+        answer,
+        told(
+          "failed part-way: the working tree holds the work as it was, not touched yet, and whether the key Q2 " +
+            `holds a copy of it could not be read. The cause: the disk is full; ${UNREAD}`,
+        ),
+      );
+      noWayOut(answer.message);
+      assert.deepEqual(ran, ["keep", "keyHolds"]);
+    });
+
+    test("when the key took the work after all though its step failed, it holds a copy, and --drop removes it", () => {
+      const { ran, steps: all } = steps(SHELVE, ["keep"], { looks: { keyHolds: true } });
+
+      assert.deepEqual(
+        said(() => setAside("Q2", all)),
+        told(
+          "failed part-way: the working tree holds the work as it was, and the key Q2 holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. The cause: the disk is full`,
+        ),
+      );
+      assert.deepEqual(ran, ["keep", "keyHolds"]);
+    });
+
+    test("when the tree cannot be cleared, the work is written back and the key freed: nothing is left to undo", () => {
+      const { ran, steps: all } = steps(SHELVE, ["clear"]);
+
+      assert.deepEqual(
+        said(() => setAside("Q2", all)),
+        told(
+          "failed part-way: nothing was set aside: the working tree holds the work again, and the key Q2 is free; " +
+            "nothing is left to undo. The cause: the disk is full",
+        ),
+      );
+      assert.deepEqual(ran, ["keep", "clear", "writeBack", "forget"]);
+    });
+
+    test("when the key cannot be freed after the work is written back, it is read again: a copy, or free after all", () => {
+      const causes = { clear: "clear failed", forget: "forget failed" };
+      const both = "The cause: clear failed; on the way back: forget failed";
+      for (const [keyHolds, message] of [
+        [
+          true,
+          "failed part-way: the working tree holds the work again, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${both}`,
+        ],
+        [
+          false,
+          "failed part-way: nothing was set aside: the working tree holds the work again, and the key Q2 is free; " +
+            `nothing is left to undo. ${both}`,
+        ],
+      ]) {
+        const { ran, steps: all } = steps(SHELVE, ["clear", "forget"], { causes, looks: { keyHolds } });
+
+        assert.deepEqual(
+          said(() => setAside("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(ran, ["keep", "clear", "writeBack", "forget", "keyHolds"]);
+      }
+    });
+
+    test("when the key cannot be freed after the work is written back and cannot be read again, the line says where the work is, that the key could not be read, and names no way out", () => {
+      const causes = { clear: "clear failed", forget: "forget failed" };
+      const { ran, steps: all } = steps(SHELVE, ["clear", "forget"], { causes, looks: { keyHolds: GONE } });
+
+      const answer = said(() => setAside("Q2", all));
+
+      assert.deepEqual(
+        answer,
+        told(
+          "failed part-way: the working tree holds the work again, and whether the key Q2 still holds a copy of it " +
+            `could not be read. The cause: clear failed; on the way back: forget failed; ${UNREAD}`,
+        ),
+      );
+      noWayOut(answer.message);
+      assert.deepEqual(ran, ["keep", "clear", "writeBack", "forget", "keyHolds"]);
+    });
+
+    test("when the work cannot be written back either, the tree is read again, the key is never freed, and the way out fits what the tree holds", () => {
+      const causes = { clear: "clear failed", writeBack: "writeBack failed" };
+      const both = "The cause: clear failed; on the way back: writeBack failed";
+      for (const [treeHolds, message] of [
+        [
+          "work",
+          "failed part-way: the working tree holds the work again, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${both}`,
+        ],
+        [
+          "last",
+          "failed part-way: the work is set aside under the key Q2, and the working tree is at the last commit; " +
+            `${OUT} unshelve --key Q2. ${both}`,
+        ],
+        [
+          "neither",
+          "failed part-way: the work is safe under the key Q2, but the working tree is neither at the last commit " +
+            `nor as the work has it; ${THREE("Q2")}. ${both}`,
+        ],
+        [
+          { unread: ["src/App/Data.flt"] },
+          "failed part-way: the work is safe under the key Q2, but the working tree could not be read in full: " +
+            `src/App/Data.flt could not be read; ${THREE("Q2")}. ${both}`,
+        ],
+        [
+          GONE,
+          "failed part-way: the work is safe under the key Q2, but the working tree could not be read in full: " +
+            `${PATHS.join(", ")} could not be read; ${THREE("Q2")}. ${both}; ${UNREAD}`,
+        ],
+      ]) {
+        const { ran, steps: all } = steps(SHELVE, ["clear", "writeBack"], { causes, looks: { treeHolds } });
+
+        assert.deepEqual(
+          said(() => setAside("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(ran, ["keep", "clear", "writeBack", "treeHolds"], "the key is all that holds the work");
+      }
+    });
+
+    test("names every cause whole, however long, and the line is never cut", () => {
+      const causes = { clear: LONG, writeBack: `${LONG}, the second` };
+      const { steps: all } = steps(SHELVE, ["clear", "writeBack"], { causes, looks: { treeHolds: "neither" } });
+
+      const { message, whole } = said(() => setAside("Q2", all));
+
+      assert.ok(message.endsWith(`The cause: ${LONG}; on the way back: ${LONG}, the second`), message);
+      assert.ok(message.length > 1000);
+      assert.equal(whole, true);
+    });
+  });
+
+  describe("putBack", () => {
+    test("writes the work, then frees the key, and no more", () => {
+      const { ran, steps: all } = steps(UNSHELVE, []);
+
+      assert.equal(
+        said(() => putBack("Q2", all)),
+        null,
+      );
+      assert.deepEqual(ran, ["write", "forget"]);
+    });
+
+    test("when the work cannot be written, the paths are taken back and the key keeps the work: nothing was changed, once the tree reads as it was", () => {
+      const { ran, steps: all } = steps(UNSHELVE, ["write"], { looks: { treeHolds: "last" } });
+
+      assert.deepEqual(
+        said(() => putBack("Q2", all)),
+        told(
+          "nothing was changed: the work shelved under Q2 could not be written and is still under the key. The " +
+            "cause: the disk is full",
+        ),
+      );
+      assert.deepEqual(ran, ["write", "undo", "treeHolds"], "forget must not run");
+    });
+
+    test("when the paths are taken back but the tree does not read as it was, or cannot be read, the line says what is true and the way out fits it", () => {
+      const cause = "The cause: the disk is full";
+      for (const [treeHolds, message] of [
+        [
+          "work",
+          "failed part-way: the work is back in the working tree, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${cause}`,
+        ],
+        [
+          "neither",
+          "failed part-way: the work is still safe under the key Q2, but the working tree is neither as it was " +
+            `before nor as the work has it; ${THREE("Q2")}. ${cause}`,
+        ],
+        [
+          { unread: ["src/App/Data.flt"] },
+          "failed part-way: the work is still safe under the key Q2, but the working tree could not be read in " +
+            `full: src/App/Data.flt could not be read; ${THREE("Q2")}. ${cause}`,
+        ],
+        [
+          GONE,
+          "failed part-way: the work is still safe under the key Q2, but the working tree could not be read in " +
+            `full: ${PATHS.join(", ")} could not be read; ${THREE("Q2")}. ${cause}; ${UNREAD}`,
+        ],
+      ]) {
+        const { ran, steps: all } = steps(UNSHELVE, ["write"], { looks: { treeHolds } });
+
+        assert.deepEqual(
+          said(() => putBack("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(
+          ran,
+          ["write", "undo", "treeHolds"],
+          "forget must not run: the key is all that holds the work",
+        );
+      }
+    });
+
+    test("when the paths cannot be taken back either, the tree is read again, and what is said and the way out fit what it holds", () => {
+      const causes = { write: "write failed", undo: "undo failed" };
+      const both = "The cause: write failed; on the way back: undo failed";
+      for (const [treeHolds, message] of [
+        [
+          "last",
+          "nothing was changed: the work shelved under Q2 could not be written and is still under the key. " + both,
+        ],
+        [
+          "work",
+          "failed part-way: the work is back in the working tree, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${both}`,
+        ],
+        [
+          "neither",
+          "failed part-way: the work is still safe under the key Q2, but the working tree is neither as it was " +
+            `before nor as the work has it; ${THREE("Q2")}. ${both}`,
+        ],
+        [
+          { unread: ["src/App/Data.flt", "src/App/Other.flt"] },
+          "failed part-way: the work is still safe under the key Q2, but the working tree could not be read in " +
+            `full: src/App/Data.flt, src/App/Other.flt could not be read; ${THREE("Q2")}. ${both}`,
+        ],
+        [
+          GONE,
+          "failed part-way: the work is still safe under the key Q2, but the working tree could not be read in " +
+            `full: ${PATHS.join(", ")} could not be read; ${THREE("Q2")}. ${both}; ${UNREAD}`,
+        ],
+      ]) {
+        const { ran, steps: all } = steps(UNSHELVE, ["write", "undo"], { causes, looks: { treeHolds } });
+
+        assert.deepEqual(
+          said(() => putBack("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(
+          ran,
+          ["write", "undo", "treeHolds"],
+          "forget must not run: the key is all that holds the work",
+        );
+      }
+    });
+
+    test("when the work is written but the key cannot be freed, it is read again: a copy, or free after all", () => {
+      for (const [keyHolds, message] of [
+        [
+          true,
+          "failed part-way: the work is back in the working tree, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. The cause: the disk is full`,
+        ],
+        [
+          false,
+          "failed part-way: the work is back in the working tree, and the key Q2 is free; nothing is left to undo. " +
+            "The cause: the disk is full",
+        ],
+      ]) {
+        const { ran, steps: all } = steps(UNSHELVE, ["forget"], { looks: { keyHolds } });
+
+        assert.deepEqual(
+          said(() => putBack("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(
+          ran,
+          ["write", "forget", "keyHolds"],
+          "the paths are not taken back: the work is where it belongs",
+        );
+      }
+    });
+
+    test("when the work is written but the key cannot be freed and cannot be read again, the line says where the work is, that the key could not be read, and names no way out", () => {
+      const { ran, steps: all } = steps(UNSHELVE, ["forget"], { looks: { keyHolds: GONE } });
+
+      const answer = said(() => putBack("Q2", all));
+
+      assert.deepEqual(
+        answer,
+        told(
+          "failed part-way: the work is back in the working tree, and whether the key Q2 still holds a copy of it " +
+            `could not be read. The cause: the disk is full; ${UNREAD}`,
+        ),
+      );
+      noWayOut(answer.message);
+      assert.deepEqual(ran, ["write", "forget", "keyHolds"], "the paths are not taken back");
+    });
+  });
+
+  describe("throwAway", () => {
+    test("frees the key, and no more", () => {
+      const { ran, steps: all } = steps(["forget"], []);
+
+      assert.equal(
+        said(() => throwAway("Q2", all)),
+        null,
+      );
+      assert.deepEqual(ran, ["forget"]);
+    });
+
+    test("when the key cannot be freed, it is read again: nothing was changed, or the work is thrown away after all", () => {
+      for (const [keyHolds, message] of [
+        [
+          true,
+          "nothing was changed: the work shelved under Q2 could not be thrown away and is still under the key. The " +
+            "cause: the disk is full",
+        ],
+        [
+          false,
+          "failed part-way: the work shelved under Q2 is thrown away, as asked; nothing is left to undo. The cause: " +
+            "the disk is full",
+        ],
+      ]) {
+        const { ran, steps: all } = steps(["forget"], ["forget"], { looks: { keyHolds } });
+
+        assert.deepEqual(
+          said(() => throwAway("Q2", all)),
+          told(message),
+        );
+        assert.deepEqual(ran, ["forget", "keyHolds"]);
+      }
+    });
+
+    test("when the key cannot be freed and cannot be read again, the line says only what is known and names no way out", () => {
+      const { ran, steps: all } = steps(["forget"], ["forget"], { looks: { keyHolds: GONE } });
+
+      const answer = said(() => throwAway("Q2", all));
+
+      assert.deepEqual(
+        answer,
+        told(
+          "failed part-way: the working tree is unchanged, and whether the key Q2 still holds the shelved work " +
+            `could not be read. The cause: the disk is full; ${UNREAD}`,
+        ),
+      );
+      noWayOut(answer.message);
+      assert.deepEqual(ran, ["forget", "keyHolds"]);
+    });
+  });
+});
+
+describe("mergedOrRefused: what git's merge of the shelved work with the last commit answered", () => {
+  const TREE = "6edeeb05a1c381f1c5fb495cb509044629d61ad7";
+  const refusal = (answer, onBranch = true) => {
+    try {
+      mergedOrRefused("Q2", answer, onBranch);
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  };
+
+  test("gives the merged tree when git merged without a conflict", () => {
+    assert.equal(mergedOrRefused("Q2", { status: 0, printed: `${TREE}\0`, said: "" }, true), TREE);
+    assert.equal(mergedOrRefused("Q2", { status: 0, printed: `${TREE}\n`, said: "" }, false), TREE);
+  });
+
+  test("names the files of a conflict, each once, as git lists them before its messages", () => {
+    const printed =
+      `${TREE}\0src/a b.cs\0src/c.cs\0\x001\0src/a b.cs\0Auto-merging\0Auto-merging src/a b.cs\n\x001\0src/a b.cs\0` +
+      "CONFLICT (contents)\0CONFLICT (content): Merge conflict in src/a b.cs\n\0";
+
+    assert.equal(
+      refusal({ status: 1, printed, said: "" }),
+      "the work shelved under Q2 does not go back cleanly: what was committed since changed the same lines in " +
+        "src/a b.cs, src/c.cs",
+    );
+    assert.equal(
+      refusal({ status: 1, printed: `${TREE}\0src/a.cs\0src/a.cs\0`, said: "" }),
+      "the work shelved under Q2 does not go back cleanly: what was committed since changed the same lines in src/a.cs",
+    );
+  });
+
+  test("says which git it needs when git cannot merge trees: 2.38, or 2.40 once the branch was rewritten", () => {
+    const usage = { status: 129, printed: "", said: "usage: git merge-tree <base-tree> <branch1> <branch2>" };
+
+    assert.equal(
+      refusal(usage, true),
+      "git merge-tree failed (unshelve needs git 2.38 or later): usage: git merge-tree <base-tree> <branch1> <branch2>",
+    );
+    assert.equal(
+      refusal(usage, false),
+      "git merge-tree failed (unshelve needs git 2.40 or later once the branch no longer holds the commit the work " +
+        "was set aside on): usage: git merge-tree <base-tree> <branch1> <branch2>",
+    );
+    assert.equal(
+      refusal({ status: 128, printed: "", said: "" }, true),
+      "git merge-tree failed (unshelve needs git 2.38 or later): exit 128",
+    );
+  });
+});
+
 describe("how the script is called", { concurrency: true }, () => {
   test("fails with one line when the change's folder is missing", async (t) => {
     const dir = repository(t);
@@ -579,6 +1053,78 @@ describe("how the script is called", { concurrency: true }, () => {
     assert.ok(oneLine(r.err), r.err);
   });
 
+  test("refuses a change's name that differs from its folder's in the case of a letter, naming the folder, for every command", async (t) => {
+    const dir = await initialized(t);
+    await tdd(dir, withChange("commit", { type: "docs", tag: "plan", summary: "The state file" }));
+    write(dir, "src/App/Mapping.cs", "// production code\n// half a task\n");
+    const typed = CHANGE.toUpperCase();
+    const before = { status: await status(dir), state: read(dir, STATE), tasks: read(dir, TASKS) };
+    const refusal = `ERROR: --change ${typed}: the change's folder is named ${CHANGE}; give the name letter for letter\n`;
+
+    for (const args of [
+      ["get", "--change", typed, "--section", "Run"],
+      ["put", "--change", typed, "--section", "Open", "--key", "Q1", "--value", "x"],
+      ["shelve", "--change", typed, "--key", "Q1"],
+      ["commit", "--change", typed, "--type", "feat", "--tag", "green", "--summary", "Mapping", "--tick", "5.1"],
+      ["init", "--change", typed],
+      ["reports", "--change", typed, "--chapter", "B"],
+      ["route", "--change", typed, "--chapter", "B"],
+      ["triage-init", "--pr", PR, "--round", "1", "--work", tempFolder(t), "--change", typed],
+    ]) {
+      const r = await tdd(dir, args, { env: { TEMP: dir, TMP: dir, TMPDIR: dir } });
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.equal(r.err, refusal, args.join(" "));
+    }
+    assert.deepEqual({ status: await status(dir), state: read(dir, STATE), tasks: read(dir, TASKS) }, before);
+    assert.equal(existsSync(join(dir, "tdd-runs")), false);
+  });
+
+  test("refuses an archived change's name in another case too, and one that only resembles a folder's is no change", async (t) => {
+    const dir = await archivedRepository(t);
+
+    const cased = await tdd(dir, ["get", "--change", CHANGE.toUpperCase(), "--section", "Run"]);
+    const none = await tdd(dir, ["get", "--change", `${CHANGE}-two`, "--section", "Run"]);
+
+    assert.equal(
+      cased.err,
+      `ERROR: --change ${CHANGE.toUpperCase()}: the change's folder is named ${CHANGE}; give the name letter for letter\n`,
+    );
+    assert.match(none.err, new RegExp(`^ERROR: no change folder openspec/changes/${CHANGE}-two in `));
+  });
+
+  test("refuses a change whose name starts with triage-, which is how a PR's triage is named in the git folder", async (t) => {
+    const dir = repository(t);
+    write(dir, "openspec/changes/triage-109/tasks.md", TASKS_TEXT);
+    write(dir, "openspec/changes/Triage-local/tasks.md", TASKS_TEXT);
+
+    for (const change of ["triage-109", "Triage-local", "triage-not-there"]) {
+      const init = await tdd(dir, ["init", "--change", change, ...optionsAsArguments(SWITCHES)]);
+      const triage = await tdd(dir, [
+        "triage-init",
+        "--pr",
+        PR,
+        "--round",
+        "1",
+        "--work",
+        tempFolder(t),
+        "--change",
+        change,
+      ]);
+
+      for (const r of [init, triage]) {
+        assert.equal(r.code, 1, change);
+        assert.equal(
+          r.err,
+          `ERROR: --change ${change}: a change's name must not start with "triage-", which names a PR's triage ` +
+            "among the files the bookkeeping keeps in the git folder\n",
+        );
+      }
+    }
+    assert.equal(existsSync(gitFolder(dir)), false, "nothing was written");
+  });
+
   test("fails with one line outside a git repository", async (t) => {
     const dir = tempFolder(t);
 
@@ -631,6 +1177,9 @@ describe("how the script is called", { concurrency: true }, () => {
     for (const command of ["triage-init", "drop", "route", "progress", "unguard", "report"]) {
       assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
     }
+    for (const command of ["shelve", "unshelve", "reports", "review"]) {
+      assert.match(r.out, new RegExp(`^  ${command}\\b`, "m"));
+    }
     for (const option of ["--agent-review", "--human-test-review", "--after-chapter", "--pr <id>", "--done"]) {
       assert.ok(r.out.includes(option), option);
     }
@@ -638,6 +1187,13 @@ describe("how the script is called", { concurrency: true }, () => {
       "  unguard      --tag <step> --id <id> --red <commit>[,<commit>...] --outcome <declined|deferred> --body <text>\n" +
         "               [--resume <text>] [--done <step text>]\n",
       "  report       --file <absolute path> --stdin\n",
+      "  put          --section <name> --key <key> --value <value> [--file state|reviews] [--local]\n",
+      "  shelve       --key <key>\n",
+      "  unshelve     --key <key> [--drop]\n",
+      "  reports      --chapter <X> [--new]\n",
+      "  review       --chapter <X> --stdin\n",
+      "  route        (--json <text> | --in <file> | --stdin | --reports <folder> --ids <id>[,<id>...]\n" +
+        "               [--merged <id>+<id>[+<id>...] ...] [--missing <id>[,<id>...]] | --change <change-name> --chapter <X>)\n",
     ]) {
       assert.ok(r.out.includes(line), line);
     }
@@ -651,8 +1207,8 @@ describe("how the script is called", { concurrency: true }, () => {
 
       assert.ok(
         r.err.includes(
-          "the commands are: init, triage-init, get, set, add, put, drop, check, commit, unguard, index, run, route, " +
-            "report, progress",
+          "the commands are: init, triage-init, get, set, add, put, drop, check, commit, unguard, shelve, unshelve, " +
+            "index, run, reports, review, route, report, progress",
         ),
         r.err,
       );
@@ -729,28 +1285,35 @@ describe("init", { concurrency: true }, () => {
     const keys = sectionBody(text, "Run")
       .split("\n")
       .map((l) => /^- \*\*(.+?):\*\*/.exec(l)?.[1]);
-    assert.deepEqual(keys, [
-      "Status",
-      "Started",
-      "Agent review",
-      "Human test review",
-      "After chapter",
-      "Branch",
-      "Folder",
-      "Code graph project",
-    ]);
+    assert.deepEqual(keys, ["Status", "Started", "Agent review", "Human test review", "After chapter", "Branch"]);
     assert.equal(keyValue(text, "Run", "Status"), "applying");
     assert.ok([day, today()].includes(keyValue(text, "Run", "Started")));
     assert.equal(keyValue(text, "Run", "Agent review"), "none");
     assert.equal(keyValue(text, "Run", "Human test review"), "each-group");
     assert.equal(keyValue(text, "Run", "After chapter"), "stop");
     assert.equal(keyValue(text, "Run", "Branch"), BRANCH);
-    samePath(keyValue(text, "Run", "Folder"), dir);
-    assert.equal(keyValue(text, "Run", "Code graph project"), "not indexed: skipped (TDD_NO_GRAPH=1)");
     for (const name of STATE_SECTIONS.filter((n) => n !== "Run")) assert.equal(sectionBody(text, name), EMPTY);
   });
 
-  test("indexes the repository and records the code graph's project", async (t) => {
+  test("holds no value of this machine in the state file: the code graph's project goes to the local file, the repository's folder nowhere", async (t) => {
+    const dir = repository(t);
+
+    const r = await tdd(dir, withChange("init", SWITCHES));
+
+    assert.equal(r.code, 0, r.err);
+    const text = read(dir, STATE);
+    assert.equal(keyValue(text, "Run", "Folder"), null);
+    assert.equal(keyValue(text, "Run", "Code graph project"), null);
+    assert.equal(text.toLowerCase().includes(basename(dir).toLowerCase()), false, "no path of this machine");
+    const local = readFileSync(localFile(dir), "utf8");
+    assert.equal(
+      local,
+      `# This machine's values: ${CHANGE}\n\n## Run\n\n- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n`,
+    );
+    assert.deepEqual(await status(dir), [`?? ${STATE}`], "the local file is no file of the working tree");
+  });
+
+  test("indexes the repository and records the code graph's project in the local file", async (t) => {
     const dir = repository(t);
     const graph = fakeGraph(t);
 
@@ -760,7 +1323,7 @@ describe("init", { concurrency: true }, () => {
 
     assert.equal(r.code, 0, r.err);
     assert.equal(r.out, `created ${STATE} | graph: made-up-project\n`);
-    assert.equal(keyValue(read(dir, STATE), "Run", "Code graph project"), "made-up-project");
+    assert.equal(keyValue(readFileSync(localFile(dir), "utf8"), "Run", "Code graph project"), "made-up-project");
     const [call] = graph.received();
     assert.deepEqual(call.slice(0, 4), ["cli", "--quiet", "index_repository", "--repo-path"]);
     samePath(call[4], dir);
@@ -777,7 +1340,28 @@ describe("init", { concurrency: true }, () => {
 
     assert.equal(r.code, 0, r.err);
     assert.match(r.out, new RegExp(`^created ${STATE.replace(/\./g, "\\.")} \\| graph: failed: .*the index is locked`));
-    assert.match(keyValue(read(dir, STATE), "Run", "Code graph project"), /^not indexed: .*the index is locked/);
+    assert.match(
+      keyValue(readFileSync(localFile(dir), "utf8"), "Run", "Code graph project"),
+      /^not indexed: .*the index is locked/,
+    );
+  });
+
+  test("on a state file that exists, finds the code graph's project when the local file names none: a fresh clone", async (t) => {
+    const dir = await initialized(t);
+    rmSync(localFile(dir));
+    const graph = fakeGraph(t);
+    const before = read(dir, STATE);
+
+    const r = await tdd(dir, withChange("init"), { env: graph.env() });
+    const again = await tdd(dir, withChange("init"), { env: graph.env() });
+
+    const exists = `exists: ${STATE} | agent-review: each-chapter | human-test-review: acceptance | after-chapter: continue`;
+    assert.equal(r.out, `${exists} | graph: made-up-project\n`);
+    assert.equal(again.out, `${exists}\n`, "the project is there now, so nothing is indexed");
+    assert.equal(graph.received().length, 1);
+    assert.equal(keyValue(readFileSync(localFile(dir), "utf8"), "Run", "Code graph project"), "made-up-project");
+    assert.equal(read(dir, STATE), before, "the state file keeps every byte");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock is left");
   });
 
   test("records the issue only when one is given, with or without its #", async (t) => {
@@ -1009,13 +1593,64 @@ describe("get", { concurrency: true }, () => {
 
   test("fails for a section the file does not have, naming those it has", async (t) => {
     const dir = await initialized(t);
+    const sections = STATE_SECTIONS.join(", ");
 
-    const r = await tdd(dir, withChange("get", { section: ["Run", "Disputes"] }));
+    const one = await tdd(dir, withChange("get", { section: "Disputes" }));
+    const two = await tdd(dir, withChange("get", { section: ["Disputes", "Answers"] }));
 
-    assert.equal(r.code, 1);
-    assert.equal(r.out, "");
-    assert.match(r.err, /Disputes.*Resume here, Run, Chapter plan/);
-    assert.ok(oneLine(r.err), r.err);
+    assert.equal(one.code, 1);
+    assert.equal(one.out, "");
+    assert.equal(one.err, `ERROR: no section "Disputes" in ${STATE}; the sections are: ${sections}\n`);
+    assert.equal(two.code, 1);
+    assert.equal(two.out, "");
+    assert.equal(two.err, `ERROR: no section "Disputes", "Answers" in ${STATE}; the sections are: ${sections}\n`);
+  });
+
+  test("of several sections, prints those the file has under their headings and names each other one on stderr", async (t) => {
+    const dir = await initialized(t);
+    await tdd(dir, withChange("add", { section: "Open", line: "a dispute" }));
+    const sections = STATE_SECTIONS.join(", ");
+
+    const r = await tdd(dir, withChange("get", { section: ["Disputes", "Open", "Answers", "resume here"] }));
+    const single = await tdd(dir, withChange("get", { section: ["Open", "Disputes"] }));
+
+    assert.equal(r.code, 0, "the sections that are there are worth an answer");
+    assert.equal(r.out, `## Open\n- a dispute\n\n## Resume here\n${EMPTY}\n`);
+    assert.equal(
+      r.err,
+      `get: no section "Disputes" in ${STATE}; the sections are: ${sections}\n` +
+        `get: no section "Answers" in ${STATE}; the sections are: ${sections}\n`,
+    );
+    assert.equal(single.out, "## Open\n- a dispute\n", "under its heading: more than one section was asked for");
+    assert.equal(single.code, 0);
+  });
+
+  test("gives the sections of a chapter while its review runs: the record, which is written later, is named on stderr", async (t) => {
+    const dir = await initialized(t);
+    await tdd(
+      dir,
+      withChange("put", { file: "reviews", section: "Chapter B", key: "range", value: "1a2b3c4..5d6e7f8" }),
+    );
+    const both = withChange("get", { file: "reviews", section: ["Chapter B", "Chapter B review"] });
+
+    const during = await tdd(dir, both);
+    await tdd(dir, withChange("set", { file: "reviews", section: "Chapter B review", text: "REVIEW: chapter B, …" }));
+    const after = await tdd(dir, both);
+    const neither = await tdd(dir, withChange("get", { file: "reviews", section: ["Chapter C", "Chapter C review"] }));
+
+    assert.equal(during.code, 0, during.err);
+    assert.equal(during.out, "## Chapter B\n- **range:** 1a2b3c4..5d6e7f8\n");
+    assert.equal(during.err, `get: no section "Chapter B review" in ${REVIEWS}; the sections are: Chapter B\n`);
+    assert.equal(
+      after.out,
+      "## Chapter B\n- **range:** 1a2b3c4..5d6e7f8\n\n## Chapter B review\nREVIEW: chapter B, …\n",
+    );
+    assert.equal(after.err, "");
+    assert.equal(neither.code, 1);
+    assert.equal(
+      neither.err,
+      `ERROR: no section "Chapter C", "Chapter C review" in ${REVIEWS}; the sections are: Chapter B, Chapter B review\n`,
+    );
   });
 
   test("fails when no section is asked for, and before `init`", async (t) => {
@@ -1806,6 +2441,67 @@ describe("index", { concurrency: true }, () => {
     assert.deepEqual(graph.received(), []);
   });
 
+  test("notes the project in the local file of a state file that is there: an apply's, and a triage's", async (t) => {
+    const graph = fakeGraph(t);
+    const project = (path) => keyValue(readFileSync(path, "utf8"), "Run", "Code graph project");
+    const dir = await initialized(t);
+    const before = read(dir, STATE);
+    const { dir: triaged } = await triaging(t, "none");
+
+    const r = await tdd(dir, withChange("index"), { env: graph.env() });
+    const ofTriage = await tdd(triaged, withPr("index"), { env: graph.env() });
+
+    assert.equal(r.out, "graph: made-up-project\n");
+    assert.equal(project(localFile(dir)), "made-up-project");
+    assert.equal(read(dir, STATE), before, "the state file keeps every byte");
+    assert.equal(ofTriage.out, "graph: made-up-project\n");
+    assert.equal(project(prLocalFile(triaged)), "made-up-project");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock is left");
+  });
+
+  test("on a machine whose local file is not there, a fresh clone, creates it with the project: for an apply and for a triage", async (t) => {
+    const graph = fakeGraph(t);
+    const dir = await initialized(t);
+    const { dir: triaged, state } = await triaging(t, "change");
+    rmSync(localFile(dir));
+    rmSync(prLocalFile(triaged));
+    const before = [read(dir, STATE), readFileSync(state, "utf8")];
+
+    const r = await tdd(dir, withChange("index"), { env: graph.env() });
+    const ofTriage = await tdd(triaged, withPr("index"), { env: graph.env() });
+    const run = await tdd(dir, withChange("get", { section: "Run" }));
+
+    assert.equal(r.out, "graph: made-up-project\n");
+    assert.equal(ofTriage.out, "graph: made-up-project\n");
+    assert.equal(
+      readFileSync(localFile(dir), "utf8"),
+      `# This machine's values: ${CHANGE}\n\n## Run\n\n- **Code graph project:** made-up-project\n`,
+    );
+    assert.equal(
+      readFileSync(prLocalFile(triaged), "utf8"),
+      `# This machine's values: triage-${PR}\n\n## Run\n\n- **Code graph project:** made-up-project\n`,
+    );
+    assert.ok(run.out.endsWith("- **Code graph project:** made-up-project\n"), run.out);
+    assert.deepEqual([read(dir, STATE), readFileSync(state, "utf8")], before, "no state file is touched");
+  });
+
+  test("writes no local file while there is no state file, and leaves the local value when the index fails or is skipped", async (t) => {
+    const graph = fakeGraph(t);
+    const bare = repository(t);
+    const dir = await initialized(t);
+    await tdd(dir, withChange("index"), { env: graph.env() });
+
+    const none = await tdd(bare, withChange("index"), { env: graph.env() });
+    const failed = await tdd(dir, withChange("index"), { env: graph.env("fail") });
+    const skipped = await tdd(dir, withChange("index"), { env: { ...graph.env(), TDD_NO_GRAPH: "1" } });
+
+    assert.equal(none.out, "graph: made-up-project\n");
+    assert.equal(existsSync(gitFolder(bare)), false, "nothing is written for a change without a state file");
+    assert.equal(failed.code, 1);
+    assert.equal(skipped.out, "graph: skipped\n");
+    assert.equal(keyValue(readFileSync(localFile(dir), "utf8"), "Run", "Code graph project"), "made-up-project");
+  });
+
   test("fails with one line when the command line fails, answers no JSON, or is not there", async (t) => {
     const dir = repository(t);
     const graph = fakeGraph(t);
@@ -2331,6 +3027,274 @@ describe("drop", { concurrency: true }, () => {
   });
 });
 
+describe("the local file: --local, and what get prints", { concurrency: true }, () => {
+  const local = (dir, of) => readFileSync(localFile(dir, of), "utf8");
+  // The design files as the design-fetcher records them: what any machine can use in the state file, and each
+  // folder of this machine in the local file.
+  async function designFiles(dir) {
+    const committed = await tdd(dir, withChange("set", { section: "Design files", stdin: true }), {
+      input:
+        "Fetched 2026-11-25.\n- **Design system:** version 7, as design.md names\n- **Screens design:** version 12\n",
+    });
+    assert.equal(committed.code, 0, committed.err);
+    for (const [key, value] of [
+      ["Design system folder", "C:/made/up/scratchpad/design-system"],
+      ["Screens design folder", "C:/made/up/scratchpad/screens"],
+    ]) {
+      const r = await tdd(dir, withChange("put", { section: "Design files", local: true, key, value }));
+      assert.equal(r.code, 0, r.err);
+    }
+  }
+
+  test("put --local writes the value to the local file, never to the state file, and says that it is local", async (t) => {
+    const dir = await initialized(t);
+    const before = read(dir, STATE);
+
+    const r = await tdd(
+      dir,
+      withChange("put", { section: "design files", local: true, key: "Design system folder", value: "C:/made/up/ds" }),
+    );
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "put: Design files / Design system folder | local\n");
+    assert.equal(read(dir, STATE), before, "the state file keeps every byte");
+    assert.equal(keyValue(local(dir), "Design files", "Design system folder"), "C:/made/up/ds");
+    assert.deepEqual(sectionNames(local(dir)), ["Run", "Design files"], "under the state file's name for the section");
+    assert.deepEqual(await status(dir), [`?? ${STATE}`], "git never sees the local file");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock is left");
+  });
+
+  test("get prints a section from both files: the state file's lines, then what only the local file holds", async (t) => {
+    const dir = await initialized(t);
+    await designFiles(dir);
+
+    const one = await tdd(dir, withChange("get", { section: "Design files" }));
+    const run = await tdd(dir, withChange("get", { section: "Run" }));
+
+    assert.equal(
+      one.out,
+      "Fetched 2026-11-25.\n- **Design system:** version 7, as design.md names\n- **Screens design:** version 12\n" +
+        "- **Design system folder:** C:/made/up/scratchpad/design-system\n" +
+        "- **Screens design folder:** C:/made/up/scratchpad/screens\n",
+    );
+    assert.match(run.out, /^- \*\*Status:\*\* applying\n/);
+    assert.ok(
+      run.out.endsWith(`- **Branch:** ${BRANCH}\n- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n`),
+      run.out,
+    );
+    assert.equal(read(dir, STATE).includes("made/up"), false, "no folder of this machine in the state file");
+  });
+
+  test("get prints several sections, each from both files, under the state file's names", async (t) => {
+    const dir = await initialized(t);
+    await tdd(
+      dir,
+      withChange("put", { section: "Design files", local: true, key: "Design system folder", value: "C:/x" }),
+    );
+
+    const r = await tdd(dir, withChange("get", { section: ["design files", "Open"] }));
+
+    assert.equal(r.out, `## Design files\n- **Design system folder:** C:/x\n\n## Open\n${EMPTY}\n`);
+  });
+
+  test("get prints a key that both files hold once, where the state file has it, with the local value", async (t) => {
+    const dir = await initialized(t);
+    // A state file from before the local file was there, or from another machine.
+    for (const [key, value] of [
+      ["Folder", "D:/another/machine/repo"],
+      ["Code graph project", "another-machines-project"],
+      ["Issue", "#67"],
+    ]) {
+      writeFileSync(join(dir, STATE), putKey(read(dir, STATE), "Run", key, value));
+    }
+    const before = read(dir, STATE);
+
+    const r = await tdd(dir, withChange("get", { section: "Run" }));
+
+    assert.ok(
+      r.out.endsWith(
+        `- **Branch:** ${BRANCH}\n- **Folder:** D:/another/machine/repo\n` +
+          "- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n- **Issue:** #67\n",
+      ),
+      r.out,
+    );
+    assert.equal(read(dir, STATE), before, "the old lines are left as they are");
+  });
+
+  test("leaves an old line of this machine in the state file alone when init and index run again", async (t) => {
+    const dir = await initialized(t);
+    writeFileSync(join(dir, STATE), putKey(read(dir, STATE), "Run", "Code graph project", "another-machines-project"));
+    rmSync(localFile(dir));
+    const before = read(dir, STATE);
+    const graph = fakeGraph(t);
+
+    assert.equal((await tdd(dir, withChange("init"), { env: graph.env() })).code, 0);
+    assert.equal((await tdd(dir, withChange("index"), { env: graph.env() })).code, 0);
+    const run = await tdd(dir, withChange("get", { section: "Run" }));
+
+    assert.equal(read(dir, STATE), before);
+    assert.ok(run.out.endsWith("- **Code graph project:** made-up-project\n"), run.out);
+    assert.equal(run.out.match(/Code graph project/g).length, 1);
+  });
+
+  test("set, add and drop take --local too, and each change stays in the local file", async (t) => {
+    const dir = await initialized(t);
+    const before = read(dir, STATE);
+
+    const set = await tdd(
+      dir,
+      withChange("set", { section: "Design files", local: true, text: "a note\\nof this machine" }),
+    );
+    const add = await tdd(dir, withChange("add", { section: "Design files", local: true, line: "a bullet" }));
+    const put = await tdd(
+      dir,
+      withChange("put", { section: "Design files", local: true, key: "Folder", value: "C:/x" }),
+    );
+    const first = local(dir);
+    const drop = await tdd(dir, withChange("drop", { section: "Design files", local: true, key: "Folder" }));
+
+    assert.equal(set.out, "set: Design files | 2 lines | local\n");
+    assert.equal(add.out, "added: Design files | 3 lines | local\n");
+    assert.equal(put.out, "put: Design files / Folder | local\n");
+    assert.equal(drop.out, "dropped: Design files / Folder | local\n");
+    assert.equal(sectionBody(first, "Design files"), "a note\nof this machine\n- a bullet\n- **Folder:** C:/x");
+    assert.equal(sectionBody(local(dir), "Design files"), "a note\nof this machine\n- a bullet");
+    assert.equal(read(dir, STATE), before);
+  });
+
+  test("a value put without --local goes to the state file, and the local value of the same key still wins in get", async (t) => {
+    const dir = await initialized(t);
+    await tdd(
+      dir,
+      withChange("put", { section: "Design files", local: true, key: "Design system folder", value: "C:/mine" }),
+    );
+
+    const r = await tdd(
+      dir,
+      withChange("put", { section: "Design files", key: "Design system folder", value: "C:/theirs" }),
+    );
+    const got = await tdd(dir, withChange("get", { section: "Design files" }));
+
+    assert.equal(r.out, "put: Design files / Design system folder\n");
+    assert.equal(keyValue(read(dir, STATE), "Design files", "Design system folder"), "C:/theirs");
+    assert.equal(got.out, "- **Design system folder:** C:/mine\n");
+  });
+
+  test("the script's own reads are the state file's: commit takes the trailers from it, never from the local file", async (t) => {
+    const dir = await initialized(t);
+    await tdd(dir, withChange("put", { section: "Run", local: true, key: "Commit trailers", value: "Local: no" }));
+    await tdd(dir, withChange("put", { section: "Run", key: "Commit trailers", value: "A-Trailer: one" }));
+
+    const r = await tdd(dir, withChange("commit", { type: "docs", tag: "plan", summary: "The state file" }));
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal((await lastCommit(dir)).message, "docs(c900): [plan] The state file\n\nA-Trailer: one");
+  });
+
+  test("in a triage, --local writes the triage's local file and may open a section, as the triage's state file may", async (t) => {
+    for (const of of ["change", "none"]) {
+      const { dir, state } = await triaging(t, of);
+      const before = readFileSync(state, "utf8");
+
+      const r = await tdd(dir, withPr("put", { section: "Work", local: true, key: "Folder", value: "C:/made/up" }));
+      const got = await tdd(dir, withPr("get", { section: ["Work", "Run"] }));
+
+      assert.equal(r.out, "put: Work / Folder | local\n", of);
+      assert.equal(readFileSync(state, "utf8"), before, of);
+      assert.equal(keyValue(local(dir, `triage-${PR}`), "Work", "Folder"), "C:/made/up");
+      assert.match(got.out, /^## Work\n- \*\*Folder:\*\* C:\/made\/up\n\n## Run\n- \*\*Status:\*\* triaging\n/);
+      assert.ok(got.out.endsWith("- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n"), got.out);
+    }
+  });
+
+  describe("refuses, in one line, and writes nothing", { concurrency: true }, () => {
+    const refused = (r, message) => {
+      assert.equal(r.code, 1, r.out + r.err);
+      assert.equal(r.out, "");
+      if (typeof message === "string") assert.equal(r.err, `ERROR: ${message}\n`);
+      else assert.match(r.err, message);
+      assert.ok(oneLine(r.err), r.err);
+    };
+
+    test("--local with --file reviews", async (t) => {
+      const dir = await initialized(t);
+
+      for (const command of [
+        withChange("put", { file: "reviews", section: "Chapter A", local: true, key: "A", value: "x" }),
+        withChange("set", { file: "reviews", section: "Chapter A", local: true, text: "x" }),
+        withChange("add", { file: "reviews", section: "Chapter A", local: true, line: "x" }),
+        withChange("drop", { file: "reviews", section: "Chapter A", local: true, key: "A" }),
+      ]) {
+        refused(
+          await tdd(dir, command),
+          "--local goes with the state file alone: the reviews file holds no value of this machine",
+        );
+      }
+      assert.equal(existsSync(join(dir, REVIEWS)), false);
+    });
+
+    test("--local for a section an apply's state file does not have, naming those it has", async (t) => {
+      const dir = await initialized(t);
+      const before = local(dir);
+
+      const r = await tdd(dir, withChange("put", { section: "Design file", local: true, key: "A", value: "x" }));
+
+      refused(
+        r,
+        /^ERROR: no section "Design file" in .*\.tdd-state\.md; --local keeps this machine's values of one of its sections: Resume here, Run, .*, Design files\n$/,
+      );
+      assert.equal(local(dir), before);
+    });
+
+    test("--local before the state file is there", async (t) => {
+      const dir = repository(t);
+
+      refused(
+        await tdd(dir, withChange("put", { section: "Run", local: true, key: "A", value: "x" })),
+        `no ${STATE}: run init first`,
+      );
+      assert.equal(existsSync(localFile(dir)), false);
+    });
+
+    test("drop --local of a key or a section the local file does not have", async (t) => {
+      const dir = await initialized(t);
+      await tdd(dir, withChange("put", { section: "Open", key: "Q1", value: "in the state file" }));
+      const before = local(dir);
+
+      refused(
+        await tdd(dir, withChange("drop", { section: "Run", local: true, key: "Status" })),
+        '--local: no key "Status" in Run; its keys are: "Code graph project"',
+      );
+      refused(
+        await tdd(dir, withChange("drop", { section: "Open", local: true, key: "Q1" })),
+        /^ERROR: --local: no section "Open"; /,
+      );
+      assert.equal(local(dir), before);
+      assert.equal(keyValue(read(dir, STATE), "Open", "Q1"), "in the state file");
+    });
+
+    test("get --local: get needs no flag", async (t) => {
+      const dir = await initialized(t);
+
+      refused(
+        await tdd(dir, withChange("get", { section: "Run", local: true })),
+        /^ERROR: unknown option --local; get takes: /,
+      );
+    });
+
+    test("a text the local file cannot hold", async (t) => {
+      const dir = await initialized(t);
+      const before = local(dir);
+
+      refused(
+        await tdd(dir, withChange("set", { section: "Design files", local: true, text: "## A heading" })),
+        /^ERROR: --local: the text holds a `## ` line, /,
+      );
+      assert.equal(local(dir), before);
+    });
+  });
+});
+
 describe("progress", { concurrency: true }, () => {
   test("prints exactly one line with the step and the clock's time, and needs no change and no repository", async (t) => {
     const outside = tempFolder(t);
@@ -2532,7 +3496,7 @@ describe("unguard", { concurrency: true }, () => {
     assert.equal(keyValue(before.state, "Open", "Q1"), "answered: decline B-1");
     assert.deepEqual(await status(dir), [` M ${STATE}`]);
     assert.equal(read(dir, "src/App/Mapping.cs"), "// the fix of another finding\n", "the later commit's work stays");
-    assert.deepEqual(readdirSync(gitFolder(dir)), [], "no lock and no index of its own is left");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock and no index of its own is left");
   });
 
   test("with --resume, then writes `Resume here` and commits the state file with the rest, as commit does; with --done, prints the progress line", async (t) => {
@@ -2768,7 +3732,7 @@ describe("unguard", { concurrency: true }, () => {
       refused(await tdd(dir, declined(red, { id: "B-10" })), not(red, ".+", "chapter-review", "B-10"));
       refused(await tdd(dir, declined(red, { id: "B" })), not(red, ".+", "chapter-review", "B"));
       assert.deepEqual(await stands(dir), before);
-      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+      assert.deepEqual(leftInGitFolder(dir), []);
     });
 
     test("a hash that names no commit, something that is no hash, and a commit of another branch", async (t) => {
@@ -2817,7 +3781,7 @@ describe("unguard", { concurrency: true }, () => {
         ),
       );
       assert.deepEqual(await stands(dir), before);
-      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+      assert.deepEqual(leftInGitFolder(dir), []);
     });
 
     test("a reverse that does not apply cleanly: a later commit changed the guard test", async (t) => {
@@ -2840,7 +3804,7 @@ describe("unguard", { concurrency: true }, () => {
         ),
       );
       assert.deepEqual(await stands(dir), before);
-      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+      assert.deepEqual(leftInGitFolder(dir), []);
     });
 
     test("a reverse that does not apply cleanly: the guard test has uncommitted changes, or a file it would bring back is there", async (t) => {
@@ -2916,7 +3880,7 @@ describe("unguard", { concurrency: true }, () => {
         assert.ok(oneLine(r.err), r.err);
       }
       assert.deepEqual(await stands(dir), before);
-      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+      assert.deepEqual(leftInGitFolder(dir), []);
     });
 
     test("on main, as commit is, in the words of whose branch it is", async (t) => {
@@ -2949,13 +3913,1766 @@ describe("unguard", { concurrency: true }, () => {
       );
       assert.deepEqual(await stands(dir), before);
       assert.equal(sectionBody(read(dir, STATE), "Resume here"), "Finding B-3 is next.");
-      assert.deepEqual(readdirSync(gitFolder(dir)), []);
+      assert.deepEqual(leftInGitFolder(dir), []);
 
       rmSync(join(dir, ".git/hooks/commit-msg"));
       const again = await tdd(dir, declined(red, { resume: "B-1 is settled." }));
       assert.equal(again.code, 0, `it can be run again: ${again.err}`);
     });
   });
+});
+
+describe("shelve and unshelve", { concurrency: true }, () => {
+  const APP = "src/App/Mapping.cs";
+  const TESTS = "tests/App.UnitTests/MappingTests.cs";
+  const DRIVER = "tests/RevolutReader.AcceptanceTests/Drivers/FakeBank.cs";
+  const NEW = "src/App/Parked/Half.cs";
+  const shelvedRef = (key, account = CHANGE) => `refs/worktree/tdd/shelved/${account}/${key}`;
+  const shelvedRefs = async (dir) =>
+    (await git(dir, "for-each-ref", "--format=%(refname)", "refs/worktree/")).split("\n").filter(Boolean);
+  const shelve = (dir, key, whose = withChange, how) => tdd(dir, whose("shelve", { key }), how);
+  const unshelve = (dir, key, more = {}, whose = withChange, how) => tdd(dir, whose("unshelve", { key, ...more }), how);
+
+  async function committed(dir, whose, options) {
+    const r = await tdd(dir, whose("commit", options));
+    assert.equal(r.code, 0, r.err);
+  }
+
+  // An apply with its state file committed, in the middle of a task: a changed file, a new one in a new folder and
+  // a deleted one.
+  async function midTask(t) {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    write(dir, APP, "// production code\n// half a task\n");
+    write(dir, NEW, "// a new file of the task\n");
+    rmSync(join(dir, DRIVER));
+    return dir;
+  }
+
+  // Every file of the working tree with its bytes. (Not the folders: git knows none, and a folder that a deleted
+  // file leaves empty goes with it.)
+  function workingFiles(dir, folder = "") {
+    return readdirSync(join(dir, folder), { withFileTypes: true })
+      .filter((entry) => entry.name !== ".git")
+      .flatMap((entry) => {
+        const path = folder ? `${folder}/${entry.name}` : entry.name;
+        return entry.isDirectory()
+          ? workingFiles(dir, path)
+          : [`${path} ${readFileSync(join(dir, path)).toString("base64")}`];
+      })
+      .sort();
+  }
+
+  // What a refused command must leave as it was, and what a put-back must bring back: the last commit, what git
+  // reports as changed, the real index, the stash, the shelved work, and every file of the working tree.
+  const stands = async (dir) => ({
+    head: (await lastCommit(dir)).sha,
+    status: await status(dir),
+    index: await git(dir, "ls-files", "--stage"),
+    stash: await git(dir, "stash", "list"),
+    shelved: await shelvedRefs(dir),
+    files: workingFiles(dir),
+  });
+  const refused = (r, message) => {
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.out, "");
+    if (typeof message === "string") assert.equal(r.err, `ERROR: ${message}\n`);
+    else assert.match(r.err, message);
+    assert.ok(oneLine(r.err), r.err);
+  };
+
+  test("shelve sets aside a changed, a new and a deleted file, and takes the tree back to the last commit", async (t) => {
+    const dir = await midTask(t);
+    const before = await stands(dir);
+    assert.deepEqual(before.status, [` M ${APP}`, ` D ${DRIVER}`, `?? ${NEW}`]);
+
+    const r = await shelve(dir, "Q2");
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "shelved Q2: 3 files\n");
+    const after = await stands(dir);
+    assert.deepEqual(after.status, [], "the tree is the last commit again");
+    assert.equal(read(dir, APP), "// production code\n");
+    assert.equal(read(dir, DRIVER), "// a driver\n");
+    assert.equal(existsSync(join(dir, "src/App/Parked")), false, "the new file is gone, and the folder it left empty");
+    assert.deepEqual(
+      { head: after.head, index: after.index, stash: after.stash },
+      { head: before.head, index: before.index, stash: "" },
+    );
+    assert.deepEqual(after.shelved, [shelvedRef("Q2")]);
+    assert.equal(
+      (await git(dir, "rev-parse", `${shelvedRef("Q2")}^`)).trim(),
+      before.head,
+      "a commit on the last commit",
+    );
+    assert.deepEqual(
+      (await git(dir, "diff", "--name-status", "--no-renames", "HEAD", shelvedRef("Q2"))).trim().split("\n"),
+      [`M\t${APP}`, `A\t${NEW}`, `D\t${DRIVER}`],
+    );
+    assert.equal((await git(dir, "branch", "--contains", shelvedRef("Q2"))).trim(), "", "no branch holds it");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock and no index of its own is left");
+  });
+
+  test("unshelve puts the work back as it was: the new file untracked, the deleted file deleted, nothing staged", async (t) => {
+    const dir = await midTask(t);
+    const before = await stands(dir);
+    await shelve(dir, "Q2");
+
+    const r = await unshelve(dir, "Q2");
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "put back Q2: 3 files\n");
+    assert.deepEqual(await stands(dir), before);
+    assert.deepEqual(leftInGitFolder(dir), []);
+  });
+
+  test("a git that writes to stderr as it works (GIT_TRACE=1) changes nothing: shelve, unshelve and unshelve --drop find the keys and the work as without it", async (t) => {
+    const dir = await midTask(t);
+    const traced = { env: { GIT_TRACE: "1" } };
+
+    const answers = [
+      await shelve(dir, "Q2", withChange, traced),
+      await unshelve(dir, "Q2", {}, withChange, traced),
+      await shelve(dir, "Q3", withChange, traced),
+      await unshelve(dir, "Q3", { drop: true }, withChange, traced),
+    ];
+
+    assert.deepEqual(
+      answers.map(({ code, out, err }) => ({ code, out, err })),
+      [
+        { code: 0, out: "shelved Q2: 3 files\n", err: "" },
+        { code: 0, out: "put back Q2: 3 files\n", err: "" },
+        { code: 0, out: "shelved Q3: 3 files\n", err: "" },
+        { code: 0, out: "dropped Q3: 3 files\n", err: "" },
+      ],
+    );
+    assert.deepEqual(await status(dir), [], "the work is thrown away");
+    assert.deepEqual(await shelvedRefs(dir), []);
+  });
+
+  test("neither ever touches the state file, the reviews file or tasks.md, changed or new as they are", async (t) => {
+    const dir = await midTask(t);
+    await tdd(dir, withChange("put", { section: "Open", key: "Q2", value: "a question for the owner | shelved: Q2" }));
+    await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+    write(dir, TASKS, TASKS_TEXT.replace("- [ ] 5.1", "- [x] 5.1"));
+    const books = () => [STATE, REVIEWS, TASKS].map((path) => readFileSync(join(dir, path)).toString("base64"));
+    const before = books();
+
+    const set = await shelve(dir, "Q2");
+
+    assert.equal(set.out, "shelved Q2: 3 files\n", "the three files of the task, none of the bookkeeping's");
+    assert.deepEqual(books(), before);
+    assert.deepEqual(await status(dir), [` M ${STATE}`, ` M ${TASKS}`, `?? ${REVIEWS}`]);
+    const inCommit = await git(dir, "diff", "--name-only", "HEAD", shelvedRef("Q2"));
+    for (const path of [STATE, REVIEWS, TASKS]) assert.equal(inCommit.includes(path), false, path);
+
+    // The next task: the bookkeeping moves on and is committed, then the answer comes and the work goes back.
+    write(dir, TESTS, "// a test\n// the next task's test\n");
+    await committed(dir, withChange, {
+      type: "test",
+      tag: "red",
+      summary: "The next task, red",
+      tick: "5.2",
+      resume: "Task 5.2 is red.",
+    });
+    await tdd(dir, withChange("put", { section: "Open", key: "Q2", value: "answered: go on | still to do: put back" }));
+    const later = books();
+
+    const back = await unshelve(dir, "Q2");
+
+    assert.equal(back.out, "put back Q2: 3 files\n");
+    assert.deepEqual(books(), later, "what was recorded since stays, byte for byte");
+    assert.equal(read(dir, APP), "// production code\n// half a task\n");
+    assert.equal(read(dir, TESTS), "// a test\n// the next task's test\n", "the commit made since stays");
+    assert.deepEqual(await status(dir), [` M ${STATE}`, ` M ${APP}`, ` D ${DRIVER}`, `?? ${NEW}`]);
+  });
+
+  test("unshelve merges the work with a later commit in the same file, when the two changed lines apart", async (t) => {
+    const dir = await initialized(t);
+    const lines = Array.from({ length: 12 }, (_, i) => `// line ${i + 1}`);
+    write(dir, APP, `${lines.join("\n")}\n`);
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "A longer file" });
+    write(dir, APP, `${["// line 1, half a task", ...lines.slice(1)].join("\n")}\n`);
+    await shelve(dir, "Q1");
+    write(dir, APP, `${[...lines.slice(0, 11), "// line 12, the next task"].join("\n")}\n`);
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "The next task" });
+
+    const r = await unshelve(dir, "Q1");
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "put back Q1: 1 file\n");
+    assert.equal(
+      read(dir, APP),
+      `${["// line 1, half a task", ...lines.slice(1, 11), "// line 12, the next task"].join("\n")}\n`,
+    );
+    assert.deepEqual(await status(dir), [` M ${APP}`]);
+    assert.deepEqual(await shelvedRefs(dir), []);
+  });
+
+  test("unshelve is refused when a later commit changed the same lines, names the file, and changes nothing", async (t) => {
+    const dir = await midTask(t);
+    await shelve(dir, "Q2");
+    write(dir, APP, "// production code\n// the next task wrote here\n");
+    write(dir, TESTS, "// a test\n// more\n");
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "The next task" });
+    const before = await stands(dir);
+
+    const r = await unshelve(dir, "Q2");
+
+    refused(
+      r,
+      `nothing was changed: the work shelved under Q2 does not go back cleanly: what was committed since changed the same lines in ${APP}`,
+    );
+    assert.deepEqual(await stands(dir), before);
+    assert.deepEqual(before.shelved, [shelvedRef("Q2")], "the work is still kept");
+    assert.deepEqual(leftInGitFolder(dir), []);
+  });
+
+  test("unshelve is refused when the working tree holds an uncommitted change or another file where the work goes", async (t) => {
+    for (const [name, obstacle, blocked] of [
+      ["a changed file of the work", (dir) => write(dir, APP, "// production code\n// someone else's line\n"), APP],
+      ["another file where the new one goes", (dir) => write(dir, NEW, "// not the task's file\n"), NEW],
+      ["a folder where the new file goes", (dir) => write(dir, `${NEW}/inner.cs`, "// x\n"), `${NEW}, ${NEW}/inner.cs`],
+      [
+        "a file where the new file's folder goes",
+        (dir) => write(dir, "src/App/Parked", "a file\n"),
+        `src/App/Parked, ${NEW}`,
+      ],
+      ["the deleted file, deleted already", (dir) => rmSync(join(dir, DRIVER)), DRIVER],
+    ]) {
+      const dir = await midTask(t);
+      await shelve(dir, "Q2");
+      obstacle(dir);
+      const before = await stands(dir);
+
+      const r = await unshelve(dir, "Q2");
+
+      refused(
+        r,
+        "nothing was changed: the work shelved under Q2 does not go back cleanly: the working tree holds " +
+          `uncommitted changes or other files in ${blocked}`,
+      );
+      assert.deepEqual(await stands(dir), before, name);
+    }
+  });
+
+  test("unshelve takes a new file that already stands there with the same content as no obstacle", async (t) => {
+    const dir = await midTask(t);
+    const before = await stands(dir);
+    await shelve(dir, "Q2");
+    write(dir, NEW, "// a new file of the task\n");
+
+    const r = await unshelve(dir, "Q2");
+
+    assert.equal(r.out, "put back Q2: 3 files\n");
+    assert.deepEqual(await stands(dir), before);
+  });
+
+  test("unshelve is refused while the working tree holds any other uncommitted change but in the bookkeeping's files, and --drop is not", async (t) => {
+    const dir = await midTask(t);
+    await shelve(dir, "Q2");
+    write(dir, TESTS, "// a test\n// another task, parked too\n");
+    await shelve(dir, "Q3");
+    // Work of no shelved task, in none of the work's paths: a changed file, a deleted one and a new one.
+    const EDGE = "tests/RevolutReader.IntegrationTests/Wiring/EdgeCases.cs";
+    write(dir, TESTS, "// a test\n// the task in hand\n");
+    rmSync(join(dir, EDGE));
+    write(dir, "src/Other/Fresh.cs", "// the task in hand's new file\n");
+    const before = await stands(dir);
+
+    const back = await unshelve(dir, "Q2");
+
+    refused(
+      back,
+      "nothing was changed: the work shelved under Q2 does not go back cleanly: the working tree holds " +
+        `uncommitted changes or other files in src/Other/Fresh.cs, ${TESTS}, ${EDGE}`,
+    );
+    assert.deepEqual(await stands(dir), before, "the other work is left as it is, and the work still kept");
+
+    const dropped = await unshelve(dir, "Q3", { drop: true });
+
+    assert.equal(
+      dropped.out,
+      "dropped Q3: 1 file\n",
+      "throwing work away writes no file, so other work is no obstacle",
+    );
+    assert.deepEqual(await stands(dir), { ...before, shelved: [shelvedRef("Q2")] });
+
+    // The other work committed at its handoff, as the runner does: only the bookkeeping's files are changed then.
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "The task in hand" });
+    await tdd(dir, withChange("put", { section: "Open", key: "Q2", value: "answered: go on" }));
+    await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+
+    const again = await unshelve(dir, "Q2");
+
+    assert.equal(again.out, "put back Q2: 3 files\n", again.err);
+    assert.deepEqual(await status(dir), [` M ${STATE}`, ` M ${APP}`, ` D ${DRIVER}`, `?? ${REVIEWS}`, `?? ${NEW}`]);
+  });
+
+  test("keeps a file that is no text byte for byte, and writes one whose line breaks git converts as git checks it out", async (t) => {
+    const dir = await initialized(t);
+    await git(dir, "config", "core.autocrlf", "true");
+    const bytes = Buffer.from([0xff, 0xfe, 0x00, 0x80, 0x0d, 0x0a, 0x0a, 0x0d, 0xc3, 0x28]);
+    writeFileSync(join(dir, "src/App/Sample.bin"), bytes);
+    write(dir, "src/App/Windows.cs", "// one\r\n// two\r\n// three\r\n");
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and two files" });
+    const changed = Buffer.from([0x00, 0xff, 0x80, 0x0a, 0x0d, 0x0d, 0x0a]);
+    const added = Buffer.from([0x80, 0x00, 0xfe, 0x0d, 0x0a]);
+    writeFileSync(join(dir, "src/App/Sample.bin"), changed);
+    writeFileSync(join(dir, "src/App/Added.bin"), added);
+    write(dir, "src/App/Windows.cs", "// one\r\n// two, changed\r\n// three\r\n// four\r\n");
+    write(dir, "src/App/NewWindows.cs", "// new\r\n// file\r\n");
+    const before = await stands(dir);
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 4 files\n");
+    assert.deepEqual(readFileSync(join(dir, "src/App/Sample.bin")), bytes);
+    assert.equal(read(dir, "src/App/Windows.cs"), "// one\r\n// two\r\n// three\r\n");
+    assert.deepEqual(await status(dir), []);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 4 files\n");
+    assert.deepEqual(readFileSync(join(dir, "src/App/Sample.bin")), changed);
+    assert.deepEqual(readFileSync(join(dir, "src/App/Added.bin")), added);
+    assert.equal(read(dir, "src/App/Windows.cs"), "// one\r\n// two, changed\r\n// three\r\n// four\r\n");
+    assert.equal(read(dir, "src/App/NewWindows.cs"), "// new\r\n// file\r\n");
+    assert.deepEqual(await stands(dir), before);
+  });
+
+  test("leaves ignored files alone, in the tree and out of the shelved work", async (t) => {
+    const dir = await initialized(t);
+    write(dir, ".gitignore", "bin/\n*.log\n");
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and what git ignores" });
+    write(dir, "src/App/bin/App.dll", "a build's output\n");
+    write(dir, "run.log", "a log\n");
+    write(dir, APP, "// production code\n// half a task\n");
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 1 file\n");
+    assert.equal(read(dir, "src/App/bin/App.dll"), "a build's output\n");
+    assert.equal(read(dir, "run.log"), "a log\n");
+    const kept = await git(dir, "ls-tree", "-r", "--name-only", shelvedRef("Q1"));
+    assert.equal(/App\.dll|run\.log/.test(kept), false, kept);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 1 file\n");
+    assert.equal(read(dir, "src/App/bin/App.dll"), "a build's output\n");
+  });
+
+  test("sets aside a change to a tracked file that a rule of .gitignore covers, in its folder or by its name", async (t) => {
+    const dir = await initialized(t);
+    write(dir, ".gitignore", "/tests/App.UnitTests/\nFakeBank.cs\n");
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and what git ignores" });
+    write(dir, TESTS, "// a test\n// half a task\n");
+    write(dir, DRIVER, "// a driver\n// half a task\n");
+    const before = await stands(dir);
+    assert.deepEqual(before.status, [` M ${TESTS}`, ` M ${DRIVER}`], "git tracks both all the same");
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 2 files\n", set.err);
+    assert.deepEqual(await status(dir), []);
+    assert.equal((await unshelve(dir, "Q1")).out, "put back Q1: 2 files\n");
+    assert.deepEqual(await stands(dir), before);
+  });
+
+  test("takes what was staged as it stands in the working tree, puts it back unstaged, and never touches the stash", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    write(dir, TESTS, "// a test\n// someone's stash\n");
+    await git(dir, "stash", "push", "--quiet", "-m", "someone's stash");
+    const stash = await git(dir, "stash", "list");
+    write(dir, APP, "// production code\n// staged, then changed again\n");
+    await git(dir, "add", APP);
+    write(dir, APP, "// production code\n// half a task\n");
+    write(dir, NEW, "// a new file, staged\n");
+    await git(dir, "add", NEW);
+    write(dir, "src/App/Gone.cs", "// staged, then deleted\n");
+    await git(dir, "add", "src/App/Gone.cs");
+    rmSync(join(dir, "src/App/Gone.cs"));
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.code, 0, set.err);
+    assert.equal(set.out, "shelved Q1: 2 files\n");
+    assert.deepEqual(await status(dir), [], "the index is the last commit's too");
+    assert.equal(await git(dir, "stash", "list"), stash);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 2 files\n");
+    assert.equal(read(dir, APP), "// production code\n// half a task\n");
+    assert.deepEqual(await status(dir), [` M ${APP}`, `?? ${NEW}`], "nothing is staged");
+    assert.equal(await git(dir, "stash", "list"), stash);
+  });
+
+  test("unshelve --drop throws the work away and leaves the tree as it is", async (t) => {
+    const dir = await midTask(t);
+    await shelve(dir, "Q2");
+    const before = await stands(dir);
+
+    const r = await unshelve(dir, "Q2", { drop: true });
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.out, "dropped Q2: 3 files\n");
+    assert.deepEqual(await stands(dir), { ...before, shelved: [] });
+    refused(
+      await unshelve(dir, "Q2"),
+      "nothing was changed: no shelved work under the key Q2; no key holds shelved work",
+    );
+  });
+
+  test("keeps the work of several keys apart, and names the keys that hold some when it refuses one", async (t) => {
+    const dir = await midTask(t);
+    assert.equal((await shelve(dir, "Q1")).out, "shelved Q1: 3 files\n");
+    write(dir, TESTS, "// a test\n// another task, parked too\n");
+    assert.equal((await shelve(dir, "Q2")).out, "shelved Q2: 1 file\n");
+    const before = await stands(dir);
+
+    const unknown = await unshelve(dir, "Q3");
+
+    refused(unknown, "nothing was changed: no shelved work under the key Q3; the keys with shelved work: Q1, Q2");
+    assert.deepEqual(await stands(dir), before);
+    assert.equal((await unshelve(dir, "Q2")).out, "put back Q2: 1 file\n");
+    refused(
+      await unshelve(dir, "Q1"),
+      "nothing was changed: the work shelved under Q1 does not go back cleanly: the working tree holds uncommitted " +
+        `changes or other files in ${TESTS}`,
+    );
+    await committed(dir, withChange, { type: "test", tag: "red", summary: "The work of Q2, done" });
+    assert.equal((await unshelve(dir, "Q1")).out, "put back Q1: 3 files\n");
+    assert.deepEqual(await status(dir), [` M ${APP}`, ` D ${DRIVER}`, `?? ${NEW}`]);
+    assert.equal(read(dir, TESTS), "// a test\n// another task, parked too\n");
+    assert.deepEqual(await shelvedRefs(dir), []);
+  });
+
+  test("puts back nothing when the last commit holds the work already, and forgets the key", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    write(dir, APP, "// production code\n// half a task\n");
+    await shelve(dir, "Q1");
+    write(dir, APP, "// production code\n// half a task\n");
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "The same work, done again" });
+
+    const r = await unshelve(dir, "Q1");
+
+    assert.equal(r.out, "put back Q1: 0 files\n");
+    assert.deepEqual(await status(dir), []);
+    assert.deepEqual(await shelvedRefs(dir), []);
+  });
+
+  test("puts the work back onto a branch that was rewritten since, where git can (2.40), and refuses in one line where it cannot", async (t) => {
+    const dir = await midTask(t);
+    await shelve(dir, "Q2");
+    write(dir, TESTS, "// a test\n// amended into the last commit\n");
+    await git(dir, "add", "-A");
+    await git(dir, "commit", "--quiet", "--amend", "--no-edit");
+    const before = await stands(dir);
+    const [, major, minor] = /(\d+)\.(\d+)/.exec(await git(dir, "--version")).map(Number);
+
+    const r = await unshelve(dir, "Q2");
+
+    if (major > 2 || minor >= 40) {
+      assert.equal(r.out, "put back Q2: 3 files\n", r.err);
+      assert.equal(read(dir, APP), "// production code\n// half a task\n");
+      assert.deepEqual(await status(dir), [` M ${APP}`, ` D ${DRIVER}`, `?? ${NEW}`]);
+    } else {
+      refused(
+        r,
+        /^ERROR: nothing was changed: git merge-tree failed \(unshelve needs git 2\.40 or later once the branch /,
+      );
+      assert.deepEqual(await stands(dir), before);
+    }
+  });
+
+  for (const of of ["change", "none"]) {
+    test(`works in a triage, whose keys are its own, and leaves the triage's state file alone (${of})`, async (t) => {
+      const { dir, state } = await triaging(t, of);
+      if (of === "change")
+        await committed(dir, withPr, { type: "docs", tag: "review", summary: "The triage's state file" });
+      await tdd(dir, withPr("put", { section: "Open", key: "Q1", value: "a question | shelved: Q1" }));
+      write(dir, APP, "// production code\n// half a fix\n");
+      write(dir, NEW, "// a new file of the fix\n");
+      const before = readFileSync(state, "utf8");
+
+      const set = await shelve(dir, "Q1", withPr);
+
+      assert.equal(set.code, 0, set.err);
+      assert.equal(set.out, "shelved Q1: 2 files\n");
+      assert.deepEqual(await shelvedRefs(dir), [shelvedRef("Q1", `triage-${PR}`)]);
+      assert.equal(readFileSync(state, "utf8"), before);
+      assert.deepEqual(await status(dir), of === "change" ? [` M ${TRIAGE}`] : []);
+
+      const back = await unshelve(dir, "Q1", {}, withPr);
+
+      assert.equal(back.out, "put back Q1: 2 files\n");
+      assert.equal(readFileSync(state, "utf8"), before);
+      assert.equal(read(dir, APP), "// production code\n// half a fix\n");
+      assert.equal(read(dir, NEW), "// a new file of the fix\n");
+    });
+  }
+
+  test("an apply's key and a triage's of the same name in one working tree do not meet", async (t) => {
+    const { dir } = await triaging(t, "none");
+    assert.equal((await tdd(dir, withChange("init", SWITCHES))).code, 0);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    write(dir, APP, "// production code\n// the apply's half\n");
+    assert.equal((await shelve(dir, "Q1")).out, "shelved Q1: 1 file\n");
+    write(dir, TESTS, "// a test\n// the triage's half\n");
+
+    const ofTriage = await shelve(dir, "Q1", withPr);
+    const unknown = await unshelve(dir, "Q2", {}, withPr);
+
+    assert.equal(ofTriage.out, "shelved Q1: 1 file\n");
+    assert.deepEqual(await shelvedRefs(dir), [shelvedRef("Q1"), shelvedRef("Q1", `triage-${PR}`)]);
+    refused(unknown, "nothing was changed: no shelved work under the key Q2; the keys with shelved work: Q1");
+    assert.equal((await unshelve(dir, "Q1", {}, withPr)).out, "put back Q1: 1 file\n");
+    assert.deepEqual(await status(dir), [` M ${TESTS}`], "the triage's work, not the apply's");
+    await committed(dir, withPr, { type: "test", tag: "review", summary: "1: the triage's half" });
+    assert.equal((await unshelve(dir, "Q1")).out, "put back Q1: 1 file\n");
+    assert.deepEqual(await status(dir), [` M ${APP}`], "the apply's work");
+  });
+
+  test("keeps the work in the working tree's own git folder: another working tree of the repository does not see it", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    const linked = join(tempFolder(t), "linked");
+    await git(dir, "worktree", "add", "--quiet", "-b", "feat/c900-in-another-tree", linked, "HEAD");
+    write(linked, APP, "// production code\n// half a task\n");
+
+    const set = await shelve(linked, "Q1");
+
+    assert.equal(set.code, 0, set.err);
+    assert.equal(set.out, "shelved Q1: 1 file\n");
+    assert.deepEqual(await shelvedRefs(linked), [shelvedRef("Q1")]);
+    assert.deepEqual(await shelvedRefs(dir), [], "the main working tree has no such ref");
+    refused(
+      await unshelve(dir, "Q1"),
+      "nothing was changed: no shelved work under the key Q1; no key holds shelved work",
+    );
+    assert.equal(
+      (await git(dir, "for-each-ref", "refs/heads/", "refs/stash", "refs/remotes/")).includes("shelved"),
+      false,
+    );
+    assert.equal((await unshelve(linked, "Q1")).out, "put back Q1: 1 file\n");
+    assert.equal(read(linked, APP), "// production code\n// half a task\n");
+  });
+
+  describe("refuses, in one line, with nothing changed", { concurrency: true }, () => {
+    test("shelve with nothing to set aside: a clean tree, and one with changes in the bookkeeping's own files only", async (t) => {
+      const dir = await initialized(t);
+      const nothing =
+        "nothing was changed: nothing to set aside: the working tree has no uncommitted change but in the " +
+        "bookkeeping's own files";
+
+      const untracked = await shelve(dir, "Q1");
+      await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+      const clean = await shelve(dir, "Q1");
+      await tdd(dir, withChange("put", { section: "Open", key: "Q1", value: "a question" }));
+      await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+      write(dir, TASKS, TASKS_TEXT.replace("- [ ] 5.1", "- [x] 5.1"));
+      const before = await stands(dir);
+      const books = await shelve(dir, "Q1");
+
+      refused(untracked, nothing);
+      refused(clean, nothing);
+      refused(books, nothing);
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(before.shelved, []);
+    });
+
+    test("shelve with nothing to set aside though git reports a path: a change that was staged and then taken back", async (t) => {
+      const dir = await initialized(t);
+      await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+      write(dir, APP, "// production code\n// staged\n");
+      await git(dir, "add", APP);
+      write(dir, APP, "// production code\n");
+      const before = await stands(dir);
+
+      const r = await shelve(dir, "Q1");
+
+      refused(r, /^ERROR: nothing was changed: nothing to set aside: /);
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("shelve under a key that holds shelved work already", async (t) => {
+      const dir = await midTask(t);
+      await shelve(dir, "Q2");
+      write(dir, TESTS, "// a test\n// another task\n");
+      const before = await stands(dir);
+
+      const r = await shelve(dir, "Q2");
+
+      refused(
+        r,
+        "nothing was changed: the key Q2 holds shelved work already; put that back or drop it first " +
+          "(unshelve --key Q2), or take another key",
+      );
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("a key whose ref names no commit: refused in git's words, and never taken for a key that holds nothing", async (t) => {
+      const dir = await midTask(t);
+      await git(dir, "update-ref", shelvedRef("Q2"), "HEAD^{tree}");
+      const before = await stands(dir);
+      const noCommit = new RegExp(
+        `^ERROR: nothing was changed: git rev-parse failed: ${shelvedRef("Q2")} names no commit: .*expected commit type`,
+      );
+
+      refused(await shelve(dir, "Q2"), noCommit);
+      refused(await unshelve(dir, "Q2"), noCommit);
+      refused(await unshelve(dir, "Q2", { drop: true }), noCommit);
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("a key that is not letters, digits, dots, dashes and underscores, or that git takes for no ref, and no key", async (t) => {
+      const dir = await midTask(t);
+      const before = await stands(dir);
+      const KEY =
+        /^ERROR: (un)?shelve needs --key <key>: the name the work is set aside under, of letters, digits, dots, dashes and underscores, such as Q2 \(no dot first or last, no two dots in a row, no \.lock at its end\)/;
+
+      for (const key of ["Q 2", "a/b", "Q2!", "..", ".Q2", "Q2.", "Q..2", "Q2.lock", " "]) {
+        refused(await shelve(dir, key), KEY);
+        refused(await unshelve(dir, key), KEY);
+      }
+      refused(await tdd(dir, withChange("shelve")), KEY);
+      refused(await tdd(dir, withChange("unshelve", { drop: true })), KEY);
+      refused(await shelve(dir, "a/b"), /: "a\/b"\n$/);
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("without --change or --pr, with both, and for a triage that is not under way", async (t) => {
+      const dir = await midTask(t);
+      const before = await stands(dir);
+
+      refused(
+        await tdd(dir, ["shelve", "--key", "Q1"]),
+        "--change <change-name> is missing (an apply's), or --pr <id> (a triage's)",
+      );
+      refused(
+        await tdd(dir, ["unshelve", "--key", "Q1", "--change", CHANGE, "--pr", PR]),
+        /^ERROR: --change and --pr are given together/,
+      );
+      refused(
+        await shelve(dir, "Q1", withPr),
+        `no triage is under way in this working tree: run triage-init --pr ${PR} first`,
+      );
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("a refusal of the call itself, which starts with neither `nothing was changed:` nor `failed part-way:`: an unknown option, a misspelt --change", async (t) => {
+      const dir = await midTask(t);
+      const before = await stands(dir);
+
+      refused(
+        await tdd(dir, withChange("shelve", { key: "Q1", drop: true })),
+        "unknown option --drop; shelve takes: --change, --pr, --root, --key",
+      );
+      refused(
+        await tdd(dir, withChange("unshelve", { keys: "Q1" })),
+        "unknown option --keys; unshelve takes: --change, --pr, --root, --key, --drop",
+      );
+      refused(
+        await tdd(dir, ["shelve", "--change", "c900-add-made-up-thnig", "--key", "Q1"]),
+        /^ERROR: no change folder openspec\/changes\/c900-add-made-up-thnig in .+, and none in its archive\n$/,
+      );
+      refused(
+        await tdd(dir, ["unshelve", "--change", "C900-add-made-up-thing", "--key", "Q1"]),
+        `--change C900-add-made-up-thing: the change's folder is named ${CHANGE}; give the name letter for letter`,
+      );
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("while another command holds the lock", async (t) => {
+      const dir = await midTask(t);
+      leftLock(dir, process.pid, 0);
+      const before = await stands(dir);
+
+      const r = await shelve(dir, "Q1", withChange, { env: { TDD_LOCK_WAIT_MS: "150" } });
+
+      refused(r, /^ERROR: nothing was changed: the state files are locked by process /);
+      rmSync(join(gitFolder(dir), "state.lock"));
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("shelve when a path holds a repository of its own", async (t) => {
+      const dir = await midTask(t);
+      const nested = join(dir, "src", "Nested");
+      mkdirSync(nested);
+      await git(nested, "init", "--quiet");
+      write(nested, "inner.cs", "// a file of another repository\n");
+      const before = await stands(dir);
+      assert.ok(before.status.includes("?? src/Nested/"), before.status.join(" | "));
+
+      const r = await shelve(dir, "Q1");
+
+      refused(r, "nothing was changed: src/Nested/ holds a repository of its own, which cannot be set aside");
+      assert.deepEqual(await stands(dir), before);
+      assert.deepEqual(leftInGitFolder(dir), []);
+    });
+
+    test("shelve when the index holds a change the working tree does not show: a file mode staged where the disk keeps none", async (t) => {
+      const dir = await midTask(t);
+      await git(dir, "config", "core.fileMode", "false");
+      await git(dir, "update-index", "--chmod=+x", TESTS);
+      const before = await stands(dir);
+      assert.match(before.index, new RegExp(`^100755 .*\\t${TESTS}$`, "m"));
+
+      const r = await shelve(dir, "Q1");
+
+      refused(
+        r,
+        `nothing was changed: the index holds changes the working tree does not show in ${TESTS}: commit them or ` +
+          "take them back first",
+      );
+      assert.deepEqual(await stands(dir), before, "the staged mode is still there");
+    });
+
+    test("shelve when a file is renamed in the case of its letters only, where the disk does not tell the two names apart", async (t) => {
+      const dir = await midTask(t);
+      const renamed = "src/App/MAPPING.cs";
+      const caseBlind = existsSync(join(dir, renamed));
+      await git(dir, "mv", APP, renamed);
+      const before = await stands(dir);
+
+      const r = await shelve(dir, "Q1");
+
+      if (caseBlind) {
+        // The file on disk answers to both names, so only the index says which one it has.
+        refused(
+          r,
+          `nothing was changed: the index holds changes the working tree does not show in ${renamed}, ${APP}: ` +
+            "commit them or take them back first",
+        );
+        assert.deepEqual(await stands(dir), before);
+      } else {
+        // A disk that tells the names apart shows the rename itself: it is set aside like any other.
+        assert.equal(r.out, "shelved Q1: 4 files\n", r.err);
+        assert.deepEqual(await status(dir), []);
+        assert.equal((await unshelve(dir, "Q1")).out, "put back Q1: 4 files\n");
+        assert.equal(read(dir, renamed), "// production code\n// half a task\n");
+        assert.equal(existsSync(join(dir, APP)), false);
+      }
+    });
+
+    test("shelve when the index no longer tracks a file kept on disk (git rm --cached): alone, with other work, and when the file is ignored", async (t) => {
+      const refusal =
+        `nothing was changed: the index holds changes the working tree does not show in ${TESTS}: commit them or ` +
+        "take them back first";
+      const untracking = async (dir) => git(dir, "rm", "--quiet", "--cached", TESTS);
+
+      const alone = await initialized(t);
+      await committed(alone, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+      await untracking(alone);
+      const aloneBefore = await stands(alone);
+      assert.deepEqual(aloneBefore.status, [`D  ${TESTS}`, `?? ${TESTS}`]);
+
+      refused(await shelve(alone, "Q1"), refusal);
+      assert.deepEqual(await stands(alone), aloneBefore, "the file is still untracked, and on disk");
+
+      const withWork = await midTask(t);
+      await untracking(withWork);
+      write(withWork, TESTS, "// a test\n// changed on disk too\n");
+      const workBefore = await stands(withWork);
+
+      refused(await shelve(withWork, "Q1"), refusal);
+      assert.deepEqual(await stands(withWork), workBefore, "the other work stays, and so does the untracking");
+
+      const ignored = await initialized(t);
+      write(ignored, ".gitignore", "/tests/App.UnitTests/\n");
+      await committed(ignored, withChange, {
+        type: "docs",
+        tag: "plan",
+        summary: "The state file and what git ignores",
+      });
+      await untracking(ignored);
+      const ignoredBefore = await stands(ignored);
+      assert.deepEqual(ignoredBefore.status, [`D  ${TESTS}`], "git reports the file as deleted, and not as new");
+
+      refused(await shelve(ignored, "Q1"), refusal);
+      assert.deepEqual(await stands(ignored), ignoredBefore);
+    });
+
+    test("shelve and unshelve for a change whose name git takes for no ref (two dots in a row, .lock at its end): the refusal names the change", async (t) => {
+      const dir = await midTask(t);
+      const changes = ["c901-a..b", "c902-made-up.lock"];
+      for (const change of changes) write(dir, `openspec/changes/${change}/tasks.md`, TASKS_TEXT);
+      const before = await stands(dir);
+
+      for (const change of changes) {
+        for (const command of ["shelve", "unshelve"]) {
+          refused(
+            await tdd(dir, [command, "--change", change, "--key", "Q1"]),
+            `--change ${change}: ${command} keeps the work under refs/worktree/tdd/shelved/<change>/<key>, and git ` +
+              "takes no ref named after this change (no two dots in a row, no .lock at its end)",
+          );
+        }
+      }
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("shelve when taking a path back would delete ignored files: in a folder that replaced a file, and a file that replaced a folder", async (t) => {
+      const dir = await initialized(t);
+      write(dir, ".gitignore", "*.log\n/tests/App.UnitTests\n");
+      await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and what git ignores" });
+      rmSync(join(dir, APP));
+      write(dir, `${APP}/keep.log`, "an ignored file\n");
+      write(dir, `${APP}/new.cs`, "// a new file in the folder\n");
+      const folder = await stands(dir);
+
+      const inFolder = await shelve(dir, "Q1");
+
+      refused(
+        inFolder,
+        "nothing was changed: taking the tree back to the last commit would delete ignored files that stand in " +
+          `the way: ${APP}/keep.log`,
+      );
+      assert.deepEqual(await stands(dir), folder);
+      assert.equal(read(dir, `${APP}/keep.log`), "an ignored file\n");
+
+      rmSync(join(dir, APP), { recursive: true });
+      await git(dir, "checkout", "--", APP);
+      rmSync(join(dir, "tests/App.UnitTests"), { recursive: true });
+      write(dir, "tests/App.UnitTests", "an ignored file where a folder was\n");
+      const file = await stands(dir);
+      assert.deepEqual(file.status, [` D ${TESTS}`], "git reports the deleted file, and not the ignored one");
+
+      const asFile = await shelve(dir, "Q1");
+
+      refused(
+        asFile,
+        "nothing was changed: taking the tree back to the last commit would delete ignored files that stand in " +
+          "the way: tests/App.UnitTests",
+      );
+      assert.deepEqual(await stands(dir), file);
+    });
+
+    for (const [name, start, said] of [
+      ["a merge", ["merge", "other"], "a merge"],
+      ["a cherry-pick", ["cherry-pick", "other"], "a cherry-pick"],
+      ["a rebase", ["rebase", "other"], "a rebase"],
+    ]) {
+      test(`shelve and unshelve while git is in the middle of ${name}: its conflict stays as it is`, async (t) => {
+        const dir = await midTask(t);
+        await shelve(dir, "Q1");
+        await git(dir, "branch", "other");
+        write(dir, APP, "// production code\n// this branch's line\n");
+        await committed(dir, withChange, { type: "feat", tag: "green", summary: "This branch's line" });
+        await git(dir, "checkout", "--quiet", "other");
+        write(dir, APP, "// production code\n// the other branch's line\n");
+        await git(dir, "commit", "--quiet", "-am", "feat: the other branch's line");
+        await git(dir, "checkout", "--quiet", BRANCH);
+        const stopped = await started("git", start, { cwd: dir });
+        assert.notEqual(stopped.code, 0, "the two lines conflict");
+        const before = await stands(dir);
+
+        const set = await shelve(dir, "Q2");
+        const back = await unshelve(dir, "Q1");
+        const dropped = await unshelve(dir, "Q1", { drop: true });
+
+        const refusal = `nothing was changed: git is in the middle of ${said} in this working tree: finish it or abort it first`;
+        refused(set, refusal);
+        refused(back, refusal);
+        assert.equal(dropped.out, "dropped Q1: 3 files\n", "throwing the work away changes no file, so it may go on");
+        assert.deepEqual(await stands(dir), { ...before, shelved: [] });
+      });
+    }
+
+    test("shelve and unshelve while the index holds a conflict that is not settled, whatever started it", async (t) => {
+      const dir = await midTask(t);
+      await shelve(dir, "Q1");
+      await git(dir, "branch", "other");
+      write(dir, APP, "// production code\n// this branch's line\n");
+      await committed(dir, withChange, { type: "feat", tag: "green", summary: "This branch's line" });
+      await git(dir, "checkout", "--quiet", "other");
+      write(dir, APP, "// production code\n// the other branch's line\n");
+      await git(dir, "commit", "--quiet", "-am", "feat: the other branch's line");
+      await git(dir, "checkout", "--quiet", BRANCH);
+      await started("git", ["merge", "other"], { cwd: dir });
+      rmSync(join(dir, ".git", "MERGE_HEAD"));
+      const before = await stands(dir);
+
+      const refusal =
+        "nothing was changed: git is in the middle of a conflict that is not settled in this working tree: finish " +
+        "it or abort it first";
+      refused(await shelve(dir, "Q2"), refusal);
+      refused(await unshelve(dir, "Q1"), refusal);
+      assert.deepEqual(await stands(dir), before);
+    });
+
+    test("unshelve when a merge driver of the repository's own decides a file that both the work and a later commit changed", async (t) => {
+      const dir = await initialized(t);
+      write(dir, ".gitattributes", "*.lock merge=ours\n");
+      write(dir, "deps.lock", "version 1\n");
+      await git(dir, "config", "merge.ours.driver", "true");
+      await committed(dir, withChange, { type: "build", tag: "setup", summary: "A lock file that merges as ours" });
+      write(dir, "deps.lock", "version 2, the task's\n");
+      write(dir, APP, "// production code\n// half a task\n");
+      await shelve(dir, "Q1");
+      write(dir, "deps.lock", "version 2, the next task's\n");
+      await committed(dir, withChange, { type: "build", tag: "green", summary: "The next task's lock file" });
+      const before = await stands(dir);
+
+      const r = await unshelve(dir, "Q1");
+
+      refused(
+        r,
+        "nothing was changed: the work shelved under Q1 cannot be merged with what was committed since: a merge " +
+          "driver decides deps.lock",
+      );
+      assert.deepEqual(await stands(dir), before, "the work is still kept, and the tree as it was");
+    });
+
+    test("unshelve when git is told to overlook changes in a file it would write: skip-worktree, and assume-unchanged", async (t) => {
+      for (const bit of ["skip-worktree", "assume-unchanged"]) {
+        const dir = await midTask(t);
+        await shelve(dir, "Q1");
+        await git(dir, "update-index", `--${bit}`, APP);
+        write(dir, APP, "// production code\n// a change git does not report\n");
+        const before = await stands(dir);
+        assert.deepEqual(before.status, [], bit);
+
+        const r = await unshelve(dir, "Q1");
+
+        refused(
+          r,
+          `nothing was changed: the work shelved under Q1 cannot be written: git is told to overlook changes in ${APP} ` +
+            "(skip-worktree or assume-unchanged), so what the working tree holds there cannot be checked",
+        );
+        assert.deepEqual(await stands(dir), before, bit);
+        assert.equal(read(dir, APP), "// production code\n// a change git does not report\n", bit);
+      }
+    });
+  });
+
+  test("unshelve goes on where a merge driver is set but only the work changed the file", async (t) => {
+    const dir = await initialized(t);
+    write(dir, ".gitattributes", "*.lock merge=ours\n");
+    write(dir, "deps.lock", "version 1\n");
+    await git(dir, "config", "merge.ours.driver", "true");
+    await committed(dir, withChange, { type: "build", tag: "setup", summary: "A lock file that merges as ours" });
+    write(dir, "deps.lock", "version 2, the task's\n");
+    await shelve(dir, "Q1");
+    write(dir, APP, "// production code\n// the next task\n");
+    await committed(dir, withChange, { type: "feat", tag: "green", summary: "The next task" });
+
+    const r = await unshelve(dir, "Q1");
+
+    assert.equal(r.out, "put back Q1: 1 file\n", r.err);
+    assert.equal(read(dir, "deps.lock"), "version 2, the task's\n");
+  });
+
+  test("sets aside a staged rename, and puts it back as a deleted file and a new one", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    const renamed = "src/App/Renamed.cs";
+    await git(dir, "mv", APP, renamed);
+    write(dir, renamed, "// production code\n// and a line more\n");
+    assert.deepEqual(await status(dir), [`RM ${APP} -> ${renamed}`]);
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 2 files\n", set.err);
+    assert.deepEqual(await status(dir), []);
+    assert.equal(read(dir, APP), "// production code\n");
+    assert.equal(existsSync(join(dir, renamed)), false);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 2 files\n");
+    assert.deepEqual(await status(dir), [` D ${APP}`, `?? ${renamed}`]);
+    assert.equal(read(dir, renamed), "// production code\n// and a line more\n");
+  });
+
+  test("takes a staged new file whose name is a pattern, or starts with a dash, as that file alone: a committed file the pattern matches stays as it is", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    const pattern = "src/App/[M]apping.cs";
+    const dashed = "--all";
+    write(dir, pattern, "// a new file, named like a pattern that matches Mapping.cs\n");
+    write(dir, dashed, "a new file, named like an option\n");
+    await git(dir, "--literal-pathspecs", "add", "--", pattern, dashed);
+    const committedApp = await git(dir, "ls-files", "--stage", "--", APP);
+    const before = await stands(dir);
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 2 files\n", set.err);
+    assert.deepEqual(await status(dir), []);
+    assert.equal(existsSync(join(dir, pattern)), false);
+    assert.equal(existsSync(join(dir, dashed)), false);
+    assert.equal(read(dir, APP), "// production code\n", "the file the pattern matches is not touched");
+    assert.equal(await git(dir, "ls-files", "--stage", "--", APP), committedApp);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 2 files\n", back.err);
+    assert.deepEqual(await status(dir), [`?? ${dashed}`, `?? ${pattern}`], "back, and unstaged");
+    assert.equal(read(dir, pattern), "// a new file, named like a pattern that matches Mapping.cs\n");
+    assert.equal(read(dir, dashed), "a new file, named like an option\n");
+    assert.deepEqual(workingFiles(dir), before.files);
+    assert.equal(await git(dir, "ls-files", "--stage", "--", APP), committedApp);
+  });
+
+  test("takes paths with spaces and letters outside ASCII as they are", async (t) => {
+    const dir = await initialized(t);
+    const tracked = "docs/Žluťoučký kůň/poznámky k úkolu.md";
+    const fresh = "src/App/nový soubor (1).cs";
+    write(dir, tracked, "# poznámky\n");
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file and some notes" });
+    write(dir, tracked, "# poznámky\n\ndalší řádek\n");
+    write(dir, fresh, "// nový\n");
+    const before = await stands(dir);
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 2 files\n", set.err);
+    assert.deepEqual(await status(dir), []);
+    assert.equal(read(dir, tracked), "# poznámky\n");
+    assert.equal(existsSync(join(dir, fresh)), false);
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 2 files\n", back.err);
+    assert.deepEqual(await stands(dir), before);
+  });
+
+  test("sets aside a folder that replaced a file and a file that replaced a folder, and puts both back", async (t) => {
+    const dir = await initialized(t);
+    await committed(dir, withChange, { type: "docs", tag: "plan", summary: "The state file" });
+    rmSync(join(dir, APP));
+    write(dir, `${APP}/Part.cs`, "// the file became a folder\n");
+    rmSync(join(dir, "tests/App.UnitTests"), { recursive: true });
+    write(dir, "tests/App.UnitTests", "the folder became a file\n");
+    const before = await stands(dir);
+    assert.deepEqual(before.status, [` D ${APP}`, ` D ${TESTS}`, `?? ${APP}/Part.cs`, "?? tests/App.UnitTests"]);
+
+    const set = await shelve(dir, "Q1");
+
+    assert.equal(set.out, "shelved Q1: 4 files\n", set.err);
+    assert.deepEqual(await status(dir), []);
+    assert.equal(read(dir, APP), "// production code\n");
+    assert.equal(read(dir, TESTS), "// a test\n");
+
+    const back = await unshelve(dir, "Q1");
+
+    assert.equal(back.out, "put back Q1: 4 files\n", back.err);
+    assert.deepEqual(await stands(dir), before);
+  });
+
+  test("never touches a bookkeeping file of the other skill, or of another change: an apply's in a triage, a triage's in an apply", async (t) => {
+    const { dir } = await triaging(t, "change");
+    assert.equal((await tdd(dir, withChange("init", SWITCHES))).code, 0);
+    await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+    const other = "openspec/changes/c901-another/.tdd-state.md";
+    write(dir, other, "# .tdd-state: c901-another\n");
+    await git(dir, "add", "-A");
+    await git(dir, "commit", "--quiet", "-m", "docs: every bookkeeping file");
+    await tdd(dir, withChange("put", { section: "Open", key: "Q1", value: "the apply's question" }));
+    await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "one more" }));
+    await tdd(dir, withPr("put", { section: "Open", key: "Q1", value: "the triage's question" }));
+    write(dir, other, "# .tdd-state: c901-another\n\nchanged by its own session\n");
+    write(dir, "openspec/changes/c901-another/.chapter-reviews.md", "# Chapter reviews: c901-another\n");
+    write(dir, APP, "// production code\n// half a fix\n");
+    const books = [STATE, REVIEWS, TRIAGE, other, "openspec/changes/c901-another/.chapter-reviews.md"];
+    const held = () => books.map((path) => read(dir, path));
+    const before = held();
+
+    for (const whose of [withPr, withChange]) {
+      const set = await shelve(dir, "Q1", whose);
+
+      assert.equal(set.out, "shelved Q1: 1 file\n", set.err);
+      assert.deepEqual(held(), before);
+      assert.deepEqual(await status(dir), [
+        ` M ${REVIEWS}`,
+        ` M ${TRIAGE}`,
+        ` M ${STATE}`,
+        ` M ${other}`,
+        "?? openspec/changes/c901-another/.chapter-reviews.md",
+      ]);
+
+      const back = await unshelve(dir, "Q1", {}, whose);
+
+      assert.equal(back.out, "put back Q1: 1 file\n", back.err);
+      assert.deepEqual(held(), before);
+      assert.equal(read(dir, APP), "// production code\n// half a fix\n");
+    }
+  });
+
+  describe(
+    "when a step fails after the first change (TDD_FAIL_STEP names the steps, or a filter fails for real)",
+    { concurrency: true },
+    () => {
+      const failing = (step) => ({ env: { TDD_FAIL_STEP: step } });
+      const failed = (r, message) => {
+        assert.equal(r.code, 1, r.out + r.err);
+        assert.equal(r.out, "");
+        assert.ok(r.err.startsWith(`ERROR: ${message}`), r.err);
+        assert.ok(oneLine(r.err), r.err);
+      };
+      // What TDD_FAIL_STEP makes a step say: before its work, or after it (`+`).
+      const made = (step) =>
+        `TDD_FAIL_STEP made the step ${step.replace("+", "")} fail ${step.endsWith("+") ? "after" : "before"} its work`;
+      // The causes a line ends with: the failed step's, the one on the way back, and the reading's.
+      const causes = (first, back, reading) =>
+        `The cause: ${made(first)}${back ? `; on the way back: ${made(back)}` : ""}` +
+        `${reading ? `; reading the state again: ${made(reading)}` : ""}\n`;
+      const OUT = "the way out, once the cause is gone:";
+      const THREE = (key) =>
+        `${OUT} shelve --key <another> (takes what is left), then unshelve --key ${key}, then unshelve --key ` +
+        "<another> --drop.";
+
+      // Runs the way out a part-way line names, as the runner does once the cause is gone: each command in its
+      // order, without the words in brackets after it, with `<another>` as `<key>-out`; a line that names no way
+      // out, nothing. Each must succeed, but for the runner's one rule: when a way out starts with `shelve --key
+      // <another>` and that is refused with nothing to set aside, the tree was at the last commit already, so the
+      // next command runs and the final `--drop` of `<another>` does not ("nothing to set aside" stands for the
+      // refusal). Answers what they printed.
+      async function wayOut(dir, line, key) {
+        const [, commands] = /the way out, once the cause is gone: (.*?)\. The cause: /.exec(line) ?? [];
+        if (commands === undefined) {
+          assert.doesNotMatch(line, /the way out/);
+          return [];
+        }
+        const printed = [];
+        const list = commands.split(", then ").map((command) => command.replace(/ \(.*\)$/, ""));
+        let atLastCommit = false;
+        for (const [i, command] of list.entries()) {
+          if (atLastCommit && i === list.length - 1 && command === "unshelve --key <another> --drop") break;
+          const [verb, ...args] = command.replaceAll("<another>", `${key}-out`).split(" ");
+          const r = await tdd(dir, withChange(verb, ...args));
+          const nothing = "ERROR: nothing was changed: nothing to set aside: ";
+          if (i === 0 && command === "shelve --key <another>" && r.code === 1 && r.err.startsWith(nothing)) {
+            atLastCommit = true;
+            printed.push("nothing to set aside");
+            continue;
+          }
+          assert.equal(r.code, 0, `${command}: ${r.err}`);
+          printed.push(r.out.trim());
+        }
+        return printed;
+      }
+
+      // A repository whose file DATA goes through a filter git must run (`filter.broken`, required): its clean side
+      // passes the file through, and once `breaks` its smudge side fails, so that git cannot write the file into
+      // the working tree (it deletes the file there first, then stops): a write that fails for real, on every
+      // system. Once `readsNoMore`, git writes the file and then cannot read it: the smudge side leaves a mark in
+      // the git folder, and the clean side, which git runs to read the file (`git hash-object`), fails while the
+      // mark is there. Once `failsOnce`, the smudge side fails the first time git runs it and leaves the mark, and
+      // passes from then on. `mends` makes both sides pass again.
+      const DATA = "src/App/Data.flt";
+      async function filtered(t) {
+        const dir = await initialized(t);
+        write(dir, ".gitattributes", "*.flt filter=broken\n");
+        write(dir, DATA, "data, as committed\n");
+        await git(dir, "config", "filter.broken.clean", "cat");
+        await git(dir, "config", "filter.broken.smudge", "cat");
+        await git(dir, "config", "filter.broken.required", "true");
+        await committed(dir, withChange, {
+          type: "build",
+          tag: "setup",
+          summary: "The state file and a filtered file",
+        });
+        return dir;
+      }
+      const breaks = (dir) => git(dir, "config", "filter.broken.smudge", "false");
+      const mark = (dir) => join(dir, ".git", "read-no-more");
+      async function readsNoMore(dir) {
+        const at = mark(dir).replaceAll("\\", "/");
+        await git(dir, "config", "filter.broken.clean", `test ! -e '${at}' && cat`);
+        await git(dir, "config", "filter.broken.smudge", `touch '${at}' && cat`);
+      }
+      async function failsOnce(dir) {
+        const at = mark(dir).replaceAll("\\", "/");
+        await git(
+          dir,
+          "config",
+          "filter.broken.smudge",
+          `if test -e '${at}'; then cat; else touch '${at}'; exit 1; fi`,
+        );
+      }
+      async function mends(dir) {
+        await git(dir, "config", "filter.broken.clean", "cat");
+        await git(dir, "config", "filter.broken.smudge", "cat");
+        rmSync(mark(dir), { force: true });
+      }
+      const SMUDGE = /git checkout(-index)? failed: .*smudge filter broken failed/;
+
+      test("shelve: the ref cannot be written, and nothing was changed", async (t) => {
+        const dir = await midTask(t);
+        const before = await stands(dir);
+
+        const r = await shelve(dir, "Q2", withChange, failing("keep"));
+
+        assert.equal(
+          r.err,
+          `ERROR: nothing was changed: the work could not be kept under the key Q2: ${made("keep")}\n`,
+        );
+        assert.deepEqual(await stands(dir), before);
+      });
+
+      test("shelve: the ref may or may not be written, and cannot be read again: the line says only what is known and names no way out, and the runner's next shelve finds out", async (t) => {
+        for (const [steps, written] of [
+          ["keep,keyHolds", false],
+          ["keep+,keyHolds", true],
+        ]) {
+          const dir = await midTask(t);
+          const before = await stands(dir);
+
+          const r = await shelve(dir, "Q2", withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the working tree holds the work as it was, not touched yet, and whether the key " +
+              `Q2 holds a copy of it could not be read. ${causes(steps.split(",")[0], undefined, "keyHolds")}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), written ? { ...before, shelved: [shelvedRef("Q2")] } : before, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), [], "the runner runs nothing and goes on");
+          // It sets the work aside again: under the same key, or, when that key holds the copy, under another.
+          const again = await shelve(dir, "Q2");
+          if (written) {
+            assert.equal(
+              again.err,
+              "ERROR: nothing was changed: the key Q2 holds shelved work already; put that back or drop it first " +
+                "(unshelve --key Q2), or take another key\n",
+            );
+            assert.equal((await shelve(dir, "Q3")).out, "shelved Q3: 3 files\n");
+          } else {
+            assert.equal(again.out, "shelved Q2: 3 files\n", steps);
+          }
+          assert.deepEqual(await status(dir), [], steps);
+        }
+      });
+
+      test("shelve: the ref is written though its step failed: the key holds a copy, and the way out removes it", async (t) => {
+        const dir = await midTask(t);
+        const before = await stands(dir);
+
+        const r = await shelve(dir, "Q2", withChange, failing("keep+"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the working tree holds the work as it was, and the key Q2 holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${causes("keep+")}`,
+        );
+        assert.deepEqual(await stands(dir), { ...before, shelved: [shelvedRef("Q2")] });
+        assert.deepEqual(await wayOut(dir, r.err, "Q2"), ["dropped Q2: 3 files"]);
+        assert.deepEqual(await stands(dir), before);
+      });
+
+      test("shelve: the tree cannot be taken back, so the work is written back and the key freed: nothing is left to undo", async (t) => {
+        for (const steps of ["clear+", "clear+,forget+"]) {
+          const dir = await midTask(t);
+          const before = await stands(dir);
+
+          const r = await shelve(dir, "Q2", withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: nothing was set aside: the working tree holds the work again, and the key Q2 is " +
+              `free; nothing is left to undo. ${causes("clear+", steps === "clear+" ? undefined : "forget+")}`,
+          );
+          assert.deepEqual(await stands(dir), before, `${steps}: the tree holds the work again`);
+          assert.equal((await shelve(dir, "Q2")).out, "shelved Q2: 3 files\n", "the command can be run again");
+        }
+      });
+
+      test("shelve: the tree holds the work again but the key cannot be freed, or the tree was never touched: the key holds a copy, and the way out removes it", async (t) => {
+        for (const [steps, first, back] of [
+          ["clear+,forget", "clear+", "forget"],
+          ["clear,writeBack", "clear", "writeBack"],
+          ["clear+,writeBack+", "clear+", "writeBack+"],
+        ]) {
+          const dir = await midTask(t);
+          const before = await stands(dir);
+
+          const r = await shelve(dir, "Q2", withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the working tree holds the work again, and the key Q2 still holds a copy of it; " +
+              `${OUT} unshelve --key Q2 --drop. ${causes(first, back)}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), { ...before, shelved: [shelvedRef("Q2")] }, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), ["dropped Q2: 3 files"]);
+          assert.deepEqual(await stands(dir), before, steps);
+        }
+      });
+
+      test("shelve: the tree holds the work again, but the key cannot be freed and cannot be read again: the line says so and names no way out, and the runner's next shelve finds out", async (t) => {
+        for (const [steps, freed] of [
+          ["clear+,forget,keyHolds", false],
+          ["clear+,forget+,keyHolds", true],
+        ]) {
+          const dir = await midTask(t);
+          const before = await stands(dir);
+
+          const r = await shelve(dir, "Q2", withChange, failing(steps));
+
+          const [first, back, reading] = steps.split(",");
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the working tree holds the work again, and whether the key Q2 still holds a " +
+              `copy of it could not be read. ${causes(first, back, reading)}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), freed ? before : { ...before, shelved: [shelvedRef("Q2")] }, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), [], "the runner runs nothing and goes on");
+          // It sets the work aside again: under the same key, or, when that key holds the copy, under another.
+          const again = await shelve(dir, "Q2");
+          if (freed) {
+            assert.equal(again.out, "shelved Q2: 3 files\n", steps);
+          } else {
+            assert.match(again.err, /^ERROR: nothing was changed: the key Q2 holds shelved work already; /, steps);
+            assert.equal((await shelve(dir, "Q3")).out, "shelved Q3: 3 files\n", steps);
+          }
+          assert.deepEqual(await status(dir), [], steps);
+        }
+      });
+
+      test("shelve: a link among the work is read again as git keeps it, so that the tree is known to hold the work again", async (t) => {
+        const dir = await midTask(t);
+        try {
+          symlinkSync("Mapping.cs", join(dir, "src/App/Link.cs"), "file");
+        } catch (e) {
+          if (e.code !== "EPERM") throw e;
+          t.skip("this system lets no test make a link");
+          return;
+        }
+        const before = await stands(dir);
+
+        const r = await shelve(dir, "Q2", withChange, failing("clear+,writeBack+"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the working tree holds the work again, and the key Q2 still holds a copy of it; " +
+            `${OUT} unshelve --key Q2 --drop. ${causes("clear+", "writeBack+")}`,
+        );
+        assert.deepEqual(await stands(dir), { ...before, shelved: [shelvedRef("Q2")] });
+      });
+
+      test("shelve: the tree is taken back but the work cannot be written back: it is set aside after all, and the way out puts it back", async (t) => {
+        const dir = await midTask(t);
+        const before = await stands(dir);
+
+        const r = await shelve(dir, "Q2", withChange, failing("clear+,writeBack"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the work is set aside under the key Q2, and the working tree is at the last " +
+            `commit; ${OUT} unshelve --key Q2. ${causes("clear+", "writeBack")}`,
+        );
+        assert.deepEqual(await status(dir), []);
+        assert.deepEqual(await wayOut(dir, r.err, "Q2"), ["put back Q2: 3 files"]);
+        assert.deepEqual(await stands(dir), before, "the work is back where the next shelve takes it");
+      });
+
+      test("shelve: the work cannot be written back and the tree cannot be read again: the line says so and names the paths, and its way out gets out from where the tree is, at the last commit or holding the work", async (t) => {
+        for (const [steps, printed] of [
+          ["clear+,writeBack,treeHolds", ["nothing to set aside", "put back Q2: 3 files"]],
+          [
+            "clear+,writeBack+,treeHolds",
+            ["shelved Q2-out: 3 files", "put back Q2: 3 files", "dropped Q2-out: 3 files"],
+          ],
+        ]) {
+          const dir = await midTask(t);
+          const before = await stands(dir);
+
+          const r = await shelve(dir, "Q2", withChange, failing(steps));
+
+          const [first, back, reading] = steps.split(",");
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the work is safe under the key Q2, but the working tree could not be read in " +
+              `full: ${APP}, ${DRIVER}, ${NEW} could not be read; ${THREE("Q2")} ${causes(first, back, reading)}`,
+            steps,
+          );
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), printed, steps);
+          assert.deepEqual(await stands(dir), before, `${steps}: the work is back where the next shelve takes it`);
+        }
+      });
+
+      test("shelve, for real: a file of the work that git writes back but cannot read again: the line names it, and its way out gets out", async (t) => {
+        const dir = await filtered(t);
+        write(dir, DATA, "data, half a task\n");
+        write(dir, APP, "// production code\n// half a task\n");
+        write(dir, NEW, "// a new file of the task\n");
+        rmSync(join(dir, DRIVER));
+        const before = await stands(dir);
+        await readsNoMore(dir);
+
+        const r = await shelve(dir, "Q2", withChange, failing("clear+,writeBack+"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the work is safe under the key Q2, but the working tree could not be read in full: " +
+            `${DATA} could not be read; ${THREE("Q2")} ${causes("clear+", "writeBack+")}`,
+        );
+        await mends(dir);
+        assert.deepEqual(await wayOut(dir, r.err, "Q2"), [
+          "shelved Q2-out: 4 files",
+          "put back Q2: 4 files",
+          "dropped Q2-out: 4 files",
+        ]);
+        assert.deepEqual(await stands(dir), before, "the work is back where the next shelve takes it");
+      });
+
+      test("shelve, for real: a file git cannot write leaves the tree neither at the last commit nor as the work has it, the line says so and names both causes whole, and its way out gets out", async (t) => {
+        const dir = await filtered(t);
+        write(dir, DATA, "data, half a task\n");
+        write(dir, APP, "// production code\n// half a task\n");
+        write(dir, NEW, "// a new file of the task\n");
+        rmSync(join(dir, DRIVER));
+        const before = await stands(dir);
+        await breaks(dir);
+
+        const r = await shelve(dir, "Q2");
+
+        failed(
+          r,
+          "failed part-way: the work is safe under the key Q2, but the working tree is neither at the last commit " +
+            `nor as the work has it; ${THREE("Q2")} The cause: `,
+        );
+        assert.equal(existsSync(join(dir, DATA)), false, "git deleted the file, and could write neither side of it");
+        assert.match(r.err, /; on the way back: /, "both causes");
+        assert.match(r.err, new RegExp(`${SMUDGE.source}\\n$`), "the line is not cut");
+        assert.deepEqual(await shelvedRefs(dir), [shelvedRef("Q2")], "the key holds the work");
+        await mends(dir);
+        await wayOut(dir, r.err, "Q2");
+        assert.deepEqual(await stands(dir), before, "the work is back where the next shelve takes it");
+        assert.equal((await shelve(dir, "Q2")).out, "shelved Q2: 4 files\n");
+        assert.deepEqual(await status(dir), []);
+      });
+
+      test("unshelve: the work cannot be written, so the paths are taken back to what they were", async (t) => {
+        const dir = await midTask(t);
+        await shelve(dir, "Q2");
+        write(dir, NEW, "// a new file of the task\n");
+        const before = await stands(dir);
+
+        const r = await unshelve(dir, "Q2", {}, withChange, failing("write+"));
+
+        assert.equal(
+          r.err,
+          "ERROR: nothing was changed: the work shelved under Q2 could not be written and is still under the key. " +
+            causes("write+"),
+        );
+        assert.deepEqual(await stands(dir), before, "also the new file that stood there already with the same content");
+        assert.equal((await unshelve(dir, "Q2")).out, "put back Q2: 3 files\n", "the command can be run again");
+      });
+
+      test("unshelve: the work cannot be written and the paths are taken back, but the tree cannot be read again: no line says nothing was changed, and the way out gets out", async (t) => {
+        const dir = await midTask(t);
+        const work = await stands(dir);
+        await shelve(dir, "Q2");
+
+        const r = await unshelve(dir, "Q2", {}, withChange, failing("write+,treeHolds"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the work is still safe under the key Q2, but the working tree could not be read " +
+            `in full: ${APP}, ${NEW}, ${DRIVER} could not be read; ${THREE("Q2")} ` +
+            causes("write+", undefined, "treeHolds"),
+        );
+        assert.deepEqual(await wayOut(dir, r.err, "Q2"), ["nothing to set aside", "put back Q2: 3 files"]);
+        assert.deepEqual(await stands(dir), work, "the work is back, and no key holds it");
+      });
+
+      // A filtered repository with a new file of the work set aside under Q1, and the same file standing there
+      // again, untracked: a put-back writes it all the same, and git deletes it before it writes it.
+      const STOOD = "src/App/New.flt";
+      async function stoodThere(t) {
+        const dir = await filtered(t);
+        write(dir, STOOD, "a new file of the task\n");
+        await shelve(dir, "Q1");
+        write(dir, STOOD, "a new file of the task\n");
+        const before = await stands(dir);
+        assert.deepEqual(before.status, [`?? ${STOOD}`], "the same file stands there again, untracked");
+        return { dir, before };
+      }
+
+      test("unshelve, for real: a new file of the work that stood there already, which git deletes and then cannot write: the way back writes it again, and nothing was changed", async (t) => {
+        const { dir, before } = await stoodThere(t);
+        await failsOnce(dir);
+
+        const r = await unshelve(dir, "Q1");
+
+        failed(
+          r,
+          "nothing was changed: the work shelved under Q1 could not be written and is still under the key. The " +
+            "cause: ",
+        );
+        assert.match(r.err, /The cause: git checkout-index failed: /);
+        assert.doesNotMatch(r.err, /on the way back/, "the way back did not fail");
+        assert.deepEqual(await stands(dir), before, "the file that stood there stands there again, byte for byte");
+        await mends(dir);
+        assert.equal((await unshelve(dir, "Q1")).out, "put back Q1: 1 file\n", "the command can be run again");
+      });
+
+      test("unshelve, for real: a new file of the work that stood there already, which git can neither write nor write back: the line says the tree is neither, and its way out gets out", async (t) => {
+        const { dir, before } = await stoodThere(t);
+        await breaks(dir);
+
+        const r = await unshelve(dir, "Q1");
+
+        failed(
+          r,
+          "failed part-way: the work is still safe under the key Q1, but the working tree is neither as it was " +
+            `before nor as the work has it; ${THREE("Q1")} The cause: `,
+        );
+        assert.match(r.err, new RegExp(`The cause: ${SMUDGE.source}; on the way back: ${SMUDGE.source}\\n$`));
+        assert.equal(existsSync(join(dir, STOOD)), false, "git deleted the file, and could not write it back");
+        await mends(dir);
+        assert.deepEqual(await wayOut(dir, r.err, "Q1"), ["nothing to set aside", "put back Q1: 1 file"]);
+        assert.deepEqual(await stands(dir), { ...before, shelved: [] }, "the file stands there again, as it was");
+      });
+
+      test("unshelve: neither written nor taken back, or taken back though its step failed: the tree is read again, and nothing was changed", async (t) => {
+        for (const [steps, first, back] of [
+          ["write,undo", "write", "undo"],
+          ["write+,undo+", "write+", "undo+"],
+        ]) {
+          const dir = await midTask(t);
+          await shelve(dir, "Q2");
+          const before = await stands(dir);
+
+          const r = await unshelve(dir, "Q2", {}, withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: nothing was changed: the work shelved under Q2 could not be written and is still under the key. " +
+              causes(first, back),
+            steps,
+          );
+          assert.deepEqual(await stands(dir), before, steps);
+        }
+      });
+
+      test("unshelve: neither written nor taken back, and the tree cannot be read again: the line says so and names the paths, and its way out gets out from where the tree is, as it was or holding the work", async (t) => {
+        for (const [steps, printed] of [
+          ["write,undo,treeHolds", ["nothing to set aside", "put back Q2: 3 files"]],
+          ["write+,undo,treeHolds", ["shelved Q2-out: 3 files", "put back Q2: 3 files", "dropped Q2-out: 3 files"]],
+        ]) {
+          const dir = await midTask(t);
+          const work = await stands(dir);
+          await shelve(dir, "Q2");
+
+          const r = await unshelve(dir, "Q2", {}, withChange, failing(steps));
+
+          const [first, back, reading] = steps.split(",");
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the work is still safe under the key Q2, but the working tree could not be read " +
+              `in full: ${APP}, ${NEW}, ${DRIVER} could not be read; ${THREE("Q2")} ${causes(first, back, reading)}`,
+            steps,
+          );
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), printed, steps);
+          assert.deepEqual(await stands(dir), work, `${steps}: the work is back, and no key holds it`);
+        }
+      });
+
+      test("unshelve: written whole and not taken back, or the key cannot be freed: the key holds a copy, and the way out removes it", async (t) => {
+        for (const [steps, first, back] of [
+          ["write+,undo", "write+", "undo"],
+          ["forget", "forget", undefined],
+        ]) {
+          const dir = await midTask(t);
+          const work = await stands(dir);
+          await shelve(dir, "Q2");
+
+          const r = await unshelve(dir, "Q2", {}, withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the work is back in the working tree, and the key Q2 still holds a copy of it; " +
+              `${OUT} unshelve --key Q2 --drop. ${causes(first, back)}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), { ...work, shelved: [shelvedRef("Q2")] }, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), ["dropped Q2: 3 files"]);
+          assert.deepEqual(await stands(dir), work, steps);
+        }
+      });
+
+      test("unshelve: the key is freed though its step failed: the work is back, and nothing is left to undo", async (t) => {
+        const dir = await midTask(t);
+        const work = await stands(dir);
+        await shelve(dir, "Q2");
+
+        const r = await unshelve(dir, "Q2", {}, withChange, failing("forget+"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the work is back in the working tree, and the key Q2 is free; nothing is left to " +
+            `undo. ${causes("forget+")}`,
+        );
+        assert.deepEqual(await stands(dir), work);
+      });
+
+      test("unshelve: the work is back, but the key cannot be freed and cannot be read again: the line says so and names no way out", async (t) => {
+        for (const [steps, freed] of [
+          ["forget,keyHolds", false],
+          ["forget+,keyHolds", true],
+        ]) {
+          const dir = await midTask(t);
+          const work = await stands(dir);
+          await shelve(dir, "Q2");
+
+          const r = await unshelve(dir, "Q2", {}, withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the work is back in the working tree, and whether the key Q2 still holds a copy " +
+              `of it could not be read. ${causes(steps.split(",")[0], undefined, "keyHolds")}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), freed ? work : { ...work, shelved: [shelvedRef("Q2")] }, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), [], "the runner runs nothing and goes on with the task");
+        }
+      });
+
+      test("unshelve, for real: a file git can neither write nor take back, which git deletes before it writes: the line says the tree holds neither side, names both causes whole, and its way out gets out", async (t) => {
+        const dir = await filtered(t);
+        write(dir, DATA, "data, half a task\n");
+        await shelve(dir, "Q1");
+        await breaks(dir);
+
+        const r = await unshelve(dir, "Q1");
+
+        failed(
+          r,
+          "failed part-way: the work is still safe under the key Q1, but the working tree is neither as it was " +
+            `before nor as the work has it; ${THREE("Q1")} The cause: `,
+        );
+        assert.match(r.err, new RegExp(`The cause: ${SMUDGE.source}; on the way back: ${SMUDGE.source}\\n$`));
+        assert.ok(r.err.length > 310, "longer than a line that is cut, and whole");
+        assert.equal(existsSync(join(dir, DATA)), false, "git deleted the file, and could write neither side of it");
+        await mends(dir);
+        assert.deepEqual(await wayOut(dir, r.err, "Q1"), [
+          "shelved Q1-out: 1 file",
+          "put back Q1: 1 file",
+          "dropped Q1-out: 1 file",
+        ]);
+        assert.equal(read(dir, DATA), "data, half a task\n");
+        assert.deepEqual(await status(dir), [` M ${DATA}`]);
+      });
+
+      test("unshelve, for real: a file of the work that git writes but cannot read again: the line names it, and its way out gets out", async (t) => {
+        const dir = await filtered(t);
+        write(dir, DATA, "data, half a task\n");
+        write(dir, APP, "// production code\n// half a task\n");
+        const work = await stands(dir);
+        await shelve(dir, "Q1");
+        await readsNoMore(dir);
+
+        const r = await unshelve(dir, "Q1", {}, withChange, failing("write+,undo"));
+
+        assert.equal(
+          r.err,
+          "ERROR: failed part-way: the work is still safe under the key Q1, but the working tree could not be read " +
+            `in full: ${DATA} could not be read; ${THREE("Q1")} ${causes("write+", "undo")}`,
+        );
+        await mends(dir);
+        assert.deepEqual(await wayOut(dir, r.err, "Q1"), [
+          "shelved Q1-out: 2 files",
+          "put back Q1: 2 files",
+          "dropped Q1-out: 2 files",
+        ]);
+        assert.deepEqual(await stands(dir), work, "the work is back, and no key holds it");
+      });
+
+      test("unshelve, for real: written in part and taken back in part: the way out it names touches nothing but the put-back's paths", async (t) => {
+        const dir = await filtered(t);
+        write(dir, DATA, "data, half a task\n");
+        write(dir, NEW, "// a new file of the task\n");
+        rmSync(join(dir, DRIVER));
+        const work = await stands(dir);
+        await shelve(dir, "Q2");
+        // What the bookkeeping records meanwhile, the one uncommitted change unshelve lets stand.
+        await tdd(dir, withChange("put", { section: "Open", key: "Q2", value: "answered: go on" }));
+        await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+        const books = () => [STATE, REVIEWS].map((path) => read(dir, path));
+        const recorded = books();
+        await breaks(dir);
+
+        const r = await unshelve(dir, "Q2");
+
+        failed(
+          r,
+          "failed part-way: the work is still safe under the key Q2, but the working tree is neither as it was " +
+            `before nor as the work has it; ${THREE("Q2")} The cause: `,
+        );
+        assert.match(r.err, new RegExp(`The cause: ${SMUDGE.source}; on the way back: ${SMUDGE.source}\\n$`));
+        await mends(dir);
+        // Git deleted the deleted file and the filtered one, and could take neither back.
+        assert.deepEqual(await wayOut(dir, r.err, "Q2"), [
+          "shelved Q2-out: 2 files",
+          "put back Q2: 3 files",
+          "dropped Q2-out: 2 files",
+        ]);
+        assert.deepEqual(books(), recorded, "what the bookkeeping recorded stays, byte for byte");
+        const outsideBooks = (files) => files.filter((file) => !file.startsWith(`${FOLDER}/.`));
+        assert.deepEqual(
+          outsideBooks(workingFiles(dir)),
+          outsideBooks(work.files),
+          "and every other file holds the work",
+        );
+        assert.deepEqual(await shelvedRefs(dir), []);
+      });
+
+      test("unshelve --drop: the key cannot be freed, and nothing was changed; or it is freed though its step failed", async (t) => {
+        for (const [steps, message] of [
+          [
+            "forget",
+            "nothing was changed: the work shelved under Q2 could not be thrown away and is still under the key. " +
+              causes("forget"),
+          ],
+          [
+            "forget+",
+            "failed part-way: the work shelved under Q2 is thrown away, as asked; nothing is left to undo. " +
+              causes("forget+"),
+          ],
+        ]) {
+          const dir = await midTask(t);
+          await shelve(dir, "Q2");
+          const before = await stands(dir);
+
+          const r = await unshelve(dir, "Q2", { drop: true }, withChange, failing(steps));
+
+          assert.equal(r.err, `ERROR: ${message}`, steps);
+          assert.deepEqual(await stands(dir), steps === "forget" ? before : { ...before, shelved: [] }, steps);
+        }
+      });
+
+      test("unshelve --drop: the key cannot be freed and cannot be read again: the line says only what is known and names no way out", async (t) => {
+        for (const [steps, freed] of [
+          ["forget,keyHolds", false],
+          ["forget+,keyHolds", true],
+        ]) {
+          const dir = await midTask(t);
+          await shelve(dir, "Q2");
+          const before = await stands(dir);
+
+          const r = await unshelve(dir, "Q2", { drop: true }, withChange, failing(steps));
+
+          assert.equal(
+            r.err,
+            "ERROR: failed part-way: the working tree is unchanged, and whether the key Q2 still holds the shelved " +
+              `work could not be read. ${causes(steps.split(",")[0], undefined, "keyHolds")}`,
+            steps,
+          );
+          assert.deepEqual(await stands(dir), freed ? { ...before, shelved: [] } : before, steps);
+          assert.deepEqual(await wayOut(dir, r.err, "Q2"), [], "the runner runs nothing and goes on");
+        }
+      });
+    },
+  );
 });
 
 describe("route", { concurrency: true }, () => {
@@ -2969,7 +5686,7 @@ describe("route", { concurrency: true }, () => {
     contractChange: false,
     ...more,
   });
-  // Three findings, one for each outcome, as the chapter-reviewer's line carries them.
+  // Three findings, one for each outcome, as JSON.
   const FINDINGS = JSON.stringify([
     { id: "B-1", outside: false, reviewerDisagrees: false, verdicts: [confirmed()] },
     { id: "B-2", verdicts: [{ verdict: "refuted", evidence: true }] },
@@ -2988,13 +5705,6 @@ describe("route", { concurrency: true }, () => {
     assert.equal(r.out, ROUTED);
     assert.equal(r.err, "");
     assert.deepEqual(readdirSync(outside), []);
-  });
-
-  test("takes the line with the label the chapter-reviewer's hand-back puts before it", async (t) => {
-    const r = await tdd(tempFolder(t), ["route", "--json", `ROUTE INPUT: ${FINDINGS}`]);
-
-    assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, ROUTED);
   });
 
   test("reads the findings from a file with --in, from the folder it is called in or by its whole path", async (t) => {
@@ -3050,10 +5760,10 @@ describe("route", { concurrency: true }, () => {
     assert.equal(r.out, ROUTED);
     assert.deepEqual(await status(dir), before);
     assert.equal(existsSync(gitFolder(dir)), true, "only `init` made git's folder for the lock");
-    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    assert.deepEqual(leftInGitFolder(dir), []);
   });
 
-  test("needs exactly one of --json, --in, --stdin and --reports", async (t) => {
+  test("needs exactly one of --json, --in, --stdin, --reports and --chapter", async (t) => {
     const dir = tempFolder(t);
     write(dir, "results.json", FINDINGS);
     write(dir, "reports/3-1.md", "VERDICT: unsure\n");
@@ -3066,6 +5776,9 @@ describe("route", { concurrency: true }, () => {
       ["--in", "results.json", "--reports", "reports", "--ids", "3"],
       ["--stdin", "--reports", "reports", "--ids", "3"],
       ["--ids", "3"],
+      ["--json", FINDINGS, "--change", CHANGE, "--chapter", "B"],
+      ["--reports", "reports", "--ids", "3", "--chapter", "B"],
+      ["--change", CHANGE],
     ]) {
       const r = await tdd(dir, ["route", ...args], { input: FINDINGS });
 
@@ -3073,7 +5786,8 @@ describe("route", { concurrency: true }, () => {
       assert.equal(r.out, "");
       assert.equal(
         r.err,
-        "ERROR: route needs one of --json <text>, --in <file>, --stdin and --reports <folder> with --ids\n",
+        "ERROR: route needs one of --json <text>, --in <file>, --stdin, --reports <folder> with --ids, and " +
+          "--change <change-name> with --chapter <X>\n",
       );
     }
   });
@@ -3295,6 +6009,168 @@ describe("route", { concurrency: true }, () => {
     }
   });
 
+  // A folder of report files for --merged: 1 and 2 are fixed (2 is a docs fix), 3 and 4 declined, 5 is asked
+  // about (its two checks disagree), 6 is fixed.
+  const forGroups = (t) => {
+    const docs = REPORT.confirmed.map((l) => l.replace("KIND: behaviour", "KIND: docs"));
+    return reports(t, {
+      1: [REPORT.confirmed, REPORT.confirmed],
+      2: [docs, docs],
+      3: [REPORT.refuted, REPORT.refuted],
+      4: [REPORT.refuted, REPORT.refuted],
+      5: [REPORT.confirmed, REPORT.refuted],
+      6: [docs, docs],
+    });
+  };
+
+  test("with --merged, sorts findings that have one cause as one: all fixed, all declined, or asked about when any is", async (t) => {
+    const folder = forGroups(t);
+
+    const r = await tdd(tempFolder(t), [
+      "route",
+      ...["--reports", folder, "--ids", "1,2,3,4,5,6"],
+      ...["--merged", "2+1", "--merged", "3+4", "--merged", "6+5"],
+    ]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, "");
+    assert.equal(
+      r.out,
+      "1, 2 → FIX · behaviour\n3, 4 → DECLINE · refuted with evidence\n" +
+        "5, 6 → ASK · 5: the two checks disagree on the verdict\nFIX 1 · DECLINE 1 · ASK 1\n",
+    );
+  });
+
+  test("with --merged, a fixed group's kind is the first finding's unless one of them is a behaviour fix", async (t) => {
+    const folder = forGroups(t);
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "6,2,1", "--merged", "6+2"]);
+
+    assert.equal(r.out, "2, 6 → FIX · docs\n1 → FIX · behaviour\nFIX 2 · DECLINE 0 · ASK 0\n");
+  });
+
+  test("with --merged, findings of a group that come out fixed and declined are printed each on its own, with a note", async (t) => {
+    const folder = forGroups(t);
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,3,6", "--merged", "3+1"]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(
+      r.out,
+      "1 → FIX · behaviour\n3 → DECLINE · refuted with evidence\n1, 3: not merged, their outcomes differ\n" +
+        "6 → FIX · docs\nFIX 2 · DECLINE 1 · ASK 0\n",
+    );
+  });
+
+  test("with --merged, names a group by its ids in rising order: by number, or as --ids has them when they are no numbers", async (t) => {
+    const folder = reports(t, {
+      2: [REPORT.confirmed, REPORT.confirmed],
+      10: [REPORT.confirmed, REPORT.confirmed],
+      9: [REPORT.confirmed, REPORT.confirmed],
+      "B-2": [REPORT.refuted, REPORT.refuted],
+      "B-10": [REPORT.refuted, REPORT.refuted],
+    });
+
+    const numbers = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "10,9,2", "--merged", "10+2+9"]);
+    const names = await tdd(tempFolder(t), [
+      "route",
+      "--reports",
+      folder,
+      "--ids",
+      "B-10,B-2",
+      "--merged",
+      " B-2 + B-10 ",
+    ]);
+
+    assert.equal(numbers.out, "2, 9, 10 → FIX · behaviour\nFIX 1 · DECLINE 0 · ASK 0\n");
+    assert.equal(names.out, "B-10, B-2 → DECLINE · refuted with evidence\nFIX 0 · DECLINE 1 · ASK 0\n");
+  });
+
+  test("with --merged, refuses in one line a group of one, an id --ids does not name, and an id named twice or in two groups", async (t) => {
+    const folder = forGroups(t);
+    const sorted = ["--reports", folder, "--ids", "1,2,3,4"];
+
+    for (const [args, message] of [
+      [[...sorted, "--merged", "1"], "--merged 1: a group is two findings or more, as <id>+<id>"],
+      [[...sorted, "--merged", "1+"], "--merged 1+: a group is two findings or more, as <id>+<id>"],
+      [[...sorted, "--merged", "1,2"], "--merged 1,2: a group is two findings or more, as <id>+<id>"],
+      [[...sorted, "--merged", "1+7"], "--merged 1+7: finding 7 is not among --ids"],
+      [[...sorted, "--merged", "1+2+1"], "--merged 1+2+1: finding 1 is named twice"],
+      [[...sorted, "--merged", "1+2", "--merged", "3+2"], "--merged 1+2 and --merged 3+2: finding 2 is in two groups"],
+      [
+        ["--json", FINDINGS, "--merged", "B-1+B-2"],
+        "--merged goes with --reports <folder> and --ids: it names findings there that have one cause",
+      ],
+      [
+        ["--change", CHANGE, "--chapter", "B", "--merged", "B-1+B-2"],
+        "--merged goes with --reports <folder> and --ids: it names findings there that have one cause",
+      ],
+    ]) {
+      const r = await tdd(tempFolder(t), ["route", ...args]);
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.equal(r.err, `ERROR: ${message}\n`);
+    }
+  });
+
+  test("with --missing, sorts a finding for which a check returned nothing as one without results, whatever files an earlier start left", async (t) => {
+    const folder = forGroups(t);
+    const before = readdirSync(folder);
+
+    const r = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2,3,4", "--missing", "1, 3"]);
+    const oneByOne = await tdd(tempFolder(t), [
+      "route",
+      ...["--reports", folder, "--ids", "1,2,3,4"],
+      ...["--missing", "1", "--missing", "3"],
+    ]);
+    const none = await tdd(tempFolder(t), ["route", "--reports", folder, "--ids", "1,2", "--missing", ""]);
+
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, "", "the files of 1 and 3 are not read, so nothing is said of them");
+    assert.equal(
+      r.out,
+      "1 → ASK · a check returned no result\n2 → FIX · docs\n3 → ASK · a check returned no result\n" +
+        "4 → DECLINE · refuted with evidence\nFIX 1 · DECLINE 1 · ASK 2\n",
+    );
+    assert.equal(oneByOne.out, r.out);
+    assert.equal(
+      none.out,
+      "1 → FIX · behaviour\n2 → FIX · docs\nFIX 2 · DECLINE 0 · ASK 0\n",
+      "no id: none is missing",
+    );
+    assert.deepEqual(readdirSync(folder), before, "the folder is left as it was");
+  });
+
+  test("with --missing and --merged, a group asks when one of its findings is missing", async (t) => {
+    const folder = forGroups(t);
+
+    const r = await tdd(tempFolder(t), [
+      "route",
+      ...["--reports", folder, "--ids", "1,2,6", "--merged", "1+2", "--missing", "2"],
+    ]);
+
+    assert.equal(r.out, "1, 2 → ASK · 2: a check returned no result\n6 → FIX · docs\nFIX 1 · DECLINE 0 · ASK 1\n");
+  });
+
+  test("with --missing, refuses in one line an id --ids does not name, and the option without --reports", async (t) => {
+    const folder = forGroups(t);
+    const goesWith =
+      "--missing goes with --reports <folder> and --ids: it names findings there for which a check returned nothing";
+
+    for (const [args, message] of [
+      [["--reports", folder, "--ids", "1,2", "--missing", "2,9"], "--missing: finding 9 is not among --ids"],
+      [["--json", FINDINGS, "--missing", "B-1"], goesWith],
+      [["--change", CHANGE, "--chapter", "B", "--missing", "B-1"], goesWith],
+    ]) {
+      const r = await tdd(tempFolder(t), ["route", ...args]);
+
+      assert.equal(r.code, 1, args.join(" "));
+      assert.equal(r.out, "");
+      assert.equal(r.err, `ERROR: ${message}\n`);
+    }
+  });
+
   test("refuses the whole input in one line that names the finding and the field, and prints no outcome", async (t) => {
     const dir = tempFolder(t);
     const wrong = JSON.stringify([
@@ -3488,7 +6364,7 @@ describe("report", { concurrency: true }, () => {
     };
     // The refusal of a path inside a repository, which names the repository's folder.
     const INSIDE =
-      /^ERROR: --file lies inside a repository: a report is saved outside every repository, in the triage's work folder \(the repository: (.+)\)\n$/;
+      /^ERROR: --file lies inside a repository: a report is saved outside every repository, in the triage's work folder or, in an apply, in the chapter's reports folder \(the repository: (.+)\)\n$/;
     const refusedAsInside = (r, repository) => {
       refused(r, INSIDE);
       samePath(INSIDE.exec(r.err)[1], repository);
@@ -3636,9 +6512,785 @@ describe("report", { concurrency: true }, () => {
   });
 });
 
+describe("a chapter review: reports, review and route --chapter", { concurrency: true }, () => {
+  // Where a test's reports go: the commands keep them under the OS temp folder, which these variables name.
+  const tempEnv = (dir) => ({ TEMP: dir, TMP: dir, TMPDIR: dir });
+  // The folder's name is the chapter's in lower case, whatever the case the chapter is named in.
+  const reportsOf = (temp, chapter = "B", change = CHANGE) =>
+    join(temp, "tdd-runs", change, "reports", chapter.toLowerCase());
+  const SECTION = "Chapter B review";
+
+  // The lines of a verifier's report, by its verdict; `ID:` is put before them.
+  const REPORT = {
+    confirmed: [
+      "VERDICT: confirmed",
+      "EVIDENCE: src/App/Mapping.cs:12, and the test A_made_up_test",
+      "SEVERITY: important",
+      "KIND: behaviour",
+      "FIX: local · small · spec behaviour no · contract change no · return nothing for a missing balance",
+    ],
+    refuted: ["VERDICT: refuted", "EVIDENCE: Mapping.cs:31 rounds once", "KIND: not applicable", "FIX: not applicable"],
+    unsure: ["VERDICT: unsure"],
+  };
+  const docs = REPORT.confirmed.map((l) => l.replace("KIND: behaviour", "KIND: docs"));
+  const notLocal = REPORT.confirmed.map((l) => l.replace("FIX: local", "FIX: not local"));
+
+  // The reports folder of chapter B under `temp`, holding these findings' reports (the lines of each, by its id).
+  function withReports(temp, findings, chapter = "B") {
+    const folder = reportsOf(temp, chapter);
+    mkdirSync(folder, { recursive: true });
+    for (const [id, lines] of Object.entries(findings)) {
+      write(folder, `${id}-1.md`, `# Finding ${id}\n\nID: ${id}\n${lines.join("\n")}\n\nALSO NOTICED: —\n`);
+    }
+    return folder;
+  }
+
+  // A record of chapter B: its two lines at the top (`counts` is the FINDINGS line without its label), then the
+  // findings' lines.
+  const record = (counts, ...lines) =>
+    ["REVIEW: chapter B, 1a2b3c4..5d6e7f8, 6 commits, 9 files changed", `FINDINGS: ${counts}`, "", ...lines, ""].join(
+      "\n",
+    );
+  const B1 = [
+    "B-1 · important · confirmed · behaviour · src/App/Mapping.cs:12 · in the chapter",
+    "  DEFECT: A missing balance maps to zero.",
+    "  SCENARIO: A made-up account without a balance, then 0 is shown.",
+    "  FIX: local · small · spec behaviour no · contract change no · return nothing for a missing balance",
+    "  VERIFIER: MappingTests.cs:40 covers no missing balance.",
+    "  BUILDS ON IT: nothing",
+  ];
+  const B2 = [
+    "B-2 · not applicable · refuted · not applicable · src/App/Mapping.cs:30 · in the chapter",
+    "  DEFECT: The amount is rounded twice.",
+    "  VERIFIER: Mapping.cs:31 rounds once; the second call is a format.",
+  ];
+  const TWO = record("2 · confirmed 1 · refuted 1 · unsure 0 · no report 0", ...B1, "", ...B2);
+
+  const reviewed = (dir, temp, text, more = {}) =>
+    tdd(dir, withChange("review", { chapter: "B", stdin: true, ...more }), { input: text, env: tempEnv(temp) });
+  const routedChapter = (dir, temp, chapter = "B") =>
+    tdd(dir, ["route", "--change", CHANGE, "--chapter", chapter], { env: tempEnv(temp) });
+  const refused = (r, message) => {
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.out, "");
+    if (typeof message === "string") assert.equal(r.err, `ERROR: ${message}\n`);
+    else assert.match(r.err, message);
+    assert.ok(oneLine(r.err), r.err);
+  };
+
+  describe("reports", { concurrency: true }, () => {
+    test("prints the chapter's reports folder under the temp folder's tdd-runs, with forward slashes, and creates it", async (t) => {
+      const dir = repository(t);
+      const temp = tempFolder(t);
+
+      const r = await tdd(dir, withChange("reports", { chapter: "B" }), { env: tempEnv(temp) });
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, `${slashed(reportsOf(temp))}\n`);
+      assert.ok(r.out.endsWith(`/tdd-runs/${CHANGE}/reports/b\n`), r.out);
+      assert.equal(r.out.includes("\\"), false);
+      assert.deepEqual(readdirSync(reportsOf(temp)), []);
+      assert.deepEqual(await status(dir), [], "nothing in the working tree, and it needs no state file");
+      assert.equal(existsSync(gitFolder(dir)), false, "no lock is taken");
+    });
+
+    test("names one folder for a chapter whatever the case its name is given in, as its section is one", async (t) => {
+      const dir = repository(t);
+      const temp = tempFolder(t);
+      const of = (chapter) => tdd(dir, withChange("reports", { chapter }), { env: tempEnv(temp) });
+
+      const [upper, lower, word] = [await of("B2"), await of("b2"), await of("Acceptance")];
+
+      assert.equal(upper.out, lower.out);
+      assert.ok(upper.out.endsWith("/reports/b2\n"), upper.out);
+      assert.ok(word.out.endsWith("/reports/acceptance\n"), word.out);
+      assert.deepEqual(readdirSync(join(temp, "tdd-runs", CHANGE, "reports")).sort(), ["acceptance", "b2"]);
+    });
+
+    test("keeps what the folder holds, and each chapter has its own", async (t) => {
+      const dir = repository(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, { "B-1": REPORT.confirmed });
+
+      const again = await tdd(dir, withChange("reports", { chapter: "B" }), { env: tempEnv(temp) });
+      const other = await tdd(dir, withChange("reports", { chapter: "acceptance" }), { env: tempEnv(temp) });
+
+      assert.equal(again.out, `${slashed(folder)}\n`);
+      assert.deepEqual(readdirSync(folder), ["B-1-1.md"]);
+      assert.equal(other.out, `${slashed(reportsOf(temp, "acceptance"))}\n`);
+      assert.deepEqual(readdirSync(join(temp, "tdd-runs", CHANGE, "reports")).sort(), ["acceptance", "b"]);
+    });
+
+    test("with --new, empties the chapter's folder first, and nothing else under tdd-runs", async (t) => {
+      const dir = repository(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted });
+      const earlier = withReports(temp, { "A-1": REPORT.refuted }, "A");
+      write(join(temp, "tdd-runs", CHANGE), "20261125-101500-unit.log", "a log of run\n");
+
+      const r = await tdd(dir, withChange("reports", { chapter: "B", new: true }), { env: tempEnv(temp) });
+      const fresh = await tdd(dir, withChange("reports", { chapter: "C", new: true }), { env: tempEnv(temp) });
+
+      assert.equal(r.out, `${slashed(folder)}\n`);
+      assert.deepEqual(readdirSync(folder), []);
+      assert.deepEqual(readdirSync(earlier), ["A-1-1.md"]);
+      assert.equal(read(join(temp, "tdd-runs", CHANGE), "20261125-101500-unit.log"), "a log of run\n");
+      assert.equal(fresh.out, `${slashed(reportsOf(temp, "C"))}\n`, "a folder that is not there yet is created");
+    });
+
+    test("names a folder that report saves into: outside every repository", async (t) => {
+      const dir = repository(t);
+      const temp = tempFolder(t);
+      const folder = (
+        await tdd(dir, withChange("reports", { chapter: "B", new: true }), { env: tempEnv(temp) })
+      ).out.trim();
+
+      const r = await tdd(dir, ["report", "--file", `${folder}/B-1-1.md`, "--stdin"], {
+        input: `ID: B-1\n${REPORT.confirmed.join("\n")}\n`,
+      });
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, `report: ${folder}/B-1-1.md | confirmed\n`);
+    });
+
+    test("is refused, in one line, without a chapter, for a name that is no chapter's, and for a triage", async (t) => {
+      const { dir } = await triaging(t);
+      const temp = tempFolder(t);
+      const env = tempEnv(temp);
+      const CHAPTER =
+        /^ERROR: --chapter <X> is the chapter's name, one word of letters, digits, dots, dashes and underscores such as A, B2 or acceptance/;
+
+      refused(await tdd(dir, withChange("reports"), { env }), CHAPTER);
+      for (const chapter of ["../B", "B/2", "a b", ".", " ", "A.", "A..", ".A", "A-", "_A", "chapter A"]) {
+        refused(await tdd(dir, withChange("reports", { chapter }), { env }), CHAPTER);
+      }
+      refused(await tdd(dir, withChange("reports", { chapter: "A." }), { env }), /: "A\."\n$/);
+      refused(
+        await tdd(dir, withPr("reports", { chapter: "B" }), { env }),
+        "reports is the apply's: it takes --change",
+      );
+      refused(
+        await tdd(dir, ["reports", "--chapter", "B"], { env }),
+        "reports needs --change <change-name>: it is the apply's",
+      );
+      refused(
+        await tdd(dir, ["reports", "--change", "c901-not-there", "--chapter", "B"], { env }),
+        /^ERROR: no change folder /,
+      );
+      assert.deepEqual(readdirSync(temp), [], "every one of them had the temp folder, and made nothing in it");
+      assert.equal((await tdd(dir, withChange("reports", { chapter: "A.1_b-2" }), { env })).code, 0);
+      assert.deepEqual(readdirSync(join(temp, "tdd-runs", CHANGE, "reports")), ["a.1_b-2"]);
+    });
+  });
+
+  describe("review", { concurrency: true }, () => {
+    test("records the reviewer's record in the reviews file, once it agrees with the reports, and says what it holds", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted });
+      await tdd(dir, withChange("add", { file: "reviews", section: "Chapter A", line: "clean" }));
+      const before = read(dir, REVIEWS);
+
+      const r = await reviewed(dir, temp, TWO);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, "review: chapter B | 2 findings · confirmed 1 · refuted 1 · unsure 0 · no report 0\n");
+      const text = read(dir, REVIEWS);
+      assert.equal(sectionBody(text, SECTION), TWO.trim());
+      assert.deepEqual(sectionNames(text), ["Chapter A", SECTION]);
+      assert.ok(text.startsWith(before.trimEnd()), "the other sections keep every byte");
+      assert.deepEqual(leftInGitFolder(dir), [], "no lock is left");
+    });
+
+    test("creates the reviews file when it is the first to write it, and takes a record without findings", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      const none = record("0 · confirmed 0 · refuted 0 · unsure 0 · no report 0");
+
+      const r = await reviewed(dir, temp, none);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, "review: chapter B | 0 findings · confirmed 0 · refuted 0 · unsure 0 · no report 0\n");
+      assert.equal(sectionBody(read(dir, REVIEWS), SECTION), none.trim());
+      assert.equal(existsSync(reportsOf(temp)), false, "it creates no reports folder");
+    });
+
+    test("replaces the chapter's record when the review runs again", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted });
+      await reviewed(dir, temp, TWO);
+      const one = record("1 · confirmed 1 · refuted 0 · unsure 0 · no report 0", ...B1);
+      // The review that runs again empties the folder first (`reports --new`), and has its own reports.
+      rmSync(join(folder, "B-2-1.md"));
+
+      const r = await reviewed(dir, temp, one);
+
+      assert.equal(r.out, "review: chapter B | 1 finding · confirmed 1 · refuted 0 · unsure 0 · no report 0\n");
+      assert.equal(sectionBody(read(dir, REVIEWS), SECTION), one.trim());
+    });
+
+    test("takes no report for a finding whose report is missing or cannot be read, and a finding merged into another", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      withReports(temp, { "B-1": REPORT.confirmed, "B-3": docs, "B-5": ["The finding is real."] });
+      const text = record(
+        "3 · confirmed 1 · refuted 0 · unsure 0 · no report 2",
+        ...B1,
+        "  MERGED: B-3 · src/App/Mapping.cs:44",
+        "  AFFECTS: B-5: its fix moves the method this one changes.",
+        "B-4 · not applicable · no report · not applicable · src/App/Other.cs:3 · outside",
+        "B-5 · not applicable · no report · not applicable · src/App/Other.cs:9 · in the chapter",
+      );
+
+      const r = await reviewed(dir, temp, text);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.out, "review: chapter B | 3 findings · confirmed 1 · refuted 0 · unsure 0 · no report 2\n");
+    });
+
+    test("takes the chapter's name whatever its case: one section and one reports folder for B and b", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted });
+      const one = record("1 · confirmed 1 · refuted 0 · unsure 0 · no report 0", ...B1);
+
+      const upper = await reviewed(dir, temp, TWO);
+      rmSync(join(folder, "B-2-1.md")); // the review that runs again has its own reports
+      const lower = await reviewed(dir, temp, one, { chapter: "b" });
+      const sorted = await routedChapter(dir, temp, "b");
+
+      assert.equal(upper.code, 0, upper.err);
+      assert.equal(lower.out, "review: chapter b | 1 finding · confirmed 1 · refuted 0 · unsure 0 · no report 0\n");
+      assert.deepEqual(sectionNames(read(dir, REVIEWS)), [SECTION], "the same section, under the name it had");
+      assert.equal(sectionBody(read(dir, REVIEWS), SECTION), one.trim());
+      assert.equal(sorted.out, "B-1 → FIX · behaviour\nFIX 1 · DECLINE 0 · ASK 0\n");
+    });
+
+    test("takes a report file whose name differs from its finding's in the case of its letters alone as that finding's where the disk does not tell the two apart, and as no report where it does", async (t) => {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted });
+      renameSync(join(folder, "B-2-1.md"), join(folder, "b-2-1.md"));
+      const caseBlind = existsSync(join(folder, "B-2-1.md"));
+
+      const r = await reviewed(dir, temp, TWO);
+
+      if (caseBlind) {
+        assert.equal(r.code, 0, r.err);
+      } else {
+        refused(
+          r,
+          `not recorded: line 11: finding B-2 says refuted, and it has no report B-2-1.md in ${slashed(folder)}; a ` +
+            'finding whose verifier never reported says "no report"',
+        );
+      }
+    });
+
+    describe(
+      "refuses, in one line that names the line and the finding, and writes nothing",
+      { concurrency: true },
+      () => {
+        // An apply whose chapter B has the reports of B-1 (confirmed) and B-2 (refuted), changed by `reports`.
+        async function chapter(t, reports = {}) {
+          const dir = await initialized(t);
+          const temp = tempFolder(t);
+          const folder = withReports(temp, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted, ...reports });
+          return { dir, temp, folder };
+        }
+        const nothingWritten = (dir) => assert.equal(existsSync(join(dir, REVIEWS)), false);
+
+        test("a text that is not the record: its first line, its counts, a finding's first line", async (t) => {
+          const { dir, temp } = await chapter(t);
+
+          for (const [text, pattern] of [
+            ["", /^ERROR: not recorded: the record is empty; it starts with "REVIEW: chapter B, …"\n$/],
+            [
+              TWO.replace("chapter B,", "chapter C,"),
+              /^ERROR: not recorded: line 1: "REVIEW: chapter C, .*" is not the record's first line; /,
+            ],
+            [
+              TWO.replace("FINDINGS: 2", "FINDINGS: 3"),
+              /^ERROR: not recorded: line 2: FINDINGS says 3 · confirmed 1 · .*, and the findings' first lines say 2 · /,
+            ],
+            [
+              TWO.replace("B-1 · important", "B-1 · major"),
+              /^ERROR: not recorded: line 4: finding B-1: its second part is "major"; it is one of: important, nit, not applicable\n$/,
+            ],
+            [
+              TWO.replace(" · in the chapter\n  DEFECT: A missing", "\n  DEFECT: A missing"),
+              /^ERROR: not recorded: line 4: ".*" has 5 parts, and a finding's first line has six: .*; a line of a finding's details starts with two spaces\n$/,
+            ],
+          ]) {
+            refused(await reviewed(dir, temp, text), pattern);
+          }
+          nothingWritten(dir);
+        });
+
+        test("a verdict or a confirmed finding's kind that is not its report's", async (t) => {
+          const { dir, temp } = await chapter(t, { "B-1": docs, "B-2": REPORT.unsure });
+
+          refused(
+            await reviewed(dir, temp, TWO),
+            "not recorded: line 4: finding B-1 says behaviour, and its report B-1-1.md says KIND: docs",
+          );
+          refused(
+            await reviewed(dir, temp, TWO.replace("confirmed · behaviour", "confirmed · docs")),
+            "not recorded: line 11: finding B-2 says refuted, and its report B-2-1.md says unsure",
+          );
+          nothingWritten(dir);
+        });
+
+        test("a verdict for a finding without a report, naming the folder, and no report for one that has a report", async (t) => {
+          const { dir, temp, folder } = await chapter(t);
+          rmSync(join(folder, "B-2-1.md"));
+          const noReport = TWO.replace(
+            "important · confirmed · behaviour",
+            "not applicable · no report · not applicable",
+          ).replace(
+            "FINDINGS: 2 · confirmed 1 · refuted 1 · unsure 0 · no report 0",
+            "FINDINGS: 2 · confirmed 0 · refuted 1 · unsure 0 · no report 1",
+          );
+
+          refused(
+            await reviewed(dir, temp, TWO),
+            `not recorded: line 11: finding B-2 says refuted, and it has no report B-2-1.md in ${slashed(folder)}; a finding ` +
+              'whose verifier never reported says "no report"',
+          );
+          refused(
+            await reviewed(dir, temp, noReport),
+            'not recorded: line 4: finding B-1 says "no report", and its report B-1-1.md is there and says confirmed',
+          );
+          nothingWritten(dir);
+        });
+
+        test("a verdict for a finding whose report cannot be read", async (t) => {
+          const { dir, temp } = await chapter(t, { "B-1": ["The finding is real."] });
+
+          refused(
+            await reviewed(dir, temp, TWO),
+            'not recorded: line 4: finding B-1 says confirmed, and its report B-1-1.md cannot be read, which makes it "no ' +
+              'report": it has no VERDICT line',
+          );
+          nothingWritten(dir);
+        });
+
+        test("a merged finding with a first line of its own, without a report, or with another verdict", async (t) => {
+          const { dir, temp, folder } = await chapter(t, { "B-3": REPORT.refuted });
+          const merged = record(
+            "1 · confirmed 1 · refuted 0 · unsure 0 · no report 0",
+            ...B1,
+            "  MERGED: B-3 · src/App/Mapping.cs:44",
+          );
+
+          refused(
+            await reviewed(dir, temp, merged),
+            "not recorded: line 4: finding B-1 (line 10) names B-3 as merged into it, and its report B-3-1.md says " +
+              "refuted, not confirmed: findings are merged only when their verdicts are the same",
+          );
+          refused(
+            await reviewed(dir, temp, merged.replace("B-3", "B-4")),
+            `not recorded: line 4: finding B-1 (line 10) names B-4 as merged into it, and B-4 has no report B-4-1.md in ${slashed(folder)}`,
+          );
+          refused(
+            await reviewed(dir, temp, TWO.replace("  BUILDS ON IT: nothing", "  MERGED: B-2 · src/App/Mapping.cs:30")),
+            /^ERROR: not recorded: line 9: finding B-1: MERGED names B-2, which has a first line of its own \(line 11\); /,
+          );
+          nothingWritten(dir);
+        });
+
+        test("a MERGED line that names more than one finding, an AFFECTS line that names none of the record, and a REVIEWER DISAGREES line that says nothing", async (t) => {
+          const { dir, temp } = await chapter(t, { "B-3": REPORT.confirmed });
+          const withLine = (line) => TWO.replace("  BUILDS ON IT: nothing", line);
+
+          refused(
+            await reviewed(dir, temp, withLine("  MERGED: B-3, B-4 · src/App/Mapping.cs:44")),
+            'not recorded: line 9: finding B-1: "MERGED: B-3, B-4 · src/App/Mapping.cs:44" is not "MERGED: <the other ' +
+              "finding's id> · <its file:line>\": one MERGED line per finding merged in",
+          );
+          refused(
+            await reviewed(dir, temp, withLine("  AFFECTS: B-9: both fixes change the same method.")),
+            "not recorded: line 9: finding B-1: AFFECTS names B-9, which is no finding of this record",
+          );
+          refused(
+            await reviewed(dir, temp, withLine("  AFFECTS: B-2 and its fix")),
+            'not recorded: line 9: finding B-1: "AFFECTS: B-2 and its fix" is not "AFFECTS: <the other finding\'s id>: ' +
+              '<one sentence>"',
+          );
+          refused(
+            await reviewed(dir, temp, withLine("  REVIEWER DISAGREES:")),
+            'not recorded: line 9: finding B-1: "REVIEWER DISAGREES:" names nothing you disagree on: say it in one ' +
+              "sentence, or leave the line out when you agree",
+          );
+          for (const [said, start] of [
+            [" none", "none"],
+            [" No disagreement.", "No"],
+            [" —", "—"],
+            [" not applicable", "not applicable"],
+            [" I agree with the verifier.", "I agree"],
+          ]) {
+            refused(
+              await reviewed(dir, temp, withLine(`  REVIEWER DISAGREES:${said}`)),
+              `not recorded: line 9: finding B-1: "REVIEWER DISAGREES:${said}" names nothing you disagree on: a line ` +
+                `that starts with "${start}" agrees; start your sentence otherwise, or leave the line out when you agree`,
+            );
+          }
+          nothingWritten(dir);
+        });
+
+        test("a report file that belongs to no finding of the record: its finding left out, or named after a MERGED line's dot", async (t) => {
+          const { dir, temp, folder } = await chapter(t, { "B-3": REPORT.confirmed });
+          const withLine = (line) => TWO.replace("  BUILDS ON IT: nothing", line);
+
+          refused(
+            await reviewed(dir, temp, TWO),
+            `not recorded: the report B-3-1.md in ${slashed(folder)} belongs to no finding of the record: give it its ` +
+              "line, or merge it",
+          );
+          refused(
+            await reviewed(dir, temp, withLine("  MERGED: B-2 · B-3")),
+            'not recorded: line 9: finding B-1: "MERGED: B-2 · B-3" is not "MERGED: <the other finding\'s id> · <its ' +
+              'file:line>": one MERGED line per finding merged in',
+          );
+          nothingWritten(dir);
+          const merged = await reviewed(dir, temp, withLine("  MERGED: B-3 · src/App/Mapping.cs:44"));
+          assert.equal(merged.code, 0, merged.err);
+        });
+
+        test("without --stdin or a chapter, and for a triage", async (t) => {
+          const { dir } = await triaging(t);
+          const temp = tempFolder(t);
+          const env = tempEnv(temp);
+
+          refused(
+            await tdd(dir, withChange("review", { chapter: "B" }), { env }),
+            "review needs --stdin: the record's text comes on standard input",
+          );
+          refused(
+            await tdd(dir, withChange("review", { stdin: true }), { input: TWO, env }),
+            /^ERROR: --chapter <X> is the chapter's name, /,
+          );
+          refused(
+            await tdd(dir, withChange("review", { chapter: "B.", stdin: true }), { input: TWO, env }),
+            /^ERROR: --chapter <X> is the chapter's name, .*: "B\."\n$/,
+          );
+          refused(
+            await tdd(dir, withPr("review", { chapter: "B", stdin: true }), { input: TWO, env }),
+            "review is the apply's: it takes --change",
+          );
+          refused(
+            await tdd(dir, ["review", "--chapter", "B", "--stdin"], { input: TWO, env }),
+            "review needs --change <change-name>: it is the apply's",
+          );
+          // A record that is refused for its reports names the folder, the one under this test's temp folder, and
+          // makes none: review only reads the folder, which is not there.
+          refused(
+            await tdd(dir, withChange("review", { chapter: "B", stdin: true }), { input: TWO, env }),
+            `not recorded: line 4: finding B-1 says confirmed, and it has no report B-1-1.md in ${slashed(reportsOf(temp))}; ` +
+              'a finding whose verifier never reported says "no report"',
+          );
+          nothingWritten(dir);
+          assert.equal(existsSync(join(temp, "tdd-runs")), false, "review made no folder");
+        });
+      },
+    );
+  });
+
+  describe("route --change <c> --chapter <X>", { concurrency: true }, () => {
+    // An apply whose chapter B is reviewed: the reports of its findings' verifiers, and the record `review` wrote.
+    async function reviewedChapter(t, reports, text) {
+      const dir = await initialized(t);
+      const temp = tempFolder(t);
+      const folder = withReports(temp, reports);
+      const r = await reviewed(dir, temp, text);
+      assert.equal(r.code, 0, r.err);
+      return { dir, temp, folder };
+    }
+
+    test("sorts the record's findings, each by the report of its verifier, and changes nothing", async (t) => {
+      const text = record(
+        "5 · confirmed 3 · refuted 1 · unsure 1 · no report 0",
+        ...B1,
+        "",
+        ...B2,
+        "B-3 · nit · confirmed · docs · docs/made-up.md:3 · in the chapter",
+        "  REVIEWER DISAGREES: The sentence is true as it stands.",
+        "B-4 · nit · unsure · not applicable · src/App/Other.cs:5 · in the chapter",
+        "B-o1 · nit · confirmed · docs · src/Other/Old.cs:7 · outside",
+      );
+      const { dir, temp, folder } = await reviewedChapter(
+        t,
+        { "B-1": REPORT.confirmed, "B-2": REPORT.refuted, "B-3": docs, "B-4": REPORT.unsure, "B-o1": docs },
+        text,
+      );
+      const before = [read(dir, REVIEWS), read(dir, STATE), readdirSync(folder)];
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(r.err, "");
+      assert.equal(
+        r.out,
+        "B-1 → FIX · behaviour\nB-2 → DECLINE · refuted with evidence\n" +
+          "B-3 → ASK · the reviewer disagrees with the verifier\nB-4 → ASK · unsure\n" +
+          "B-o1 → ASK · outside the chapter\nFIX 1 · DECLINE 1 · ASK 3\n",
+      );
+      assert.deepEqual([read(dir, REVIEWS), read(dir, STATE), readdirSync(folder)], before);
+      assert.deepEqual(leftInGitFolder(dir), [], "no lock is taken");
+    });
+
+    test("sorts a finding and those merged into it as one, the kept finding's id first", async (t) => {
+      const text = record(
+        "3 · confirmed 3 · refuted 0 · unsure 0 · no report 0",
+        "B-2 · nit · confirmed · docs · docs/made-up.md:3 · in the chapter",
+        "  MERGED: B-1 · docs/made-up.md:9",
+        "B-3 · important · confirmed · behaviour · src/App/Mapping.cs:12 · in the chapter",
+        "  MERGED: B-5 · src/App/Mapping.cs:40",
+        "  MERGED: B-4",
+        "B-6 · nit · confirmed · docs · docs/other.md:1 · in the chapter",
+        "  MERGED: B-7 · docs/other.md:8",
+      );
+      const { dir, temp } = await reviewedChapter(
+        t,
+        {
+          "B-1": REPORT.confirmed,
+          "B-2": docs,
+          "B-3": REPORT.confirmed,
+          "B-4": notLocal,
+          "B-5": docs,
+          "B-6": docs,
+          "B-7": docs,
+        },
+        text,
+      );
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.code, 0, r.err);
+      assert.equal(
+        r.out,
+        "B-2, B-1 → FIX · behaviour\nB-3, B-5, B-4 → ASK · B-4: the fix is not local\nB-6, B-7 → FIX · docs\n" +
+          "FIX 2 · DECLINE 0 · ASK 1\n",
+      );
+    });
+
+    test("takes the fix's judgement from the report file, which the record does not hold", async (t) => {
+      const { dir, temp, folder } = await reviewedChapter(t, { "B-1": REPORT.confirmed, "B-2": REPORT.refuted }, TWO);
+      // The same verdict and kind, as the record has them; what else the report says is the report's alone.
+      withReports(temp, {
+        "B-1": notLocal,
+        "B-2": REPORT.refuted.map((l) => l.replace(/^EVIDENCE: .*/, "EVIDENCE: none")),
+      });
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.err, "");
+      assert.equal(
+        r.out,
+        "B-1 → ASK · the fix is not local\nB-2 → ASK · refuted without concrete evidence\nFIX 0 · DECLINE 0 · ASK 2\n",
+      );
+      assert.deepEqual(readdirSync(folder).sort(), ["B-1-1.md", "B-2-1.md"]);
+    });
+
+    test("takes no report that stopped agreeing with the record: another verdict or kind, or a file that came later for a finding with no report", async (t) => {
+      const text = record(
+        "4 · confirmed 2 · refuted 1 · unsure 0 · no report 1",
+        ...B1,
+        "  MERGED: B-5 · src/App/Mapping.cs:44",
+        "",
+        ...B2,
+        "B-3 · not applicable · no report · not applicable · src/App/Other.cs:5 · in the chapter",
+        "B-4 · nit · confirmed · docs · docs/made-up.md:3 · in the chapter",
+      );
+      const { dir, temp } = await reviewedChapter(
+        t,
+        { "B-1": REPORT.confirmed, "B-5": REPORT.confirmed, "B-2": REPORT.refuted, "B-4": docs },
+        text,
+      );
+      // Each report is written over after the record was saved, and the verifier of B-3 reports after all.
+      withReports(temp, {
+        "B-5": REPORT.refuted,
+        "B-2": REPORT.confirmed,
+        "B-3": REPORT.confirmed,
+        "B-4": REPORT.confirmed,
+      });
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.code, 0, "the apply goes on, and the owner is asked");
+      assert.equal(
+        r.out,
+        "B-1, B-5 → ASK · B-5: a check returned no result\nB-2 → ASK · a check returned no result\n" +
+          "B-3 → ASK · a check returned no result\nB-4 → ASK · a check returned no result\nFIX 0 · DECLINE 0 · ASK 4\n",
+      );
+      assert.deepEqual(r.err.trimEnd().split("\n"), [
+        "route: B-5-1.md says refuted, and the record says confirmed",
+        "route: B-2-1.md says confirmed, and the record says refuted",
+        "route: B-3-1.md is there and says confirmed, and the record says no report",
+        "route: B-4-1.md says KIND: behaviour, and the record says docs",
+      ]);
+    });
+
+    test("asks about a finding with no report, and says on stderr when a report is missing though the record has its verdict, or cannot be read", async (t) => {
+      const text = record(
+        "4 · confirmed 1 · refuted 1 · unsure 0 · no report 2",
+        ...B1,
+        "",
+        ...B2,
+        "B-3 · not applicable · no report · not applicable · src/App/Other.cs:5 · in the chapter",
+        "B-4 · not applicable · no report · not applicable · src/App/Other.cs:9 · in the chapter",
+      );
+      const { dir, temp, folder } = await reviewedChapter(
+        t,
+        { "B-1": REPORT.confirmed, "B-2": REPORT.refuted, "B-4": ["The finding is real."] },
+        text,
+      );
+      rmSync(join(folder, "B-1-1.md"));
+      write(folder, "B-2-1.md", "The finding is not real.\n");
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.code, 0, "the apply goes on with what it has");
+      assert.equal(
+        r.out,
+        "B-1 → ASK · a check returned no result\nB-2 → ASK · a check returned no result\n" +
+          "B-3 → ASK · a check returned no result\nB-4 → ASK · a check returned no result\nFIX 0 · DECLINE 0 · ASK 4\n",
+      );
+      assert.deepEqual(
+        r.err.trimEnd().split("\n"),
+        [
+          `route: B-1-1.md is missing in ${slashed(folder)}, and the record says confirmed`,
+          "route: B-2-1.md cannot be read as a report: it has no VERDICT line",
+        ],
+        "nothing is said of B-3 and B-4: the record says that they have no report",
+      );
+    });
+
+    test("names the fixed findings that wait for an asked one their fix touches, after the outcomes and before the counts", async (t) => {
+      const text = record(
+        "5 · confirmed 4 · refuted 0 · unsure 1 · no report 0",
+        ...B1,
+        "  MERGED: B-5 · src/App/Mapping.cs:44",
+        "  AFFECTS: B-3: whether B-3 holds decides how this one is fixed.",
+        "B-2 · nit · confirmed · docs · docs/made-up.md:3 · in the chapter",
+        "B-3 · nit · unsure · not applicable · src/App/Other.cs:5 · in the chapter",
+        "  AFFECTS: B-1: its answer decides how B-1 is fixed.",
+        "  AFFECTS: B-4: and how the comment of B-4 reads.",
+        "B-4 · nit · confirmed · docs · src/App/Other.cs:9 · in the chapter",
+        "B-6 · nit · confirmed · cleanup · src/App/Other.cs:20 · in the chapter",
+        "  AFFECTS: B-2: both change the same paragraph.",
+      );
+      const cleanup = REPORT.confirmed.map((l) => l.replace("KIND: behaviour", "KIND: cleanup"));
+      const { dir, temp } = await reviewedChapter(
+        t,
+        {
+          "B-1": REPORT.confirmed,
+          "B-5": docs,
+          "B-2": docs,
+          "B-3": REPORT.unsure,
+          "B-4": docs,
+          "B-6": cleanup,
+        },
+        text,
+      );
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.err, "");
+      assert.equal(
+        r.out,
+        "B-1, B-5 → FIX · behaviour\nB-2 → FIX · docs\nB-3 → ASK · unsure\nB-4 → FIX · docs\nB-6 → FIX · cleanup\n" +
+          "B-1, B-5: waits for B-3\nB-4: waits for B-3\nFIX 4 · DECLINE 0 · ASK 1\n",
+        "B-6 and B-2 touch each other and are both fixed: neither waits",
+      );
+    });
+
+    test("sorts a chapter without findings: the counts alone", async (t) => {
+      const { dir, temp } = await reviewedChapter(
+        t,
+        {},
+        record("0 · confirmed 0 · refuted 0 · unsure 0 · no report 0"),
+      );
+
+      const r = await routedChapter(dir, temp);
+
+      assert.equal(r.out, "FIX 0 · DECLINE 0 · ASK 0\n");
+    });
+
+    test("is refused, in one line, without a record, for a section that is none, for a triage, and next to --ids", async (t) => {
+      const { dir } = await triaging(t);
+      const temp = tempFolder(t);
+      assert.equal((await tdd(dir, withChange("init", SWITCHES))).code, 0);
+
+      refused(await routedChapter(dir, temp), `no ${REVIEWS} yet: no chapter review is recorded`);
+      await tdd(dir, withChange("set", { file: "reviews", section: "Chapter A review", text: "No findings." }));
+      refused(
+        await routedChapter(dir, temp),
+        `no section "Chapter B review" in ${REVIEWS}: the chapter's reviewer records it with review`,
+      );
+      refused(
+        await routedChapter(dir, temp, "A"),
+        `the section "Chapter A review" of ${REVIEWS} is no record of a review: line 1: "No findings." is not the ` +
+          'record\'s first line; it starts with "REVIEW: chapter A, …"',
+      );
+      refused(
+        await tdd(dir, ["route", "--pr", PR, "--chapter", "B"]),
+        "route --chapter is the apply's: it takes --change",
+      );
+      refused(
+        await tdd(dir, ["route", "--chapter", "B"]),
+        "route --chapter needs --change <change-name>: it is the apply's",
+      );
+      refused(
+        await tdd(dir, ["route", "--change", CHANGE, "--chapter", "B", "--ids", "B-1"]),
+        "--ids goes with --reports <folder>: it names the findings there",
+      );
+      refused(
+        await tdd(dir, ["route", "--change", CHANGE, "--chapter", "../B"]),
+        /^ERROR: --chapter <X> is the chapter's name, /,
+      );
+    });
+  });
+
+  test("end to end, as the reviewer, its verifiers and the main session run them: reports, report, review, route", async (t) => {
+    const dir = await initialized(t);
+    const temp = tempFolder(t);
+    const env = tempEnv(temp);
+
+    const folder = (await tdd(dir, withChange("reports", { chapter: "B", new: true }), { env })).out.trim();
+    for (const [id, lines] of [
+      ["B-1", REPORT.confirmed],
+      ["B-2", REPORT.refuted],
+    ]) {
+      const saved = await tdd(dir, ["report", "--file", `${folder}/${id}-1.md`, "--stdin"], {
+        input: `ID: ${id}\n${lines.join("\n")}\n`,
+        env,
+      });
+      assert.equal(saved.code, 0, saved.err);
+    }
+    const recorded = await reviewed(dir, temp, TWO);
+    const sorted = await routedChapter(dir, temp);
+
+    assert.equal(recorded.out, "review: chapter B | 2 findings · confirmed 1 · refuted 1 · unsure 0 · no report 0\n");
+    assert.equal(
+      sorted.out,
+      "B-1 → FIX · behaviour\nB-2 → DECLINE · refuted with evidence\nFIX 1 · DECLINE 1 · ASK 0\n",
+    );
+    assert.equal(sorted.err, "");
+    assert.deepEqual(
+      await status(dir),
+      [`?? ${REVIEWS}`, `?? ${STATE}`],
+      "the reports are no files of the working tree",
+    );
+  });
+});
+
 describe("triage-init", { concurrency: true }, () => {
-  // The keys `triage-init` writes into `Run`, in the file's order: none of them a path of this machine.
-  const RUN_KEYS = ["Status", "PR", "Round", "Scope", "Source", "Branch", "Code graph project"];
+  // The keys `triage-init` writes into `Run`, in the file's order: none of them a value of this machine. The code
+  // graph's project goes to the triage's local file.
+  const RUN_KEYS = ["Status", "PR", "Round", "Scope", "Source", "Branch"];
+  const localProject = (dir, pr = PR) =>
+    keyValue(readFileSync(prLocalFile(dir, pr), "utf8"), "Run", "Code graph project");
 
   test("with a change, creates the state file in the change's folder and the pointer to it", async (t) => {
     const dir = repository(t);
@@ -3658,7 +7310,11 @@ describe("triage-init", { concurrency: true }, () => {
     assert.equal(keyValue(text, "Run", "Scope"), "c900");
     assert.equal(keyValue(text, "Run", "Source"), "pr");
     assert.equal(keyValue(text, "Run", "Branch"), BRANCH);
-    assert.equal(keyValue(text, "Run", "Code graph project"), "not indexed: skipped (TDD_NO_GRAPH=1)");
+    assert.equal(localProject(dir), "not indexed: skipped (TDD_NO_GRAPH=1)");
+    assert.equal(
+      readFileSync(prLocalFile(dir), "utf8"),
+      `# This machine's values: triage-${PR}\n\n## Run\n\n- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n`,
+    );
     for (const name of sectionNames(text).filter((n) => n !== "Run")) assert.equal(sectionBody(text, name), EMPTY);
 
     const points = pointer(dir);
@@ -3673,7 +7329,7 @@ describe("triage-init", { concurrency: true }, () => {
     assert.deepEqual(readdirSync(work), [], "nothing is written to the work folder");
   });
 
-  test("holds no path of this machine in the state file: neither the work folder nor the repository's", async (t) => {
+  test("holds no value of this machine in the state file: not the work folder, the repository's, or the code graph's project", async (t) => {
     for (const of of ["change", "none"]) {
       const { dir, work, state } = await triaging(t, of);
 
@@ -3682,8 +7338,10 @@ describe("triage-init", { concurrency: true }, () => {
       assert.deepEqual(sectionKeys(text, "Run"), RUN_KEYS, of);
       assert.equal(keyValue(text, "Run", "Work folder"), null, of);
       assert.equal(keyValue(text, "Run", "Folder"), null, of);
+      assert.equal(keyValue(text, "Run", "Code graph project"), null, of);
       for (const path of [work, slashed(work), dir, slashed(dir)]) assert.equal(text.includes(path), false, path);
       samePath(pointer(dir).work, work);
+      assert.equal(localProject(dir), "not indexed: skipped (TDD_NO_GRAPH=1)", of);
     }
   });
 
@@ -3708,7 +7366,7 @@ describe("triage-init", { concurrency: true }, () => {
     );
     samePath(points.state, prState(dir));
     samePath(points.work, work);
-    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"]);
+    assert.deepEqual(leftInGitFolder(dir), [`triage-${PR}.md`, "triage.json"]);
     assert.deepEqual(await status(dir), [], "nothing in the working tree");
     assert.equal(await git(dir, "status", "--porcelain", "--untracked-files=all", "--ignored"), "", "nor ignored");
     assert.deepEqual(readdirSync(work), [], "nothing is written to the work folder");
@@ -3884,7 +7542,7 @@ describe("triage-init", { concurrency: true }, () => {
     assert.equal(keyValue(after.toString(), "Run", "Commit trailers"), "A-Trailer: one\nB-Trailer: two");
     samePath(pointer(dir).state, state);
     samePath(pointer(dir).work, laterWork);
-    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"], "one state file");
+    assert.deepEqual(leftInGitFolder(dir), [`triage-${PR}.md`, "triage.json"], "one state file");
     assert.deepEqual([readdirSync(work), readdirSync(laterWork)], [[], []], "no state file in a work folder");
     assert.deepEqual(await status(dir), []);
   });
@@ -3931,7 +7589,7 @@ describe("triage-init", { concurrency: true }, () => {
 
     assert.equal(r.out, startLine(`created ${slashed(prState(dir, "110"))}`, 1, otherWork));
     samePath(pointer(dir).work, otherWork);
-    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), ["triage-109.md", "triage-110.md", "triage.json"]);
+    assert.deepEqual(leftInGitFolder(dir), ["triage-109.md", "triage-110.md", "triage.json"]);
   });
 
   test("takes the work folder given when the pointer cannot be read, and writes the pointer anew", async (t) => {
@@ -3945,24 +7603,30 @@ describe("triage-init", { concurrency: true }, () => {
     samePath(pointer(dir).work, work);
   });
 
-  test("leaves the work folder and the repository's folder in a Run that has them from before, as they are", async (t) => {
+  test("leaves the values of a machine in a Run that has them from before, as they are, and get prints the local project", async (t) => {
     const { dir, state, work, shown } = await triaging(t, "change");
-    const older = putKey(
-      putKey(readFileSync(state, "utf8"), "Run", "Work folder", "<scratchpad>/triage-review/109/"),
-      "Run",
-      "Folder",
-      "a made-up folder",
-    );
+    let older = readFileSync(state, "utf8");
+    for (const [key, value] of [
+      ["Work folder", "<scratchpad>/triage-review/109/"],
+      ["Folder", "a made-up folder"],
+      ["Code graph project", "another-machines-project"],
+    ]) {
+      older = putKey(older, "Run", key, value);
+    }
     writeFileSync(state, older);
 
     const r = await tdd(dir, withPr("triage-init", { round: "2", work: tempFolder(t), change: CHANGE }));
+    const run = await tdd(dir, withPr("get", { section: "Run" }));
 
     assert.equal(r.code, 0, r.err);
     const after = readFileSync(state, "utf8");
     assert.equal(keyValue(after, "Run", "Work folder"), "<scratchpad>/triage-review/109/");
     assert.equal(keyValue(after, "Run", "Folder"), "a made-up folder");
+    assert.equal(keyValue(after, "Run", "Code graph project"), "another-machines-project");
     assert.equal(keyValue(after, "Run", "Round"), "2");
     assert.equal(after.includes(slashed(work)), false, shown);
+    assert.equal(run.out.match(/Code graph project/g).length, 1, "once, with this machine's value");
+    assert.ok(run.out.includes("- **Code graph project:** not indexed: skipped (TDD_NO_GRAPH=1)\n"), run.out);
   });
 
   for (const of of ["change", "archived", "none"]) {
@@ -4034,12 +7698,13 @@ describe("triage-init", { concurrency: true }, () => {
 
     const first = await start("1");
     assert.equal(first.out, startLine(`created ${TRIAGE}`, 1, work, "made-up-project"));
-    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Code graph project"), "made-up-project");
+    assert.equal(localProject(dir), "made-up-project");
 
     const failed = await start("2", "fail");
     assert.equal(failed.code, 0, failed.err);
     assert.match(failed.out, /^exists: .* \| round 2, a new section \| graph: failed: .*the index is locked/);
-    assert.match(keyValue(read(dir, TRIAGE), "Run", "Code graph project"), /^not indexed: .*the index is locked/);
+    assert.match(localProject(dir), /^not indexed: .*the index is locked/);
+    assert.equal(keyValue(read(dir, TRIAGE), "Run", "Code graph project"), null, "never in the state file");
 
     const calls = graph.received();
     assert.equal(calls.length, 2);
@@ -4438,7 +8103,7 @@ describe("the lock", { concurrency: true }, () => {
     assert.deepEqual(sectionKeys(text, "Agents").sort(), numbers.map((n) => `Agent ${n}`).sort());
     assert.equal(sectionBody(text, "Resume here"), "Chapter B, group 7.");
     assert.deepEqual(sectionNames(text), STATE_SECTIONS);
-    assert.deepEqual(readdirSync(gitFolder(dir)), [], "no lock is left");
+    assert.deepEqual(leftInGitFolder(dir), [], "no lock is left");
     assert.deepEqual(readdirSync(join(dir, FOLDER)).sort(), [".tdd-state.md", "design.md", "tasks.md"]);
   });
 
@@ -4459,7 +8124,7 @@ describe("the lock", { concurrency: true }, () => {
     assert.deepEqual(sectionKeys(readFileSync(state, "utf8"), "Round 1").sort(), numbers.map(String));
     assert.equal(sectionBody(read(dir, REVIEWS), "Chapter A").split("\n").length, 6);
     assert.equal(sectionBody(read(dir, STATE), "Open").split("\n").length, 6);
-    assert.deepEqual(readdirSync(gitFolder(dir)).sort(), [`triage-${PR}.md`, "triage.json"], "no lock, no leftover");
+    assert.deepEqual(leftInGitFolder(dir), [`triage-${PR}.md`, "triage.json"], "no lock, no leftover");
   });
 
   test("lets a reader through while writers write: `get` never fails and never sees half a file", async (t) => {
@@ -4486,7 +8151,16 @@ describe("the lock", { concurrency: true }, () => {
     await tdd(dir, withChange("init", SWITCHES));
     await tdd(dir, withChange("put", { section: "Allowed failures", key: "A_parked_test", value: "parked: Q2" }));
     write(dir, "src/App/Mapping.cs", "// the mapping\n");
-    const before = { state: read(dir, STATE), triage: read(dir, TRIAGE), head: (await lastCommit(dir)).sha };
+    const temp = tempFolder(t);
+    const graph = fakeGraph(t);
+    const held = () => ({
+      state: read(dir, STATE),
+      triage: read(dir, TRIAGE),
+      head: null,
+      local: readFileSync(localFile(dir), "utf8"),
+      code: read(dir, "src/App/Mapping.cs"),
+    });
+    const before = { ...held(), head: (await lastCommit(dir)).sha };
     leftLock(dir, process.pid, 5_000);
 
     const commands = [
@@ -4494,17 +8168,39 @@ describe("the lock", { concurrency: true }, () => {
       withChange("set", { section: "Open", text: "x" }),
       withChange("add", { section: "Open", line: "x" }),
       withChange("put", { section: "Run", key: "Status", value: "done" }),
+      withChange("put", { section: "Design files", local: true, key: "Design system folder", value: "C:/x" }),
       withChange("drop", { section: "Allowed failures", key: "A_parked_test" }),
       withChange("add", { file: "reviews", section: "Chapter A", line: "x" }),
+      withChange("review", { chapter: "B", stdin: true }),
       withChange("commit", { type: "feat", tag: "green", summary: "Mapping", tick: "5.1", resume: "Next." }),
       withChange("unguard", { tag: "chapter-review", id: "B-1", red: before.head, outcome: "declined", body: "x" }),
+      withChange("index"),
       withPr("set", { section: "Open", text: "x" }),
       withPr("triage-init", { round: "2", work: work, change: CHANGE }),
     ];
-    const ended = await Promise.all(commands.map((args) => tdd(dir, args, { env: impatient })));
+    const ended = await Promise.all(
+      commands.map((args) =>
+        tdd(dir, args, {
+          // `index` finds a project to write, with the stand-in for the code graph; `review` gets a record.
+          env: { ...impatient, ...graph.env(), TEMP: temp, TMP: temp, TMPDIR: temp },
+          input:
+            "REVIEW: chapter B, 1a2b3c4..5d6e7f8, 1 commit, 1 file changed\n" +
+            "FINDINGS: 0 · confirmed 0 · refuted 0 · unsure 0 · no report 0\n",
+        }),
+      ),
+    );
+    const shelved = await tdd(dir, withChange("shelve", { key: "Q1" }), { env: impatient });
+    const unshelved = await tdd(dir, withChange("unshelve", { key: "Q1" }), { env: impatient });
 
     for (const r of ended) refusedAsLocked(r, process.pid);
-    assert.deepEqual({ state: read(dir, STATE), triage: read(dir, TRIAGE), head: (await lastCommit(dir)).sha }, before);
+    for (const r of [shelved, unshelved]) {
+      assert.equal(r.code, 1, r.out + r.err);
+      assert.match(
+        r.err,
+        new RegExp(`^ERROR: nothing was changed: the state files are locked by process ${process.pid}, `),
+      );
+    }
+    assert.deepEqual({ ...held(), head: (await lastCommit(dir)).sha }, before);
     assert.equal(read(dir, TASKS), TASKS_TEXT);
     assert.equal(existsSync(join(dir, REVIEWS)), false);
     assert.equal(pointer(dir).round, 1);
@@ -4521,23 +8217,32 @@ describe("the lock", { concurrency: true }, () => {
 
   test("lets every command that only reads through while the lock is held", async (t) => {
     const dir = await initialized(t);
+    const temp = tempFolder(t);
+    const env = { ...impatient, TEMP: temp, TMP: temp, TMPDIR: temp };
+    // A chapter's record, written before the lock is there, for `route --chapter` to read.
+    const record =
+      "REVIEW: chapter B, 1a2b3c4..5d6e7f8, 1 commit, 1 file changed\n" +
+      "FINDINGS: 0 · confirmed 0 · refuted 0 · unsure 0 · no report 0\n";
+    const recorded = await tdd(dir, withChange("review", { chapter: "B", stdin: true }), { env, input: record });
+    assert.equal(recorded.code, 0, recorded.err);
     leftLock(dir, process.pid, 5_000);
     const findings = '[{"id":1,"verdicts":[{"verdict":"unsure"}]}]';
     const saved = join(tempFolder(t), "1-1.md");
 
     for (const args of [
       withChange("get", { section: "Run" }),
+      withChange("get", { file: "reviews", section: ["Chapter B review", "Chapter B"] }),
       withChange("check", { step: "green" }),
+      // The code graph is switched off here, so `index` has no project to write and takes no lock.
       withChange("index"),
       withChange("run", { label: "x" }, "--", process.execPath, "-e", "0"),
+      withChange("reports", { chapter: "B", new: true }),
+      ["route", "--change", CHANGE, "--chapter", "B"],
       ["route", "--json", findings],
       ["report", "--file", saved, "--stdin"],
       ["progress", "--step", "Baseline"],
     ]) {
-      const r = await tdd(dir, args, {
-        env: { ...impatient, TEMP: dir, TMP: dir, TMPDIR: dir },
-        input: "ID: 1\nVERDICT: unsure\n",
-      });
+      const r = await tdd(dir, args, { env, input: "ID: 1\nVERDICT: unsure\n" });
 
       assert.equal(r.code, 0, `${args[0]}: ${r.err}`);
     }
@@ -4552,7 +8257,7 @@ describe("the lock", { concurrency: true }, () => {
 
     assert.equal(r.code, 0, r.err);
     assert.equal(sectionBody(read(dir, STATE), "Open"), "- a dispute");
-    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    assert.deepEqual(leftInGitFolder(dir), []);
   });
 
   test("takes the stale age and the wait limit from the environment", async (t) => {
@@ -4595,7 +8300,7 @@ describe("the lock", { concurrency: true }, () => {
     assert.equal(r.code, 0, r.err);
     assert.equal(read(out, "git.txt").trim(), "held");
     assert.deepEqual(graph.lockSeen(), [false]);
-    assert.deepEqual(readdirSync(gitFolder(dir)), []);
+    assert.deepEqual(leftInGitFolder(dir), []);
   });
 
   test("init and triage-init index the code graph outside the lock", async (t) => {
@@ -4629,12 +8334,12 @@ describe("the lock", { concurrency: true }, () => {
       const r = await tdd(dir, args);
 
       assert.equal(r.code, code, `${args.join(" ")}: ${r.err}`);
-      assert.deepEqual(readdirSync(gitFolder(dir)), [], args.join(" "));
+      assert.deepEqual(leftInGitFolder(dir), [], args.join(" "));
     }
     const clean = repository(t);
     const nothing = await tdd(clean, withChange("commit", { type: "feat", tag: "green", summary: "Mapping" }));
     assert.equal(nothing.code, 4);
-    assert.deepEqual(readdirSync(gitFolder(clean)), []);
+    assert.deepEqual(leftInGitFolder(clean), []);
   });
 
   test("a linked working tree has a lock and a pointer of its own", async (t) => {

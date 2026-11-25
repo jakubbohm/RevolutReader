@@ -68,6 +68,11 @@ const headsUp = (n, id) => commit(n, `docs(c900): [review] ${id}: heads-up for C
 const testFix = (n, id) => commit(n, `test(c900): [review] ${id}: assert the outcome, not the call`);
 const docsFix = (n, id) => commit(n, `docs(c900): [review] ${id}: name the right section`);
 const cleanup = (n, id) => commit(n, `refactor(c900): [review] ${id}: drop the unused helper`);
+// The repair of a close check that a commit of the finding broke: in production code the implementer's
+// (`refactor`, or `fix` for one the owner ordered that changes what the code does), in test code the test-writer's
+// (`test`).
+const repair = (n, id, check = "lint", type = "refactor") =>
+  commit(n, `${type}(c900): [review] ${id}: close check ${check} repaired`);
 
 // classifyRound on made-up data: round 1 (no earlier summary) unless a test gives the earlier rounds' numbers.
 function classify(findings, commits = [], { earlierNumbers = [], lastSummaryAt = null } = {}) {
@@ -370,6 +375,34 @@ describe("roundCommit", () => {
     assert.equal(kindOf("docs(c900): [review] 4: heads-up for C12"), "heads-up");
     assert.equal(kindOf("docs(c900): [review] 4: name the right section"), "docs fix");
     assert.equal(kindOf("refactor(c900): [review] 4: drop the unused helper"), "cleanup");
+  });
+
+  test("names the repair of a close check by its summary, in production code and in test code", () => {
+    assert.equal(kindOf("refactor(c900): [review] 4: close check lint repaired"), "repair");
+    assert.equal(kindOf("test(c900): [review] 4: close check format:check repaired"), "repair");
+    assert.equal(kindOf("refactor(c900): [review] 4: close check dotnet format repaired"), "repair");
+    assert.equal(kindOf("refactor(c900): [review] 3, 7: close check typecheck repaired"), "repair");
+  });
+
+  test("names a repair by its summary whatever the commit's type: the fix of one the owner ordered, and any other", () => {
+    assert.equal(kindOf("fix(c900): [review] 4: close check dotnet test repaired"), "repair");
+    assert.equal(kindOf("fix(c900): [review] 3, 7: close check npm test repaired"), "repair");
+    assert.equal(kindOf("docs(c900): [review] 4: close check lint repaired"), "repair");
+    assert.equal(kindOf("feat(c900): [review] 4: close check lint repaired"), "repair");
+    assert.equal(kindOf("chore(c900): [review] 4: close check lint repaired"), "repair");
+  });
+
+  test("takes only that exact summary, of a [review] commit, for a repair", () => {
+    assert.equal(kindOf("refactor(c900): [review] 4: close check repaired"), "cleanup");
+    assert.equal(kindOf("refactor(c900): [review] 4: close check lint repaired, and more"), "cleanup");
+    assert.equal(kindOf("refactor(c900): [review] 4: the close check lint repaired"), "cleanup");
+    assert.equal(kindOf("test(c900): [review] 4: close checks repaired"), "test fix");
+    assert.equal(kindOf("fix(c900): [review] 4: close check repaired"), "fix");
+    assert.equal(kindOf("fix(c900): [review] 4: the close check dotnet test repaired"), "fix");
+    assert.equal(kindOf("docs(c900): [review] 4: close check lint repaired in the docs"), "docs fix");
+    assert.equal(kindOf("feat(c900): [review] 4: close check lint"), "unknown");
+    assert.equal(kindOf("docs(c900): [plan] 4: close check lint repaired"), "plan");
+    assert.equal(kindOf("fix(c900): [plan] 4: close check lint repaired"), "unknown");
   });
 
   test("takes only a test commit whose summary ends with `, red` for a red commit", () => {
@@ -976,6 +1009,148 @@ describe("classifyRound: findings handled by their commits, only the reply owed"
     assert.equal(f.outcome, "deferred as a heads-up");
     assert.equal(f.replyText, body);
     assert.doesNotMatch(f.owed, /missing/);
+  });
+});
+
+describe("classifyRound: a close check's repair commit changes no finding's outcome", () => {
+  const owed = (commits) => only(classify([open(1)], commits));
+
+  test("after a fix: fixed, with the repair among the finding's commits", () => {
+    const f = owed([red(1, 1), fix(2, 1), repair(3, 1)]);
+
+    assert.equal(f.class, "reply-owed");
+    assert.equal(f.outcome, "fixed");
+    assert.deepEqual(shortShas(f), [short(1), short(2), short(3)]);
+    assert.equal(f.because, "its thread is open and its commits say fixed (red → fix → repair)");
+    assert.deepEqual(f.mayFail, []);
+  });
+
+  test("after the single commit of a test-quality, docs or cleanup fix, in test code or in production code: fixed", () => {
+    assert.equal(owed([testFix(1, 1), repair(2, 1, "format:check", "test")]).outcome, "fixed");
+    assert.equal(owed([docsFix(1, 1), repair(2, 1)]).outcome, "fixed");
+    assert.equal(owed([cleanup(1, 1), repair(2, 1, "dotnet format")]).outcome, "fixed");
+  });
+
+  test("after a guard test that passes at once: still declined, not unclear", () => {
+    const f = owed([guardPasses(1, 1), repair(2, 1, "dotnet format", "test")]);
+
+    assert.equal(f.class, "reply-owed");
+    assert.equal(f.outcome, "declined");
+    assert.equal(f.because, "its thread is open and its commits say declined (guard passes → repair)");
+  });
+
+  test("after a guard removed, declined or deferred, and after a heads-up: the outcome and the reply's text stay", () => {
+    const body = "Declined by the owner: the old rounding is what the bank shows.";
+
+    const declined = owed([red(1, 1), guardRemoved(2, 1, "declined", body), repair(3, 1)]);
+    const deferred = owed([red(1, 1), guardRemoved(2, 1, "deferred", "Deferred to the issue 123."), repair(3, 1)]);
+    const headsUpOnly = owed([red(1, 1), guardRemoved(2, 1, "deferred", "To C12."), headsUp(3, 1), repair(4, 1)]);
+
+    assert.deepEqual([declined.class, declined.outcome, declined.replyText], ["reply-owed", "declined", body]);
+    assert.match(declined.owed, new RegExp(`body of ${short(2)}`));
+    assert.deepEqual([deferred.outcome, deferred.replyText], ["deferred", "Deferred to the issue 123."]);
+    assert.match(deferred.owed, /heads-up for <step>.*missing/);
+    assert.deepEqual([headsUpOnly.outcome, headsUpOnly.replyText], ["deferred as a heads-up", "To C12."]);
+  });
+
+  test("a repair the owner ordered, committed as a fix, after a guard test that passes at once: still declined", () => {
+    const f = owed([guardPasses(1, 1), repair(2, 1, "dotnet test", "fix")]);
+    const answered = only(
+      classify(
+        [resolved(1, reply("Declined: the guard test passes."))],
+        [guardPasses(1, 1), repair(2, 1, "dotnet test", "fix")],
+      ),
+    );
+
+    assert.equal(f.class, "reply-owed");
+    assert.equal(f.outcome, "declined");
+    assert.equal(f.because, "its thread is open and its commits say declined (guard passes → repair)");
+    assert.deepEqual([answered.class, answered.outcome], ["handled", "declined"]);
+  });
+
+  test("a repair the owner ordered, committed as a fix, after a guard removed, declined or deferred: the outcome and the reply's text stay", () => {
+    const body = "Declined by the owner: the old rounding is what the bank shows.";
+
+    const declined = owed([red(1, 1), guardRemoved(2, 1, "declined", body), repair(3, 1, "dotnet test", "fix")]);
+    const deferred = owed([
+      red(1, 1),
+      guardRemoved(2, 1, "deferred", "Deferred to the issue 123."),
+      repair(3, 1, "npm test", "fix"),
+    ]);
+
+    assert.deepEqual([declined.class, declined.outcome, declined.replyText], ["reply-owed", "declined", body]);
+    assert.equal(
+      declined.because,
+      "its thread is open and its commits say declined (red → guard removed, declined → repair)",
+    );
+    assert.deepEqual(
+      [deferred.class, deferred.outcome, deferred.replyText],
+      ["reply-owed", "deferred", "Deferred to the issue 123."],
+    );
+  });
+
+  test("a repair the owner ordered, committed as a fix, after a fix: fixed, with the repair among the finding's commits", () => {
+    const f = owed([red(1, 1), fix(2, 1), repair(3, 1, "dotnet test", "fix")]);
+
+    assert.equal(f.class, "reply-owed");
+    assert.equal(f.outcome, "fixed");
+    assert.deepEqual(shortShas(f), [short(1), short(2), short(3)]);
+    assert.equal(f.because, "its thread is open and its commits say fixed (red → fix → repair)");
+    assert.deepEqual(f.mayFail, []);
+  });
+
+  test("several repairs, and one between the steps of a fix, are all read past", () => {
+    assert.equal(owed([red(1, 1), fix(2, 1), repair(3, 1), repair(4, 1, "typecheck")]).outcome, "fixed");
+    assert.equal(owed([red(1, 1), repair(2, 1, "lint", "test"), fix(3, 1)]).outcome, "fixed");
+    assert.equal(owed([guardPasses(1, 1), repair(2, 1), repair(3, 1)]).outcome, "declined");
+  });
+
+  test("after a red commit that no fix follows: the fix still resumes at the implementer, and the test may still fail", () => {
+    const f = owed([red(1, 1, ["tests/rounding.test.mjs"]), repair(2, 1, "format:check", "test")]);
+
+    assert.equal(f.class, "resume-implementer");
+    assert.equal(f.outcome, null);
+    assert.match(f.because, new RegExp(`its commits stop at the red commit ${short(1)} `));
+    assert.deepEqual(
+      f.mayFail.map((c) => [c.sha.slice(0, 7), c.files]),
+      [[short(1), ["tests/rounding.test.mjs"]]],
+    );
+  });
+
+  test("after a plan commit: the fix still resumes at the test-writer", () => {
+    assert.equal(owed([plan(1, 1), repair(2, 1)]).class, "resume-test-writer");
+  });
+
+  test("a finding the stopped round already answered is taken back with its reply, the repair among its commits", () => {
+    const fixed = only(classify([resolved(1, reply("Fixed in 0000002."))], [red(1, 1), fix(2, 1), repair(3, 1)]));
+    const declined = only(
+      classify([resolved(1, reply("Declined: the guard test passes."))], [guardPasses(1, 1), repair(2, 1)]),
+    );
+
+    assert.deepEqual([fixed.class, fixed.outcome], ["handled", "fixed"]);
+    assert.deepEqual(shortShas(fixed), [short(1), short(2), short(3)]);
+    assert.deepEqual([declined.class, declined.outcome], ["handled", "declined"]);
+  });
+
+  test("an order the fix round does not produce stays unclear with a repair in it", () => {
+    const f = owed([guardPasses(1, 1), repair(2, 1), fix(3, 1)]);
+
+    assert.equal(f.class, "unclear");
+    assert.match(f.because, /order the fix round does not produce: guard passes → repair → fix$/);
+  });
+
+  test("repairs alone fix no finding: unclear, and the owner decides", () => {
+    const f = owed([repair(1, 1), repair(2, 1, "typecheck")]);
+
+    assert.equal(f.class, "unclear");
+    assert.equal(f.because, "only close-check repairs name it, and a repair fixes no finding: repair → repair");
+    assert.deepEqual(f.mayFail, []);
+  });
+
+  test("a repair commit is the round's own", () => {
+    const own = ownCommits([red(1, 6), fix(2, 6), repair(3, 6)], [1, 2, 3, 4, 5]);
+
+    assert.deepEqual(own, { count: 3, allOwn: true, notOwn: [] });
   });
 });
 

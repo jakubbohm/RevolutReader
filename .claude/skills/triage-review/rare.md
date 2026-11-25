@@ -5,7 +5,7 @@ file send you here, each time to one section. **Read only that section:** Grep t
 Read from that heading's line to the next heading's. Every rule of `SKILL.md` holds here too.
 
 The sections: A review from the conversation · What the workflow found · The gather's classes · A restart ·
-Answers · Stops.
+Answers · Stops · Another effort level.
 
 ## A review from the conversation
 
@@ -58,30 +58,44 @@ other:
    next numbers. Add each one's line to `Round <n>` with `tdd put`.
 4. Run the workflow again with those numbers alone as `ids`, the other args as before, and end your turn
    until its result arrives (SKILL.md § 2 step 1). Save that result as it is to `<work
-   folder>/together-2.json`, beside the first run's. Its `merged`, `affects` and `noticedOutside` count with
-   the first run's. Tell the owner what its `newFindings` say, a line each, and do nothing more with them:
+   folder>/together-2.json`, beside the first run's. Its `merged`, `affects`, `noticedOutside` and `missing`
+   count with the first run's. Tell the owner what its `newFindings` say, a line each, and do nothing more with them:
    they are not chased further, and the close names them once more (`once.md` § 5 step 6).
-5. Then sort the first run's findings and the new ones in one `tdd route` call (SKILL.md § 2 step 2).
+5. Then sort the first run's findings and the new ones in one `tdd route` call (SKILL.md § 2 step 2), with a
+   `--merged` for each group of either run and the `missing` numbers of both in `--missing`.
 
-**`merged`, after you sorted.** Each entry, `{ ids, cause }`, is a group of findings with one cause that one
-fix settles.
+**`merged`, when you sort.** Each entry, `{ ids, cause }`, is a group of findings with one cause that one fix
+settles. Give every group to the sorting, its numbers in ascending order and joined by `+`, one `--merged`
+per group: `tdd route --reports <reportsDir> --ids 3,5,7 --merged 3+7` (SKILL.md § 2 step 2; `--ids` names
+every finding as before, the group's too). The script decides a group's outcome, by the same tested rule as
+in the apply's chapter review; you never do. What it prints, and what follows from it:
 
-- The group takes one outcome, the more cautious of its findings': ASK when any of them is ASK, otherwise
-  the one they all have. A group whose findings came out FIX and DECLINE is not merged: handle each on its
-  own, and tell the owner so in a line.
-- From then on the group is one finding. Its key is its numbers in ascending order, joined by a comma and a
-  space (`3, 7`): in `Round <n>` (drop the findings' own lines with `tdd drop` and put one line under that
-  key), in Open, in the routing table, in a question (one question for the group) and in the fix round's
-  message.
+- It prints one line for the group, under the key `3, 7`: its numbers in ascending order, joined by a comma
+  and a space. The outcome is ASK when any of its findings is ASK, and the reason then names each such
+  finding (`3, 7 → ASK · 7: <its reason>`); otherwise it is the outcome they all have. A FIX's kind is
+  `behaviour` when any of them has it, else the first one's.
+- A group whose findings came out FIX and DECLINE is not merged. The script prints each of them on a line of
+  its own, and then the line `3, 7: not merged, their outcomes differ`. Handle each on its own, and tell the
+  owner so in a line.
+- A group's DECLINE holds only when the evidence of every finding in it holds: before you act on it, read
+  both report files of each (SKILL.md § 2 step 3).
+- From then on a merged group is one finding, under the key the script printed: in `Round <n>` (drop the
+  findings' own lines with `tdd drop` and put one line under that key), in Open (its entry names the report
+  files of each finding), in the routing table, in a question (one question for the group) and in the fix
+  round's message.
 - Its entry in the fix round's message starts `3, 7 · <kind> · <file>:<line> · <title>`, with the place of
-  its first finding, and the kind `behaviour` when any of them has it. It has one `FINDING:` and one
-  `REPORTS:` line for each number, and the line `MERGED: <the cause>`. The runner's commits then name both
-  numbers (`[review] 3, 7: …`), and the gather counts such a commit for each of them.
+  its first finding and the kind the script printed. It has one `FINDING:` and one `REPORTS:` line for each
+  number, and the line `MERGED: <the cause>`. The runner's commits then name both numbers (`[review] 3, 7:
+  …`), and the gather counts such a commit for each of them.
 - Every thread of the group gets the reply, each with the same text.
 
 **`affects`.** Each entry, `{ ids, how }`, is a group of findings that stay separate but whose fixes touch
 each other. In the fix round's message each of them gets one line per other finding of the group: `AFFECTS:
 <that finding's number>: <how>`. The runner then takes them one right after the other.
+
+They stay separate as questions too: only a merged group is one question. When two or more of the group are
+ASK, tell them to the owner right after each other, and put their questions next to each other in the
+dialog. Each names the other finding and says how the two fixes touch, and each gets an answer of its own.
 
 When one finding of the group came out ASK, the group's FIX findings wait for its answer, which may change
 how they must be fixed. Whenever you are in doubt whether a fix depends on the answer, it does. For each FIX
@@ -95,7 +109,8 @@ finding that waits:
   else to fix, only questions are left.
 - When the answer is there, it goes into the next fix round: after "fix now" together with that finding, each
   with its `AFFECTS` line; after a decline or a deferral on its own, without the `AFFECTS` line for that
-  finding.
+  finding and with a line that tells the runner the decision: `OWNER: <the ASK finding's number> was
+  declined | deferred: <the reason>; fix it on its own`.
 - When the owner leaves the question open at the close, it stays open too (`once.md` § 5 step 1).
 
 **`noticedOutside`.** Each line, `<file>:<line> · <what is wrong>`, is a side remark of a verifier that holds
@@ -104,10 +119,13 @@ on, or it is a new finding beyond the ten the workflow returns. It is not a find
 post it, check it or fix it. It is not dropped either: at the close you tell the owner every line and name
 each in your report (`once.md` § 5 step 6).
 
-**`missing` and `together`.** `missing` names the findings a check returned nothing for. `tdd route` makes
-such a finding ASK ("a check returned no result"), and so it does one whose report file it cannot read, which
-it names in a line that starts `route:`. Tell the owner that as the reason. `together` is `done` when the
-last agent answered. Anything else means nobody compared the findings: the four lists are empty, and you
+**`missing` and `together`.** `missing` names the findings a check returned nothing for. Give them to the
+sorting, the numbers joined by commas: `tdd route --reports <reportsDir> --ids 3,5,7 --missing 5` (SKILL.md
+§ 2 step 2; they stay in `--ids` too). `tdd route` then makes each of them ASK ("a check returned no
+result"), whatever report files the folder holds: a work folder kept from an earlier run of this round may
+still hold such a finding's old reports, and those must not be sorted. It also makes ASK a finding whose
+report file it cannot read, which it names in a line that starts `route:`. Tell the owner that as the reason.
+`together` is `done` when the last agent answered. Anything else means nobody compared the findings: the four lists are empty, and you
 tell the owner so in a line.
 
 ## The gather's classes
@@ -202,7 +220,9 @@ This section also says what two lines of a hand-back's `FINDINGS:` ask of you: `
 
 - **Fix now.** The finding's entry goes into the next fix-round message (SKILL.md § 3) with the line `OWNER:
   fix now: <what the owner decided, in a line>`, and `· plan commit <sha>` when there is one. Its `<kind>` is
-  its reports' `KIND`; when the two differ, `behaviour` if either says it, else the first report's.
+  its reports' `KIND`: when the two reports differ, `behaviour` if either says it, else the first that names
+  one; when none names one (`not applicable`, or no report), `behaviour`. For a merged group, the same over
+  the reports of all its findings.
   A fix that changes behaviour a spec describes, a decision in `design.md` or the API contract gets its edit
   of the spec or `design.md` first, and you make it: read only the passage (Grep for its heading), edit it,
   and commit `tdd commit --pr <id> --type docs --tag plan --summary "<number>: <what changed>" --path <file>`.
@@ -263,12 +283,61 @@ questions that are left in SKILL.md § 4.
   could not stop (the hand-back names the task's id). Stop it with TaskStop (load it with ToolSearch,
   `select:TaskStop`), tell the owner in a line, and resume the runner with `CONTINUE`. Any other `BLOCKED`
   (a red baseline, a change in the tree that its brief did not name, a missing tool) is a full stop: tell the
-  owner its `WHY`; once that is cleared, resume the runner with `CONTINUE`.
+  owner its `WHY`; once that is cleared, resume the runner with `CONTINUE`. One whose `WHY` holds a line that
+  starts `ERROR: failed part-way:` (the runner's `shelve` or `unshelve` stopped half-way) is resumed
+  differently: tell the owner the cause, the line's part after `The cause:`, and where the line says the
+  work is; once the cause is gone, resume the runner with `CONTINUE: run the way out your BLOCKED line
+  names, then go on`. Record the line in "Resume here" at the stop. A runner that cannot be resumed then: a
+  fresh one, with the line and "run its way out first" after `FIX ROUND:` in its brief.
 - **`NEEDS_OWNER`** (a runner). Tell the owner its `NEEDS` (Docker is not running, a file outside the
   repository is missing); once it is there, resume the runner with `CONTINUE`.
-- **A failed close check.** The runner reports it and changes nothing. Tell the owner which check failed
-  and with what. Its repair is a fix like any other: it goes to the runner in a fix-round message, as an
-  entry under the number of the finding whose fix caused the failure, with the line `OWNER: the close check
-  <name> failed: <what>` (the repair's commits then count for that finding, whose reply stands). The entry's
-  kind is `cleanup` for a format, lint or type-check failure, and `behaviour` only when a test failed. Then
-  the close checks run once more. A failure that no finding's fix caused: the owner decides what happens.
+- **A close check that did not pass.** The hand-back's `CLOSE CHECKS:` line, which you recorded (SKILL.md
+  § 3 step 4), gives each check as one of three: `ok`, `repaired: <check> for <number>, <commit>` (one for
+  each repair commit after which the check passes), or `failed: <check>[ for <number>]: <what>`, which ends
+  `, repair <commit> did not help` when a repair was committed and the check still fails.
+  - **`repaired:`** is no stop, and all it asks of you is a line to the owner: what was repaired, and for
+    which finding. A failed format, lint or type check (`dotnet format … --verify-no-changes`, the
+    frontend's `lint`, `typecheck` and `format:check`) cannot change behaviour, so the runner had every file
+    the check named repaired at once, by the agent whose code it is, in one commit per finding whose fix
+    caused the failure. It added that commit to the finding's line in `Round <n>` itself, and it ran all
+    close checks again before it handed back: a repair commit owes no further run. The finding's reply
+    stands as it is: one that is posted is never posted again for a repair, whatever its line now says. A
+    repair the owner ordered (under `failed:` below) comes back as `repaired:` too, and asks the same.
+  - **`failed:`** is a full stop. For a failed test (a fix broke something else, or a test is unstable), the
+    API client's drift, a Bicep lint failure, or a failure in a file that no fix of this round touched, the
+    runner changed nothing. A part that ends `repair <commit> did not help` is a check that still failed
+    after its one repair: that commit stays in the branch and in the finding's line. `for <number>` names
+    the finding whose fix caused the failure. It is there when a repair was tried, or when the failing
+    file's last commit of this round names a finding. Tell the owner which check failed and with what, and
+    ask what happens to it. A repair the owner wants now goes to the runner in a fix-round message, as an
+    entry under that number, with the line `OWNER: the close check <name> failed: <what failed, with its
+    paths>: <what the owner decided>`. Take what failed and its paths from the `failed:` part as it stands:
+    the runner reads no code. It sends a failed test to the implementer, since a failing test means the code
+    is wrong, and to the test-writer only when the decision says that the test itself is to change (unstable,
+    or wrong): when the owner decides so, write it in those words. Any other check goes by its paths (test
+    code to the test-writer, any other to the implementer). It is no fix of the finding: the check that failed is its test, no guard test is
+    written, and the runner commits it as `<number>: close check <name> repaired` and adds that commit to the
+    finding's line. The finding's outcome and its reply stand. The entry's first line still needs a kind in
+    its second field: write `cleanup`; the runner does not use it for such an entry. The message carries
+    `CLOSE CHECKS: since <the PR's headRefOid>`, so that the close checks run once more after the repair. A
+    `failed:` part without a number: no finding's fix is known to have caused it, and the owner decides what
+    happens.
+
+## Another effort level
+
+Each agent's definition sets its reasoning effort. The owner may ask for another level for the test-writer or
+the implementer at any time, in plain words. That is no question and no stop: record it, and tell the owner
+what holds.
+
+1. Record what was asked, and only that: `tdd put --pr <id> --section Run --key Effort --value
+   "implementer=high"`; for both agents, `--value "test-writer=xhigh · implementer=high"`. A level is one
+   the Agent tool takes: `low`, `medium`, `high`, `xhigh` or `max`. When the entry already holds a level for
+   the other agent (`tdd get --pr <id> --section Run`), keep that part in the value.
+2. That entry is the one source, and you pass nothing on: no line in a brief, no message to a runner. The
+   runner reads `Run` each time it starts a test-writer or an implementer, and starts the agent at the level
+   it finds there; with no entry for an agent, at the level its definition sets. So the entry holds after a
+   compaction and in a new session too.
+3. Going back to the agents' own levels: `tdd drop --pr <id> --section Run --key Effort`. For one of two
+   agents only, `tdd put` again with the part that stays.
+4. Tell the owner in a line what holds: every agent started from now on has the new level, and one that
+   already runs keeps its own until it is replaced.

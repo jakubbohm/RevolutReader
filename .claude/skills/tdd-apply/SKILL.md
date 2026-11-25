@@ -40,8 +40,9 @@ This skill is attached again, and a hook adds "Resume here", "Open" and "Agents"
   agent's report by running the tests itself.
 - **You never open an agent's transcript.** When a hand-back is unclear, ask that agent (resume it with the
   question), or report to the owner.
-- **You edit only:** the spec or `design.md` passage that a dispute or a review finding the owner resolved
-  needs, and a docs finding under `openspec/`. The state file changes only through `tdd` (below).
+- **You edit only:** the spec or `design.md` passage that the owner's decision changes (a dispute, a review
+  finding, a design part's name), and a docs finding under `openspec/`. The state file changes only through
+  `tdd` (below).
 - **You commit only** through `tdd commit`, and only what you edited yourself (staged by `--path`), on the
   change branch. Never push, never commit on `main`, never open a PR.
 - **One worker in the working tree at a time.** Never start a runner or a reviewer while another runner is
@@ -81,11 +82,11 @@ This skill is attached again, and a hook adds "Resume here", "Open" and "Agents"
   `tdd drop --section Open --key "<key>"`). The rest waits for the next hand-back: your edit of the spec or
   `design.md`, its commit (tag `plan`), and the tasks. The runner that does the last task drops the entry;
   when no task is left, you do.
-- **The tasks an answer frees** are a runner's. If the runner that parked them just handed back, resume it
-  with `ANSWER: <key>: <the decision>` and the commit. Otherwise plan them as a chapter of their own
-  (`CHAPTER: <name>: tasks <ids>, freed by <key>`), before the first chapter that needs them, else last.
-- **A full stop** is where the run stands still for the owner: a failed check at the start, the acceptance
-  gate, `after-chapter=stop`, `REVIEW_STOP`, `BLOCKED`, `NEEDS_OWNER`, and when only questions are left.
+- **The tasks an answer frees** are a runner's: `once.md` § The tasks an answer frees.
+- **Another effort level** for an agent, when the owner asks for one: `once.md` § Another effort level.
+- **A full stop** is where the run stands still for the owner: a failed check at the start, a design fetch
+  that failed or missed a part (`once.md` § The design files), the acceptance gate, `after-chapter=stop`,
+  `REVIEW_STOP`, `BLOCKED`, `NEEDS_OWNER`, and when only questions are left.
   There, and only there, use ONE AskUserQuestion dialog: the stop's own question, then every question Open
   still holds. Each question stands on its own (the owner may see the dialog alone): what is asked, and its
   options, the recommended one first. Four questions per dialog at most; the next dialog follows at once.
@@ -103,7 +104,7 @@ what to do when one is missing.
 
 `tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root with the Bash
 tool (a here-document and `<` do not work in PowerShell). The command comes first, then always `--change
-<change>` (only `tdd route`, § 4, takes none). Each call prints a line or two.
+<change>`. Each call prints a line or two.
 
 - `tdd get --section "<name>" [--section …]`: one or more sections of the state file
   `openspec/changes/<change>/.tdd-state.md`. Its sections: Resume here, Run, Chapter plan, Agents, Standing
@@ -140,6 +141,8 @@ applying`. A `design-fetcher` agent fetches the design files, never you.
    TREE: clean | <what is uncommitted, when resuming mid-chapter>
    ```
 
+   `<name>` is one word (letters and digits; `.`, `-` or `_` may stand inside it), because `--chapter` takes
+   it: `acceptance` for group 1, then `A`, `B`, … as planned.
 2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`, and set "Resume
    here". The runner expects the state file changed in the tree.
 3. Wait for its hand-back: end your turn.
@@ -149,14 +152,11 @@ applying`. A `design-fetcher` agent fetches the design files, never you.
    and `FOR THE OWNER:` lines. Its `NEXT:` says what remains: plan it (a final `[close]` that a parked task
    holds back shows only there). Then its `RESULT`:
    - `GATE_READY`: § 2.
-   - `REVIEW_STOP`: a full stop. Show the owner the group's tests (names, files, the commit). Resume the
-     runner with the owner's feedback, or with `CONTINUE`.
-   - `BLOCKED` or `NEEDS_OWNER`: a full stop, except for a command an agent left running, which you stop
-     yourself: `once.md` § A runner that is blocked.
-   - `CHAPTER_ENDED_EARLY`: never a question and never a stop. Re-plan by yourself: what remains becomes a
-     new chapter with a fresh runner (the rest of B is B2), `tdd set --section "Chapter plan"`. Tell the owner
-     in a line, with the runner's `WHY`. Then go on as for `CHAPTER_DONE`.
-   - `CHAPTER_DONE`: § 3 (the acceptance chapter: start chapter A).
+   - `REVIEW_STOP`: a full stop: `once.md` § A group's tests for the owner.
+   - `BLOCKED` or `NEEDS_OWNER`: `once.md` § A runner that is blocked (a full stop, but for one case).
+   - `CHAPTER_ENDED_EARLY`: never a question and never a stop. Re-plan by yourself (`once.md` § A chapter
+     ended early), then go on as for `CHAPTER_DONE`.
+   - `CHAPTER_DONE`: § 3 (the acceptance chapter: `once.md` § The acceptance gate step 4).
    - `FIX_ROUND_DONE` or `FIX_ROUND_ENDED_EARLY`: back in § 4, step 4.
 
 ## 2. The acceptance gate (always)
@@ -174,34 +174,38 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
    ```
    CHANGE: <change>
    CHAPTER: <name>: <its groups or slices>
-   RANGE: <where the previous review ended>..<the last commit of the runner's RANGE> | the working tree
-   FIXES: <the previous chapter's fix commits, each with its finding's id> | none
+   RANGE: <where the last review ended>..<the last commit of the runner's RANGE> | the working tree
+   FIXES: <the fix commits of that review's chapter, each with its finding's id> | none
    LATER: <one line per later chapter of the plan: its name and what it adds; "none" after the last>
    ```
 
-   The previous chapter's record has both (`tdd get --file reviews --section "Chapter <previous>"`): its
-   `range` ends where that review ended, and its findings name their fix commits. The first review after the
-   gate takes the runner's `RANGE` as it is, and `FIXES: none`.
+   The last chapter before this one whose record has a `range` has both (`tdd get --file reviews --section
+   "Chapter <it>"`): its `range` ends where that review ended, and its findings name their fix commits. The
+   first review after the gate differs (its range, a `GATE:` line): `once.md` § The first review after the
+   gate.
 2. Record the range: `tdd put --file reviews --section "Chapter <X>" --key range --value "<the RANGE>"`, and
    the reviewer: `tdd put --section Agents --key "<chapter> reviewer" --value "<agent id>"`. Set "Resume
-   here". Wait for the hand-back: end your turn. It holds every finding with a verifier's verdict.
+   here". Wait for the hand-back: end your turn.
 3. Route each finding (§ 4, step 1) and record it:
    `tdd put --file reviews --section "Chapter <X>" --key "<id>" --value "<severity> · <verdict> · <file:line> · <the defect in a few words> → <FIX|DECLINE|ASK>"`.
 
 ## 4. Act on the findings
 
-1. **Route:** `tdd route --json '<the hand-back's ROUTE INPUT line, without its label>'`. It prints one line
-   per finding, `<id> → FIX · <kind>`, `<id> → DECLINE · <reason>` or `<id> → ASK · <reason>`, then the
-   counts. The outcomes are what it prints: never sort a finding yourself. Without findings there is no such
-   line and nothing to route. DECLINE: nothing more is done.
+1. **Route:** `tdd route --change <change> --chapter <X>`. From the reviewer's record and the verifiers'
+   report files it prints one line per finding, `<id> → FIX · <kind>`, `<id> → DECLINE · <reason>` or
+   `<id> → ASK · <reason>`, then the counts. A merged finding's line starts `<id>, <id>`: record and name it
+   by the first. A line `<id>: waits for <ask id>` is a FIX finding that waits for an ASK's answer: `once.md`
+   § Findings whose fixes touch. The outcomes are what it prints: never sort a finding yourself. Without
+   findings there is no such line and nothing to route. DECLINE: nothing more is done.
 2. Show the owner the routing in one table (id · severity · the finding · outcome · the reason in a few
    words). Do not wait: FIX and DECLINE are this skill's job. Park each ASK finding: `tdd put --section Open
    --key "<id>" --value "<the finding in a line> · ASK: <the reason> · its entry: reviews file, section
    Chapter <X> review · waits: <its BUILDS ON IT>"`, and tell the owner the finding, the verifier's evidence,
    the trade-off and your recommendation. The owner answers fix now, decline or defer (step 5).
-3. **Fix round.** Resume the chapter's own runner with the message below. If that runner is past 200,000
-   tokens, or another chapter has started since, start a fresh one with the chapter's brief, `START AT: the
-   fix round below`, and the same message. Wait for the hand-back.
+3. **Fix round.** Without a FIX finding that does not wait, go on at step 5. Resume the chapter's own runner
+   with the message below. If that runner is past 200,000 tokens, or another chapter has started since, start
+   a fresh one with the chapter's brief, `START AT: the fix round below`, and the same message. Wait for the
+   hand-back.
 
    ```
    FIX ROUND: chapter <X>
@@ -211,10 +215,7 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
    FINDINGS: <the ids>, as recorded in the reviews file, section "Chapter <X> review"
    ```
 
-4. From its `FINDINGS:` lines: a finding refuted by its guard test is a DECLINE with that test as the
-   evidence. One `handed back`: `once.md` § A finding handed back. A blocked one, and one that waits for it,
-   is parked already: the question is in the hand-back. Findings `not started` go to a fresh runner, as in
-   step 3.
+4. Its `FINDINGS:` lines say how each finding ended. Whatever is not `fixed`: `once.md` § After a fix round.
 5. **The owner's answer to an ask** (when you act on it: § Questions for the owner): `once.md` § The owner's
    answer to a finding.
 6. Commit the reviews file when it changed after the runner's last commit:

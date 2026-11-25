@@ -11,6 +11,9 @@
 //   the reviews file `chapter a` must not open a second section next to `Chapter A`.
 // - An edit changes only the section's own lines and keeps the file's line endings (those of its first line break)
 //   and whether it ends with one.
+// - A state file has a second file that is never committed, the local file, for the values that are true on this
+//   machine only (the code graph's project, the folders of the fetched design files): a file of the same form,
+//   whose sections are named as the state file's. A reader gets one section from both (`overlaidBody`).
 
 export const STATE_FILE = ".tdd-state.md";
 export const REVIEWS_FILE = ".chapter-reviews.md";
@@ -64,6 +67,12 @@ export function newStateText(change, run, eol) {
 // A new chapter reviews file: its title; a chapter's section is appended when it is first written.
 export function newReviewsText(change, eol) {
   return `# Chapter reviews: ${change}${eol}`;
+}
+
+// A new local file: its title (`of` says whose state file it goes with: the change's name, or `triage-<id>`); a
+// section is appended when it is first written.
+export function newLocalText(of, eol) {
+  return `# This machine's values: ${of}${eol}`;
 }
 
 // A triage's state file at the start of a round. With no text before (`before` is null): a new file of the title
@@ -163,6 +172,33 @@ export function keyValue(text, name, key) {
   const first = lines[at.from].slice(keyPrefix(key.trim()).length).trim();
   const rest = lines.slice(at.from + 1, at.to).map((l) => l.replace(/^ {1,2}/, ""));
   return [first, ...rest].join("\n");
+}
+
+// One section as a reader gets it from the state file and its local file: the state file's body (`body`) with the
+// local file's (`local`) laid over it, both as `sectionBody` answers them. A keyed bullet of the local body stands
+// in place of the state file's bullet of the same key, so a key that both hold is there once, with this machine's
+// value; whatever else the local body holds follows the state file's lines, in its own order. Null when neither
+// file has the section.
+export function overlaidBody(body, local) {
+  if (body === null || local === null) return body ?? local;
+  const lines = filled(body.split("\n"));
+  const more = [];
+  const extra = filled(local.split("\n"));
+  for (let i = 0; i < extra.length;) {
+    const [key] = keysAmong([extra[i]]);
+    if (key === undefined) {
+      more.push(extra[i++]);
+      continue;
+    }
+    const { to } = keyedAt(extra.slice(i), key);
+    const bullet = extra.slice(i, i + to);
+    const at = keyedAt(lines, key);
+    if (at) lines.splice(at.from, at.to - at.from, ...bullet);
+    else more.push(...bullet);
+    i += to;
+  }
+  const whole = trimmed([...lines, ...more]);
+  return whole.length > 0 ? whole.join("\n") : EMPTY;
 }
 
 // The text as lines, with its line ending and whether it ends with one.

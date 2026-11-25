@@ -116,6 +116,13 @@ finding and both reports there. The runner says which of these it asks for:
 - **A guard test to take out** (its finding was declined or deferred, and the command that reverses its
   commits was refused): remove what the commits the runner names added to test code and stubs, and nothing
   else. Report `CHANGED`.
+- **A close check to repair** (`/triage-review`: after the round's fixes, a format, lint or type check
+  fails in test code that a fix changed): the runner sends the files, the checks' printed lines and the
+  finding's id. Change how the code is written until those checks pass for those files, and nothing a test
+  claims. The frontend's checks name files from `src/RevolutReader.Web`. Report `CHANGED`.
+- **A repair the owner ordered** (`/triage-review`: an entry whose `OWNER:` line starts `the close check
+  <name> failed:`, in test code): that line says what to repair, and the check that failed is its test.
+  Repair the test code as the line says until that check passes, and nothing else. Report `CHANGED`.
 
 ## Stubs in production code
 

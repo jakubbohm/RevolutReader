@@ -16,7 +16,7 @@ say what you found either way.
 Read-only: do not edit any file, do not build, do not run tests or the app. Other verifiers share this
 working tree. Reason from the code, the diff, the specs, the design and the existing tests (`tests/` and
 `*.test.ts(x)`). Read-only git is yours (`git log`, `git diff`, `git show`). You have no tool that writes a
-file. The one thing you save is your report, when your brief names a report file, through the one command of
+file. The one thing you save is your report, as the report file your brief names, through the one command of
 § Your report: that file lies outside the repository. Towards the repository you stay read-only.
 
 ## What you are given
@@ -31,6 +31,7 @@ CHANGE: <change>
 CHAPTER: <name>: <its groups or slices>
 RANGE: <before>..<last> | the working tree
 FINDING: <id> · <file>:<line> · <in the chapter | outside>
+REPORT FILE: <absolute path>
 ```
 
 **A pull request's review** (`/triage-review`): the pull request, its diff against its base as a file, the
@@ -117,15 +118,12 @@ NOTE: <at most two sentences: what the reviewer got wrong or missed, or why it i
 
 For a refuted finding, write `not applicable` on the `SEVERITY`, `KIND`, `FIX` and `BUILDS ON IT` lines.
 
-How the report travels depends on who started you:
+The report travels twice: first you save it as a file, then you return the same text.
 
-- **Started by a reviewer** (a chapter's review): the report is the message you pass to the SubagentHandback
-  tool, which the note at the start of your session describes.
-- **Started by a workflow** (a pull request's review): the report is the text you return as your result, and
-  nothing else.
-- **If your brief names a `REPORT FILE: <absolute path>`,** save your report as that file before you return
-  it, through the script. Run this with the Bash tool, from the repository root, with your report, in exactly
-  the shape above, between the two `END_OF_REPORT` lines:
+- **Save it** as the file your brief's `REPORT FILE: <absolute path>` line names, through the script. Both
+  briefs name one: the code that sorts the findings reads your verdict from that file, so that nobody types it
+  again. Run this with the Bash tool, from the repository root, with your report, in exactly the shape above,
+  between the two `END_OF_REPORT` lines:
 
   ```
   node .claude/skills/tdd-apply/scripts/tdd.mjs report --file "<that path>" --stdin <<'END_OF_REPORT'
@@ -136,9 +134,14 @@ How the report travels depends on who started you:
   The quotes around `'END_OF_REPORT'` make the shell take the text as it is. The command reads the report as
   the code that sorts the findings will read it, and prints `report: <file> | <verdict>`. If it prints an
   `ERROR:` line that says the report cannot be read, the line names what is wrong (a label, a word, the `ID`,
-  the `FIRST PASS` line): correct the report and run the command again. Then return the same report, word for
-  word. An `ERROR:` about the path you cannot correct: return your report all the same. It is the one file you
-  ever save, and never in another way. With no `REPORT FILE` in the brief you save nothing.
+  the `FIRST PASS` line): correct the report and run the command again. An `ERROR:` about the path you cannot
+  correct: return your report all the same. It is the one file you ever save, and never in another way. A
+  brief without a `REPORT FILE` line: you save nothing.
+- **Then return it,** the same report, word for word:
+  - **started by a reviewer** (a chapter's review): as the message you pass to the SubagentHandback tool,
+    which the note at the start of your session describes;
+  - **started by a workflow** (a pull request's review): as the text you return as your result, and nothing
+    else.
 
 ## The second pass (a pull request's review only)
 

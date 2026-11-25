@@ -16,9 +16,9 @@ everything heavy, to keep your context small:
 - **A runner** (`runner` subagent) runs the baseline, every fix and the close checks, with a fresh
   test-writer and implementer of its own.
 
-Beside this file, `once.md` holds the steps that happen once in a round and the replies' forms, and `rare.md`
-the cases that come up now and then. Of `rare.md` read only the section a step names: Grep it for `^## `,
-then Read from that heading's line to the next.
+Beside this file, `once.md` holds the steps that happen once in a round, the scripts and the replies' forms,
+and `rare.md` the cases that come up now and then. Of `rare.md` read only the section a step names: Grep it
+for `^## `, then Read from that heading's line to the next.
 
 ## If your context was compacted
 
@@ -45,6 +45,8 @@ step asks for it.
   read and changed only through `tdd`, never with Read.
 - **You commit only** through `tdd commit`, and only what you edited yourself (staged by `--path`), on the
   pull request's branch. Never push, never commit on `main`, never open a PR or mark one ready.
+- **You post to the PR only through the skill's scripts,** run as they are (`once.md` § The scripts). An
+  `ERROR:` line: fix its cause, or stop and report; never work around a script.
 - **One worker in the working tree at a time.** Never start a runner while the workflow or another runner is
   working, and change no file in the tree while a runner works.
 - **You wait by ending your turn.** After you start the workflow, or start or resume a runner, tell the owner
@@ -76,11 +78,11 @@ step asks for it.
   --value "answered: <the decision> · still to do: <what>"` (a runner's `Q<n>`: then `\n` and the entry's own
   lines, which name what waits and the work set aside).
 - **A full stop** is where the round stands still for the owner: `NOT THIS ROUND'S COMMITS`, `BLOCKED`,
-  `NEEDS_OWNER`, a failed check at the start, a check that brings no result, a failed close check, and when
-  only questions are left. There, and only there, use ONE AskUserQuestion dialog: the stop's own question,
-  then every question Open still holds. Each question stands on its own: what is asked, and its options, the
-  recommended one first. Four questions per dialog at most; the next dialog follows at once. Details go in
-  your text above it.
+  `NEEDS_OWNER`, a failed check at the start, a check that brings no result, a close check the runner reports
+  as failed, and when only questions are left. There, and only there, use ONE AskUserQuestion dialog: the
+  stop's own question, then every question Open still holds. Each question stands on its own: what is asked,
+  and its options, the recommended one first. Four questions per dialog at most; the next dialog follows at
+  once. Details go in your text above it.
 
 ## Outcomes (`tdd route` decides)
 
@@ -135,9 +137,10 @@ Once per round: read `once.md` now and follow its § 0 and § 1.
    `{ pr, ids, reportsDir, merged, affects, newFindings, noticedOutside, missing, together }`. Before
    anything else, save it as it is to `<work folder>/together.json` (the Write tool). Unless all five lists
    are empty and `together` is `done`: `rare.md` § What the workflow found, before you sort.
-2. `tdd route --reports <reportsDir> --ids <number>[,<number>...]` prints one line per finding, `<number> →
-   FIX · <kind>`, `→ DECLINE · <reason>` or `→ ASK · <reason>`, then the counts. Never sort a finding
-   yourself.
+2. `tdd route --reports <reportsDir> --ids <number>[,<number>...]`, plus one `--merged <number>+<number>` per
+   entry of `merged` and `--missing <number>[,<number>...]` for `missing`, prints one line per finding or
+   merged group, `<number> → FIX · <kind>`, `→ DECLINE · <reason>` or `→ ASK · <reason>`, then the counts.
+   Never sort one yourself.
 3. **Before you act on a DECLINE,** read its two report files, `<reportsDir>/<number>-1.md` and
    `<number>-2.md`, and open exactly what their `EVIDENCE` lines cite: the lines at a file:line, the named
    test, the decision's passage. Evidence that holds and covers the finding: post its reply now (§ Replies).
@@ -180,14 +183,17 @@ Once per round: read `once.md` now and follow its § 0 and § 1.
      restart.
    - `CLOSE CHECKS: since …` in the round's last message, the one you send when Open holds no question. If
      one was open then, resume the runner at the end with `FINDINGS: none` and that line. After any later
-     commit, yours or a runner's, they run once more. A round without a commit needs none.
+     commit, except a repair the runner made within the close checks, they run once more. A round without a
+     commit needs none.
+   - The owner wants another effort level for the pair: `rare.md` § Another effort level.
 2. `tdd put --pr <id> --section Agents --key "round <n> runner" --value "<agent id>"`. End your turn.
 3. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
    **200,000** with the round not done, resume it with `END THE CHAPTER after the slice in progress.`
 4. Act on the hand-back, in this order (`rare.md` § Stops has each full stop):
    - `QUESTIONS:`, `DISPUTES:` and `FOR THE OWNER:`: tell the owner.
    - `BASELINE:` and `CLOSE CHECKS:`: `tdd put --pr <id> --section "Round <n>" --key <baseline |
-     close-checks> --value "<the line>"`. A failed check is a full stop.
+     close-checks> --value "<the line>"`. A check reported as failed is a full stop. A `repaired:` part
+     needs only a line to the owner (`rare.md` § Stops says why).
    - `FINDINGS:`, each line. `fixed …`: its reply. `refuted by its guard test …`: a DECLINE on that test,
      its reply. `guard removed <commit>: …` and `handed back: …`: `rare.md` § Answers. `blocked, Q<n> …` and
      `waits for Q<n>`: parked already. `not started`: a fresh runner's.
@@ -206,9 +212,10 @@ Once per round: read `once.md` now and follow its § 0 and § 1.
    runner's question. What changes the working tree waits for the runner's hand-back; a reply does not. Drop
    a finding's entry once its answer is carried out, and before a message takes it into a fix round: `tdd
    drop --pr <id> --section Open --key "<number>"`.
-3. **When only questions are left:** the full stop's dialog, one question per finding (a merged group is one)
-   with the options fix now · decline · defer to an issue · defer as a heads-up; a runner's question has its
-   own `OPTIONS`, in its entry in Open.
+3. **When only questions are left:** the full stop's dialog, one question per finding (a merged group is one;
+   findings that affect each other come right after each other, each naming the other) with the options fix
+   now · decline · defer to an issue · defer as a heads-up; a runner's question has its own `OPTIONS`, in its
+   entry in Open.
 
 ## Replies
 
@@ -219,12 +226,3 @@ how it is posted. The gather reads a finding's outcome from its reply's first wo
 ## 5. Close
 
 When every finding has ended or the owner left it open, and the close checks ran: follow `once.md` § 5.
-
-## Scripts
-
-The scripts are in `.claude/skills/triage-review/scripts/`: `gather-findings.mjs`, and the three that post,
-`post-findings.mjs`, `reply-finding.mjs` and `post-summary.mjs`. Each file's header has the details. Run each
-as it is, as one call of the Bash tool from the repository root: never rewrite or inline one, and never post
-to the PR another way. An `ERROR:` line says what failed: fix that cause, or stop and report; never work
-around the script. The three that post take `--dry-run`, and refuse a text that would make GitHub post a
-backlink outside this repository, saying how to rewrite it.

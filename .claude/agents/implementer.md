@@ -24,6 +24,13 @@ Read both when you start. Never change that file.
   specification the same way. A docs or cleanup finding has no test: the finding the runner sends you is
   your specification. In `/triage-review` a finding's entry names the findings file and the report files of
   the finding's two checks: read the finding and both reports there.
+- A close check to repair (`/triage-review`: after the round's fixes, a format, lint or type check fails in
+  production code that a fix changed): the files and the checks' printed lines, which the runner sends with
+  the finding's id, are your specification. Change how the code is written until those checks pass for
+  those files, never what the code does. The frontend's checks name files from `src/RevolutReader.Web`.
+- A repair the owner ordered after a failed close check (`/triage-review`: an entry whose `OWNER:` line
+  starts `the close check <name> failed:`): that line says what to repair, and the check that failed is your
+  test. Repair production code as the line says until that check passes, without changing any test.
 - `design.md` for structure, naming, rule ownership and the error model. Read it whole, once.
 - `tasks.md`, by group: find the group the runner names with Grep on `^## `, then Read that line range
   only. Never the whole file.

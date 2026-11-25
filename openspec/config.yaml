@@ -93,7 +93,7 @@ rules:
     - Changes touching the API contract plan the TS client regeneration explicitly
     - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
     - Changes calling the bank respect ADR-0001-bank-data-access § Decision
-    - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements, and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
+    - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements and, for each of the two design artifacts, the version it was read at (the first line of the artifact's file listing states it), and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory/lessons.md entry, and a docs/software-factory/divergences.md entry when this project runs a cut-down version (docs/conventions/workflow.md § 10)
     - A change that takes a shortcut in an artifact listed in docs/software-factory/creating-handover-package.md § Inventory flags it as a decision for the user; once decided, it gets a docs/software-factory/divergences.md entry naming the full version. The change does not design the full version; it is built at the handover (roadmap step SF1, docs/conventions/workflow.md § 10)
   tasks:
