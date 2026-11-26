@@ -39,7 +39,10 @@ const DOTNET_AFTER_MESSAGE = [
   /^(Test run summary:|Exit code: \d+$|Running tests from )/,
 ];
 
-const VITEST_FAILED = /^\s*FAIL\s+(\S.*)$/;
+// Vitest's own heading of a failed test, exactly: its badge, one blank before `FAIL` and two after once its colours
+// are stripped. Any other line with a `FAIL` in it (a .NET test's message or captured output, a line a test
+// printed) is no failed test.
+const VITEST_FAILED = /^ FAIL {2}(\S.*)$/;
 // Where a Vitest failed test's message ends: a blank line (its first paragraph is the error itself; the diff and
 // the code frame follow), a stack line, the separator, or what follows it.
 const VITEST_AFTER_MESSAGE = [/^\s*$/, /^\s*❯ /, /^⎯+/, VITEST_FAILED, /^\s*Test Files\s/];
