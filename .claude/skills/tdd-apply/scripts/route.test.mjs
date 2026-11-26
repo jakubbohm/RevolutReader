@@ -550,6 +550,25 @@ describe("readReport", () => {
     assert.equal(readReport(report(withLine("EVIDENCE", "EVIDENCE: none"))).evidence, false);
   });
 
+  // A refuted finding whose checks cite nothing is put to the owner (rule 6), and a DECLINE gets no second look
+  // in /tdd-apply's chapter review: a check that says it has nothing to cite in other words than `none` must not
+  // decline a finding that may be real. Either reading keeps it from that: the report is refused, so the check
+  // corrects it, or it is read as citing nothing.
+  test("never takes a value that says there is nothing to cite, in other words than `none`, for evidence", () => {
+    const sayingNothing = ["None.", "none: nothing concrete to cite", "n/a", "N/A", "-"];
+
+    for (const said of sayingNothing) {
+      let read;
+      try {
+        read = readReport(report(["VERDICT: refuted", `EVIDENCE: ${said}`]));
+      } catch {
+        continue;
+      }
+      assert.equal(read.evidence, false, `EVIDENCE: ${said}`);
+      assert.equal(routeFinding(finding([read, { ...read, disagrees: false }])).outcome, "ASK", `EVIDENCE: ${said}`);
+    }
+  });
+
   test("reads a report with a byte-order mark and CRLF line breaks the same", () => {
     assert.deepEqual(readReport(`﻿${report(CONFIRMED, "\r\n")}`), readReport(report(CONFIRMED)));
     assert.deepEqual(readReport(`﻿${CONFIRMED.join("\r\n")}`), readReport(report(CONFIRMED)));
