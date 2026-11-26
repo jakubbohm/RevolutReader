@@ -45,7 +45,7 @@ function git(cwd, args) {
 
 // What the session is told about one state file: `under` says what is under way, `status` what the file says, and
 // `whose` names it to the command, `main` whether this session's id is the one the run's start recorded. Then the
-// file's three sections as they stand, in SHOWN's order.
+// file's three sections as they stand, in SHOWN's order. Its blocks, the intro first, each section one block.
 function account(scripts, text, { under, status, whose, main }) {
   const whoseSession = main
     ? "This session is its main session."
@@ -59,7 +59,43 @@ function account(scripts, text, { under, status, whose, main }) {
   const sections = SHOWN.map(
     (name) => `## ${name}\n${scripts.sectionBody(text, name) ?? "(the state file has no such section)"}`,
   );
-  return [intro, ...sections].join("\n\n");
+  return [intro, ...sections];
+}
+
+// The blocks of the accounts as one text: a block left out (null) leaves no gap.
+const joined = (accounts) => accounts.map((blocks) => blocks.filter((b) => b !== null).join("\n\n")).join("\n\n");
+
+// The accounts as the session is told them, within LIMIT. A text that fits is told whole. Otherwise the note that
+// names the commands for the rest ends it, and the room before the note goes, in this order, to: every account's
+// intro and Resume here; then every account's Open; then every account's Agents. Within one step every block that
+// fits whole is given its room in the accounts' order, and the first that does not is then shortened to what is
+// left, ending with a line `…`; the blocks of the steps after it are left out. So Agents is shortened or left out
+// before any Open is cut, and an Open is cut only when nothing else is left. When the intros and Resume heres
+// alone do not fit, they are cut where the room ends.
+function fitted(accounts, note) {
+  const whole = joined(accounts);
+  if (whole.length <= LIMIT) return whole;
+  const room = LIMIT - note.length;
+  const shown = accounts.map(([intro, resume]) => [intro, resume, ...SHOWN.slice(1).map(() => null)]);
+  if (joined(shown).length > room) return joined(shown).slice(0, Math.max(0, room)) + note;
+  for (let at = 2; at < 1 + SHOWN.length; at++) {
+    const left = accounts.map((_, i) => i).filter((i) => !fill(shown, i, at, accounts[i][at], room));
+    if (left.length === 0) continue;
+    const [i] = left;
+    const free = room - joined(shown).length - "\n\n".length - "\n…".length;
+    const heading = accounts[i][at].indexOf("\n") + 1;
+    if (free > heading) shown[i][at] = `${accounts[i][at].slice(0, free)}\n…`;
+    break;
+  }
+  return joined(shown) + note;
+}
+
+// Gives the block of account `i` at `at` its place when it fits whole; says whether it did.
+function fill(shown, i, at, block, room) {
+  shown[i][at] = block;
+  if (joined(shown).length <= room) return true;
+  shown[i][at] = null;
+  return false;
 }
 
 const statusOf = (scripts, text) => scripts.keyValue(text, "Run", "Status")?.trim().toLowerCase();
@@ -127,12 +163,10 @@ async function sessionStart(input) {
   const underWay = [...applies(scripts, root, folder, session), ...triages(scripts, folder, session)];
   if (underWay.length === 0) return;
 
-  let text = underWay.map((one) => one.account).join("\n\n");
-  if (text.length > LIMIT) {
-    const rest = underWay.map((one) => `\`${GET(one.whose)} ${SHOWN.map((name) => `"${name}"`).join(" --section ")}\``);
-    const note = `\n… cut at 4,000 characters; read the rest with ${rest.join(" and ")}`;
-    text = text.slice(0, Math.max(0, LIMIT - note.length)) + note;
-  }
+  const rest = underWay.map((one) => `\`${GET(one.whose)} ${SHOWN.map((name) => `"${name}"`).join(" --section ")}\``);
+  const limit = LIMIT.toLocaleString("en-US");
+  const note = `\n… cut at ${limit} characters; read the rest with ${rest.join(" and ")}`;
+  const text = fitted(underWay.map((one) => one.account), note);
   process.stdout.write(
     JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: text } }),
   );
