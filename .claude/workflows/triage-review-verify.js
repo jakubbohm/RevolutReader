@@ -1,158 +1,312 @@
-// The verification step of /triage-review (.claude/skills/triage-review/SKILL.md, § 2). The skill runs it by
-// name (Workflow tool, name "triage-review-verify") with the args below; it is not meant to run on its own,
-// because it needs the findings file the skill writes. The rules it applies: docs/conventions/testing.md
-// § Code review after the apply.
+// The check of /triage-review (.claude/skills/triage-review/SKILL.md, § 2). The skill's main session runs it by
+// name (Workflow tool, name "triage-review-verify") with the args below. It is not meant to run on its own: it
+// needs the findings file that the skill's gather writes (gather-findings.mjs).
 //
-// Read-only: no agent edits a file, builds or runs tests. The agents share one working tree, and the fix round
-// proves each finding with a failing guard test anyway.
+// What it does. Every finding is checked twice by an agent of one definition, .claude/agents/review-verifier.md:
+// a first verifier, then a second one that gets the first's report and tries to overturn it (a pipeline: a
+// finding's second check starts as soon as its first is in). Each verifier saves its report to a file outside
+// the repository, through the bookkeeping script (`tdd.mjs report`, which checks that the report can be read: a
+// subagent's own write of a report file is refused). When all checks are in, ONE more agent reads the reports
+// side by side and says which findings are one defect, which fixes affect each other, and which of the
+// verifiers' side remarks hold: as new findings, or, for code the pull request neither changes nor depends on,
+// as lines the owner is told.
 //
-// Args (one object):
-//   pr            the PR number, for the labels and the prompts
-//   findingsPath  absolute path of findings.json: an array of { id, path, line, title, body, ... }
-//   ids           the finding ids to verify, e.g. [1, 2, 3]
-//   diffPath      absolute path of the PR's diff against its base, so "local" can be judged
-//   intentPaths   absolute paths of the files that say what the change intends: proposal.md, design.md and the
-//                 delta specs; for a Direct PR the saved issue text
-//   scope         one sentence on what the PR does (optional)
+// What it does not do. It parses no report and sorts nothing: a workflow script can read no file and cannot be
+// tested. The main session sorts the findings from the report files, with tested code:
+// `tdd.mjs route --reports <reportsDir> --ids <ids>`. So a verifier is called without a schema: it returns its
+// report as plain text, as its definition says, and the script uses that text only to tell a check that returned
+// something from one that returned nothing (`missing`); it never returns it. It passes no model and no effort
+// for the verifiers either: their definition sets the effort, and they run on the session's model.
 //
-// Returns { pr, routed: [{ id, outcome: 'fix' | 'decline' | 'ask', reason, investigation, refutation }], missing: [ids] }.
+// Read-only: no agent edits a file of the repository, builds, or runs tests or the app. The agents share one
+// working tree, and the fix round proves each finding with a failing guard test anyway.
+//
+// Args (one object; every path absolute):
+//   pr            the pull request's id
+//   change        the OpenSpec change's name, or null for a pull request without one
+//   findingsPath  findings.json: an array of { id, path, line, title, body, ... }
+//   ids           the numbers of the findings to check, e.g. [1, 2, 3]
+//   diffPath      the pull request's diff against its base
+//   intentPaths   the files that say what the pull request is meant to do: the change's proposal.md, design.md
+//                 and specs; without a change, the saved issue
+//   reportsDir    the folder of the report files: <reportsDir>/<id>-1.md is a finding's first check,
+//                 <reportsDir>/<id>-2.md its second
+//
+// Returns { pr, ids, reportsDir, merged, affects, newFindings, noticedOutside, missing, together }, all of it
+// small:
+//   merged          [{ ids, cause }]: findings with one cause that one fix settles
+//   affects         [{ ids, how }]: findings whose fixes affect each other
+//   newFindings     [{ path, line, body }]: side remarks that hold, in the shape post-findings.mjs posts
+//                   (line is null for the whole file); ten at most, each body 1,200 characters at most
+//   noticedOutside  one line per side remark that holds but is not a new finding, '<file>:<line> · <what is
+//                   wrong>': a defect in code the pull request neither changes nor depends on, and a new finding
+//                   beyond the ten. Nothing that holds is dropped: the main session tells the owner every line
+//   missing         the ids for which a check returned nothing; the main session's sorting makes them asks
+//   together        'done', or why the four lists above are empty without anyone having looked: 'no result'
+//                   (the last agent returned nothing, or its call failed) or 'not run' (no check returned a
+//                   report)
 export const meta = {
   name: 'triage-review-verify',
-  description: 'Verify code-review findings read-only: an investigator and a skeptic per finding, then route each one to fix, decline or ask',
-  whenToUse: 'Only from /triage-review (its § 2), with args { pr, findingsPath, ids, diffPath, intentPaths, scope? }',
+  description: 'Check code-review findings read-only: two review-verifier checks per finding, the second trying to overturn the first, then one agent that reads all reports together',
+  whenToUse: 'Only from /triage-review (its § 2), with args { pr, change, findingsPath, ids, diffPath, intentPaths, reportsDir }',
   phases: [
-    { title: 'Investigate', detail: 'one agent per finding: real, not real or unclear, with evidence, and the shape of the fix' },
-    { title: 'Refute', detail: 'one skeptic per finding: tries to overturn the verdict and the fix judgement' },
+    { title: 'First check', detail: 'one review-verifier per finding: confirmed, refuted or unsure, with evidence and the shape of the fix' },
+    { title: 'Second check', detail: 'a second review-verifier per finding: it gets the first report and tries to overturn it' },
+    { title: 'Together', detail: 'one agent over all reports: findings that are one defect, fixes that affect each other, side remarks that hold' },
   ],
 }
 
-const { pr, findingsPath, ids, diffPath, intentPaths = [], scope = '' } = args ?? {}
-if (!pr || !findingsPath || !Array.isArray(ids) || ids.length === 0 || !diffPath) {
-  throw new Error('triage-review-verify needs args { pr, findingsPath, ids (a non-empty array), diffPath, intentPaths }')
+const { pr, change = null, findingsPath, ids, diffPath, intentPaths = [], reportsDir } = args ?? {}
+const isText = value => typeof value === 'string' && value.trim() !== ''
+const isId = value => Number.isInteger(value) || isText(value)
+// A text on one line: every run of white space a single space, cut at `limit` characters.
+const oneLine = (text, limit) => [...String(text ?? '').replace(/\s+/g, ' ').trim()].slice(0, limit).join('')
+if (
+  !isId(pr) || !isText(findingsPath) || !isText(diffPath) || !isText(reportsDir) ||
+  !Array.isArray(ids) || ids.length === 0 || !ids.every(isId) || !Array.isArray(intentPaths)
+) {
+  throw new Error(
+    'triage-review-verify needs args { pr, change (or null), findingsPath, ids (a non-empty array), diffPath, ' +
+      'intentPaths (an array), reportsDir }',
+  )
 }
 
-// What the investigator returns. Evidence must be checkable by the orchestrator: a file:line, a test name or a
-// recorded decision; the orchestrator opens it before a finding is declined.
-const INVESTIGATION = {
+// Each finding once, in the order given: two checks of one finding would save to the same report files.
+const numbers = [...new Set(ids)]
+const folder = reportsDir.trim().replace(/[\\/]+$/, '')
+const reportFile = (id, check) => `${folder}/${id}-${check}.md`
+const intent = intentPaths.length > 0 ? intentPaths.join(', ') : 'none'
+
+// A verifier's brief: the labelled lines that review-verifier.md reads for a pull request's review (its § What
+// you are given), in its order, and nothing more. The second check's brief has one more line, FIRST REPORT, which
+// makes that verifier the second pass (its § The second pass). Everything else the verifier needs is in its
+// definition: what to check, the report's shape, that it saves the report to REPORT FILE through the bookkeeping
+// script and returns it.
+function brief(id, check) {
+  return [
+    `PR: ${pr}`,
+    `CHANGE: ${isText(change) ? change : 'none'}`,
+    `DIFF: ${diffPath}`,
+    `INTENT: ${intent}`,
+    `FINDING: ${id} in ${findingsPath}`,
+    `REPORT FILE: ${reportFile(id, check)}`,
+    ...(check === 2 ? [`FIRST REPORT: ${reportFile(id, 1)}`] : []),
+  ].join('\n')
+}
+
+// A verifier returns its report as plain text, the same text it saved to its report file. The script reads
+// nothing from it: it only sees whether the check returned something (null: the agent was skipped or died).
+const verifier = (id, check) =>
+  agent(brief(id, check), {
+    label: `finding ${id}, check ${check}`,
+    phase: check === 1 ? 'First check' : 'Second check',
+    agentType: 'review-verifier',
+  })
+const returned = result => isText(result)
+
+const plural = n => (n === 1 ? '' : 's')
+log(`${numbers.length} finding${plural(numbers.length)}: two review-verifier checks each, then one agent over all reports`)
+
+// No barrier between the findings. Without a first report there is nothing to overturn, so the second check
+// does not run, and both count as missing. A second check whose call fails is a check that returned nothing: the
+// first report is there all the same, and the last agent reads it.
+const checked = await pipeline(
+  numbers,
+  id => verifier(id, 1),
+  (first, id) =>
+    returned(first)
+      ? verifier(id, 2).then(
+          second => ({ id, first: true, second: returned(second) }),
+          () => ({ id, first: true, second: false }),
+        )
+      : { id, first: false, second: false },
+)
+const checks = numbers.map((id, i) => checked[i] ?? { id, first: false, second: false })
+const missing = checks.filter(c => !c.first || !c.second).map(c => c.id)
+if (missing.length > 0) {
+  log(`a check returned nothing for finding${plural(missing.length)} ${missing.join(', ')}: the main session's sorting makes ${missing.length === 1 ? 'it an ask' : 'them asks'}`)
+}
+
+// The report files of the checks that returned a report. A second report is there only with its first.
+const reports = checks.flatMap(c => [c.first && reportFile(c.id, 1), c.second && reportFile(c.id, 2)].filter(Boolean))
+
+// What the last agent returns. Short on purpose: the main session reads it whole. The schema uses only the
+// keywords every JSON Schema tool takes (type, properties, required, items, description); the limits are in the
+// descriptions and in the prompt, and LIMITS below holds the script to them.
+const LIMITS = { sentence: 300, newFindings: 10, body: 1200 }
+const GROUP_IDS = { type: 'array', items: { type: 'integer' }, description: 'the numbers of the findings in the group: two or more' }
+const TOGETHER = {
   type: 'object',
-  required: ['id', 'verdict', 'evidence', 'kind', 'specBehaviour', 'fix'],
+  required: ['merged', 'affects', 'newFindings', 'noticedOutside'],
   properties: {
-    id: { type: 'integer' },
-    verdict: { type: 'string', enum: ['real', 'not-real', 'unclear'] },
-    evidence: {
-      type: 'string',
-      description: 'Concrete and checkable: file:line of the guard or of the failing path, a test name, a design decision (design.md D<n>, an ADR) or a spec scenario name. Empty only for unclear.',
-    },
-    kind: {
-      type: 'string',
-      enum: ['behaviour', 'test-quality', 'docs', 'cleanup'],
-      description: 'behaviour: an observable outcome changes; test-quality: a test is wrong, weak or misleading; docs: comments, documentation, naming; cleanup: structure with no behaviour change',
-    },
-    specBehaviour: {
-      type: 'boolean',
-      description: 'true when the fix would change behaviour a spec scenario or requirement describes (openspec/specs/ or the change\'s delta specs)',
-    },
-    fix: {
-      type: 'object',
-      required: ['local', 'files', 'needsFailingTest', 'contractChange', 'size', 'sketch'],
-      properties: {
-        local: {
-          type: 'boolean',
-          description: 'only files the diff touches or the finding names; no new dependency, no new setting, no Bicep change, no migration',
+    merged: {
+      type: 'array',
+      description: 'groups of checked findings that have one cause which one fix settles; empty when there is none',
+      items: {
+        type: 'object',
+        required: ['ids', 'cause'],
+        properties: {
+          ids: GROUP_IDS,
+          cause: { type: 'string', description: 'one sentence of at most 300 characters: the one cause, and the one fix that settles all of them' },
         },
-        files: { type: 'array', items: { type: 'string' } },
-        needsFailingTest: { type: 'boolean', description: 'behaviour and test-quality: true; docs and cleanup: false' },
-        contractChange: { type: 'boolean', description: 'endpoints, request or response shapes, openapi.json' },
-        size: {
-          type: 'string',
-          enum: ['small', 'medium', 'large'],
-          description: 'small: one or two files, a few lines; medium: a few files inside the change\'s own area; large: a new component, a redesign, or anything touching Bicep, settings or dependencies',
-        },
-        sketch: { type: 'string', description: 'one line: what the fix changes' },
       },
     },
-    notes: { type: 'string' },
+    affects: {
+      type: 'array',
+      description: 'groups of checked findings that stay separate but whose fixes touch each other; empty when there is none',
+      items: {
+        type: 'object',
+        required: ['ids', 'how'],
+        properties: {
+          ids: GROUP_IDS,
+          how: { type: 'string', description: 'one sentence of at most 300 characters: what the one fix changes for the other' },
+        },
+      },
+    },
+    newFindings: {
+      type: 'array',
+      description: 'side remarks of the verifiers that hold after you checked the code path, in code the pull request changes or depends on, at most ten; empty when there is none',
+      items: {
+        type: 'object',
+        required: ['path', 'line', 'body'],
+        properties: {
+          path: { type: 'string', description: 'a file the pull request changes, as the diff names it' },
+          line: { type: 'integer', description: 'the line in the file as it is now; 0 for the whole file' },
+          body: { type: 'string', description: 'first line "<severity>: <summary>", an empty line, then the failure scenario; at most 1,200 characters in all' },
+        },
+      },
+    },
+    noticedOutside: {
+      type: 'array',
+      description: 'side remarks that hold after you checked the code path but are not new findings: a defect in code the pull request neither changes nor depends on, and a remark beyond the ten new findings; empty when there is none',
+      items: { type: 'string', description: 'one line of at most 300 characters: "<file>:<line> · <what is wrong, and the input or the events that show it>"' },
+    },
   },
 }
 
-// What the skeptic returns. agrees = true only when neither the verdict nor the fix judgement could be overturned.
-const REFUTATION = {
-  type: 'object',
-  required: ['id', 'agrees', 'argument', 'confidence'],
-  properties: {
-    id: { type: 'integer' },
-    agrees: { type: 'boolean' },
-    argument: { type: 'string', description: 'the counter-evidence (file:line, a test, a decision), or why the verdict stands' },
-    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-    correctedVerdict: { type: 'string', enum: ['real', 'not-real', 'unclear'], description: 'only when agrees is false' },
-    correctedFix: { type: 'string', description: 'what is wrong in the fix judgement, only when agrees is false' },
-  },
-}
+// The last agent's prompt. It is the workflow's default agent, so everything it must know is here.
+const together = `You look at the checked findings of a code review side by side. The review is of pull request ${pr} of this repository${isText(change) ? `, which implements the OpenSpec change ${change}` : ''}. Each finding was checked twice, each time by a verifier that saw only that one finding and wrote a report on it. Nobody has compared the findings with each other yet, and nobody has followed up what the verifiers noticed on the way. Those two things are your whole job.
 
-function context(id) {
-  return [
-    `The finding: the element whose "id" is ${id} in ${findingsPath} (a JSON array). Read the whole element: its file, line, title and body.`,
-    `The PR's diff against its base: ${diffPath}. What the change intends: ${intentPaths.length ? intentPaths.join(', ') : 'no intent files given'}.`,
-    scope ? `What the PR does: ${scope}` : '',
-    'Rules: read-only. Do not edit any file, do not build, do not run tests or the app: other agents share this working tree. ' +
-      'Reason from the code, the diff, the intent files and the existing tests (tests/ and *.test.ts(x)). ' +
-      'Never put bank data or secrets in your output. Return only the structured result.',
-  ].filter(Boolean).join('\n')
-}
+WHAT YOU READ
 
-const investigate = id => `You verify one finding of a code review on pull request #${pr} of this repository.
-${context(id)}
+- The findings: ${findingsPath}, a JSON array. The checked findings are the elements whose "id" is one of: ${numbers.join(', ')}. Read the whole of each: its path, line, title and body. The array may hold other findings, which were not checked in this run; you need them only for step 3a.
+- The reports, one file per check. A file named <number>-1.md is that finding's first check, <number>-2.md its second:
+${reports.map(file => `  ${file}`).join('\n')}
+  A report is a list of labelled lines: ID, VERDICT (confirmed, refuted or unsure), EVIDENCE, SEVERITY, KIND, FIX, BUILDS ON IT, ALSO NOTICED, NOTE, and in a second check FIRST PASS. If a file of the list is not there, go on without it.
+- The pull request's diff against its base: ${diffPath}.
+- The files that say what the pull request is meant to do: ${intent}.
+- The code as it is now, wherever a step below tells you to check a code path.
 
-Decide whether the finding is real:
-- real: the failure scenario can happen as described, or the claim holds. Evidence: the code path (file:line) that shows it.
-- not-real: a guard, an invariant, an existing test or a recorded decision rules it out. Evidence: that guard (file:line), that test's name, or that decision (design.md D<n>, an ADR, a spec scenario). A finding that contradicts a recorded decision is not-real with the decision as its evidence, unless the decision itself looks wrong: then unclear, and say why in notes.
-- unclear: you could not settle it from reading. When in doubt, unclear, never not-real.
+RULES
 
-Then judge the fix the finding asks for: its kind; whether it changes behaviour a spec describes; whether it changes the API contract; whether it is local; whether it needs a failing test first; its size; and a one-line sketch. The schema says what each value means.`
+- Read-only. Do not edit or write any file. Do not build, and do not run tests or the app: other agents share this working tree. Read-only git is yours (git log, git diff, git show).
+- You never change a verdict and never comment on one. Whether a finding is real, how severe it is, what kind it is and what shape its fix has are the verifiers' judgements, and code sorts the findings from the reports as they stand. If you think a verdict is wrong, that is not yours to say, here or in any text you return.
+- Never put real bank data (balances, amounts, counterparties, transaction texts, account identifiers) or secrets into your answer. Describe such a value; never quote it.
+- Your answer is the four lists below and nothing else. Each may be empty, and an empty list is a full answer: add an entry only when you can give its reason.
 
-const refute = (id, investigation) => `You are the skeptic for finding #${id} of the code review on pull request #${pr} of this repository. The investigator concluded:
-${JSON.stringify(investigation, null, 2)}
-${context(id)}
+1. merged: findings that are one defect
 
-Try to overturn it. If it says real: look for the guard, the test or the recorded decision that rules the scenario out, and for a reason the scenario cannot happen. If it says not-real: look for a path around the cited guard, a case the cited test does not cover, or a reading of the cited decision that does not cover this finding. Check the fix judgement too (kind, spec behaviour, contract change, local, size): a wrong one sends the finding down the wrong path. Return agrees = true only when you could not overturn the verdict or the fix judgement. Give your argument either way, your confidence, and the corrected verdict or fix judgement when you disagree.`
+A group is two or more checked findings that have ONE cause which ONE fix settles: the same defect reported at two places, or two symptoms of the same wrong lines.
+- Merge findings only when every report of every finding in the group gives the same VERDICT. If one of those reports says otherwise, or a finding has fewer than two reports, do not merge them.
+- Findings that are alike but need separate fixes are not merged. Neither are findings that only lie in the same file.
+- A finding is in at most one group.
+For each group return "ids", the findings' numbers (two or more), and "cause", one sentence of at most 300 characters that names the one cause and the one fix that settles all of them.
 
-// Routing in plain code, so the same inputs always give the same outcome. Everything uncertain is an ask.
-function route(investigation, refutation) {
-  if (!investigation) return { outcome: 'ask', reason: 'the investigator returned no result' }
-  if (!refutation) return { outcome: 'ask', reason: 'the skeptic returned no result' }
-  if (!refutation.agrees || refutation.confidence === 'low') {
-    return { outcome: 'ask', reason: `the skeptic ${refutation.agrees ? 'agrees with low confidence' : 'disagrees'}: ${refutation.argument}` }
+2. affects: findings whose fixes touch each other
+
+A group is two or more checked findings that stay separate fixes, but the fixes depend on each other: fixing one changes how another must be fixed, or both fixes change the same lines. Judge it from the reports' FIX lines and from the code they name; read that code.
+- Do not list a merged group again here.
+- A finding that all its reports refute has no fix: leave it out.
+- When you are in doubt whether one fix depends on another, list them. A fix that depends on a finding the owner still has to decide waits for that decision: one that waited without need costs little, and one made too early is made twice.
+For each group return "ids" (two or more numbers) and "how", one sentence of at most 300 characters that says what the one fix changes for the other.
+
+3. newFindings and noticedOutside: what the verifiers noticed on the way
+
+A report's ALSO NOTICED line names things its verifier saw that looked wrong and are not its finding. Nobody has checked them. Take every remark of every such line that is not "nothing":
+a. Leave it out if it says the same as a finding in the findings file, checked or not, or as a remark you have already taken.
+b. Read its code path yourself, from the code as it is now. Look for what would rule the defect out: a guard, an invariant, a caller that never passes that input, an existing test that pins the behaviour, a decision in the files that say what the pull request is meant to do.
+c. Keep it only if the defect still holds after that AND you can state a concrete failure scenario: which input or which sequence of events leads to which wrong outcome. Leave out what you cannot settle from reading and what is a matter of taste.
+d. A remark you keep goes into exactly one of two lists, and none is dropped. A defect in code that the pull request changes or depends on is a new finding: it goes into newFindings. A defect in code that the pull request neither changes nor depends on is not this pull request's to fix: it goes into noticedOutside, and the owner is told about it.
+newFindings holds at most ten. If more than ten hold, it takes the ten whose wrong outcome is the gravest, and each of the others goes into noticedOutside.
+For each entry of noticedOutside return one line of at most 300 characters: "<file>:<line> · <what is wrong, and the input or the events that show it>", with the defect's real file and line as they are now. Name no issue and no pull request of another repository.
+For each new finding return:
+- "path": a file the pull request changes, written as the diff names it (its "diff --git a/<path> b/<path>" lines). If the defect lies in a file the pull request does not change, give the changed file it concerns most.
+- "line": the defect's line in that file as it is now. 0 when it concerns the whole file, or when the defect lies in another file than "path".
+- "body": the finding as /code-review --comment writes one. Its first line is the severity and a one-line summary, in the form "<severity>: <summary>", at most 110 characters. The severity is "important" (wrong behaviour that can happen in normal operation, data shown wrong, a rule about bank data broken) or "nit" (real but unlikely, or docs and tests only). Then an empty line. Then the failure scenario in two to five sentences: the input or the events, the code path with its file and line, and the wrong outcome. If the defect's real place is not "path" and "line", the scenario starts with that place, written <file>:<line>. Name no issue and no pull request of another repository. At most 1,200 characters in all.`
+
+// One agent over everything, once all checks are in. With one finding it still runs: that finding's reports may
+// carry side remarks. Without any report there is nothing to read. A call that fails must not lose the checks:
+// their reports are in their files, so the script goes on as if the agent had returned nothing, and the main
+// session still gets the ids, the folder and `missing` to sort from.
+let found = null
+if (reports.length === 0) {
+  log('no check returned a report: nothing to read together')
+} else {
+  try {
+    found = (await agent(together, { label: 'all reports together', phase: 'Together', schema: TOGETHER })) ?? null
+    if (found === null) log('the agent that reads all reports together returned nothing: nobody compared the findings')
+  } catch (error) {
+    log(`the agent that reads all reports together failed (${oneLine(error?.message ?? error, 200)}): nobody compared the findings`)
   }
-  if (investigation.verdict === 'unclear') return { outcome: 'ask', reason: `unclear: ${investigation.notes || investigation.evidence || 'no reason given'}` }
-  if (investigation.verdict === 'not-real') {
-    return investigation.evidence?.trim()
-      ? { outcome: 'decline', reason: investigation.evidence }
-      : { outcome: 'ask', reason: 'judged not real, but without concrete evidence' }
-  }
-  const fix = investigation.fix ?? {}
-  if (investigation.specBehaviour) return { outcome: 'ask', reason: 'the fix changes behaviour a spec describes: a spec change, never a quick fix' }
-  if (fix.contractChange) return { outcome: 'ask', reason: 'the fix changes the API contract' }
-  if (!fix.local) return { outcome: 'ask', reason: `the fix is not local: ${(fix.files ?? []).join(', ') || 'files not named'}` }
-  if (fix.size === 'large') return { outcome: 'ask', reason: `a large fix: ${fix.sketch ?? ''}` }
-  return { outcome: 'fix', reason: investigation.evidence }
 }
 
-log(`${ids.length} findings, ${ids.length * 2} read-only agents (an investigator and a skeptic each)`)
+// The groups as the main session takes them: only findings that were checked, each once, and each finding in one
+// merged group at most (a later group that shares a finding with an earlier one is left out).
+const known = new Map(numbers.map(id => [String(id), id]))
+const list = value => (Array.isArray(value) ? value : [])
+const group = ids => [...new Set(list(ids).map(id => known.get(String(id))))].filter(id => id !== undefined)
+const sentence = text => String(text ?? '').trim().slice(0, LIMITS.sentence)
+const taken = new Set()
+const merged = []
+for (const g of list(found?.merged)) {
+  const members = group(g?.ids)
+  if (members.length < 2 || members.some(id => taken.has(id))) continue
+  members.forEach(id => taken.add(id))
+  merged.push({ ids: members, cause: sentence(g.cause) })
+}
+const affects = list(found?.affects)
+  .map(g => ({ ids: group(g?.ids), how: sentence(g?.how) }))
+  .filter(g => g.ids.length >= 2)
+const held = list(found?.newFindings)
+  .filter(f => isText(f?.path) && isText(f?.body))
+  .map(f => ({ path: f.path.trim(), line: Number.isInteger(f.line) && f.line > 0 ? f.line : null, body: f.body.trim() }))
+const place = f => (f.line === null ? f.path : `${f.path}:${f.line}`)
 
-const results = await pipeline(
-  ids,
-  id => agent(investigate(id), { label: `investigate:${id}`, phase: 'Investigate', schema: INVESTIGATION }),
-  (investigation, id) => investigation === null
-    ? { id, investigation: null, refutation: null }
-    : agent(refute(id, investigation), { label: `refute:${id}`, phase: 'Refute', schema: REFUTATION })
-        .then(refutation => ({ id, investigation, refutation })),
-)
+// A new finding's body is posted as a review comment and comes back to the main session in this result: one that
+// is longer than the prompt allows is cut, and the cut is said.
+const newFindings = held.slice(0, LIMITS.newFindings).map(f => {
+  const characters = [...f.body]
+  if (characters.length <= LIMITS.body) return f
+  log(`the new finding at ${place(f)}: its body cut at ${LIMITS.body} characters, it had ${characters.length}`)
+  return { ...f, body: characters.slice(0, LIMITS.body).join('').trimEnd() }
+})
 
-const routed = results.filter(Boolean).map(r => ({ ...r, ...route(r.investigation, r.refutation) }))
-const count = outcome => routed.filter(r => r.outcome === outcome).length
-log(`fix ${count('fix')} · decline ${count('decline')} · ask ${count('ask')}`)
+// No remark that holds is dropped, and their number has no limit. The lines the agent returned stay, and a new
+// finding beyond the limit becomes a line too: its place and its body's first line, which is its severity and
+// summary. Each is one line of at most 300 characters; a longer one is cut at its end, and that is said.
+const beyond = held.slice(LIMITS.newFindings)
+if (beyond.length > 0) {
+  log(`${beyond.length} new finding${plural(beyond.length)} beyond the first ${LIMITS.newFindings}: moved to noticedOutside`)
+}
+const noticed = [
+  ...list(found?.noticedOutside).filter(isText),
+  ...beyond.map(f => `${place(f)} · ${f.body.split('\n')[0]}`),
+]
+const noticedOutside = noticed.map(text => oneLine(text, LIMITS.sentence))
+const shortened = noticed.filter((text, i) => oneLine(text, Infinity) !== noticedOutside[i]).length
+if (shortened > 0) log(`${shortened} line${plural(shortened)} of noticedOutside cut at ${LIMITS.sentence} characters`)
+if (found !== null) {
+  log(`together: merged ${merged.length} · affects ${affects.length} · new findings ${newFindings.length} · noticed outside ${noticedOutside.length}`)
+}
 
-const missing = ids.filter(id => !routed.some(r => r.id === id))
-if (missing.length) log(`no result for findings ${missing.join(', ')}: they go to the owner as asks`)
-
-return { pr, routed, missing }
+return {
+  pr,
+  ids: numbers,
+  reportsDir: folder,
+  merged,
+  affects,
+  newFindings,
+  noticedOutside,
+  missing,
+  together: reports.length === 0 ? 'not run' : found === null ? 'no result' : 'done',
+}

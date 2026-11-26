@@ -1,7 +1,9 @@
-// Tests for common.mjs's pure functions: how review comments become numbered findings and when each one's review was
-// submitted, a text's first line, the lines of a diff a comment can attach to, how a chat review's findings become
-// review comments to post, when the PR's last triage summary was posted and whether a round's summary already is,
-// and which references in a text would post a backlink outside the repository and the refusal that names them.
+// Tests for common.mjs's pure functions: how review comments become numbered findings, with every thread's replies,
+// and when each one's review was submitted, a text's first line, the lines of a diff a comment can attach to, how a
+// chat review's findings become review comments to post, when the PR's last triage summary was posted and whether a
+// round's summary already is, which references in a text would post a backlink outside the repository and the
+// refusal that names them, and the lines the gather prints for the findings to check. The round and its restart
+// (roundOf, ownCommits, classifyRound and what they rest on) are tested in round.test.mjs beside this file.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
 // REST API's, and every other repository named is made up.
 //
@@ -11,8 +13,10 @@ import { describe, test } from "node:test";
 import {
   backlinkRefusal,
   backlinkRisks,
+  findingLines,
   findingsFrom,
   firstLine,
+  headLineOf,
   lastSummaryTime,
   linesInDiff,
   planPosts,
@@ -309,6 +313,115 @@ describe("findingsFrom", () => {
     const { findings } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
 
     assert.equal(findings[0].title, "Important: one");
+  });
+
+  // `all` is what the gather sorts a round's findings from (classifyRound; its tests are in round.test.mjs).
+  // A made-up reply in the thread that the comment `to` starts.
+  const replyTo = (id, to, hour, body) =>
+    comment(id, { in_reply_to_id: to, body, created_at: at(hour), user: { login: "the-owner" } });
+
+  test("lists every numbered comment, resolved or not, in the order of the numbers", () => {
+    // The paths would order them otherwise (1902, 1903, 1901); 1902 is resolved.
+    const comments = [
+      comment(1903, { path: "docs/b.md" }),
+      comment(1901, { path: "src/z.mjs" }),
+      comment(1902, { path: "docs/a.md" }),
+    ];
+
+    const { all, findings } = findingsFrom(comments, new Set([1902]), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all.map((f) => [f.id, f.commentId, f.resolved]),
+      [
+        [1, 1901, false],
+        [2, 1902, true],
+        [3, 1903, false],
+      ],
+    );
+    assert.deepEqual(
+      findings.map((f) => f.id),
+      [3, 1],
+    );
+  });
+
+  test("gives each of them a finding's fields, whether its thread is resolved, and its replies", () => {
+    const comments = [comment(1911, { path: "src/a.mjs", line: 7, body: "Important: one\nmore" })];
+
+    const { all } = findingsFrom(comments, new Set([1911]), submittedInIdOrder(comments));
+
+    assert.deepEqual(all, [
+      {
+        id: 1,
+        commentId: 1911,
+        path: "src/a.mjs",
+        line: 7,
+        title: "Important: one",
+        body: "Important: one\nmore",
+        author: "a-reviewer",
+        url: "https://github.com/example/repo/pull/1#discussion_r1911",
+        resolved: true,
+        replies: [],
+      },
+    ]);
+  });
+
+  test("gives each thread its own replies, in the order they were posted", () => {
+    // 1924 has the lowest reply id but was posted last; 1926 answers the other thread.
+    const comments = [
+      comment(1921),
+      comment(1922),
+      replyTo(1925, 1921, 11, "Fixed in `0123abc`: the heading."),
+      replyTo(1926, 1922, 10, "Declined: design.md D4 decides this."),
+      replyTo(1924, 1921, 12, "Thanks."),
+      replyTo(1927, 1921, 9, "Is the old behaviour wanted?"),
+    ];
+
+    const { all } = findingsFrom(comments, new Set([1921]), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all.map((f) => [f.commentId, f.replies]),
+      [
+        [
+          1921,
+          [
+            { body: "Is the old behaviour wanted?", createdAt: at(9), author: "the-owner" },
+            { body: "Fixed in `0123abc`: the heading.", createdAt: at(11), author: "the-owner" },
+            { body: "Thanks.", createdAt: at(12), author: "the-owner" },
+          ],
+        ],
+        [1922, [{ body: "Declined: design.md D4 decides this.", createdAt: at(10), author: "the-owner" }]],
+      ],
+    );
+  });
+
+  test("orders replies posted at the same time by their ids", () => {
+    const comments = [comment(1931), replyTo(1933, 1931, 9, "Second."), replyTo(1932, 1931, 9, "First.")];
+
+    const { all } = findingsFrom(comments, new Set(), submittedInIdOrder(comments));
+
+    assert.deepEqual(
+      all[0].replies.map((r) => r.body),
+      ["First.", "Second."],
+    );
+  });
+
+  test("leaves a comment of a pending review out of them too", () => {
+    const comments = [comment(1941), comment(1942), comment(1943)];
+    const submitted = new Map([
+      [1941, at(9)],
+      [1942, null],
+      [1943, at(10)],
+    ]);
+
+    const { all } = findingsFrom(comments, new Set([1942, 1943]), submitted);
+
+    assert.deepEqual(
+      all.map((f) => [f.id, f.commentId, f.resolved]),
+      [
+        [1, 1941, false],
+        [2, 1943, true],
+      ],
+    );
   });
 });
 
@@ -729,6 +842,165 @@ describe("planPosts", () => {
   });
 });
 
+// `git diff -U0 <PR head> HEAD -- <path>` as git prints it, for one file the local commits change: the triage's
+// commits are local until the owner's one push, so the PR's head on GitHub lacks them.
+function localDiff(path, ...hunks) {
+  return [`diff --git a/${path} b/${path}`, "index 1111111..2222222 100644", `--- a/${path}`, `+++ b/${path}`, ...hunks]
+    .join("\n")
+    .concat("\n");
+}
+
+describe("headLineOf", () => {
+  test("gives the line itself when the local commits leave the file as the PR's head has it", () => {
+    assert.equal(headLineOf("", 12), 12);
+    assert.equal(headLineOf(undefined, 12), 12);
+  });
+
+  test("gives the line itself for a line before every change of the local commits", () => {
+    const diff = localDiff("src/b.mjs", "@@ -30,0 +31,2 @@ function c", "+one", "+two");
+
+    assert.equal(headLineOf(diff, 30), 30);
+  });
+
+  test("shifts a line after lines the local commits added", () => {
+    // Two lines added after the head's line 5: the local lines 6 and 7.
+    const diff = localDiff("src/b.mjs", "@@ -5,0 +6,2 @@ function b", "+one", "+two");
+
+    assert.equal(headLineOf(diff, 8), 6);
+    assert.equal(headLineOf(diff, 23), 21);
+  });
+
+  test("shifts a line after lines the local commits took out", () => {
+    // The head's lines 5 and 6 taken out: the local line 4 is the head's 4, the local 5 the head's 7.
+    const diff = localDiff("src/b.mjs", "@@ -5,2 +4,0 @@ function b", "-one", "-two");
+
+    assert.equal(headLineOf(diff, 4), 4);
+    assert.equal(headLineOf(diff, 5), 7);
+  });
+
+  test("gives no line for a line the local commits added or changed, which the PR's head does not have", () => {
+    const diff = localDiff(
+      "src/b.mjs",
+      "@@ -5,0 +6,2 @@ function b",
+      "+one",
+      "+two",
+      "@@ -20 +22 @@ function c",
+      "-old",
+      "+new",
+    );
+
+    assert.equal(headLineOf(diff, 6), null);
+    assert.equal(headLineOf(diff, 7), null);
+    assert.equal(headLineOf(diff, 22), null);
+    assert.equal(headLineOf(diff, 21), 19);
+    assert.equal(headLineOf(diff, 23), 21);
+  });
+});
+
+describe("planPosts with local commits that are not pushed yet", () => {
+  const headSha = "0123456789abcdef0123456789abcdef01234567";
+  // The PR's files as GitHub has them, at its head: src/b.mjs's lines 20-22 are in the diff.
+  const prFiles = [
+    {
+      filename: "src/b.mjs",
+      patch: patch("@@ -20,2 +20,3 @@ function b", " const x = 1;", "+const y = 2;", " return x + y;"),
+    },
+  ];
+  // The local commits added two lines after the head's line 5 of src/b.mjs, and changed docs/only-local.md, which
+  // the PR's head does not change.
+  const localDiffs = new Map([
+    ["src/b.mjs", localDiff("src/b.mjs", "@@ -5,0 +6,2 @@ function b", "+one", "+two")],
+    ["docs/only-local.md", localDiff("docs/only-local.md", "@@ -1 +1 @@", "-old", "+new")],
+  ]);
+
+  test("posts a finding on the PR head's line that its local line is, and names the local line in its body", () => {
+    const findings = [{ path: "src/b.mjs", line: 23, body: "This constant is unused." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.equal(posts.length, 1);
+    const { request } = posts[0];
+    assert.equal(posts[0].action, "post");
+    assert.deepEqual(
+      { commit_id: request.commit_id, path: request.path, line: request.line, side: request.side },
+      { commit_id: headSha, path: "src/b.mjs", line: 21, side: "RIGHT" },
+    );
+    assert.ok(request.body.startsWith("This constant is unused.\n\n"), request.body);
+    assert.ok(request.body.includes("Line 23 in the local branch"), request.body);
+    assert.ok(request.body.includes("line 21 of the PR's head"), request.body);
+  });
+
+  test("posts a finding on a line only local commits added on its file, and names the local line in its body", () => {
+    const findings = [{ path: "src/b.mjs", line: 7, body: "The added line is wrong." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    const { request } = posts[0];
+    assert.equal(request.subject_type, "file");
+    assert.equal(request.line, undefined);
+    assert.equal(posts[0].headLine, null);
+    assert.ok(request.body.startsWith("The added line is wrong.\n\n"), request.body);
+    assert.ok(request.body.includes("Line 7 in the local branch"), request.body);
+    assert.ok(request.body.includes("the PR's head has no such line"), request.body);
+  });
+
+  test("adds nothing to the body when the local commits leave the finding's line where it is", () => {
+    const findings = [{ path: "src/b.mjs", line: 4, body: "Before every local change." }];
+    const prFilesWithLine4 = [{ filename: "src/b.mjs", patch: patch("@@ -3,2 +3,2 @@", " three", "-four", "+four!") }];
+
+    const { errors, posts } = planPosts(findings, prFilesWithLine4, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts[0].request, {
+      body: "Before every local change.",
+      commit_id: headSha,
+      path: "src/b.mjs",
+      line: 4,
+      side: "RIGHT",
+    });
+  });
+
+  test("adds nothing to a finding without a line", () => {
+    const findings = [{ path: "src/b.mjs", line: null, body: "The whole file." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts[0].request, {
+      body: "The whole file.",
+      commit_id: headSha,
+      path: "src/b.mjs",
+      subject_type: "file",
+    });
+  });
+
+  test("reports a finding on a file only the local commits change, which GitHub takes no comment on", () => {
+    const findings = [{ path: "docs/only-local.md", line: 1, body: "Changed only locally." }];
+
+    const { errors } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].includes("docs/only-local.md"), errors[0]);
+    assert.ok(errors[0].includes("not pushed yet"), errors[0]);
+  });
+
+  test("skips a finding already posted with its note on the local line, as a rerun finds it", () => {
+    const findings = [{ path: "src/b.mjs", line: 23, body: "Posted before the run stopped." }];
+    const first = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+    const existing = [comment(961, { body: first.posts[0].request.body.replace(/\n/g, "\r\n") })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [["skip", 961]],
+    );
+  });
+});
+
 describe("lastSummaryTime", () => {
   test("gives the time of the latest triage summary, whatever the comments' order", () => {
     const comments = [
@@ -985,5 +1257,35 @@ describe("ranges", () => {
 
   test("writes nothing for no numbers", () => {
     assert.equal(ranges([]), "");
+  });
+});
+
+describe("findingLines", () => {
+  // The findings as the gather has them: findingsFrom's, from made-up review comments.
+  const findingsOf = (comments) => findingsFrom(comments, new Set(), submittedInIdOrder(comments)).findings;
+
+  test("prints one line per finding, in the order given: its number, its file and line, and its title", () => {
+    // findingsFrom orders the findings by file and line, not by number. A tab stands between a line's three parts.
+    const findings = findingsOf([
+      comment(2101, { path: "src/b.mjs", line: 5, body: "Important: the sum is rounded twice\nMore detail." }),
+      comment(2102, { path: "docs/a.md", line: 20, body: "Nit: the heading names the old step\nMore detail." }),
+    ]);
+
+    assert.deepEqual(findingLines(findings), [
+      "2\tdocs/a.md:20\tNit: the heading names the old step",
+      "1\tsrc/b.mjs:5\tImportant: the sum is rounded twice",
+    ]);
+  });
+
+  test("names a finding on a whole file, which has no line, by its path alone", () => {
+    const findings = findingsOf([
+      comment(2201, { path: "docs/a.md", line: null, original_line: null, body: "Nit: no heading\nMore detail." }),
+    ]);
+
+    assert.deepEqual(findingLines(findings), ["1\tdocs/a.md\tNit: no heading"]);
+  });
+
+  test("prints no line for no findings", () => {
+    assert.deepEqual(findingLines([]), []);
   });
 });

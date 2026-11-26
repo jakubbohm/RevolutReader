@@ -1,0 +1,12 @@
+Running tests from D:\repo\tests\RevolutReader.UnitTests\bin\Debug\net11.0\RevolutReader.UnitTests.dll (net11.0|x64)
+D:\repo\tests\RevolutReader.UnitTests\bin\Debug\net11.0\RevolutReader.UnitTests.dll (net11.0|x64) passed [+1220/x0/?0] (1s 273ms)
+
+  In process file artifacts produced:
+    - D:\repo\TestResults\RevolutReader.UnitTests-windows-net11.0-report.html
+
+Test run summary: Passed!
+  total: 1220
+  failed: 0
+  succeeded: 1220
+  skipped: 0
+  duration: 1s 617ms

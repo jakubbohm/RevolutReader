@@ -1,0 +1,29 @@
+Running tests from D:\repo\tests\RevolutReader.UnitTests\bin\Debug\net11.0\RevolutReader.UnitTests.dll (net11.0|x64)
+failed A_storage_failure_of_the_kept_balances_reads_nothing_at_the_bank_the_transactions_included (67ms)
+  [Test Failure] ShouldAssertException: thrown
+    should satisfy all the conditions specified, but does not.
+The following errors were found ...
+--------------- Error 1 ---------------
+    bank.BalanceReadsFor
+        should be empty but had
+    1
+        item and was
+    [PresentUser { IpAddress = 203.0.113.7, UserAgent = BackgroundShortcutRunner/5114.0 }]
+
+    Additional Info:
+        no balance read
+
+-----------------------------------------
+  from D:\repo\tests\RevolutReader.UnitTests\bin\Debug\net11.0\RevolutReader.UnitTests.dll (net11.0|x64)
+  TUnit.Engine.Exceptions.TestFailedException: [Test Failure] ShouldAssertException: thrown
+      should satisfy all the conditions specified, but does not.
+  The following errors were found ...
+  --------------- Error 1 ---------------
+      bank.BalanceReadsFor
+          should be empty but had
+      1
+          item and was
+      [PresentUser { IpAddress = 203.0.113.7, UserAgent = BackgroundShortcutRunner/5114.0 }]
+  
+      Additional Info:
+          no balance read

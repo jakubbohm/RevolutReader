@@ -1,0 +1,17 @@
+Running tests from D:\repo\sample\Alpha.Tests\bin\Debug\net11.0\Alpha.Tests.dll (net11.0|x64)
+Running tests from D:\repo\sample\Beta.Tests\bin\Debug\net11.0\Beta.Tests.dll (net11.0|x64)
+D:\repo\sample\Beta.Tests\bin\Debug\net11.0\Beta.Tests.dll (net11.0|x64) Zero tests ran [+0/x0/?0] (419ms)
+Exit code: 8
+D:\repo\sample\Alpha.Tests\bin\Debug\net11.0\Alpha.Tests.dll (net11.0|x64) Zero tests ran [+0/x0/?0] (423ms)
+Exit code: 8
+
+Test run summary: Zero tests ran
+  D:\repo\sample\Alpha.Tests\bin\Debug\net11.0\Alpha.Tests.dll (net11.0|x64) Zero tests ran [+0/x0/?0] (423ms)
+  D:\repo\sample\Beta.Tests\bin\Debug\net11.0\Beta.Tests.dll (net11.0|x64) Zero tests ran [+0/x0/?0] (419ms)
+
+  total: 0
+  failed: 0
+  succeeded: 0
+  skipped: 0
+  duration: 630ms
+Test run completed with non-success exit code: 8. No tests ran. See: https://aka.ms/testingplatform/exitcodes

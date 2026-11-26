@@ -9,6 +9,7 @@ metadata:
 - **Ask first:** before the PR is marked ready, ask the owner "is <the work> done?".
 - **On yes:** the PR closes its issue (`Closes #<n>` in its description). Until 2026-11-23 this meant marking the step `done` in `pm/progress.md`, in a commit of its own.
 - **Pushed with the rest:** a review's fixes and the archive go in one push: after `/triage-review`, run `/opsx:archive` first, then push the fixes and the archive together, so one CI run covers them. Never offer to push the fixes on their own.
+- **Posting never waits for that push:** the triage posts its findings, replies and summary while its commits are local, naming commits GitHub does not have yet; the owner pushes everything once, when they decide. Never ask for a push in order to post; a script that refuses to post before a push is a bug to fix (2026-11-26, PR #111: `post-findings.mjs` refused, and now finds each local line in the PR's head on GitHub instead).
 - **Always in the PR itself:** so the merge's one deploy covers it.
 
 **The one exception** is real work that can only happen after the merge and the deploy, such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The issue then stays open and names that work, and the PR that records its results closes it. Routine checks after the deploy (the deploy ran, settings read back, a test message) are reported to the owner, never a PR of their own.

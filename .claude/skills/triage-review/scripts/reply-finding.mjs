@@ -1,5 +1,5 @@
-// /triage-review § Replies: replies in the review thread that a finding's comment starts and, with `yes`, resolves
-// that thread.
+// /triage-review (the skill's once.md § Replies): replies in the review thread that a finding's comment starts
+// and, with `yes`, resolves that thread.
 //
 //   node .claude/skills/triage-review/scripts/reply-finding.mjs <pr> <comment-id> <body-file> <yes|no> [--dry-run]
 //

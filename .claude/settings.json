@@ -27,6 +27,20 @@
             "onFailure": "continue"
           }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/tdd-resume.mjs"
+            ],
+            "timeout": 15,
+            "onFailure": "continue"
+          }
+        ]
       }
     ],
     "PostToolUse": [

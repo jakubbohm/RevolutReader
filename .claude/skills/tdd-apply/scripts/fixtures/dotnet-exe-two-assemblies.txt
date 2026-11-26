@@ -1,0 +1,98 @@
+skipped A_test_that_is_skipped (12ms)
+  made-up reason: waits for the wiring
+failed A_stub_is_not_written_yet (10ms)
+  TUnit.Engine.Exceptions.TestFailedException: [Test Failure] NotImplementedException: c000 tasks.md 1.1: the made-up stub.
+    at Alpha.Tests.AlphaTests.A_stub_is_not_written_yet() in D:\repo\sample\Alpha.Tests\AlphaTests.cs:20
+       --- TUnit internals omitted (run with --detailed-stacktrace for full trace) ---
+failed A_case_ends_as_its_path_says(throws) (23ms)
+  TUnit.Engine.Exceptions.TestFailedException: [Test Failure] ShouldAssertException: path
+      should be
+  "returns"
+      but was
+  "throws"
+      difference
+  Difference     |  |    |    |    |    |    |    |   
+                 | \|/  \|/  \|/  \|/  \|/  \|/  \|/  
+  Index          | 0    1    2    3    4    5    6    
+  Expected Value | r    e    t    u    r    n    s    
+  Actual Value   | t    h    r    o    w    s         
+  Expected Code  | 114  101  116  117  114  110  115  
+  Actual Code    | 116  104  114  111  119  115       
+    at Alpha.Tests.AlphaTests.A_case_ends_as_its_path_says(String path) in D:\repo\sample\Alpha.Tests\AlphaTests.cs:27
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+       --- TUnit internals omitted (run with --detailed-stacktrace for full trace) ---
+failed A_list_holds_what_was_added (28ms)
+  TUnit.Engine.Exceptions.TestFailedException: [Test Failure] ShouldAssertException: names
+      should be
+  ["first", "second"]
+      but was (case sensitive comparison)
+  ["first"]
+      difference
+  ["first", *]
+  
+  Additional Info:
+      both names are kept
+    at Alpha.Tests.AlphaTests.A_list_holds_what_was_added() in D:\repo\sample\Alpha.Tests\AlphaTests.cs:16
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+       --- TUnit internals omitted (run with --detailed-stacktrace for full trace) ---
+failed A_test_that_writes_output_and_fails (27ms)
+  TUnit.Engine.Exceptions.TestFailedException: [Test Failure] ShouldAssertException: true
+      should be
+  False
+      but was
+  True
+    at Alpha.Tests.AlphaTests.A_test_that_writes_output_and_fails() in D:\repo\sample\Alpha.Tests\AlphaTests.cs:38
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+    at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+    at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+    at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task, ConfigureAwaitOptions options)
+       --- TUnit internals omitted (run with --detailed-stacktrace for full trace) ---
+  Standard output
+    a made-up line on standard output
+    
+  Error output
+    a made-up line on error output
+    
+
+  In process file artifacts produced:
+    - D:\repo\sample\Alpha.Tests\bin\Debug\net11.0\TestResults\Alpha.Tests-windows-net11.0-report.html
+
+Test run summary: Failed! - D:\repo\sample\Alpha.Tests\bin\Debug\net11.0\Alpha.Tests.dll (net11.0|x64)
+  total: 7
+  failed: 4
+  succeeded: 2
+  skipped: 1
+  duration: 241ms
+skipped Another_skipped_test (8ms)
+  made-up reason
+
+  In process file artifacts produced:
+    - D:\repo\sample\Beta.Tests\bin\Debug\net11.0\TestResults\Beta.Tests-windows-net11.0-report.html
+
+Test run summary: Passed! - D:\repo\sample\Beta.Tests\bin\Debug\net11.0\Beta.Tests.dll (net11.0|x64)
+  total: 2
+  failed: 0
+  succeeded: 1
+  skipped: 1
+  duration: 244ms

@@ -1,0 +1,13 @@
+
+> revolutreader-web@0.0.0 test
+> vitest run src/app/device.test.ts src/app/serverOnly.test.ts
+
+
+ RUN  v5.1.0 D:/repo/src/RevolutReader.Web
+
+
+ Test Files  2 passed (2)
+      Tests  23 passed (23)
+   Start at  20:29:53
+   Duration  1.08s (environment 63%, setup 23%, transform 11%, import 1%, tests 1%)
+

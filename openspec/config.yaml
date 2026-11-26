@@ -57,7 +57,8 @@ context: |
   - tests/RevolutReader.IntegrationTests: port contract tests (the in-memory fake and the real
     adapter against the same tests) and adapter edge cases (Wiring/).
   - Implementation is test-first through /tdd-apply: a test-writer subagent writes failing tests,
-    an implementer subagent makes them pass and never edits tests. Exception: a tooling-only
+    an implementer subagent makes them pass and never edits tests; a runner subagent per chapter
+    drives the two and a reviewer subagent checks each chapter. Exception: a tooling-only
     change (skip_specs in .openspec.yaml, e.g. CI) has nothing to test first and is applied
     directly (docs/conventions/workflow.md § 6).
 
@@ -92,7 +93,7 @@ rules:
     - Changes touching the API contract plan the TS client regeneration explicitly
     - Changes touching the AppHost resource graph or Azure topology plan the Bicep update explicitly; shared resources are referenced as existing, never managed by the deployment stack (docs/conventions/workflow.md § 5)
     - Changes calling the bank respect ADR-0001-bank-data-access § Decision
-    - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements, and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
+    - A change that builds or changes UI names the design-system parts and the Screens design artboards it implements and, for each of the two design artifacts, the version it was read at (the first line of the artifact's file listing states it), and flags any new token or component as a decision (docs/conventions/workflow.md § 8)
     - A decision that diverges from DoseUp, reverses an earlier decision, or answers a question DoseUp never faced also gets a docs/software-factory/lessons.md entry, and a docs/software-factory/divergences.md entry when this project runs a cut-down version (docs/conventions/workflow.md § 10)
     - A change that takes a shortcut in an artifact listed in docs/software-factory/creating-handover-package.md § Inventory flags it as a decision for the user; once decided, it gets a docs/software-factory/divergences.md entry naming the full version. The change does not design the full version; it is built at the handover (roadmap step SF1, docs/conventions/workflow.md § 10)
   tasks:
@@ -103,7 +104,7 @@ rules:
     - "Plumbing without rules (endpoints, mapping, DI, migrations, driver methods, adapter edge-case tests) goes into '## N. [wiring] <Area>' groups. No unit tests there; acceptance tests cover it"
     - "The last group is '## N. [close] Acceptance green': all acceptance tests of this change pass, then the close-out tasks"
     - "A change with more than 3 scenarios is sliced per scenario: group 1 still holds all acceptance tests, then each scenario gets its own [unit], [integration] and [wiring] groups and a '[close] <scenario name>' group, headed with the slice (e.g. '## 4. [unit] Slice 2 — Balance mapping'); the final '[close] Acceptance green' runs them all"
-    - "A sliced change suggests its chapters in a short paragraph before group 1: group 1 alone, then runs of consecutive slices that touch the same code (the same component, area or test kit), each named with a letter and its slices (e.g. 'Chapter A: slices 1–9, the opt-in card'). /tdd-apply gives each chapter a fresh test-writer and implementer and confirms the split at the acceptance gate (docs/conventions/testing.md § Test-first workflow)"
+    - "A sliced change suggests its chapters in a short paragraph before group 1: group 1 alone, then runs of consecutive slices that touch the same code (the same component, area or test kit), each named with a letter and its slices (e.g. 'Chapter A: slices 1–9, the opt-in card'). /tdd-apply gives each chapter a fresh runner, test-writer and implementer and a review of its own, and confirms the split at the acceptance gate (docs/conventions/testing.md § Test-first workflow)"
     - Never create separate "write tests" tasks. A test is part of every behaviour task, not a deliverable of its own
     - Slice tasks to complete in one sitting (~2 h max), each ending with the build and all tests green, except the change's own acceptance tests, which stay red until their [close] group
     - 'Changes touching the API contract include an explicit "regenerate TS client" task (FastEndpoints OpenAPI export → openapi.json → openapi-typescript types, both committed; CI only checks drift, never generates). A change modifying an existing contract also updates every TS consumer in the same change'

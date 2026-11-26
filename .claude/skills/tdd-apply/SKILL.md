@@ -1,292 +1,229 @@
 ---
 name: tdd-apply
-description: Implement an OpenSpec change test-first by orchestrating the test-writer and implementer subagents. Use instead of /opsx:apply.
-argument-hint: <change-name> [review=acceptance|all] [checkpoint=stop|continue]
+description: Implement an OpenSpec change test-first. The main session plans and decides; a runner per chapter orchestrates the test-writer and the implementer; a reviewer checks each chapter. Use instead of /opsx:apply.
+argument-hint: <change-name> [agent-review=each-chapter|acceptance|none] [human-test-review=acceptance|each-group] [after-chapter=continue|stop]
 disable-model-invocation: true
 ---
 
-# TDD apply orchestrator
+# TDD apply: the main session
 
-You are the orchestrator. You do not write tests or production code yourself.
-You plan, delegate, verify, judge disputes, commit and track progress. Two subagents do the work, a fresh pair
-for each chapter of the apply (§ Chapters):
+You are the main session of a test-first apply. You keep the plan, the gates and the owner's decisions, and
+you delegate everything heavy, so that your context stays small for the whole change and never needs
+compacting:
 
-- **The test-writer** (`test-writer` subagent): writes failing tests (and compile-only stubs).
-- **The implementer** (`implementer` subagent): makes failing tests pass; never edits tests.
+- **A runner** (`runner` subagent), a fresh one per chapter, runs the chapter: it briefs the test-writer and
+  the implementer, runs the tests, commits at every handoff and keeps the state file.
+- **A chapter reviewer** (`chapter-reviewer` subagent), a fresh one per chapter, reviews what the chapter
+  added and has each finding checked by a verifier of its own.
 
-The conventions behind this skill: `docs/conventions/testing.md` (§ Test-first workflow, § Task groups,
-§ Integration tests, § Every scenario has exactly one test) and `docs/conventions/workflow.md` § 3 (commits).
-Test commands (one group's tests, one change's acceptance tests, the traceability test, the full suite)
-are in `CLAUDE.md` § Commands.
+Conventions: `docs/conventions/testing.md` § Test-first workflow, `docs/conventions/workflow.md` § 3.
 
-Arguments: `$ARGUMENTS`
-- First argument: the change name (folder under `openspec/changes/`). If missing, list active changes and ask.
-- Whatever the settings below, the apply stops at the acceptance gate (§ 1 step 3) and for disputes that go to
-  the human (§ Disputes, step 3).
-- `review=` controls the review stops (default `acceptance`, or on a resume the recorded mode, § 0; the user asked
-  for `all` on C1 and C5):
-  - `acceptance`: the acceptance gate only.
-  - `all`: also a stop after the test-writer finishes every unit and every integration group (§ 2 step 4).
-- `checkpoint=` controls the stop at each chapter checkpoint (default `stop`, or on a resume the recorded mode, § 0;
-  § Chapters, step 5):
-  - `stop`: stop there.
-  - `continue`: no stop; start the next chapter at once.
+## If your context was compacted
 
-## 0. Prepare
+This skill is attached again, and a hook adds "Resume here", "Open" and "Agents" from the state file. Go by
+"Resume here", and read nothing else again until a step asks for it:
 
-**A change already under way** (`.tdd-state.md` exists and group 1's `[accept]` commit is on the branch, e.g. after
-"stop here" at a checkpoint) is resumed, not started over. A `review=` or `checkpoint=` given on this run wins;
-otherwise the mode recorded in `.tdd-state.md` applies, not the default. Steps 1 to 4 run as written: uncommitted
-work an earlier session left is step 3's stop-and-ask. Read `.tdd-state.md` (step 6) before step 5, whose baseline on
-a resume needs its list of acceptance tests. Steps 7 to 9 run again. Skip step 10 and § 1: the chapter plan and the
-acceptance tests are committed. Start where "Resume here" says, checked against the last commits on the branch, with
-a fresh pair, each spawned and briefed as § Chapters, step 4 says; if the session ended mid-chapter, the brief also
-says where the chapter stands, as for a replaced agent.
+- **It starts `Main session:`:** your own text. An agent it names as running still works: end your turn and
+  wait for its hand-back. A full stop it names still waits: ask again. Otherwise do what it says comes next.
+- **Any other text** is from a runner's commit: that runner still works, unless the text says that its work
+  is handed back. Then the next move is yours.
+- **A review or a fix round is never skipped.** What is left of one is in the reviews file: `tdd get --file
+  reviews --section "Chapter <X>" --section "Chapter <X> review"`.
 
-1. Read `openspec/changes/<change>/proposal.md`, `design.md`, `tasks.md` and every delta spec under `specs/`.
-2. Run `openspec validate <change>`. If it fails, stop and report.
-3. Check that you are on the change's branch (not `main`) and the working tree is clean. If not, stop and ask.
-4. Check `tasks.md` follows the group structure from `openspec/config.yaml`
-   (`[acceptance]`, `[unit]`, `[integration]`, `[wiring]`, `[close]`; slices for changes with more than
-   3 scenarios). If not, stop and ask the human to regenerate the tasks.
-5. Run the full test suite once (`CLAUDE.md` § Commands: `dotnet test` and the frontend tests). Record the
-   baseline. If anything is already red, stop and report; do not start on a red baseline. One red is
-   expected: the repository traceability check reporting "Not claimed" for exactly this change's own
-   scenarios, which group 1 claims. On a resume (above), the expected red is instead this change's acceptance
-   tests still waiting for their `[close]` (with slices, those of the slices not closed yet; without slices, all
-   of them until § 4) and, if the last commit is a `[red]`, that group's new tests. Anything more is a red
-   baseline. A change's `design.md` may name one more accepted exception, for its first run only (c003: the
-   frontend has no test files yet).
-6. Create or read `openspec/changes/<change>/.tdd-state.md`. It holds: a "Resume here" section, the chapter
-   plan, the agent IDs of the test-writer and the implementer per chapter (the current pair marked, each
-   agent's last token count), the standing rules for the test-writer and the implementer, current group, review
-   and checkpoint modes, the list of this change's acceptance tests, open disputes, the last commit per step.
-   **Write the agent IDs there as soon as you spawn each agent.** If your context is compacted, re-read this
-   file before doing anything else.
-7. Create a task list mirroring the groups in `tasks.md`.
-8. If the change builds or changes UI, `design.md` names the design-system parts and Screens design artboards
-   it implements (`docs/conventions/workflow.md` § 8). The test-writer and the implementer cannot open Claude
-   artifacts, so read those files yourself with the Artifact tool, by the links in § 8: the design system's
-   `project/README.md`, `project/tokens.json`, `project/tailwind/theme.css` and the named components' READMEs
-   and source, and each named artboard with the Screens design's `project/sample-data.js`. The tool saves them
-   in this session's scratchpad, never in the repository. Note the saved paths for the groups that build UI;
-   after a new session, read them again, because the scratchpad does not carry over.
-9. Index the worktree in the code graph (codebase-memory-mcp; in this session its tools are deferred, so load
-   them with ToolSearch first): `index_repository` with the worktree's absolute path. Its project is named after
-   the path (e.g. `D-source-jakubbohm-RevolutReader-.claude-worktrees-<name>`). Write the name into
-   `.tdd-state.md` and put it in every brief to the test-writer and the implementer: they read code they do not
-   change through the graph, as their definitions say. **Index it again after every commit you make** (Rules
-   for you, below), so the graph always holds the last commit: the server refreshes by itself only the folder
-   this session started in, and the project's code-graph hook indexes an entered worktree only once, on
-   entering (`CLAUDE.md` § Code navigation). An index in place takes seconds, and it works the same whether
-   this session started in the worktree or entered it. Read code you do not change through the graph
-   yourself, too.
-10. Plan the chapters (§ Chapters, step 1), starting from the chapters `tasks.md` suggests, and write the plan
-    into `.tdd-state.md`.
+## Rules for you
 
-## 1. Acceptance group (`[acceptance]`)
-
-1. Spawn the test-writer (`test-writer`, run in foreground) with: change name, the acceptance tasks,
-   paths of the delta specs and `design.md`. Ask it to write one claim per scenario at the level the
-   task names: an API acceptance test (default) with the DSL methods and driver stubs it needs, a
-   `scenario(...)` frontend test (` (frontend)`), or a row in `tests/manual-scenarios.md` (` (manual)`).
-2. Verify yourself (never trust the test-writer's report):
-   - the solution builds;
-   - every new acceptance test fails, and fails at runtime (`NotImplementedException` from a driver
-     stub, or an assertion), not at compile time;
-   - the traceability test passes: every new or changed scenario is claimed exactly once.
-3. **Human gate (always, regardless of review mode).** Stop and present: the list scenario → test (or
-   frontend test, or manual row), the diff of `Scenarios/` and `Dsl/`, anything the test-writer flagged, and the
-   chapter plan (§ Chapters, step 1). End your turn and wait.
-   - Change requests from the human go to the test-writer via SendMessage; then verify again and re-present.
-   - Approval: tick the acceptance tasks in `tasks.md`, record the acceptance tests and the agreed chapter plan
-     in `.tdd-state.md`, commit `test(<cNNN>): [accept] <n> acceptance tests, red`. This test-writer is then
-     retired: the acceptance group is a chapter of its own.
-
-## 2. Unit groups (`[unit]`), one group at a time, in order
-
-For each group:
-
-1. **Red.** Send the test-writer the group (spawned or resumed as § Chapters, step 4 says). Inputs: the group's
-   tasks, the related scenarios, the design sections it needs.
-2. **Verify red** yourself: the build passes; the group's new tests fail at runtime; all previously
-   green tests are still green. If a test passes immediately, send it back to the test-writer: either the
-   behaviour already exists (the test-writer says so, and the task gets ticked) or the test is too weak.
-3. Commit the test-writer's work: `test(<cNNN>): [red] <group name>`. The commit also takes any task ticked at
-   step 2 (its behaviour already exists), so `tasks.md` is unchanged when step 6 checks it.
-4. If `review=all`: stop and present the group's tests to the human. Wait. Apply feedback via the test-writer,
-   verify red again and commit the fixes as another `[red]` commit (never amend).
-5. **Green.** Send the implementer the group (spawned or resumed as § Chapters, step 4 says). Tell the implementer
-   which test files define the group and that it must not change them.
-6. **Verify green** yourself:
-   - all tests pass except this change's acceptance tests that are still waiting for their wiring;
-   - `git status --porcelain --untracked-files=all` (every new file by its own path) and `git diff --name-only HEAD`
-     (changes since the `[red]` commit) list no test files: paths under `tests/`, `*Tests*/`, `*.Tests.csproj`,
-     `src/RevolutReader.Web/src/test/`, `*.test.*` and `*.spec.*` JavaScript and TypeScript files (e.g. `.ts(x)`,
-     `.mjs`), and nothing under `openspec/` other than this change's `.tdd-state.md`, which you edit yourself.
-     Allowed only in `[wiring]` and `[close]` groups:
-     `tests/RevolutReader.AcceptanceTests/Drivers/**`; only in `[wiring]` groups:
-     `tests/RevolutReader.IntegrationTests/Wiring/**`.
-     If the implementer changed or added a disallowed file: restore it (`git restore --source=HEAD -- <path>`;
-     delete a new one), tell the implementer it is not allowed, and resume it.
-7. Tick the group's tasks, commit `feat(<cNNN>): [green] <group name>` (`fix` if the group fixes a defect).
-
-## 2b. Integration groups (`[integration]`), after all unit groups
-
-Same red → verify → commit → green → verify → commit loop as unit groups, with the review stop of § 2 step 4,
-and with these differences:
-
-1. The test-writer writes one abstract contract test class per port plus two concrete subclasses:
-   one bound to the in-memory fake, one bound to the real adapter.
-2. Expected red state: the **fake** subclass passes (if a fake test fails, the fake is wrong and the test-writer
-   fixes it, because unit tests already rely on it); the **real adapter** subclass fails at runtime.
-3. The implementer implements the real adapter (and migrations/mappings). Same rule: no test or fake edits.
-4. Tests on Testcontainers need Docker. If it is not running, stop and tell the human; never skip tests.
-
-## Slices (changes with more than 3 scenarios)
-
-After the acceptance group, `tasks.md` holds one slice per scenario: its `[unit]`, `[integration]` and
-`[wiring]` groups and a `[close] <scenario name>` group. Run each slice's groups in order with the loops
-above and § 3; its `[close]` runs that scenario's acceptance test, routes failures as in § 4, then the next
-slice starts. The final `[close] Acceptance green` is § 4 for the whole change. Consecutive slices form the
-chapters (§ Chapters).
-
-### Disputes
-
-When the implementer returns `STATUS: BLOCKED` with a claim that a test is wrong (or the test-writer reports
-the design cannot be tested as written):
-
-1. Judge by a fixed order of authority:
-   - behaviour (what should happen) → the delta spec decides;
-   - API shape (names, signatures, error model) → `design.md` decides;
-   - test-quality issue (brittle, tests implementation details, wrong fake) → the test-writer fixes it.
-2. Forward to the culprit **only** the claim, the failing test and the relevant spec/design excerpt.
-   Never forward the implementer's implementation code to the test-writer.
-3. If spec or design is silent or ambiguous, or the same dispute comes back a second time:
-   stop and ask the human. The resolution must end up in the spec or `design.md`, not only in code, committed as
-   `docs(<cNNN>): [plan] <what changed>` with only the files it changed, staged by path: any work in progress stays
-   in the tree for the group's own checks.
-4. A test the test-writer changed while the group is with the implementer (step 2, or after the human's answer in
-   step 3) is committed before the implementer is resumed, so that § 2 step 6 compares against it. Check first
-   that the test-writer's diff touches only test files (the paths § 2 step 6 lists) and that the changed test now
-   asserts what the spec or design excerpt says. A run proves little while the implementer's unfinished code is in
-   the tree (the test may already pass, or the code may not build yet): § 2 step 6 runs it with the rest. Commit
-   `test(<cNNN>): [red] <group name>, dispute fix` (never amend) with only the test-writer's files, staged by path:
-   the implementer's work in progress stays in the tree.
-5. Record each dispute and its resolution in `.tdd-state.md`.
-
-## 3. Wiring groups (`[wiring]`)
-
-Send to the implementer directly (spawned or resumed as § Chapters, step 4 says): endpoints, mapping, DI,
-migrations, the real acceptance driver methods (replacing the `NotImplementedException` stubs), and adapter
-edge-case tests in `tests/RevolutReader.IntegrationTests/Wiring/` (`docs/conventions/testing.md` § Integration
-tests). No unit tests are written for these.
-Verify: the build passes, all tests pass except this change's acceptance tests whose wiring is still to come,
-and the diff check from § 2 step 6. Tick and commit `feat(<cNNN>): [wire] <area>`.
-
-## 4. Close (`[close]`)
-
-1. Run all acceptance tests of this change. If one fails, find the cause and route it (each agent spawned or
-   resumed as § Chapters, step 4 says): missing behaviour → the test-writer writes a unit test for it (a `[red]`
-   commit) → the implementer implements it (a `[green]` commit), both verified as § 2 steps 2 and 6 say for a unit
-   group; a glue bug (route, DI registration, serialization, driver) → the implementer directly, its fix verified
-   as § 2 step 6 says for a `[close]` group. Repeat until green.
-2. Run the full test suite and the traceability test.
-3. Optional, only if Stryker.NET is configured (RevolutReader: not adopted): run mutation testing on the files
-   changed by this change and report survivors. Survivors mean weak tests; offer to send them to the test-writer.
-4. Do the close-out tasks yourself: `CLAUDE.md` if build, test or run commands changed.
-5. Tick the `[close]` tasks, commit `feat(<cNNN>): [close] acceptance green`, and report to the human: groups
-   done, disputes and how they were resolved, any spec/design changes, and that the change is ready for
-   `/opsx:archive`.
-
-## Chapters
-
-An agent's context keeps every file it read and all its thinking, so one pair of agents for a whole change
-outgrows it (C9a: the test-writer at 906k tokens), while a fresh pair per slice rereads the design and the
-conventions for every slice (`docs/software-factory/lessons.md` R-77). The apply therefore runs in chapters, each
-with a fresh test-writer and implementer.
-
-1. **Plan** (§ 0 step 10), before group 1:
-   - Group 1, the acceptance group, is a chapter of its own. Its test-writer is retired once the human approves
-     the acceptance tests (§ 1 step 3).
-   - Split the slices into chapters of consecutive slices that touch the same code: the same component, area
-     or test kit (for example the backend foundation, the API slices, the frontend pieces, the guards and the
-     deployment). Propose suggests this split in `tasks.md`, before group 1 (`openspec/config.yaml`, tasks
-     rules): take it over, and change it only where it breaks these rules or the sizing below, saying why. A
-     change proposed before that rule has no suggestion; split it yourself. The final
-     `[close] Acceptance green` belongs to the last chapter. A change without slices (3 scenarios or fewer) is
-     planned as two chapters: group 1, then every group after it.
-   - Size by content, not by a count of groups: what one group adds to an agent's context has ranged from
-     about 5k to 50k tokens. Chapters of four to nine slices ran well (C8a, C8b). The token budget (step 3)
-     catches a chapter planned too large.
-   - Write the plan into `.tdd-state.md`, name each chapter with its groups, and present it at the acceptance
-     gate. The acceptance chapter (group 1) has no letter; A, B, … start at the chapter after it, as `tasks.md`
-     suggests them.
-2. **Within a chapter,** send its test-writer and implementer their work group by group (§ 2, § 2b, § 3, § 4), each
-   spawned or resumed as step 4 says.
-3. **Token budget.** Each completion notice of the test-writer or the implementer ends with its context size
-   (`subagent_tokens` in its `<usage>` block). Record it in `.tdd-state.md` for that agent. When either agent
-   passes **250k tokens**, end the chapter early: after the `[close]` commit of the slice in progress (without
-   slices, after the last commit of the group in progress: its `[green]`, `[wire]` or `[close]`), run the
-   checkpoint (step 5), and the rest of the chapter becomes a new chapter with a fresh pair, named with its letter
-   and a number (the rest of B is B2). Where a notice shows no size, chapters end only where they were planned.
-4. **A fresh agent.** The test-writer and the implementer are each spawned the first time the chapter sends that
-   agent work: a red or a green (§ 2, § 2b), a wiring group (§ 3), a fix routed in a `[close]` group (§ 4 step 1)
-   or a dispute (§ Disputes). After that, each is resumed with SendMessage. Brief a fresh agent with: the change
-   name, the chapter and its groups, the review mode, the code graph's project (§ 0 step 9), the standing rules for
-   the test-writer and the implementer from `.tdd-state.md`, a short account of what the code holds now, the design
-   sections the chapter needs and, for UI, the saved design files (§ 0 step 8). Tell it that it starts mid-change:
-   the specs, `design.md`, the tests and the commits are the source of truth, not an earlier agent's memory. The
-   same brief replaces an agent that cannot be resumed, and then also says where the chapter stands, from
-   `.tdd-state.md` and `git status`: its groups already committed, the group in progress with any uncommitted work
-   the replaced agent left in the tree, and any open dispute.
-5. **Checkpoint at each chapter's end,** after its last commit, except the acceptance chapter, which ends at its
-   gate (§ 1 step 3), and the last chapter, where § 4's report takes its place:
-   1. Run the full suite (`dotnet test` and the frontend tests) and the traceability test: everything passes
-      except the acceptance tests of later chapters.
-   2. Rewrite `.tdd-state.md` for resuming: "Resume here" names the next chapter and its first group; what the
-      code holds now, briefly per area; the standing rules for the test-writer and the implementer; the retired
-      pair marked with their last token counts. Commit it: `docs(<cNNN>): [chapter] <name>'s state`.
-   3. Then, as `checkpoint=` says:
-      - `stop`: stop, because only the human can compact your context. Report the chapter (groups done, test
-        totals, disputes, the agents' last token counts) and give a ready command:
-        `/compact /tdd-apply <change>: chapter <name> is done and committed (<sha>). Re-read .tdd-state.md and
-        the tdd-apply skill, then start chapter <next> with a fresh test-writer and implementer.`
-        Tell the human to send a short message after compacting (e.g. "continue"): `/compact` does not start a
-        turn by itself. Ask with AskUserQuestion whether to compact first and then continue, continue without
-        compacting, or stop here. After "compact first", end your turn and wait. After "stop here", say that
-        `/tdd-apply <change>` in a new session resumes from `.tdd-state.md` (§ 0), then end your turn and wait.
-        After "continue without compacting", start chapter <next> at once, its agents spawned as step 4 says.
-      - `continue`: report the chapter briefly and start chapter <next> at once, its agents spawned as step 4
-        says.
-
-## Frontend groups
-
-A group whose tests are Vitest tests (`src/RevolutReader.Web/`) follows the same loops. There, "builds" means
-`npm --prefix src/RevolutReader.Web run typecheck` passes, lint (`run lint`) stays clean, and "the tests" are
-`npm --prefix src/RevolutReader.Web test` next to `dotnet test`. A new frontend test fails at runtime: an
-assertion, or a stub that throws.
-
-## Rules for you (the orchestrator)
-
-- Never edit tests or production code yourself. The only files you edit are `tasks.md` (checkboxes),
-  `.tdd-state.md`, the close-out docs and the delta spec or `design.md` files that a dispute the human resolved
-  (§ Disputes, step 3) needs. Restoring or deleting files the implementer was not allowed to touch (§ 2 step 6) is
-  the one exception.
-- Always run the tests yourself before accepting any report from the test-writer or the implementer. Never start
-  a build or test run while either agent is still working: they share one working tree.
-- Commit only on the change branch, at the handoffs above, with the step tags from `workflow.md` § 3.
-  Never push, never commit on `main`, never open a PR.
-- After every commit, run `index_repository` on the worktree (§ 0 step 9) before you brief the test-writer or
-  the implementer again.
-- Keep each chapter's test-writer and implementer alive for that chapter and resume them via SendMessage;
-  every chapter has a fresh pair (§ Chapters). If an agent can no longer be resumed, or SendMessage is
-  not available, spawn a fresh one with the chapter brief (§ Chapters, step 4). Artifacts are the source of
-  truth, not agent memory.
-- Their definitions set the test-writer's effort to high and the implementer's to medium
-  (`docs/software-factory/lessons.md` R-71). Pass the Agent tool's `effort` only when the human asks for another
-  level for a chapter (it then also holds when the agent is resumed), and record that in `.tdd-state.md`.
-- Do not use `isolation: "worktree"` for the test-writer or the implementer. They must share one working tree.
+- **You read:** the change's `proposal.md`; `tasks.md` up to its first group, and its group headings (Grep
+  `^## `); the state file by section (below); the hand-backs. For a question that goes to the owner, also the
+  passage the hand-back names.
+- **You never read** code, tests, diffs or test output, and never `design.md` or a spec as a whole. You run no
+  build and no test. You do not judge whether code is good: the reviewer does, and the runner verifies every
+  agent's report by running the tests itself.
+- **You never open an agent's transcript.** When a hand-back is unclear, ask that agent (resume it with the
+  question), or report to the owner.
+- **You edit only:** the spec or `design.md` passage that the owner's decision changes (a dispute, a review
+  finding, a design part's name), and a docs finding under `openspec/`. The state file changes only through
+  `tdd` (below).
+- **You commit only** through `tdd commit`, and only what you edited yourself (staged by `--path`), on the
+  change branch. Never push, never commit on `main`, never open a PR.
+- **One worker in the working tree at a time.** Never start a runner or a reviewer while another runner is
+  working. The next chapter starts only when this chapter's review and its fixes are done.
+- **You wait by ending your turn.** After you start or resume a runner or a reviewer, tell the owner in a
+  line what is running, and stop there. Its hand-back arrives as a message and starts your next turn. Waiting
+  needs no tool: do not look for one.
+- **Go by the hand-back, not by the notice.** A notice that an agent stopped comes after its hand-back, maybe
+  late: it adds only a size (§ 1). A notice for an agent whose hand-back you lack: it stopped without one, or failed,
+  and nothing wakes it. Resume it once and ask for it. If still none comes, the agent is lost: `once.md`
+  § A lost agent.
+- **To resume an agent,** SendMessage to its id (load the tool once with ToolSearch, `select:SendMessage`).
+- **Keep "Resume here" yours.** When a hand-back arrives, when you start an agent or resume one that has
+  handed back, and at a full stop: `tdd set --section "Resume here" --text "Main session: <where the chapter
+  stands · what runs, with the agent's id, or which stop waits · what comes next>"`. A runner's commits write
+  that section while it works; after its hand-back it is yours again.
+- **A progress note** is a message from a runner that is one line, `<step> completed at <HH:MM>`. Print it as
+  it is and end your turn: no tool call, no reading, no reply. You act only on hand-backs.
+- **A report from a test-writer or an implementer can reach you directly,** after its runner has finished
+  (the agent is woken once more when a command it left in the background ends). It repeats what the runner
+  handed back: do nothing with it.
 - Never put real bank data or secrets into anything you send, commit or record.
-- Whenever you send the implementer a group that builds or changes UI, include the saved paths of the design
-  files that group needs (§ 0 step 8), and tell the implementer that the look follows them.
+
+## Questions for the owner
+
+- **While anything can still go on, a question is plain text, never a dialog, and the run goes on.** A runner
+  parks its own and sends you each at once, in a message that starts `Q<n>:`; its hand-back repeats them
+  (`QUESTIONS:`), and Open holds each one's whole entry: the question, its `OPTIONS`, its `DETAIL` and what
+  waits for it. A finding routed ASK you park yourself (§ 4). Tell the owner each question when you learn of
+  it: what is asked, the options with the recommended one first, and what waits for it. After a runner's
+  `Q<n>:` message that is all: end your turn. Otherwise start whatever does not wait for it. The owner may
+  answer at any time.
+- **Record an answer at once,** also while a runner works (the script locks the file):
+  `tdd add --section "Standing rules" --line "<date>, the owner: <the decision>"`, and
+  `tdd put --section Open --key "<key>" --value "answered: <the decision> · still to do: <the edit, the
+  tasks>\n<the entry as it stood>"`: its lines name what waits and the work set aside (nothing left to do:
+  `tdd drop --section Open --key "<key>"`). The rest waits for the next hand-back: your edit of the spec or
+  `design.md`, its commit (tag `plan`), and the tasks. The runner that does the last task drops the entry;
+  when no task is left, you do.
+- **The tasks an answer frees** are a runner's: `once.md` § The tasks an answer frees.
+- **Another effort level** for an agent, when the owner asks for one: `once.md` § Another effort level.
+- **A full stop** is where the run stands still for the owner: a failed check at the start, a design fetch
+  that failed or missed a part (`once.md` § The design files), the acceptance gate, `after-chapter=stop`,
+  `REVIEW_STOP`, `BLOCKED`, `NEEDS_OWNER`, and when only questions are left.
+  There, and only there, use ONE AskUserQuestion dialog: the stop's own question, then every question Open
+  still holds. Each question stands on its own (the owner may see the dialog alone): what is asked, and its
+  options, the recommended one first. Four questions per dialog at most; the next dialog follows at once.
+  Details go in your text above it.
+- **The apply is not done while Open holds an entry.**
+
+## Arguments
+
+`$ARGUMENTS`
+
+The change name, then the three switches of the hint. `once.md` § The arguments says what each means, and
+what to do when one is missing.
+
+## Your commands
+
+`tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root with the Bash
+tool (a here-document and `<` do not work in PowerShell). The command comes first, then always `--change
+<change>`; `init` also `--session ${CLAUDE_SESSION_ID}`. Each call prints a line or two.
+
+- `tdd get --section "<name>" [--section …]`: one or more sections of the state file
+  `openspec/changes/<change>/.tdd-state.md`. Its sections: Resume here, Run, Chapter plan, Agents, Standing
+  rules, What the code holds now, Baseline, Acceptance tests, Open, Allowed failures, Design files. Never
+  Read the file as a whole.
+- `tdd set --section "<name>" --text "<text>"` (a long text goes through standard input: `--stdin` in place
+  of `--text`), `tdd add --section "<name>" --line "<text>"`, `tdd put --section "<name>" --key "<key>"
+  --value "<value>"`, `tdd drop --section "<name>" --key "<key>"`.
+- With `--file reviews` these five work on `openspec/changes/<change>/.chapter-reviews.md`, the record of
+  every chapter's findings and what became of them.
+- `tdd commit --type docs --tag <plan|chapter|chapter-review> --summary "<text>" --path <file> [--path …]`.
+
+In `--text`, `--line`, `--value` and `--resume`, `\n` is a new line. In any text you pass, write paths with
+forward slashes, never start with `/` (Git Bash would turn it into a path), and use no double quote, backtick
+or `$`.
+
+The state file holds state only: what a new session needs to continue. The commits are the history.
+
+## 0. Start, or resume
+
+`.claude/skills/tdd-apply/once.md` has the steps that happen once, and the cases that come up now and then.
+Read it now and follow its § A start, or § A resume when the state file exists and `Run` says `Status:
+applying`. A `design-fetcher` agent fetches the design files, never you.
+
+## 1. Run a chapter
+
+1. Start a `runner` with the Agent tool. The brief, and nothing more:
+
+   ```
+   CHANGE: <change>
+   CHAPTER: <name>: <its groups or slices>
+   MODE: human-test-review=<acceptance|each-group>
+   START AT: <the chapter's first group, or the group and step "Resume here" names>
+   TREE: clean | <what is uncommitted, when resuming mid-chapter>
+   ```
+
+   `<name>` is one word (letters and digits; `.`, `-` or `_` may stand inside it), because `--chapter` takes
+   it: `acceptance` for group 1, then `A`, `B`, … as planned.
+2. Record it: `tdd put --section Agents --key "<chapter> runner" --value "<agent id>"`, and set "Resume
+   here". The runner expects the state file changed in the tree.
+3. Wait for its hand-back: end your turn.
+4. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
+   **300,000** with the chapter not done, resume it with `END THE CHAPTER after the slice in progress.`
+5. Act on the hand-back. First its `QUESTIONS:` (§ Questions for the owner); tell the owner its `DISPUTES:`
+   and `FOR THE OWNER:` lines. Its `NEXT:` says what remains: plan it (a final `[close]` that a parked task
+   holds back shows only there). Then its `RESULT`:
+   - `GATE_READY`: § 2.
+   - `REVIEW_STOP`: a full stop: `once.md` § A group's tests for the owner.
+   - `BLOCKED` or `NEEDS_OWNER`: `once.md` § A runner that is blocked (a full stop, but for one case).
+   - `CHAPTER_ENDED_EARLY`: never a question and never a stop. Re-plan by yourself (`once.md` § A chapter
+     ended early), then go on as for `CHAPTER_DONE`.
+   - `CHAPTER_DONE`: § 3 (the acceptance chapter: `once.md` § The acceptance gate step 4).
+   - `FIX_ROUND_DONE` or `FIX_ROUND_ENDED_EARLY`: back in § 4, step 4.
+
+## 2. The acceptance gate (always)
+
+Whatever the switches say, the apply stops here, a full stop. On `GATE_READY`, follow `once.md` § The
+acceptance gate.
+
+## 3. Review the chapter
+
+`agent-review` says when: `each-chapter`, after every chapter's `CHAPTER_DONE` and at the gate; `acceptance`,
+at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
+
+1. Start a `chapter-reviewer` with the Agent tool. The brief, and nothing more:
+
+   ```
+   CHANGE: <change>
+   CHAPTER: <name>: <its groups or slices>
+   RANGE: <where the last review ended>..<the last commit of the runner's RANGE> | the working tree
+   FIXES: <the fix commits of that review's chapter, each with its finding's id> | none
+   LATER: <one line per later chapter of the plan: its name and what it adds; "none" after the last>
+   ```
+
+   The last chapter before this one whose record has a `range` has both (`tdd get --file reviews --section
+   "Chapter <it>"`): its `range` ends where that review ended, and its findings name their fix commits. The
+   first review after the gate differs (its range, a `GATE:` line): `once.md` § The first review after the
+   gate.
+2. Record the range: `tdd put --file reviews --section "Chapter <X>" --key range --value "<the RANGE>"`, and
+   the reviewer: `tdd put --section Agents --key "<chapter> reviewer" --value "<agent id>"`. Set "Resume
+   here". Wait for the hand-back: end your turn.
+3. Route each finding (§ 4, step 1) and record it:
+   `tdd put --file reviews --section "Chapter <X>" --key "<id>" --value "<severity> · <verdict> · <file:line> · <the defect in a few words> → <FIX|DECLINE|ASK>"`.
+
+## 4. Act on the findings
+
+1. **Route:** `tdd route --change <change> --chapter <X>`. From the reviewer's record and the verifiers'
+   report files it prints one line per finding, `<id> → FIX · <kind>`, `<id> → DECLINE · <reason>` or
+   `<id> → ASK · <reason>`, then the counts. A merged finding's line starts `<id>, <id>`: record and name it
+   by the first. A line `<id>: waits for <ask id>` is a FIX finding that waits for an ASK's answer: `once.md`
+   § Findings whose fixes touch. The outcomes are what it prints: never sort a finding yourself. Without
+   findings there is no such line and nothing to route. DECLINE: nothing more is done.
+2. Show the owner the routing in one table (id · severity · the finding · outcome · the reason in a few
+   words). Do not wait: FIX and DECLINE are this skill's job. Park each ASK finding: `tdd put --section Open
+   --key "<id>" --value "<the finding in a line> · ASK: <the reason> · its entry: reviews file, section
+   Chapter <X> review · waits: <its BUILDS ON IT>"`, and tell the owner the finding, the verifier's evidence,
+   the trade-off and your recommendation. The owner answers fix now, decline or defer (step 5).
+3. **Fix round.** Without a FIX finding that does not wait, go on at step 5. Resume the chapter's own runner
+   with the message below. If that runner is past 300,000 tokens, or another chapter has started since, start
+   a fresh one with the chapter's brief, `START AT: the fix round below`, and the same message. Wait for the
+   hand-back.
+
+   ```
+   FIX ROUND: chapter <X>
+   TAG: chapter-review
+   RECORD: --file reviews --section "Chapter <X>"
+   PAIR: the chapter's own
+   FINDINGS: <the ids>, as recorded in the reviews file, section "Chapter <X> review"
+   ```
+
+4. Its `FINDINGS:` lines say how each finding ended. Whatever is not `fixed`: `once.md` § After a fix round.
+5. **The owner's answer to an ask** (when you act on it: § Questions for the owner): `once.md` § The owner's
+   answer to a finding.
+6. Commit the reviews file when it changed after the runner's last commit:
+   `tdd commit --type docs --tag chapter-review --summary "chapter <X>: the review's record" --path <the reviews file>`.
+7. Then, as `after-chapter` says: `stop` reports the chapter (its commits, the suite's totals, the findings
+   by outcome, the agents' context sizes) and is a full stop; `continue` reports it in a few lines and starts
+   the next chapter (§ 1).
+
+## 5. The end of the apply
+
+After the last chapter's review and fixes, and only with Open empty: follow `once.md` § The end of the apply.
