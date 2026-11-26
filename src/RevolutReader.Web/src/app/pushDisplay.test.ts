@@ -1060,3 +1060,29 @@ test("The message is shown without waiting for the report's answer", async () =>
   await timePasses(20 * SECOND);
   await delivery;
 });
+
+// ---- Temporary, for the iPhone test of #113 (reverted with it): the owner's test message ----
+
+test("The owner's test message, its made-up balance under test, keeps no balance and reports nothing, on every kind of browser", async () => {
+  // As the owner's message endpoint sends it with a made-up balance: no "mutable", the balance under `test`.
+  const testMessage = {
+    web_push: 8030,
+    notification: {
+      title: "Test 1",
+      body: "Vymyšlený zůstatek",
+      navigate: `${ORIGIN}/test/notifications#t1`,
+      data: { test: PUSHED },
+    },
+  };
+
+  for (const { label, options } of EVERY_KIND) {
+    await phoneKeeps(KEPT_EARLIER);
+    const serviceWorker = installServiceWorkerStandIn(options);
+    listenForPushes(serviceWorker.worker);
+
+    await serviceWorker.deliverPush(testMessage);
+
+    expect(await keptBalance(), label).toEqual(KEPT_EARLIER);
+    expect(reportRequests(), label).toEqual([]);
+  }
+});

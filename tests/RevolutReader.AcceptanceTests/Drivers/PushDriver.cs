@@ -121,6 +121,9 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private const string TEXT = "text";
   private const string PAGE = "page";
 
+  /// <summary>Temporary, for the iPhone test of #113: the message request's made-up balance.</summary>
+  private const string TEST = "test";
+
   /// <summary>The message answer's members (D10).</summary>
   private const string DELIVERED = "delivered";
   private const string FAILED = "failed";
@@ -285,6 +288,39 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
     using HttpResponseMessage response = await Owner.SendAsync(request);
 
     return await MessageAnswerOf(response, message.Values);
+  }
+
+  /// <summary>
+  /// Temporary, for the iPhone test of #113: <c>POST /api/push/messages</c> from the owner, with the message key, to
+  /// <paramref name="account"/>, titled <paramref name="title"/>, opening <paramref name="page"/>, with
+  /// <paramref name="test"/> as the made-up balance's member <c>test</c>, as it is.
+  /// </summary>
+  public async Task<MessageAnswer> SendMessageWithTestBalance(string account, string title, string page, JsonNode test) {
+    ArgumentNullException.ThrowIfNull(account);
+    ArgumentNullException.ThrowIfNull(title);
+    ArgumentNullException.ThrowIfNull(page);
+    ArgumentNullException.ThrowIfNull(test);
+
+    JsonObject message = new() { [ACCOUNT] = account, [TITLE] = title, [PAGE] = page, [TEST] = test };
+
+    using HttpRequestMessage request = new(HttpMethod.Post, new Uri(MESSAGES, UriKind.Relative)) {
+      Content = new StringContent(message.ToJsonString(), Encoding.UTF8, JSON),
+    };
+    request.Headers.Add(MESSAGE_KEY, PushService.MessageKey);
+
+    using HttpResponseMessage response = await Owner.SendAsync(request);
+
+    return await MessageAnswerOf(response, [account, title, page]);
+  }
+
+  /// <summary>
+  /// Temporary, for the iPhone test of #113: every push <paramref name="device"/>'s push service received, in the order
+  /// received, as the JSON text it decrypts to with the device's own keys, read by no rule of the driver's.
+  /// </summary>
+  public IReadOnlyList<string> PushContentsReceivedFor(TestDevice device) {
+    ArgumentNullException.ThrowIfNull(device);
+
+    return [.. PushService.PushesFor(device).Select(push => device.Decrypt(push.Body))];
   }
 
   /// <summary><c>POST /api/push/messages</c> from the owner's client, with a wrong message key, to <paramref name="account"/>, titled <paramref name="title"/>.</summary>
