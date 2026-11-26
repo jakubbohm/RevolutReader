@@ -3,7 +3,8 @@
  * sees at every start, whenever it comes back to the front, whenever its address's fragment changes, and when the
  * browser restores it from its back-forward cache: the event, the time, the address's path and fragment, whether the
  * page was visible, how it was loaded (at a start), and what `registration.getNotifications()` lists. The owner's test
- * notifications are recorded in full, their `data` as it came, whatever iOS made of it. A test notification is one titled
+ * notifications are recorded in full, their `data` and their `navigate` address as they came, whatever iOS made of them
+ * (WebKit gives a listed notification its `navigate`, but not the `data` of one iOS showed itself). A test notification is one titled
  * `Test <number>`, as the owner's test messages are (the account check's titles start with "Odešlo" or "Přišlo"), or one
  * whose `data` carries `test`, the made-up balance. Every other notification is only counted, so nothing of a real
  * notification, its balance above all, is recorded. It sends nothing anywhere and never throws: the app starts as before
@@ -25,16 +26,19 @@ export const TEST_PAGE = "/test/notifications";
 /** What made an entry: a start, a return to the front, a change of the fragment, a restore from the back-forward cache. */
 export type RecordEvent = "start" | "front" | "fragment" | "restored";
 
-/** A test notification as recorded: its title, its text and its `data`, as they came. */
+/** A test notification as recorded: its title, its text, its `data` and its `navigate` address, as they came. */
 export interface TestNotification {
   title: string;
   body: string;
   data: RawData;
+  /** Absent in the entries the previous version recorded, which did not read it. */
+  navigate?: RawData;
 }
 
 /**
- * A notification's `data` as `getNotifications()` gave it: its kind (`typeof`, with null and arrays told apart) and its
- * value, a string as it is and anything else as JSON; null when JSON cannot hold it (undefined, a cycle, a bigint).
+ * A member of a notification (`data`, `navigate`) as `getNotifications()` gave it: its kind (`typeof`, with null and
+ * arrays told apart) and its value, a string as it is and anything else as JSON; null when JSON cannot hold it
+ * (undefined, a cycle, a bigint).
  */
 export interface RawData {
   kind:
@@ -89,6 +93,8 @@ export interface NotificationLike {
   title: string;
   body: string;
   data: unknown;
+  /** The address a tap opens (Declarative Web Push); absent where the browser does not give it. */
+  navigate?: unknown;
 }
 
 /** The members of the page (`window`) the record uses, so the tests can stand in for them. */
@@ -221,6 +227,7 @@ async function listedNotifications(
           title: notification.title,
           body: notification.body,
           data: rawData(data),
+          navigate: rawData(notification.navigate),
         });
       else others += 1;
     }
@@ -235,7 +242,7 @@ async function listedNotifications(
   }
 }
 
-/** `data` as it came (`RawData`). Never throws. */
+/** A member as it came (`RawData`). Never throws. */
 function rawData(data: unknown): RawData {
   const kind: RawData["kind"] =
     data === null ? "null" : Array.isArray(data) ? "array" : typeof data;
