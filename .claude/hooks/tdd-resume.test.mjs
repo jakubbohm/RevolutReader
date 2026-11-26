@@ -329,6 +329,34 @@ describe("tdd-resume hook", { concurrency: true }, () => {
     assert.match(context, /cut at 4,000 characters/);
   });
 
+  // Open holds each question that waits for the owner whole, with its options and detail, so a few of them can
+  // pass the limit with Resume here. Then nothing else is left to cut: the agents are gone first, and Open is cut
+  // only after them.
+  test("keeps the intro and Resume here whole and cuts Open only after the agents are gone, when Resume here and Open alone pass the limit", async (t) => {
+    const dir = await repository(t);
+    const resume = `Chapter B, group 7 (red). ${"The made-up step goes on. ".repeat(14)}`.trim();
+    const questions = Array.from(
+      { length: 4 },
+      (_, i) => `- Q${i + 1}: ${"a made-up question that waits for the owner, with its options and detail. ".repeat(12)}`,
+    );
+    stateFile(dir, CHANGE, {
+      change: (text) => setSection(setSection(underWay(text), "Resume here", resume), "Open", questions.join("\n")),
+    });
+
+    const { context } = await hook(dir);
+
+    assert.ok(context.length <= 4000 && context.length > 3900, `${context.length} characters`);
+    assert.match(context, /^\/tdd-apply is under way for `c900-add-made-up-thing`/);
+    assert.ok(context.includes(`## Resume here\n${resume}\n\n## Open\n${questions[0]}\n${questions[1]}`), context);
+    assert.equal(context.includes(questions[3]), false, "Open is cut");
+    assert.equal(context.includes("**Test-writer (B):**"), false, "the agents are gone");
+    assert.ok(
+      context.endsWith(`${GET(CHANGE)} "Resume here" --section "Open" --section "Agents"\``),
+      context.slice(-300),
+    );
+    assert.match(context, /cut at 4,000 characters/);
+  });
+
   test("does not cut a text of just under 4,000 characters", async (t) => {
     const dir = await repository(t);
     stateFile(dir, CHANGE, { change: underWay });
@@ -556,6 +584,41 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
     assert.match(context, /cut at 4,000 characters/);
     assert.ok(context.includes("Line 1 of a made-up"));
     assert.equal(context.includes("Line 200 of a made-up"), false);
+    const sections = '"Resume here" --section "Open" --section "Agents"';
+    assert.ok(
+      context.endsWith(`read the rest with \`${GET(CHANGE)} ${sections}\` and \`${GET_TRIAGE("109")} ${sections}\``),
+      context.slice(-400),
+    );
+  });
+
+  // The apply comes first, and a long list of its agents must not push the triage after it out of the text.
+  test("gives the budget to each account's intro, Resume here and Open before any list of agents, with an apply and a triage both under way", async (t) => {
+    const dir = await repository(t);
+    const agents = Array.from({ length: 200 }, (_, i) => `- **Agent ${i + 1}:** a${i + 1}, retired at 150k tokens`);
+    stateFile(dir, CHANGE, { change: (text) => setSection(underWay(text), "Agents", agents.join("\n")) });
+    await triage(dir, await prStateFile(dir), { edit: fixing });
+
+    const { context } = await hook(dir);
+
+    assert.ok(context.length <= 4000, `${context.length} characters`);
+    assert.match(context, /^\/tdd-apply is under way for `c900-add-made-up-thing`/);
+    assert.ok(
+      context.includes(
+        "## Resume here\nChapter B, group 7 (red).\nThe last commit is [green] of group 6.\n\n" +
+          "## Open\n- a dispute about the error model, with the test-writer",
+      ),
+      "the apply's Resume here and Open, whole",
+    );
+    assert.ok(context.includes(`\n\n${triageUnderWay("PR 109", 2)}`), "the triage's intro");
+    assert.ok(
+      context.includes(
+        "## Resume here\nThe fix round: finding 3 is next.\nFindings 1 and 2 are fixed.\n\n" +
+          "## Open\n- finding 5: asked, waiting for the owner",
+      ),
+      "the triage's Resume here and Open, whole",
+    );
+    assert.equal(context.includes("**Agent 200:**"), false, "the apply's agents are shortened or gone");
+    assert.match(context, /cut at 4,000 characters/);
     const sections = '"Resume here" --section "Open" --section "Agents"';
     assert.ok(
       context.endsWith(`read the rest with \`${GET(CHANGE)} ${sections}\` and \`${GET_TRIAGE("109")} ${sections}\``),
