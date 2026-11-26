@@ -5,7 +5,6 @@ import {
   RECORD_CHANGED,
   RECORD_KEY,
   type Listed,
-  type RawData,
   type RecordEntry,
   type RecordEvent,
 } from "../app/notificationTestRecord";
@@ -68,10 +67,8 @@ function Entry({ entry }: { entry: RecordEntry }): JSX.Element {
         ? listed.test.map((notification, index) => (
             <span key={index} className="break-all">
               {notification.title} · {notification.body} · data:{" "}
-              {rawText(notification.data)}
-              {notification.navigate === undefined
-                ? null
-                : ` · navigate: ${rawText(notification.navigate)}`}
+              {notification.data.kind} ·{" "}
+              {notification.data.value ?? "bez hodnoty"}
             </span>
           ))
         : null}
@@ -102,11 +99,6 @@ function listedText(listed: Listed | null): string {
     case "unavailable":
       return `oznámení: nelze (${listed.reason})`;
   }
-}
-
-/** A member as it came: its kind, then its value. */
-function rawText(raw: RawData): string {
-  return `${raw.kind} · ${raw.value ?? "bez hodnoty"}`;
 }
 
 /** The phone's local date and time to the millisecond, as `26.11. 14:03:21.123`. */
