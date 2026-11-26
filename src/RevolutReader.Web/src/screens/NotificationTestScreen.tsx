@@ -66,9 +66,8 @@ function Entry({ entry }: { entry: RecordEntry }): JSX.Element {
       {listed?.kind === "listed"
         ? listed.test.map((notification, index) => (
             <span key={index} className="break-all">
-              {notification.title} · {notification.body} · data:{" "}
-              {notification.data.kind} ·{" "}
-              {notification.data.value ?? "bez hodnoty"}
+              {notification.title} · {notification.body} ·{" "}
+              {JSON.stringify(notification.test)}
             </span>
           ))
         : null}

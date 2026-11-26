@@ -3,11 +3,9 @@
  * sees at every start, whenever it comes back to the front, whenever its address's fragment changes, and when the
  * browser restores it from its back-forward cache: the event, the time, the address's path and fragment, whether the
  * page was visible, how it was loaded (at a start), and what `registration.getNotifications()` lists. The owner's test
- * notifications are recorded in full, their `data` as it came, whatever iOS made of it. A test notification is one titled
- * `Test <number>`, as the owner's test messages are (the account check's titles start with "Odešlo" or "Přišlo"), or one
- * whose `data` carries `test`, the made-up balance. Every other notification is only counted, so nothing of a real
- * notification, its balance above all, is recorded. It sends nothing anywhere and never throws: the app starts as before
- * whatever happens here.
+ * notifications (their `data` carries `test`, the made-up balance) are recorded in full; every other notification is
+ * only counted, so nothing of a real notification, its balance above all, is recorded. It sends nothing anywhere and
+ * never throws: the app starts as before whatever happens here.
  */
 
 /** Where the record lives in the phone's `localStorage`. */
@@ -25,34 +23,12 @@ export const TEST_PAGE = "/test/notifications";
 /** What made an entry: a start, a return to the front, a change of the fragment, a restore from the back-forward cache. */
 export type RecordEvent = "start" | "front" | "fragment" | "restored";
 
-/** A test notification as recorded: its title, its text and its `data`, as they came. */
+/** A test notification as recorded: its title, its text and its `data.test`, as they are. */
 export interface TestNotification {
   title: string;
   body: string;
-  data: RawData;
+  test: unknown;
 }
-
-/**
- * A notification's `data` as `getNotifications()` gave it: its kind (`typeof`, with null and arrays told apart) and its
- * value, a string as it is and anything else as JSON; null when JSON cannot hold it (undefined, a cycle, a bigint).
- */
-export interface RawData {
-  kind:
-    | "undefined"
-    | "null"
-    | "array"
-    | "object"
-    | "string"
-    | "number"
-    | "boolean"
-    | "bigint"
-    | "symbol"
-    | "function";
-  value: string | null;
-}
-
-/** The title of the owner's test messages: `Test` and their number. */
-const TEST_TITLE = /^Test \d+$/;
 
 /** What `getNotifications()` came to, or why it could not be asked; `afterMs` from the entry's time to the answer. */
 export type Listed =
@@ -213,14 +189,11 @@ async function listedNotifications(
     let others = 0;
     for (const notification of notifications) {
       const { data } = notification;
-      if (
-        TEST_TITLE.test(notification.title) ||
-        (isRecord(data) && "test" in data)
-      )
+      if (isRecord(data) && "test" in data)
         test.push({
           title: notification.title,
           body: notification.body,
-          data: rawData(data),
+          test: data.test,
         });
       else others += 1;
     }
@@ -232,19 +205,6 @@ async function listedNotifications(
         ? error.name
         : "unknown";
     return { kind: "failed", afterMs: Date.now() - since, error: name };
-  }
-}
-
-/** `data` as it came (`RawData`). Never throws. */
-function rawData(data: unknown): RawData {
-  const kind: RawData["kind"] =
-    data === null ? "null" : Array.isArray(data) ? "array" : typeof data;
-  if (typeof data === "string") return { kind, value: data };
-  try {
-    const value: unknown = JSON.stringify(data);
-    return { kind, value: typeof value === "string" ? value : null };
-  } catch {
-    return { kind, value: null };
   }
 }
 
