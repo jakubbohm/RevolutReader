@@ -41,7 +41,7 @@ Steps 1 and 2 only read. Nothing is created, started or asked before they are do
 4. Create the state file `openspec/changes/<change>/.tdd-state.md`, which also indexes the code graph:
    `tdd init --change <change> --agent-review <value> --human-test-review <value> --after-chapter <value>
    [--issue <n>]`, with the three values and the change's GitHub issue, if `proposal.md` or `tasks.md` names
-   one.
+   one. Then the npm installs (below), before anything else.
 5. Record the attribution lines your context gives you for commits, so every commit carries them:
    `tdd put --section Run --key "Commit trailers" --value "<line 1>\n<line 2>"`. Then set "Resume here" for
    the first time (SKILL.md § Rules for you): the apply has started, and the design files and the acceptance
@@ -49,6 +49,31 @@ Steps 1 and 2 only read. Nothing is created, started or asked before they are do
 6. The design files (below).
 7. Start the acceptance chapter (SKILL.md § 1), under the name `acceptance`. Its runner validates the change,
    runs the baseline and the bootstrap, and has the acceptance tests written.
+
+## The npm installs
+
+§ A start step 4 and § A resume step 1 send you here, right after `tdd init`; `/triage-review` sends its main
+session here too, right after `tdd triage-init`. Every folder with a `package-lock.json` needs its packages
+installed in this checkout, in its `node_modules`: a new worktree or clone has none, and a lockfile that
+changed since leaves an install behind. The script checks every such folder and installs by itself. Nobody is
+asked, and no agent starts before this is done.
+
+1. Run `tdd install`, with `--change <change>` (a triage: `--pr <id>`), and with the Bash tool's `timeout` set
+   to 600000, ten minutes, the most the tool gives: an install can take minutes and needs the network. The
+   script ends by itself after nine.
+2. It prints one line per folder, `install: <folder> | <state>`. The state is `ok`; `missing`, when there is
+   no `node_modules`; or `stale: <what is wrong>`, when what is installed is not what the lockfile says. In a
+   folder that is missing or stale it runs `npm ci`, and the line ends `| npm ci: done in <time>`. With every
+   line `ok` or done, go on.
+3. A line that starts `ERROR: install:` is a failed check at the start, a full stop (your skill's SKILL.md
+   § Questions for the owner). It names the folder and what failed. Where npm was started and did not finish,
+   it also says that the folder's `node_modules` may now be incomplete, and gives the command to run again.
+   Tell the owner the line as it is. Run `tdd install` again only on the owner's word, once the cause is gone,
+   and go on only when no line starts `ERROR:`. Never install another way: no `npm install`, and no `npm ci`
+   of your own.
+4. If the tool answers that it moved the command to the background, the install is still running: start
+   nothing, and end your turn. Its notice names the file that holds the lines the command printed: Read it,
+   and go by those lines.
 
 ## The design files
 
@@ -90,7 +115,7 @@ A change already under way: its state file exists and `Run` says `Status: applyi
    exists it changes only the switches given: the recorded ones hold (`Run`: Agent review, Human test review,
    After chapter), and one given now wins. The same call indexes the code graph and writes its project for
    this machine when the state file's local part has none (another machine, a fresh clone): no agent starts
-   before it.
+   before it. Then the npm installs, as at a start (§ The npm installs).
 2. Read `tdd get --section "Resume here" --section Run --section "Chapter plan" --section Agents --section
    Open`. "Resume here" says where the earlier session stood: step 7 goes by it. When it names a chapter's
    review or its fix round, the reviews file says what is still to do of it: `tdd get --file reviews --section

@@ -117,6 +117,14 @@ brief does not name: hand back `BLOCKED`.
 Read "Open" when you start (`tdd get --section Open`): it may hold questions that wait for the owner, each
 naming the tasks that wait for it (§ A question for the owner).
 
+**The npm installs are in place when you start, and never yours to make.** Every folder with a
+`package-lock.json` needs its packages installed in this checkout (its `node_modules`). The main session has
+the script check each such folder, and install where one is missing or behind its lockfile, at every start
+and resume of its skill, before it starts you (`docs/conventions/testing.md` § Test-first workflow). Never
+run `npm ci` or `npm install`. A run that fails because a package or a tool of an install is not there
+(`Cannot find module …`, `'<tool>' is not recognized …`) fails like any other: a red baseline is a
+`BLOCKED`, and a close check is reported as failed. Say in that line that an install looks incomplete.
+
 ## Waiting, and handing back
 
 - **You wait by ending your turn.** After you start or resume an agent, write one line saying whose report
@@ -639,7 +647,11 @@ writes the reply over it when it has posted it. A finding that ends without a fi
 back) is recorded the same way and gets no progress note. Then replace an agent that is past its budget
 (§ The two agents).
 
-**The close checks** (`CLOSE CHECKS: since <commit>`), after the last finding, each through `tdd run`:
+**The close checks** (`CLOSE CHECKS: since <commit>`), after the last finding, each through `tdd run`. A check
+passes only when its command succeeded: the first line `tdd run` prints says `exit 0`. A command that did not
+succeed is a failed check, whatever else it printed or left unchanged. The one exception is the full suite: a
+run in which tests failed, and every one of them is on the list of allowed failures, passes (§ Your commands).
+The checks:
 
 - the full suite: `dotnet test` and the frontend's tests;
 - `dotnet format whitespace RevolutReader.slnx --verify-no-changes`;
@@ -649,9 +661,12 @@ back) is recorded the same way and gets no progress note. Then replace an agent 
 - if it lists a file under `.claude/skills/` or `.claude/hooks/`: the tests `CLAUDE.md` § Commands names for
   those scripts;
 - if it lists a file under `src/RevolutReader.Api/`: the API client's drift check, `npm --prefix
-  tools/api-client run regenerate` (`CLAUDE.md` § Commands). It passes when `git status --porcelain` then
-  lists neither `openapi.json` nor `schema.d.ts`. If it lists one, the check failed (a fix that changes the
-  API contract is never routed to you): restore both with `git restore`.
+  tools/api-client run regenerate` (`CLAUDE.md` § Commands). It passes only when the command exited 0 and
+  `git status --porcelain` then lists neither `openapi.json` nor `schema.d.ts`. Otherwise the check failed,
+  in one of two ways: the command did not exit 0 (its first half may have rewritten `openapi.json` before its
+  second half failed), or it exited 0 and one of the two files is listed (a fix that changes the API contract
+  is never routed to you). Either way restore both files with `git restore`, and say in the `failed:` part
+  which way it was.
 
 **A close check that fails.** Four of the checks judge how the code is written, never what it does: `dotnet
 format … --verify-no-changes` and the frontend's `lint`, `typecheck` and `format:check`. What they report is
@@ -678,8 +693,10 @@ repaired at once, in one pass over all of it, and the owner is only told:
 Not repaired by you, reported in your hand-back as failed, and nothing changed for it:
 
 - a failed test: a fix broke something else, or a test is unstable, and the owner decides;
-- the API client's drift, and a Bicep lint failure;
-- a failure in a file that no fix of this round touched.
+- the API client's drift check, whichever way it failed, and a Bicep lint failure;
+- a failure in a file that no fix of this round touched;
+- one of those four checks whose command did not succeed and names no file: it could not start, or stopped
+  before it checked anything.
 
 Whatever a check still names in its second run is reported as failed too, in one part with the repair that
 did not help (§ Hand-backs). That repair's commit stays in the branch and in the finding's record.

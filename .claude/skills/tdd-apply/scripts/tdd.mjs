@@ -9,8 +9,9 @@
 // state.mjs (the state files' sections), guard.mjs (the paths the implementer must not change), test-output.mjs
 // (what a test run printed, and which failed tests are allowed to fail), route.mjs (the sorting rules of a review's
 // findings, and how a check's report is read), review.mjs (the record of a chapter review), triage.mjs (the
-// pointer to the triage under way) and lock.mjs (the lock and the atomic writes). This file holds what touches the
-// world: the arguments, git, the files, the code graph's command line, and the commands `run` wraps.
+// pointer to the triage under way), installs.mjs (which folders have an npm install, and whether one is what its
+// lockfile says) and lock.mjs (the lock and the atomic writes). This file holds what touches the world: the
+// arguments, git, the files, the code graph's command line, npm, and the commands `run` wraps.
 //
 // - Whose files a command works on: with --change an apply's, in the change's folder under openspec/changes (or,
 //   once the change is archived, its one folder under openspec/changes/archive): the state file .tdd-state.md,
@@ -42,14 +43,25 @@
 //   another verdict or kind, or there though the record says `no report`); it sorts that finding as one whose
 //   check returned no result, and still exits 0. `get`, asked for several sections, prints those the file has and
 //   names each other one (`get: no section "<name>" in <file>; the sections are: …`); it is refused only when
-//   the file has none of them.
+//   the file has none of them. `install` answers each folder on a line of its own: one it could not check or
+//   install is a line `ERROR: install: <folder> | …` on stderr, never cut, the others are still checked, and the
+//   exit code is then 1.
 // - Every command that writes a state file, a local file, the reviews file, tasks.md or the pointer (init,
 //   triage-init, set, add, put, drop, review, commit, unguard, and index for the local file) holds the working
 //   tree's lock from its first read to its last write, `commit` and `unguard` to the end of `git commit`, and every
 //   file is written whole or not at all (lock.mjs). `shelve` and `unshelve` hold it too, from their first look at
-//   the working tree to their last change of it. `get`, `check`, `run`, `reports`, `route`, `report` and
-//   `progress` take no lock. TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS set the lock's wait limit and stale age in
+//   the working tree to their last change of it. `get`, `check`, `run`, `install`, `reports`, `route`, `report`
+//   and `progress` take no lock. TDD_LOCK_WAIT_MS and TDD_LOCK_STALE_MS set the lock's wait limit and stale age in
 //   milliseconds: the tests use both.
+// - `install` is how both skills make sure, at every start and every resume, that the packages of each npm
+//   folder are installed in this checkout before an agent builds or tests (docs/conventions/testing.md § Test-first
+//   workflow): an install is per checkout, so a new worktree or clone has none, and a lockfile that changed since
+//   leaves one behind. It finds the folders with git (each that holds a tracked package-lock.json; installs.mjs
+//   says which never count), judges each from two files alone, so that a check starts no npm, and runs `npm ci`,
+//   never `npm install`, where the install is not there or not what the lockfile says. An install takes minutes
+//   and needs the network, which is why it is a command of its own and no part of `init` or `triage-init`: their
+//   line must reach the caller at once, and a caller gives this one the time it needs. It ends by itself at its
+//   time limit, 9 minutes unless --timeout says otherwise: the tool that runs it allows a command 10 at most.
 // - `report` is how a review's check saves its report: the checks are read-only agents, and this command is the
 //   one way they have to write a file. So it writes nothing but a text that reads as the report of the check and
 //   the finding the file's name says (route.mjs), and never inside a repository: not this one, not another one,
@@ -87,9 +99,9 @@
 //   state file has uncommitted changes, and it conflicts once a later commit changed that file. The command
 //   reverses the commits in every other path and leaves those three alone.
 // - TDD_GRAPH_CLI names another executable for the code graph's command line, and TDD_NO_GRAPH=1 skips indexing:
-//   the tests use both. The code graph is never indexed inside the lock: it can take minutes. TDD_FAIL_STEP makes a
-//   step of `shelve` or `unshelve`, or a reading of the state after a failure, fail, for the tests of how the two
-//   recover (`step`).
+//   the tests use both. The code graph is never indexed inside the lock: it can take minutes. TDD_NPM_CLI names
+//   another executable for npm, which `install` starts: the tests use it. TDD_FAIL_STEP makes a step of `shelve`
+//   or `unshelve`, or a reading of the state after a failure, fail, for the tests of how the two recover (`step`).
 // - Never prints or stores bank data or secrets: it handles paths, test names and totals, and of a test run it
 //   prints what the runner printed, cut as test-output.mjs says.
 import { spawn, spawnSync } from "node:child_process";
@@ -112,6 +124,7 @@ import { constants, tmpdir } from "node:os";
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { guard, guardReport, parseStatus, STEPS } from "./guard.mjs";
+import { installFolders, installState, LOCKFILE, RECORD } from "./installs.mjs";
 import { readText, withLock, writeAtomic } from "./lock.mjs";
 import { checkRecord, readRecord, recordFindings, recordIds, recordSummary, reviewSection } from "./review.mjs";
 import {
@@ -145,7 +158,7 @@ import {
   TRIAGE_FILE,
   triageText,
 } from "./state.mjs";
-import { runReport } from "./test-output.mjs";
+import { formatDuration, runReport, stripAnsi } from "./test-output.mjs";
 import { archivedAs, POINTER_FILE, pointerText, prId, prStateFile, readPointer, triageAccount } from "./triage.mjs";
 
 const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change <change-name> | --pr <id>) [--root <path>]
@@ -169,6 +182,7 @@ const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change
   shelve       --key <key>
   unshelve     --key <key> [--drop]
   index
+  install      [--dry-run] [--timeout <minutes, default 9>]
   run          --label <name> [--timeout <minutes, default 30>] -- <command> [args...]
   reports      --chapter <X> [--new]
   review       --chapter <X> --stdin
@@ -182,7 +196,7 @@ once archived, under openspec/changes/archive. --pr names the triage that triage
 its state file (.review-triage.md in the change's folder; without a change, triage-<id>.md in the working tree's
 git folder, never tracked), the scope of its commits, and no reviews file. init, reports and review take --change,
 triage-init --pr and maybe --change, every other command one of the two; route needs --change only with --chapter,
-report and progress need neither.
+report and progress need neither, and install takes one of the two or neither.
 
 init creates the apply's state file; on one that exists it changes only the switches given. triage-init starts a
 round: it creates the triage's state file or, for a later round or a rerun, keeps it, updates its Run section and
@@ -199,6 +213,20 @@ state file's local file in the working tree's git folder, which is never committ
 section from both files, a key that both hold once, with the local value. The code graph's project is such a value
 (Run / Code graph project): init, triage-init and index write it there; on a machine that has none, index writes
 it, and so does init on a state file that exists.
+
+install checks the npm install of every folder in which git tracks a package-lock.json that is in the working tree
+(none under a folder named node_modules or fixtures), and prints one line per folder:
+"install: <folder> | <state>[ | npm ci: <what was done>]". The state is ok; missing, when there is no node_modules
+folder; or "stale: <what is wrong>", when one is there and is not what the lockfile says. It is read from two
+files, the lockfile and node_modules/.package-lock.json, npm's own record of what it installed (installs.mjs has
+the rule), so the check starts no npm. In each folder that is missing or stale it runs "npm ci", never "npm
+install", with npm's output in a log under the temp folder's tdd-runs (with --change or --pr beside that run's
+logs, else in "install"), and checks the folder again afterwards. With --dry-run it only says what it would run.
+--timeout is the limit of the whole command: an install still running then is stopped, and no later one is started.
+A folder it could not check or install is one line "ERROR: install: <folder> | ..." on stderr, and the exit code
+is then 1. The line says what failed. For an install that npm began and did not finish it also says that the
+folder's node_modules may now be incomplete, and gives the command to run again, the log and what npm said. The
+other folders are checked and installed all the same.
 
 shelve sets aside every uncommitted change of the working tree but the bookkeeping's files (changed, deleted and
 new files; not ignored ones; a staged file as it stands on disk) under --key, and takes those paths back to the
@@ -265,7 +293,8 @@ another word, a second check's report has no FIRST PASS line, or a first check's
 
 In --text, --line, --value, --body and --resume the two characters \\n mean a line break; --stdin takes the text as
 it is. Exit codes: 0 done; 1 refused, with one line on stderr; 3 the guard found violations; 4 nothing to commit;
-run: the command's own, 124 when stopped at its time limit, 127 when it cannot be started.`;
+run: the command's own, 124 when stopped at its time limit, 127 when it cannot be started; install: 1 when a
+folder could not be checked or installed, with one line on stderr for each.`;
 
 // What each command takes besides --change, --pr and --root: an option with a value, one that may repeat, or a
 // flag.
@@ -301,6 +330,7 @@ const OPTIONS = {
   shelve: { key: "value" },
   unshelve: { key: "value", drop: "flag" },
   index: {},
+  install: { "dry-run": "flag", timeout: "value" },
   run: { label: "value", timeout: "value" },
   reports: { chapter: "value", new: "flag" },
   review: { chapter: "value", stdin: "flag" },
@@ -324,6 +354,10 @@ const WITHOUT_FILES = ["route", "report", "progress"];
 
 // The commands of an apply alone, which take --change and never --pr: a triage has no chapters and no reviews file.
 const OF_AN_APPLY = ["init", "reports", "review", "route --chapter"];
+
+// The commands that work on the working tree whoever runs in it, and so take --change or --pr without needing
+// either: the option only says beside whose logs theirs go.
+const OF_THE_TREE = ["install"];
 
 // A refusal the caller is told in one line: the message for stderr and the exit code. A `whole` one is never cut
 // (`shelve` and `unshelve` after a failed step: what is left and the way out come first, every cause after them).
@@ -789,6 +823,7 @@ function context(options, command) {
     throw new Failure(`${command} needs --change <change-name>: it is the apply's`);
   }
   if (options.change === undefined && options.pr === undefined) {
+    if (OF_THE_TREE.includes(command)) return workingTree(options);
     throw new Failure("--change <change-name> is missing (an apply's), or --pr <id> (a triage's)");
   }
   const tree = workingTree(options);
@@ -2287,25 +2322,26 @@ function stopTree(pid) {
   }
 }
 
-// Runs a command in the repository's root, where CLAUDE.md § Commands says every command runs, with its standard
-// output and error output going, in the order written, to one log file under the temp folder's tdd-runs (an
-// apply's in a folder named after the change, a triage's in `pr-<id>`). Prints test-output.mjs's short report,
-// which says which failed tests the state file allows to fail, and answers the command's exit code.
-async function run(ctx, options, command) {
-  if (!command?.length) throw new Failure("run needs a command after --: run --label <name> -- <command> [args...]");
-  const minutes = options.timeout === undefined ? 30 : Number(options.timeout);
+// A --timeout as a number of minutes: the default when none is given.
+function timeLimit(given, byDefault) {
+  const minutes = given === undefined ? byDefault : Number(given);
   if (!(minutes > 0) || !Number.isFinite(minutes)) throw new Failure("--timeout is a number of minutes above 0");
-  const name = logFileName(options.label, new Date());
-  const plan = spawnPlan(command[0], command.slice(1), { cwd: ctx.root });
+  return minutes;
+}
 
-  const folder = join(tmpdir(), "tdd-runs", ctx.runs);
-  mkdirSync(folder, { recursive: true });
-  const log = openLog(folder, name);
+// Starts a command (`plan`: spawnPlan's) in a folder, with no standard input and with its standard output and
+// error output going, in the order written, to a new log file of that name in the logs' folder. At the time limit
+// it stops the command with everything it started. Answers the log's path, how long the command ran, and how it
+// ended: `error` when it could not be started (the log is then removed), else its exit `code`, 124 when it was
+// stopped at the limit (`timedOut`).
+async function logged(plan, { cwd, logs, name, limitMs }) {
+  mkdirSync(logs, { recursive: true });
+  const log = openLog(logs, name);
   const started = Date.now();
   const ended = await new Promise((done) => {
     const child = spawn(plan.file, plan.args, {
       ...plan.options,
-      cwd: ctx.root,
+      cwd,
       stdio: ["ignore", log.fd, log.fd],
       windowsHide: true,
       detached: process.platform !== "win32",
@@ -2314,7 +2350,7 @@ async function run(ctx, options, command) {
     const timer = setTimeout(() => {
       timedOut = true;
       stopTree(child.pid);
-    }, minutes * 60_000);
+    }, limitMs);
     const interrupted = () => {
       stopTree(child.pid);
       process.exit(130);
@@ -2333,20 +2369,157 @@ async function run(ctx, options, command) {
   closeSync(log.fd);
   if (ended.error) {
     rmSync(log.path, { force: true });
+    return { error: ended.error };
+  }
+  return {
+    log: log.path,
+    durationMs: Date.now() - started,
+    timedOut: ended.timedOut,
+    code: ended.timedOut ? 124 : (ended.code ?? 128 + (constants.signals[ended.signal] ?? 0)),
+  };
+}
+
+// The install of one npm folder as it stands: its state, and what is wrong with it (installs.mjs). Throws for a
+// lockfile that cannot be judged, and for a file that cannot be read.
+function installOf(root, folder) {
+  const at = (path) => join(root, folder, path);
+  return installState({
+    lockfile: readFileSync(at(LOCKFILE), "utf8"),
+    record: existsSync(at(RECORD)) ? readFileSync(at(RECORD), "utf8") : null,
+    modules: statSync(at("node_modules"), { throwIfNoEntry: false })?.isDirectory() === true,
+    holds: (path) => existsSync(at(join(path, "package.json"))),
+  });
+}
+
+// An install's state as its line shows it: `ok`, `missing`, or `stale: <what is wrong>`.
+const installText = ({ state, why }) => (why === null ? state : `${state}: ${why}`);
+
+// What npm said of a failure, on one line: its error lines (`npm error …`; `npm ERR! …` before npm 10), or the
+// last lines of its output when it wrote none.
+function npmSaid(log) {
+  const lines = stripAnsi(readFileSync(log, "utf8"))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const errors = lines.filter((line) => /^npm (error|ERR!)/.test(line));
+  return oneLine((errors.length > 0 ? errors.slice(0, 4) : lines.slice(-3)).join("\n"));
+}
+
+// Checks the npm install of every install folder of the working tree and has npm make the ones that are missing
+// or stale: `npm ci` in the folder, its output in a log, and the folder checked again afterwards. One line per
+// folder; a folder that could not be checked or installed is an `ERROR:` line on stderr, the others still get
+// their turn, and the exit code is then 1. With --dry-run nothing is run.
+async function install(ctx, options) {
+  const minutes = timeLimit(options.timeout, 9);
+  const deadline = Date.now() + minutes * 60_000;
+  const tracked = git(ctx.root, ["ls-files", "-z", "--", `:(glob)**/${LOCKFILE}`]).stdout.split("\0");
+  const folders = installFolders(tracked.filter((path) => path && existsSync(join(ctx.root, path))));
+  if (folders.length === 0) return say(`install: no folder with a tracked ${LOCKFILE}`);
+
+  // The command as it was called, for the line of a folder whose install failed.
+  const whose = [
+    ...(options.change === undefined ? [] : [` --change ${options.change}`]),
+    ...(options.pr === undefined ? [] : [` --pr ${options.pr}`]),
+  ];
+  const again = `run again: node .claude/skills/tdd-apply/scripts/tdd.mjs install${whose.join("")}`;
+  const npm = process.env.TDD_NPM_CLI || "npm";
+  let failed = false;
+  const fail = (folder, ...parts) => {
+    failed = true;
+    process.stderr.write(`ERROR: install: ${[folder, ...parts].join(" | ")}\n`);
+  };
+
+  for (const folder of folders) {
+    let found;
+    try {
+      found = installOf(ctx.root, folder);
+    } catch (e) {
+      fail(folder, oneLine(e.message));
+      continue;
+    }
+    const state = installText(found);
+    if (found.state === "ok") {
+      say(`install: ${folder} | ok`);
+      continue;
+    }
+    if (options["dry-run"]) {
+      say(`install: ${folder} | ${state} | npm ci: not run (--dry-run)`);
+      continue;
+    }
+    const left = deadline - Date.now();
+    if (left <= 0) {
+      fail(folder, state, `npm ci not started: the time limit (${minutes} min) was reached`, again);
+      continue;
+    }
+    const cwd = join(ctx.root, folder);
+    const ended = await logged(spawnPlan(npm, ["ci"], { cwd }), {
+      cwd,
+      logs: join(tmpdir(), "tdd-runs", ctx.runs ?? "install"),
+      name: logFileName(`npm ci ${folder}`, new Date()),
+      limitMs: left,
+    });
+    if (ended.error) {
+      const why = ended.error.code === "ENOENT" ? `${oneLine(npm)} is not on the PATH` : oneLine(ended.error.message);
+      fail(folder, state, `npm ci cannot be started: ${why}`);
+      continue;
+    }
+    const log = `log: ${slashed(ended.log)}`;
+    const took = formatDuration(ended.durationMs);
+    const incomplete = "its node_modules may now be incomplete";
+    if (ended.timedOut) {
+      fail(folder, state, `npm ci stopped at the time limit (${minutes} min): ${incomplete}`, again, log);
+      continue;
+    }
+    if (ended.code !== 0) {
+      const said = `npm said: ${npmSaid(ended.log)}`;
+      fail(folder, state, `npm ci failed (exit ${ended.code}) after ${took}: ${incomplete}`, again, log, said);
+      continue;
+    }
+    // npm's word is not taken for it: the folder is read again, by the same rule.
+    let now;
+    try {
+      now = installText(installOf(ctx.root, folder));
+    } catch (e) {
+      now = oneLine(e.message);
+    }
+    if (now !== "ok") {
+      const still = `the install is still not what the lockfile says: ${now}`;
+      fail(folder, state, `npm ci ended without an error after ${took}, and ${still}`, log);
+      continue;
+    }
+    say(`install: ${folder} | ${state} | npm ci: done in ${took}`);
+  }
+  return failed ? 1 : 0;
+}
+
+// Runs a command in the repository's root, where CLAUDE.md § Commands says every command runs, with its standard
+// output and error output going, in the order written, to one log file under the temp folder's tdd-runs (an
+// apply's in a folder named after the change, a triage's in `pr-<id>`). Prints test-output.mjs's short report,
+// which says which failed tests the state file allows to fail, and answers the command's exit code.
+async function run(ctx, options, command) {
+  if (!command?.length) throw new Failure("run needs a command after --: run --label <name> -- <command> [args...]");
+  const minutes = timeLimit(options.timeout, 30);
+  const name = logFileName(options.label, new Date());
+  const ended = await logged(spawnPlan(command[0], command.slice(1), { cwd: ctx.root }), {
+    cwd: ctx.root,
+    logs: join(tmpdir(), "tdd-runs", ctx.runs),
+    name,
+    limitMs: minutes * 60_000,
+  });
+  if (ended.error) {
     const why = ended.error.code === "ENOENT" ? "it is not on the PATH" : ended.error.message;
     throw new Failure(`cannot start ${oneLine(command[0])}: ${why}`, 127);
   }
-
-  const code = ended.timedOut ? 124 : (ended.code ?? 128 + (constants.signals[ended.signal] ?? 0));
+  const { code } = ended;
   // The tests allowed to fail are read after the run, as the state file then stands; without a state file there
   // is no list, and the report says nothing about it.
   const allowed = existsSync(ctx.state.path) ? sectionKeys(readText(ctx.state.path), ALLOWED_FAILURES) : undefined;
   const report = runReport({
     code,
     timedOutAfterMinutes: ended.timedOut ? minutes : undefined,
-    durationMs: Date.now() - started,
-    logPath: log.path,
-    output: readFileSync(log.path, "utf8"),
+    durationMs: ended.durationMs,
+    logPath: ended.log,
+    output: readFileSync(ended.log, "utf8"),
     allowed,
   });
   say(...report);
@@ -2681,6 +2854,7 @@ const COMMANDS = {
   shelve,
   unshelve,
   index,
+  install,
   run,
   reports,
   review,

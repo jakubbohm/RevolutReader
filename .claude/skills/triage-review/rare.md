@@ -303,10 +303,13 @@ questions that are left in SKILL.md § 4.
     close checks again before it handed back: a repair commit owes no further run. The finding's reply
     stands as it is: one that is posted is never posted again for a repair, whatever its line now says. A
     repair the owner ordered (under `failed:` below) comes back as `repaired:` too, and asks the same.
-  - **`failed:`** is a full stop. For a failed test (a fix broke something else, or a test is unstable), the
-    API client's drift, a Bicep lint failure, or a failure in a file that no fix of this round touched, the
-    runner changed nothing. A part that ends `repair <commit> did not help` is a check that still failed
-    after its one repair: that commit stays in the branch and in the finding's line. `for <number>` names
+  - **`failed:`** is a full stop. A check passes only when its command succeeded, and the runner's
+    instructions have the whole rule. For a failed test (a fix broke something else, or a test is unstable),
+    a failed API client drift check (its command failed, or it left a generated file changed: the runner put
+    both files back), a Bicep lint failure, a failure in a file that no fix of this round touched, or a
+    format, lint or type check whose command could not run, the runner repaired nothing. A part that ends
+    `repair <commit> did not help` is a check that still failed after its one repair: that commit stays in
+    the branch and in the finding's line. `for <number>` names
     the finding whose fix caused the failure. It is there when a repair was tried, or when the failing
     file's last commit of this round names a finding. Tell the owner which check failed and with what, and
     ask what happens to it. A repair the owner wants now goes to the runner in a fix-round message, as an

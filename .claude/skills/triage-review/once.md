@@ -54,6 +54,13 @@ is recorded nowhere.
      everything: the findings, the diff, the reports, the reply and summary texts. It is the folder you
      proposed or, when the work folder of a round that stopped still exists, that one, which may be an
      earlier session's.
+   - Then the npm installs, at every start of the skill and before anything else: `tdd install --pr <id>`,
+     with the Bash tool's `timeout` set to 600000. The script checks the installed packages of every folder
+     with a `package-lock.json`, and installs by itself where they are missing or behind the lockfile. When
+     each line it prints ends `| ok` or `| npm ci: done in <time>`, go on. For anything else, a line that
+     starts `ERROR:` (a full stop) or a command the tool moved to the background, follow
+     `.claude/skills/tdd-apply/once.md` § The npm installs: Grep that file for `^## `, and Read that section
+     only.
    - The state file is read and written only through `tdd … --pr <id>`, with a change and without one alike:
      never with Read, and never as a whole.
    - Then read `tdd get --pr <id> --section "Round <n>" --section Open --section "Resume here"`. If `Round
