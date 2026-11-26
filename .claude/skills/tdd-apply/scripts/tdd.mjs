@@ -2370,14 +2370,31 @@ function timeLimit(given, byDefault) {
   return minutes;
 }
 
+// The environment `npm ci` runs in: this one, with npm's `include` setting naming `dev` too. The install check
+// counts every locked package, the dev ones as well, which the tests run on; npm leaves those out where its
+// configuration omits them (`omit=dev`, or NODE_ENV=production, which makes that the default), and a type that
+// `include` names is never omitted, wherever either setting comes from. The setting is given in the
+// environment, as `npm_config_include`, so that the command itself stays a plain `npm ci`. npm reads such a
+// variable whatever the case of its name, and a list from it as items apart by a blank line; so whatever
+// include the environment already names is kept, under the one name, and `dev` is added. (npm 11.19.1, read
+// 2026-11-26: `@npmcli/config`, lib/index.js `loadEnv`, lib/parse-field.js, and the definitions of `omit` and
+// `include`.)
+function includingDev(env) {
+  const named = Object.keys(env).filter((key) => key.toLowerCase() === "npm_config_include");
+  const included = named.flatMap((key) => (env[key] ?? "").split("\n\n")).filter((item) => item !== "");
+  const rest = Object.fromEntries(Object.entries(env).filter(([key]) => !named.includes(key)));
+  return { ...rest, npm_config_include: [...new Set([...included, "dev"])].join("\n\n") };
+}
+
 // Starts a command (`plan`: spawnPlan's) in a folder, with no standard input and with its standard output and
 // error output going, in the order written, to a new log file of that name in the logs' folder. At the time limit
 // it stops the command with everything it started. Answers the log's path, how long the command ran, and how it
 // ended: `error` when it could not be started (the log is then removed), else its exit `code`, 124 when it was
 // stopped at the limit (`timedOut`). Node reports a command it could not start in one of two ways, by the
 // system's reason: `spawn` throws, or the process it answers emits `error` (a file that is not there is emitted;
-// on Windows a file that is there and is no program is thrown). Either one is the `error` answered here.
-async function logged(plan, { cwd, logs, name, limitMs }) {
+// on Windows a file that is there and is no program is thrown). Either one is the `error` answered here. `env`
+// replaces the environment the command runs in; without it, the command runs in this process's own.
+async function logged(plan, { cwd, logs, name, limitMs, env }) {
   mkdirSync(logs, { recursive: true });
   const log = openLog(logs, name);
   const started = Date.now();
@@ -2387,6 +2404,7 @@ async function logged(plan, { cwd, logs, name, limitMs }) {
       child = spawn(plan.file, plan.args, {
         ...plan.options,
         cwd,
+        env,
         stdio: ["ignore", log.fd, log.fd],
         windowsHide: true,
         detached: process.platform !== "win32",
@@ -2546,6 +2564,7 @@ async function install(ctx, options) {
     const cwd = join(ctx.root, folder);
     const ended = await logged(spawnPlan(npm, ["ci"], { cwd }), {
       cwd,
+      env: includingDev(process.env),
       logs: join(tmpdir(), "tdd-runs", ctx.runs ?? "install"),
       name: logFileName(`npm ci ${folder}`, new Date()),
       limitMs: time.forMs,

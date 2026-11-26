@@ -62,6 +62,11 @@
 //   failed, and the lockfile cannot say which: its entry does not always carry the package's `os` and `cpu`, and
 //   an engine range would need npm's own code to read. One that is installed must still be the locked one. So an
 //   optional package that this system needs and that is not there is not seen here: the tests that need it fail.
+// - A dev package (`dev` in the lockfile) counts like any other, and is never left out as npm's configuration
+//   may leave it out (`omit=dev`, or NODE_ENV=production, which sets that default): the tests run on the dev
+//   packages. So `tdd.mjs install` runs `npm ci` with npm's `include` setting naming `dev` (`includingDev`
+//   there), which overrides that omission, and an install made without them reads `stale`. (npm 11.19.1, read
+//   2026-11-26: `@npmcli/config`, the definitions of `omit` and `include`.)
 // - `npm ls` is no substitute: it checks the tree against the ranges of package.json, so a lockfile's step
 //   inside a range passes it.
 // - npm's own test of whether it may trust its record (no package folder newer than the record) is not used: a
