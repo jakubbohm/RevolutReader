@@ -188,7 +188,7 @@ Once per round: read `once.md` now and follow its § 0 and § 1.
    - The owner wants another effort level for the pair: `rare.md` § Another effort level.
 2. `tdd put --pr <id> --section Agents --key "round <n> runner" --value "<agent id>"`. End your turn.
 3. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
-   **200,000** with the round not done, resume it with `END THE CHAPTER after the slice in progress.`
+   **300,000** with the round not done, resume it with `END THE CHAPTER after the slice in progress.`
 4. Act on the hand-back, in this order (`rare.md` § Stops has each full stop):
    - `QUESTIONS:`, `DISPUTES:` and `FOR THE OWNER:`: tell the owner.
    - `BASELINE:` and `CLOSE CHECKS:`: `tdd put --pr <id> --section "Round <n>" --key <baseline |
@@ -200,7 +200,7 @@ Once per round: read `once.md` now and follow its § 0 and § 1.
    - `RESULT` other than `FIX_ROUND_DONE`. `FIX_ROUND_ENDED_EARLY`: tell the owner its `WHY` in a line, never
      ask. `BLOCKED` and `NEEDS_OWNER`: a full stop.
 5. Then: with findings still to fix, the next message; with only questions left, § 4 step 3; else § 5. A
-   later message goes to the same runner, from `FIX ROUND:` on. Findings `not started`, a runner past 200,000
+   later message goes to the same runner, from `FIX ROUND:` on. Findings `not started`, a runner past 300,000
    tokens or one that cannot be resumed: a fresh runner, with the whole brief.
 
 ## 4. The findings that need the owner

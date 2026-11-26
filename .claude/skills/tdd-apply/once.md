@@ -414,7 +414,7 @@ or defer (a GitHub issue, or a heads-up in the design of the step it belongs to)
   deferred: <where>`. On the last two the runner takes the guard test out, and its hand-back reports the
   finding as `guard removed <commit>: declined` or `deferred`: nothing more is to do for it then.
   - The runner that parked it is resumed with that line alone.
-  - If that runner cannot be resumed (it is past 200,000 tokens, or it was an earlier session's), a fresh
+  - If that runner cannot be resumed (it is past 300,000 tokens, or it was an earlier session's), a fresh
     one does not know the finding. Start it as SKILL.md § 4 step 3 says, with `FINDINGS: none` when nothing
     else is to fix, and put two lines at the end of the message: the `ANSWER:` line, and under it `FINDING:
     <id>, as recorded in the reviews file, section "Chapter <X> review"`.

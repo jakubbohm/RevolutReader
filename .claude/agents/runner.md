@@ -204,7 +204,7 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
 - **Reports** follow the formats in the agents' definitions. Ask for a NOTES field that holds only what needs
   your decision, in at most five lines.
 - **The agents' budget.** Each notice that an agent finished ends with `<usage><subagent_tokens>N…`: N is that
-  agent's context size now. An agent that has passed **250,000** is replaced, and the chapter goes on. At the
+  agent's context size now. An agent that has passed **300,000** is replaced, and the chapter goes on. At the
   next slice close (without slices: when the group in progress is committed; in a fix round: after the finding
   in hand):
   1. ask that agent for its `HOLDS` report (§ The chapter's end, step 2) and write "What the code holds now"
@@ -216,8 +216,8 @@ does not, run `tdd progress --step "<the step's text>"`. Either prints a line `p
   A budget is never a question for anyone and never a reason to stop.
 - **Your own budget.** You cannot see your own context size, and the main session sees it only when you stop.
   You end the chapter early in three cases, and in no other:
-  - the main session tells you to (`END THE CHAPTER after the slice in progress.`): you are past 200,000;
-  - as a stand-in for that, you have made 25 commits since you were started and more than one slice remains
+  - the main session tells you to (`END THE CHAPTER after the slice in progress.`): you are past 300,000;
+  - as a stand-in for that, you have made 35 commits since you were started and more than one slice remains
     (in a fix round: more than one finding);
   - you judge that the chapter must not go on as planned, for a reason you can state. A full agent alone is
     never that reason: replace it.

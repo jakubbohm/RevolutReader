@@ -147,7 +147,7 @@ applying`. A `design-fetcher` agent fetches the design files, never you.
    here". The runner expects the state file changed in the tree.
 3. Wait for its hand-back: end your turn.
 4. Each notice that the runner stopped ends with `<usage><subagent_tokens>N…`: its context size. Past
-   **200,000** with the chapter not done, resume it with `END THE CHAPTER after the slice in progress.`
+   **300,000** with the chapter not done, resume it with `END THE CHAPTER after the slice in progress.`
 5. Act on the hand-back. First its `QUESTIONS:` (§ Questions for the owner); tell the owner its `DISPUTES:`
    and `FOR THE OWNER:` lines. Its `NEXT:` says what remains: plan it (a final `[close]` that a parked task
    holds back shows only there). Then its `RESULT`:
@@ -203,7 +203,7 @@ at the gate only; `none`, never. Where no review runs, go on at § 4 step 7.
    Chapter <X> review · waits: <its BUILDS ON IT>"`, and tell the owner the finding, the verifier's evidence,
    the trade-off and your recommendation. The owner answers fix now, decline or defer (step 5).
 3. **Fix round.** Without a FIX finding that does not wait, go on at step 5. Resume the chapter's own runner
-   with the message below. If that runner is past 200,000 tokens, or another chapter has started since, start
+   with the message below. If that runner is past 300,000 tokens, or another chapter has started since, start
    a fresh one with the chapter's brief, `START AT: the fix round below`, and the same message. Wait for the
    hand-back.
 
