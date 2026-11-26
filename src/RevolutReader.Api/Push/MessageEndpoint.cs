@@ -99,14 +99,9 @@ public sealed class MessageEndpoint(SendPushHandler sender, IOptions<PushOptions
     return refused;
   }
 
-  /// <summary>
-  /// The message <paramref name="request"/> asks for: a title left out read as an empty one, the page <c>/</c> when none is
-  /// given; temporary, for the iPhone test of #113, its made-up balance as the message's <see cref="PushMessage.Test"/>,
-  /// never its <see cref="PushMessage.Balance"/>.
-  /// </summary>
+  /// <summary>The message <paramref name="request"/> asks for: a title left out read as an empty one, the page <c>/</c> when none is given.</summary>
   private static PushMessage Message(MessageRequest request) =>
-    new(request.Title ?? string.Empty, request.Text, request.Page ?? START_PAGE,
-      Test: request.Test is { } test ? new PushBalance(test.Amount, test.ReadAt, test.CzkPerEur) : null);
+    new(request.Title ?? string.Empty, request.Text, request.Page ?? START_PAGE);
 
   /// <summary>
   /// The body as the message's JSON; <see langword="null"/> when it is not JSON, declared in a charset that is no known
