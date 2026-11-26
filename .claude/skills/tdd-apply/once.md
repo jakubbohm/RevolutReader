@@ -40,8 +40,9 @@ Steps 1 and 2 only read. Nothing is created, started or asked before they are do
    With all three given there is no dialog. Nothing starts before the answers.
 4. Create the state file `openspec/changes/<change>/.tdd-state.md`, which also indexes the code graph:
    `tdd init --change <change> --agent-review <value> --human-test-review <value> --after-chapter <value>
-   [--issue <n>]`, with the three values and the change's GitHub issue, if `proposal.md` or `tasks.md` names
-   one. Then the npm installs (below), before anything else.
+   [--issue <n>] --session <id>`, with the three values, the change's GitHub issue, if `proposal.md` or
+   `tasks.md` names one, and the session id that SKILL.md § Your commands gives (the compaction hook tells
+   that session that it is the main one). Then the npm installs (below), before anything else.
 5. Record the attribution lines your context gives you for commits, so every commit carries them:
    `tdd put --section Run --key "Commit trailers" --value "<line 1>\n<line 2>"`. Then set "Resume here" for
    the first time (SKILL.md § Rules for you): the apply has started, and the design files and the acceptance
@@ -121,8 +122,9 @@ reads, and that text would stay in your context.
 
 A change already under way: its state file exists and `Run` says `Status: applying`.
 
-1. Ask nothing. Run `tdd init --change <change>`, with each switch that was given as an argument now
-   (`--agent-review <value>`, `--human-test-review <value>`, `--after-chapter <value>`). On a state file that
+1. Ask nothing. Run `tdd init --change <change> --session <id>`, with the session id that SKILL.md § Your
+   commands gives, and each switch that was given as an argument now (`--agent-review <value>`,
+   `--human-test-review <value>`, `--after-chapter <value>`). On a state file that
    exists it changes only the switches given: the recorded ones hold (`Run`: Agent review, Human test review,
    After chapter), and one given now wins. The same call indexes the code graph and writes its project for
    this machine when the state file's local part has none (another machine, a fresh clone): no agent starts

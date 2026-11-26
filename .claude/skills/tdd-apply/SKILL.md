@@ -104,7 +104,7 @@ what to do when one is missing.
 
 `tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root with the Bash
 tool (a here-document and `<` do not work in PowerShell). The command comes first, then always `--change
-<change>`. Each call prints a line or two.
+<change>`; `init` also `--session ${CLAUDE_SESSION_ID}`. Each call prints a line or two.
 
 - `tdd get --section "<name>" [--section …]`: one or more sections of the state file
   `openspec/changes/<change>/.tdd-state.md`. Its sections: Resume here, Run, Chapter plan, Agents, Standing

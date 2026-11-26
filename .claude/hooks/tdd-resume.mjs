@@ -3,9 +3,9 @@
 // in .claude/settings.json for SessionStart with the matcher `compact`.
 //
 // - An apply: for every change under openspec/changes/ (never the archive) whose state file says
-//   `Status: applying`, it adds to the session's context that /tdd-apply is under way for the change and that this
-//   session is its main session, the command that reads the state file by section, and the file's `Resume here`,
-//   `Open` and `Agents` sections, in that order.
+//   `Status: applying`, it adds to the session's context that /tdd-apply is under way for the change, whose
+//   session is its main session (below), the command that reads the state file by section, and the file's
+//   `Resume here`, `Open` and `Agents` sections, in that order.
 // - A triage: when the working tree's pointer (`triage.json` in git's folder, written by `tdd.mjs triage-init`)
 //   names a state file that is there and says `Status: triaging`, it adds the same for /triage-review, with the
 //   PR, the round and the work folder, which no state file holds: it is a path of this machine, and the pointer
@@ -14,8 +14,15 @@
 // - Everything it prints is cut at 4,000 characters, with a note that names the commands for the rest. `Open`
 //   holds the questions that wait for the owner, whole, so it comes before `Agents`: when the text is cut, the
 //   list of agents is what goes, never where the work stands or what is open.
-// - The hook cannot tell whose session it runs in. The main session's is the one it means, so the text says that
-//   an agent the main session started (a runner, a reviewer) is not meant and goes on with its work.
+// - Whose session it is: both skills hand the main session's id (Claude Code's ${CLAUDE_SESSION_ID}) to
+//   `tdd.mjs init` and `triage-init` at every start and resume, which keep it in the run's local file (`Run` /
+//   `Main session`, in the working tree's git folder, never committed). The session whose input's `session_id` is
+//   that id is told outright that it is the run's main session. Every other session, and every session while no
+//   id is recorded (a value that was no id records none), is told so only on a condition: if it started the run,
+//   it is the main session; otherwise it does not act on the run. So the real main session never loses its note
+//   (whether a compaction keeps a session's id, Claude Code's documentation does not say; read 2026-11-26), and
+//   no other session is told outright that it is the main one. Either way the text says that an agent the main
+//   session started (a runner, a reviewer) is not meant and goes on with its work.
 //
 // Never blocks a session: with nothing under way it prints nothing, and any error becomes one line on stderr,
 // nothing on stdout and exit 0. The files are read with the tdd-apply scripts' own functions (state.mjs for the
@@ -37,10 +44,15 @@ function git(cwd, args) {
 }
 
 // What the session is told about one state file: `under` says what is under way, `status` what the file says, and
-// `whose` names it to the command. Then the file's three sections as they stand, in SHOWN's order.
-function account(scripts, text, { under, status, whose }) {
+// `whose` names it to the command, `main` whether this session's id is the one the run's start recorded. Then the
+// file's three sections as they stand, in SHOWN's order.
+function account(scripts, text, { under, status, whose, main }) {
+  const whoseSession = main
+    ? "This session is its main session."
+    : "If this session started the run, this session is its main session and goes on from Resume here; " +
+      "if it is another session, it does not act on the run.";
   const intro =
-    `${under}: its state file says \`Status: ${status}\`. This session is its main session. An agent that the ` +
+    `${under}: its state file says \`Status: ${status}\`. ${whoseSession} An agent that the ` +
     "main session started (a runner, a reviewer) is not meant by this note and goes on with its work. " +
     `Read the state file by section, never whole: \`${GET(whose)} "<name>"\` ` +
     `(its sections: ${scripts.sectionNames(text).join(", ")}). Its ${SHOWN.join(", ")} sections as they stand:`;
@@ -52,8 +64,18 @@ function account(scripts, text, { under, status, whose }) {
 
 const statusOf = (scripts, text) => scripts.keyValue(text, "Run", "Status")?.trim().toLowerCase();
 
+// Whether the session the hook runs in (`session`, its input's `session_id`) is the one whose id the run's start
+// or resume recorded in the local file of `of` (a change's name, or `triage-<id>`), in `folder`, the working
+// tree's git folder for the bookkeeping. False when either has no id, or the file is not there.
+function isMain(scripts, folder, of, session) {
+  const id = scripts.sessionId(session);
+  const file = folder && join(folder, scripts.localFileName(of));
+  if (id === null || !file || !existsSync(file)) return false;
+  return scripts.sessionId(scripts.keyValue(scripts.readText(file), "Run", scripts.MAIN_SESSION)) === id;
+}
+
 // The changes that are being applied: for each, its account and how the command names it.
-function applies(scripts, root) {
+function applies(scripts, root, folder, session) {
   const changes = join(root, "openspec", "changes");
   if (!existsSync(changes)) return [];
   const found = [];
@@ -64,15 +86,15 @@ function applies(scripts, root) {
     if (statusOf(scripts, text) !== "applying") continue;
     const whose = `--change ${entry.name}`;
     const under = `/tdd-apply is under way for \`${entry.name}\``;
-    found.push({ whose, account: account(scripts, text, { under, status: "applying", whose }) });
+    const main = isMain(scripts, folder, entry.name, session);
+    found.push({ whose, account: account(scripts, text, { under, status: "applying", whose, main }) });
   }
   return found;
 }
 
 // The triage under way in this working tree, when the pointer names one whose state file says so.
-function triages(scripts, cwd) {
-  const folder = git(cwd, ["rev-parse", "--git-path", "tdd"]);
-  const pointerFile = folder && join(resolve(cwd, folder), scripts.POINTER_FILE);
+function triages(scripts, folder, session) {
+  const pointerFile = folder && join(folder, scripts.POINTER_FILE);
   if (!pointerFile || !existsSync(pointerFile)) return [];
   const pointer = scripts.readPointer(scripts.readText(pointerFile));
   if (!existsSync(pointer.state)) return [];
@@ -85,7 +107,8 @@ function triages(scripts, cwd) {
   const under =
     `/triage-review is under way for PR ${pointer.pr}${of}, round ${pointer.round}, ` +
     `with the work folder \`${work}\``;
-  return [{ whose, account: account(scripts, text, { under, status: "triaging", whose }) }];
+  const main = isMain(scripts, folder, scripts.triageAccount(pointer.pr), session);
+  return [{ whose, account: account(scripts, text, { under, status: "triaging", whose, main }) }];
 }
 
 async function sessionStart(input) {
@@ -97,7 +120,11 @@ async function sessionStart(input) {
     ...(await import("../skills/tdd-apply/scripts/triage.mjs")),
     ...(await import("../skills/tdd-apply/scripts/lock.mjs")),
   };
-  const underWay = [...applies(scripts, root), ...triages(scripts, cwd)];
+  // The working tree's git folder for the bookkeeping: the pointer and the local files.
+  const where = git(cwd, ["rev-parse", "--git-path", "tdd"]);
+  const folder = where && resolve(cwd, where);
+  const session = input.session_id;
+  const underWay = [...applies(scripts, root, folder, session), ...triages(scripts, folder, session)];
   if (underWay.length === 0) return;
 
   let text = underWay.map((one) => one.account).join("\n\n");

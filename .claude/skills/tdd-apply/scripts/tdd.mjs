@@ -30,9 +30,10 @@
 //   `triage-<id>.local.md` for a triage, of the state file's form and never tracked. `set`, `add`, `put` and `drop`
 //   write it with --local; `get` prints a section from both files, a key that both hold once and with the local
 //   value, so a reader needs no flag. The script keeps the code graph's project there (`Run` / `Code graph
-//   project`: init, triage-init and index write it), the design-fetcher the folders of the design files. A clone
-//   on another machine has no local file: `index`, or `init` on the state file that is there, writes the project
-//   again. A state file from before may still hold such a line: it is left, and the local value is the one read.
+//   project`: init, triage-init and index write it) and the main session's id (`Run` / `Main session`: init and
+//   triage-init write it from --session, for the compaction hook), the design-fetcher the folders of the design
+//   files. A clone on another machine has no local file: `index`, or `init` on the state file that is there,
+//   writes the project again. A state file from before may still hold such a line: it is left, and the local value is the one read.
 //   What the script reads for itself (the switches, the commit trailers, the tests allowed to fail) is the state
 //   file's alone.
 // - A refusal is one line on stderr (`ERROR: …`) and exit 1, never a stack trace (TDD_DEBUG=1 adds it). Exit 3:
@@ -153,6 +154,8 @@ import {
   ALLOWED_FAILURES,
   dropKey,
   keyValue,
+  localFileName,
+  MAIN_SESSION,
   newLocalText,
   newReviewsText,
   newStateText,
@@ -164,6 +167,7 @@ import {
   sectionKeys,
   sectionName,
   sectionNames,
+  sessionId,
   setSection,
   STATE_FILE,
   TRIAGE_FILE,
@@ -176,9 +180,9 @@ const USAGE = `node .claude/skills/tdd-apply/scripts/tdd.mjs <command> (--change
      [options]
 
   init         --agent-review <each-chapter|acceptance|none> --human-test-review <acceptance|each-group>
-               --after-chapter <continue|stop> [--issue <n>]
+               --after-chapter <continue|stop> [--issue <n>] [--session <id>]
   triage-init  --pr <id> --round <n> --work <absolute folder> [--change <change-name>] [--scope <scope>]
-               [--source <pr|chat>]
+               [--source <pr|chat>] [--session <id>]
   get          --section <name> [--section <name> ...] [--file state|reviews]
   set          --section <name> (--text <text> | --stdin) [--file state|reviews] [--local]
   add          --section <name> --line <text> [--file state|reviews] [--local]
@@ -223,7 +227,9 @@ that the state file's "Allowed failures" section lists, and NOT ALLOWED with the
 state file's local file in the working tree's git folder, which is never committed. get needs no flag: it prints a
 section from both files, a key that both hold once, with the local value. The code graph's project is such a value
 (Run / Code graph project): init, triage-init and index write it there; on a machine that has none, index writes
-it, and so does init on a state file that exists.
+it, and so does init on a state file that exists. So is the main session's id (Run / Main session), which init and
+triage-init take with --session at every start and resume, for the compaction hook: a value that is no session id
+(empty, the placeholder left unsubstituted, another shape) records none, and removes the one recorded before.
 
 install checks the npm install of every folder in which git tracks a package-lock.json that is in the working tree
 (none under a folder named node_modules or fixtures), and prints one line per folder:
@@ -324,8 +330,14 @@ folder could not be checked or installed, with one line on stderr for each.`;
 // What each command takes besides --change, --pr and --root: an option with a value, one that may repeat, or a
 // flag.
 const OPTIONS = {
-  init: { "agent-review": "value", "human-test-review": "value", "after-chapter": "value", issue: "value" },
-  "triage-init": { round: "value", work: "value", scope: "value", source: "value" },
+  init: {
+    "agent-review": "value",
+    "human-test-review": "value",
+    "after-chapter": "value",
+    issue: "value",
+    session: "value",
+  },
+  "triage-init": { round: "value", work: "value", scope: "value", source: "value", session: "value" },
   get: { section: "list", file: "value" },
   set: { section: "value", text: "value", stdin: "flag", file: "value", local: "flag" },
   add: { section: "value", line: "value", file: "value", local: "flag" },
@@ -792,7 +804,7 @@ function pointerOf(gitFolder) {
 // The local file of a state file, as a command knows a file: this machine's values, in the working tree's git
 // folder under the account's name (the change's, or a triage's `triage-<id>`). It is never one of the working
 // tree's files.
-const localFile = (tree, account) => placed(tree, join(tree.gitFolder, `${account}.local.md`));
+const localFile = (tree, account) => placed(tree, join(tree.gitFolder, localFileName(account)));
 
 // The key of `Run` that holds the code graph's project. It is a value of this machine: the local file's.
 const GRAPH_PROJECT = "Code graph project";
@@ -917,7 +929,13 @@ function init(ctx, options) {
     if (text !== before) writeAtomic(ctx.state.path, text);
     return `exists: ${ctx.state.shown} | ${notes.join(" | ")}`;
   };
-  const found = locked(ctx, existing);
+  // The main session's id, recorded at every start and resume, or the one recorded before removed.
+  const session = () => recordSession(ctx.local.path, ctx.account, options.session);
+  const found = locked(ctx, () => {
+    const line = existing();
+    if (line !== null) session();
+    return line;
+  });
   if (found !== null) {
     // A state file that came with the branch, on a machine whose local file names no project yet (a fresh clone,
     // or a file from before the local file was there): the project is found and noted, outside the lock.
@@ -945,9 +963,13 @@ function init(ctx, options) {
   // The index ran outside the lock, so another `init` may have created the file meanwhile: then it is kept.
   const created = locked(ctx, () => {
     const meanwhile = existing();
-    if (meanwhile !== null) return meanwhile;
+    if (meanwhile !== null) {
+      session();
+      return meanwhile;
+    }
     writeAtomic(ctx.state.path, newStateText(ctx.change, run, newFileEol(ctx.root, ctx.state.shown)));
     putLocal(ctx.local.path, ctx.account, "Run", GRAPH_PROJECT, graphProject(graph));
+    session();
     return `created ${ctx.state.shown} | ${graphText(graph)}`;
   });
   say(created);
@@ -960,6 +982,18 @@ function putLocal(path, of, section, key, value) {
   const before = existsSync(path) ? readText(path) : null;
   const after = putKey(before ?? newLocalText(of, "\n"), section, key, value, { create: true });
   if (after !== before) writeAtomic(path, after);
+}
+
+// The main session's id, given with --session, put into the local file's `Run`; called inside the lock. A value
+// that is no session id (none given, an empty one, the placeholder that Claude Code left unsubstituted, another
+// shape) records nothing, and removes an id recorded before: an earlier session must never be told by the
+// compaction hook, outright, that it is the run's main session.
+function recordSession(path, of, given) {
+  const id = sessionId(given);
+  if (id !== null) return putLocal(path, of, "Run", MAIN_SESSION, id);
+  if (!existsSync(path)) return;
+  const before = readText(path);
+  if (keyValue(before, "Run", MAIN_SESSION) !== null) writeAtomic(path, dropKey(before, "Run", MAIN_SESSION));
 }
 
 // A value the local file holds under a section's key; null when the file, the section or the key is not there.
@@ -1051,7 +1085,9 @@ function triageInit({ root, gitFolder }, options) {
     const after = triageText(before, change ?? `PR ${pr}`, run, round, eol);
     if (after !== before) writeAtomic(state.path, after);
     const account = triageAccount(pr);
-    putLocal(localFile({ root, gitFolder }, account).path, account, "Run", GRAPH_PROJECT, graphProject(graph));
+    const local = localFile({ root, gitFolder }, account).path;
+    putLocal(local, account, "Run", GRAPH_PROJECT, graphProject(graph));
+    recordSession(local, account, options.session);
     writeAtomic(join(gitFolder, POINTER_FILE), pointerText({ pr, round, change, scope, work, state: state.path }));
     const newRound = before !== null && sectionBody(before, roundSection(round)) === null;
     return [

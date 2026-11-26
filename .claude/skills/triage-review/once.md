@@ -48,8 +48,10 @@ is recorded nowhere.
    `<your scratchpad>/triage-review/<PR>-r<n>/` in round n: an absolute path with forward slashes.
 4. Start the round, before anything is gathered: `tdd triage-init --pr <id> --round <n> --work <the folder
    you propose> --change <change>` or, without a change, `tdd triage-init --pr <id> --round <n> --work <the
-   folder you propose> --scope <scope>`; add `--source chat` when `source=chat` was given. It creates the
-   triage's state file, or keeps the one that is there, and indexes the code graph.
+   folder you propose> --scope <scope>`; add `--session <id>`, with the session id that SKILL.md § Your
+   commands gives (the compaction hook tells that session that it is the main one), and `--source chat` when
+   `source=chat` was given. It creates the triage's state file, or keeps the one that is there, and indexes
+   the code graph.
    - Its line ends with `| work: <absolute path>`. That path is the **work folder** from now on, for
      everything: the findings, the diff, the reports, the reply and summary texts. It is the folder you
      proposed or, when the work folder of a round that stopped still exists, that one, which may be an

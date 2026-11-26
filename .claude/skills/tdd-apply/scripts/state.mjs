@@ -75,6 +75,22 @@ export function newLocalText(of, eol) {
   return `# This machine's values: ${of}${eol}`;
 }
 
+// The name of a local file in the working tree's git folder: `<change>.local.md` or `triage-<id>.local.md`.
+export const localFileName = (of) => `${of}.local.md`;
+
+// The key of the local file's `Run` that holds the id of the run's main session: the session that started or
+// resumed the run last, as Claude Code's ${CLAUDE_SESSION_ID} gave it to the skill. The compaction hook
+// (.claude/hooks/tdd-resume.mjs) compares it with the id of the session it runs in. A session id is true on one
+// machine only, so it is the local file's.
+export const MAIN_SESSION = "Main session";
+
+// A session id as Claude Code gives it, a UUID, or null for any other value: an empty one, the placeholder that
+// Claude Code left unsubstituted, a value of another shape. Such a value records no id.
+export function sessionId(value) {
+  const id = typeof value === "string" ? value.trim() : "";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id.toLowerCase() : null;
+}
+
 // A triage's state file at the start of a round. With no text before (`before` is null): a new file of the title
 // (`of` says whose triage: the change's name, or the PR), the fixed sections, `Run` holding `run`'s pairs, and
 // the round's section. With the text of an earlier round or an earlier start of this one: that text with `run`'s

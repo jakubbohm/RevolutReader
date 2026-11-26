@@ -98,14 +98,14 @@ step asks for it.
 
 `tdd` stands for `node .claude/skills/tdd-apply/scripts/tdd.mjs`, run from the repository root with the Bash
 tool (a here-document and `<` do not work in PowerShell). The command comes first, then always `--pr <id>`,
-the PR's number (only `tdd route`, § 2, takes none).
+the PR's number (only `tdd route`, § 2, takes none); `triage-init` also `--session ${CLAUDE_SESSION_ID}`.
 
-- `tdd get --pr <id> --section "<name>" [--section …]`: the triage's state file by section: Resume here,
+- `tdd get --section "<name>" [--section …]`: the triage's state file by section: Resume here,
   Run, Agents, Open, Allowed failures, and one `Round <n>` per round.
-- `tdd set --pr <id> --section "<name>" --text "<text>"` (a long text: `--stdin` in place of `--text`),
-  `tdd put --pr <id> --section "<name>" --key "<key>" --value "<value>"`,
-  `tdd drop --pr <id> --section "<name>" --key "<key>"`.
-- `tdd commit --pr <id> --type docs --tag <review|plan> --summary "<text>" --path <file> [--path …]`.
+- `tdd set --section "<name>" --text "<text>"` (a long text: `--stdin` in place of `--text`),
+  `tdd put --section "<name>" --key "<key>" --value "<value>"`,
+  `tdd drop --section "<name>" --key "<key>"`.
+- `tdd commit --type docs --tag <review|plan> --summary "<text>" --path <file> [--path …]`.
 
 In a text you pass (`--text`, `--value`, `--summary`), write paths with forward slashes, never start with
 `/`, and use no quote, backtick or `$`. In `--text` and `--value`, `\n` is a new line. Pass no path of this
