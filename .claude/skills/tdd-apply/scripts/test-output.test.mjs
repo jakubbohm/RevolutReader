@@ -512,22 +512,38 @@ describe("allowedFailuresLine", () => {
     }
   });
 
-  test("takes a key for a failed test whose printed name contains it, in the same case", () => {
+  test("takes a key for a failed test whose printed name is it as a whole name, in the same case", () => {
     const one = (key) =>
       allowedFailuresLine([key], failed("Made.Up.Tests.A_case_ends_as_its_path_says(throws)")).split(";")[0];
+    const covered = "allowed failures: 1 of 1 failed tests are on the list";
+    const not = "allowed failures: 0 of 1 failed tests are on the list";
 
-    assert.equal(one("A_case_ends_as_its_path_says(throws)"), "allowed failures: 1 of 1 failed tests are on the list");
-    assert.equal(one("A_case_ends"), "allowed failures: 1 of 1 failed tests are on the list");
-    assert.equal(one("a_case_ends"), "allowed failures: 0 of 1 failed tests are on the list");
-    assert.equal(one("A_case_ends_as_its_path_says(returns)"), "allowed failures: 0 of 1 failed tests are on the list");
+    assert.equal(one("Made.Up.Tests.A_case_ends_as_its_path_says(throws)"), covered, "the name as printed");
+    assert.equal(one("A_case_ends_as_its_path_says(throws)"), covered, "without its namespace and class");
+    assert.equal(one("A_case_ends_as_its_path_says"), covered, "without its arguments");
+    assert.equal(one("a_case_ends_as_its_path_says(throws)"), not, "in another case");
+    assert.equal(one("A_case_ends_as_its_path_says(returns)"), not, "with other arguments");
+    assert.equal(one("A_case_ends"), not, "the start of the name alone");
+    assert.equal(one("ends_as_its_path_says(throws)"), not, "the end of the name alone");
   });
 
-  test("lets one key cover every failed test that contains it, and counts a test once for several keys", () => {
-    const run = failed("Group_A_first", "Group_A_second", "Group_B_first");
+  test("lets one key cover every failed test of its name, whatever the arguments, and counts a test once for several keys", () => {
+    const run = failed("A_case(throws)", "A_case(returns)", "A_case_more(throws)");
 
     assert.equal(
-      allowedFailuresLine(["Group_A", "A_first", "Group_A_first"], run),
-      "allowed failures: 2 of 3 failed tests are on the list; NOT ALLOWED: Group_B_first",
+      allowedFailuresLine(["A_case", "A_case(throws)"], run),
+      "allowed failures: 2 of 3 failed tests are on the list; NOT ALLOWED: A_case_more(throws)",
+    );
+  });
+
+  // Many test names start with another test's whole name: a key on the list must not hide the failure of the
+  // longer one, which may be a real regression next to a parked red test.
+  test("does not take a key for a failed test whose name only starts with it and goes on", () => {
+    const run = failed("A_made_up_message_is_refused", "A_made_up_message_is_refused_naming_the_message");
+
+    assert.equal(
+      allowedFailuresLine(["A_made_up_message_is_refused"], run),
+      "allowed failures: 1 of 2 failed tests are on the list; NOT ALLOWED: A_made_up_message_is_refused_naming_the_message",
     );
   });
 
