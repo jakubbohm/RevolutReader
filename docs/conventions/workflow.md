@@ -141,7 +141,7 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
   - **Before the PR is marked ready,** Claude asks the owner whether the work is done, since only the owner declares work complete (CLAUDE.md).
   - **The PR leaves every record final for the merge:** the archive and the docs, and on the owner's yes it closes its issue (`Closes #<n>` in its description).
   - **No PR follows only to close an issue or to record routine checks after the deploy** (the deploy ran, settings read back, a test message). Those are reported to the owner, and a check that fails gets its own fix PR.
-  - **The one exception is real work that can only happen after the merge and the deploy,** such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The PR then only refers to the issue, which stays open and names exactly that work, and the PR that records its results closes it.
+  - **The one exception is real work that can only happen after the merge and the deploy,** such as a manual scenario on a real phone, whose date goes into `tests/manual-scenarios.md`. The PR then only refers to the issue (`Refs #<n>`), which stays open and names exactly that work, and the PR that records its results closes it. GitHub closes an issue whose number follows "close", "fix" or "resolve" (in any form) anywhere in a merged PR's description, even in a sentence about another PR, so such a description never puts one of those words before the issue's number (2026-11-26: a test PR closed its issue that way, and the issue was reopened).
 - **Tooling-only changes** (the user, 2026-11-05; the first is C2, `c002-add-ci-pipeline` design.md D1) change how the repository accepts or ships code (CI, the ruleset on `main`, process files), not what the app does. A change that touches the app's behaviour is never tooling-only.
   - It sets `skip_specs: true` in its `.openspec.yaml` and has no specs and no scenarios.
   - Proposal, design and tasks are reviewed before anything is built, as for any change.
@@ -165,6 +165,10 @@ No Logic App: the Revolut notification on the owner's iPhone triggers the accoun
 - **Never commit secrets or bank data:** no private keys, tokens, account identifiers, balances or transactions. Redact evidence before committing. Key files are gitignored.
 - Scripts the user runs are PowerShell 7 (CLAUDE.md § Working rules).
 - Adopting anything from a spike into `src/` is a separate decision, made in an OpenSpec change.
+- **A spike that only the deployed app can run** (the owner, 2026-11-26; the first: [spikes/notification-balance/](../../spikes/notification-balance/README.md)): when the answer is closed-source platform behaviour that shows only in the app as it ships, on a real device, its test code goes into the app for the run, and the README and evidence live here as for any spike ([lessons.md R-106](../software-factory/lessons.md)).
+  - The test code is a Direct PR, tested at the usual bar: the app is unchanged without the test's input, and the test's values are made up and travel under names of their own, never the real ones, and are never logged. Nothing real is recorded beyond a count, and only on the device. A test page is at an address nothing links to and sends no request.
+  - It is merged and deployed for the run. A question the run raises gets a follow-up PR of its own, off the freshest `main`.
+  - Right after the run, the PR that adds the spike's README reverts every test PR with a plain `git revert` of its squash commit, so the code is again exactly as before the test.
 
 ## 8. Design
 
