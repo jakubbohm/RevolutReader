@@ -187,10 +187,10 @@ test("A start records its event, time, path, fragment, visibility and how the pa
           {
             title: "Test 1",
             body: "Vymyšlený zůstatek",
-            test: {
-              amount: 101.01,
-              readAt: "2026-11-26T14:03:21+00:00",
-              czkPerEur: 25.5,
+            data: {
+              kind: "object",
+              value:
+                '{"test":{"amount":101.01,"readAt":"2026-11-26T14:03:21+00:00","czkPerEur":25.5}}',
             },
           },
         ],
@@ -200,12 +200,99 @@ test("A start records its event, time, path, fragment, visibility and how the pa
   ]);
 });
 
+test("A notification titled Test and a number is a test notification whatever its data, recorded as the data came", async () => {
+  const sent = {
+    test: {
+      amount: 111.11,
+      readAt: "2026-11-26T14:03:21+00:00",
+      czkPerEur: 25.5,
+    },
+  };
+  const titled = (number: number, data: unknown): NotificationLike => ({
+    title: `Test ${number}`,
+    body: "Vymyšlený zůstatek",
+    data,
+  });
+  const { page } = standInPage({
+    notifications: [
+      titled(11, null),
+      titled(12, undefined),
+      titled(13, JSON.stringify(sent)),
+      titled(14, { notification: { title: "Test 14" } }),
+      titled(15, [sent]),
+      titled(16, 42),
+    ],
+  });
+
+  recordNotifications(page);
+  await answered();
+
+  const [entry] = readRecord(localStorage);
+  expect(entry?.listed).toEqual({
+    kind: "listed",
+    afterMs: expect.any(Number),
+    others: 0,
+    test: [
+      { kind: "null", value: "null" },
+      { kind: "undefined", value: null },
+      { kind: "string", value: JSON.stringify(sent) },
+      { kind: "object", value: '{"notification":{"title":"Test 14"}}' },
+      { kind: "array", value: `[${JSON.stringify(sent)}]` },
+      { kind: "number", value: "42" },
+    ].map((data, index) => ({
+      title: `Test ${11 + index}`,
+      body: "Vymyšlený zůstatek",
+      data,
+    })),
+  });
+});
+
+test("A test notification's data that JSON cannot hold is recorded by its kind, with no value", async () => {
+  const cyclic: Record<string, unknown> = { test: { amount: 101.01 } };
+  cyclic.itself = cyclic;
+  const { page } = standInPage({
+    notifications: [
+      { title: "Test 17", body: "Vymyšlený zůstatek", data: cyclic },
+      { title: "Test 18", body: "Vymyšlený zůstatek", data: 10n },
+    ],
+  });
+
+  expect(() => recordNotifications(page)).not.toThrow();
+  await answered();
+
+  const [entry] = readRecord(localStorage);
+  expect(entry?.listed).toHaveProperty("test", [
+    {
+      title: "Test 17",
+      body: "Vymyšlený zůstatek",
+      data: { kind: "object", value: null },
+    },
+    {
+      title: "Test 18",
+      body: "Vymyšlený zůstatek",
+      data: { kind: "bigint", value: null },
+    },
+  ]);
+});
+
 test("Every other notification is only counted: nothing of its title, text or data is recorded", async () => {
+  // Titles close to the test messages' "Test <number>", on a real balance: none of them is a test notification.
+  const nearMisses = [
+    "Test",
+    "Test 1a",
+    "test 1",
+    "Test  1",
+    " Test 1",
+    "Test 1 ",
+    "Test 1\nOdešlo 3,80 €",
+    "Odešlo Test 1",
+  ].map((title): NotificationLike => ({ ...BALANCE_NOTIFICATION, title }));
   const { page } = standInPage({
     notifications: [
       BALANCE_NOTIFICATION,
       OWNERS_MESSAGE,
       SHOWN_BY_THE_SERVICE_WORKER,
+      ...nearMisses,
       TEST_NOTIFICATION,
     ],
   });
@@ -214,7 +301,10 @@ test("Every other notification is only counted: nothing of its title, text or da
   await answered();
 
   const [entry] = readRecord(localStorage);
-  expect(entry?.listed).toMatchObject({ kind: "listed", others: 3 });
+  expect(entry?.listed).toMatchObject({
+    kind: "listed",
+    others: 3 + nearMisses.length,
+  });
   expect(entry?.listed).toHaveProperty("test", [
     expect.objectContaining({ title: "Test 1" }),
   ]);
