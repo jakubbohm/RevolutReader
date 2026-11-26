@@ -315,6 +315,16 @@ export function ranges(numbers) {
   return runs.map(({ from, to }) => (from === to ? `${from}` : `${from}-${to}`)).join(", ");
 }
 
+// Where a finding is, in every line the gather prints: `<path>:<line>`, or the path alone for a finding on a whole
+// file, which has no line (findingsFrom gives it `line: null`).
+const placeOf = (finding) => (finding.line == null ? finding.path : `${finding.path}:${finding.line}`);
+
+// The lines the gather prints for the findings that go to verification (findingsFrom's `findings`, in the order
+// given), one per finding: `<id>\t<place>\t<title>`, the place as placeOf gives it.
+export function findingLines(findings) {
+  return findings.map((f) => `${f.id}\t${placeOf(f)}\t${f.title}`);
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // The round and its restart.
 //
@@ -853,9 +863,10 @@ const CLASS_LABELS = {
 // earlierRounds: { summaries, highestNumber }, commits: ownCommits' result, findings: classifyRound's records }`):
 // - `ROUND: <n> · …`: the round, and how many earlier summaries list numbers up to which;
 // - one line per finding that does not go to verification, by number:
-//   `<CLASS>: <id> <path>:<line> · [<outcome> ·] <what the class rests on> · [may fail: <tests> ·] owed: <what>`,
-//   the class in capitals as CLASS_LABELS has it, and `may fail` naming, for each of the finding's unsettled `red`
-//   commits, the guard tests its body names, each in backticks, else the files it changed, else `commit <sha>`;
+//   `<CLASS>: <id> <place> · [<outcome> ·] <what the class rests on> · [may fail: <tests> ·] owed: <what>`,
+//   the class in capitals as CLASS_LABELS has it, the place as placeOf gives it (for a number that only commits
+//   name, `(no review comment)`), and `may fail` naming, for each of the finding's unsettled `red` commits, the
+//   guard tests its body names, each in backticks, else the files it changed, else `commit <sha>`;
 // - `NOT THIS ROUND'S COMMITS: <k> of <n> after the PR's head <sha>: <sha> <subject> (<why>); …` when ownCommits
 //   found any, at most ten of them named (round.json has all).
 export function roundLines({ round, head, earlierRounds, commits, findings }) {
@@ -866,7 +877,7 @@ export function roundLines({ round, head, earlierRounds, commits, findings }) {
       : `${summaries} earlier ${summaries === 1 ? "summary lists" : "summaries list"} numbers up to ${highestNumber}`;
   const lines = [`ROUND: ${round} · ${earlier}`];
   for (const f of findings.filter((f) => f.class !== "verify")) {
-    const where = f.path == null ? "(no review comment)" : f.line == null ? f.path : `${f.path}:${f.line}`;
+    const where = f.path == null ? "(no review comment)" : placeOf(f);
     const testsOf = (c) => (c.tests ?? []).map((name) => `\`${name}\``);
     const filesOf = (c) => (c.files.length > 0 ? c.files : [`commit ${shortSha(c.sha)}`]);
     const mayFail = [...new Set(f.mayFail.flatMap((c) => (testsOf(c).length > 0 ? testsOf(c) : filesOf(c))))];

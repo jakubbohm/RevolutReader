@@ -68,7 +68,9 @@
 //   FINDINGS: <n> open top-level review comments on PR <pr>      (the n findings in findings.json)
 //   LEFT OUT: <n> in resolved threads: <numbers>                  (every resolved thread, of any round; the numbers
 //                                                                 as ranges, `1-15`; none: no colon)
-//   <id>\t<path>:<line>\t<title>                                  (one line per finding in findings.json)
+//   <id>\t<path>:<line>\t<title>                                  (one line per finding in findings.json; a finding
+//                                                                 on a whole file has no line, and is named by its
+//                                                                 path alone, here and in a class's line below)
 //   ROUND: <n> · <k> earlier summaries list numbers up to <m>     (in round 1: `ROUND: 1 · no earlier summary`)
 //   <CLASS>: <id> <path>:<line> · [<outcome> ·] <what the class rests on> · [may fail: <tests> ·] owed: <what>
 //                                                                 (one line per finding of another class, by number;
@@ -101,6 +103,7 @@ import {
   classifyRound,
   commitsFromGitLog,
   fail,
+  findingLines,
   findingsFrom,
   gh,
   git,
@@ -202,5 +205,5 @@ writeFileSync(join(dir, "round.json"), JSON.stringify(record, null, 2));
 
 console.log(`FINDINGS: ${findings.length} open top-level review comments on PR ${pr}`);
 console.log(`LEFT OUT: ${resolved} in resolved threads${resolved > 0 ? `: ${ranges(resolvedIds)}` : ""}`);
-for (const f of findings) console.log(`${f.id}\t${f.path}:${f.line}\t${f.title}`);
+for (const line of findingLines(findings)) console.log(line);
 for (const line of roundLines(record)) console.log(line);

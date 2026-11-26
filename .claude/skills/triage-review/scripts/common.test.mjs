@@ -1,9 +1,9 @@
 // Tests for common.mjs's pure functions: how review comments become numbered findings, with every thread's replies,
 // and when each one's review was submitted, a text's first line, the lines of a diff a comment can attach to, how a
 // chat review's findings become review comments to post, when the PR's last triage summary was posted and whether a
-// round's summary already is, and which references in a text would post a backlink outside the repository and the
-// refusal that names them. The round and its restart (roundOf, ownCommits, classifyRound and what they rest on) are
-// tested in round.test.mjs beside this file.
+// round's summary already is, which references in a text would post a backlink outside the repository and the
+// refusal that names them, and the lines the gather prints for the findings to check. The round and its restart
+// (roundOf, ownCommits, classifyRound and what they rest on) are tested in round.test.mjs beside this file.
 // Nothing here calls gh or the network; the comments, reviews and files are small made-up objects shaped like the
 // REST API's, and every other repository named is made up.
 //
@@ -13,6 +13,7 @@ import { describe, test } from "node:test";
 import {
   backlinkRefusal,
   backlinkRisks,
+  findingLines,
   findingsFrom,
   firstLine,
   lastSummaryTime,
@@ -1096,5 +1097,35 @@ describe("ranges", () => {
 
   test("writes nothing for no numbers", () => {
     assert.equal(ranges([]), "");
+  });
+});
+
+describe("findingLines", () => {
+  // The findings as the gather has them: findingsFrom's, from made-up review comments.
+  const findingsOf = (comments) => findingsFrom(comments, new Set(), submittedInIdOrder(comments)).findings;
+
+  test("prints one line per finding, in the order given: its number, its file and line, and its title", () => {
+    // findingsFrom orders the findings by file and line, not by number. A tab stands between a line's three parts.
+    const findings = findingsOf([
+      comment(2101, { path: "src/b.mjs", line: 5, body: "Important: the sum is rounded twice\nMore detail." }),
+      comment(2102, { path: "docs/a.md", line: 20, body: "Nit: the heading names the old step\nMore detail." }),
+    ]);
+
+    assert.deepEqual(findingLines(findings), [
+      "2\tdocs/a.md:20\tNit: the heading names the old step",
+      "1\tsrc/b.mjs:5\tImportant: the sum is rounded twice",
+    ]);
+  });
+
+  test("names a finding on a whole file, which has no line, by its path alone", () => {
+    const findings = findingsOf([
+      comment(2201, { path: "docs/a.md", line: null, original_line: null, body: "Nit: no heading\nMore detail." }),
+    ]);
+
+    assert.deepEqual(findingLines(findings), ["1\tdocs/a.md\tNit: no heading"]);
+  });
+
+  test("prints no line for no findings", () => {
+    assert.deepEqual(findingLines([]), []);
   });
 });

@@ -81,7 +81,7 @@ The findings live in the PR's review threads, one per top-level review comment.
    go to the check, an array of `{ id, commentId, path, line, title, body, … }`), `round.json` (every finding
    of the round, with its class) and `comments.json`. It prints:
    - `FINDINGS: <n> open …`, and below `LEFT OUT: …` one line per finding to check: its number, its
-     `<file>:<line>` and its title;
+     `<file>:<line>` (the file alone for a finding on a whole file, which has no line) and its title;
    - `ROUND: <n> · …`: the same `<n>` as § 0 step 3 gave; if it differs, that is a full stop: tell the owner
      both numbers, and ask in the dialog;
    - one line for every finding of the round that does not go to the check, starting with its class in
