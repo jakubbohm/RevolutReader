@@ -313,7 +313,9 @@ function fakeGraph(t) {
 // folder of that name alone, and every other folder is installed (`ok`). On Windows it is a .cmd file, as npm is.
 // - `ok`: what `npm ci` does: it clears node_modules, then installs what the folder's lockfile says, a folder with
 //   a package.json for each locked package (none for one of the made-up system `made-up-os`), and writes its
-//   record of them, node_modules/.package-lock.json;
+//   record of them, node_modules/.package-lock.json; as npm does, it leaves out the packages locked as `dev`
+//   when its configuration omits them (NODE_ENV=production, or npm_config_omit naming `dev`), unless it is
+//   told to include them (`--include=dev`, `--include dev`, or npm_config_include naming `dev`), which wins;
 // - `fail`: it clears node_modules, prints an error as npm words one, and exits 1;
 // - `fail-old`: the same, the error worded as npm did before its version 10 (`npm ERR! …`);
 // - `fail-quiet`: it clears node_modules, prints lines of which none is worded as an error, and exits 1;
@@ -357,9 +359,14 @@ function fakeNpm(t) {
       "    process.exit(1);",
       "  }",
       '  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));',
+      '  const named = (value) => (value ?? "").split(/[\\s,]+/).includes("dev");',
+      "  const args = process.argv.slice(2);",
+      '  const include = args.includes("--include=dev") || args.some((a, i) => a === "--include" && args[i + 1] === "dev") || named(process.env.npm_config_include);',
+      '  const omitDev = !include && (process.env.NODE_ENV === "production" || named(process.env.npm_config_omit));',
       "  const packages = {};",
       "  for (const [path, entry] of Object.entries(lock.packages)) {",
       '    if (!path.includes("node_modules/") || entry.os?.includes("made-up-os")) continue;',
+      "    if (omitDev && entry.dev) continue;",
       "    packages[path] = entry;",
       "    mkdirSync(path, { recursive: true });",
       '    writeFileSync(join(path, "package.json"), JSON.stringify({ version: entry.version }));',
@@ -2799,7 +2806,7 @@ describe("install", { concurrency: true }, () => {
     assert.equal(r.err, "");
     const [call, ...more] = npm.received();
     assert.deepEqual(more, [], "npm is started once");
-    assert.deepEqual(call.args, ["ci"]);
+    assert.equal(call.args[0], "ci", "the command npm runs is ci");
     samePath(call.cwd, join(dir, CLIENT));
     assert.equal(again.out, `install: ${CLIENT} | ok\n${IN_ORDER(1)}`);
     assert.deepEqual(await status(dir), [], "node_modules is ignored, and the lockfile is as it was");
@@ -3225,6 +3232,23 @@ describe("install", { concurrency: true }, () => {
       r.err,
       /^ERROR: install: tools\/made-up-client \| missing \| npm ci ended without an error after \d+(\.\d)?s, and the install is still not what the lockfile says: package-lock\.json cannot be read: Unexpected token[^|]* \| log: \S+\.log\n$/,
     );
+  });
+
+  // The packages the tests and the checks need are dev packages (vite, vitest, the linters), so an install that
+  // leaves them out is no install of the lockfile, whatever npm's configuration on the machine says.
+  test("installs the dev packages too where npm's configuration omits them, and finds the install in order", async (t) => {
+    for (const omitting of [{ NODE_ENV: "production" }, { npm_config_omit: "dev" }]) {
+      const dir = await withProjects(t, CLIENT);
+      const npm = fakeNpm(t);
+
+      const r = await installing(dir, tempFolder(t), { ...npm.env(), ...omitting });
+
+      const setting = JSON.stringify(omitting);
+      assert.equal(r.code, 0, `${setting}: ${r.err}`);
+      assert.match(r.out, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`), setting);
+      assert.equal(r.err, "", setting);
+      assert.ok(existsSync(join(dir, CLIENT, "node_modules/@made-up/scoped/package.json")), `${setting}: the dev package`);
+    }
   });
 
   // The one test of `install` that runs against the clock. How the time limit is shared among the folders is a
