@@ -148,9 +148,25 @@ const cut = (text, width) => (text.length > width ? `${text.slice(0, width)}…`
 // names fewer).
 const failedCount = (totals, failed) => Math.max(failed.length, (totals?.failed ?? 0) + (totals?.failedSuites ?? 0));
 
+// Whether an allowed failure's key names a failed test: the key is a whole name of it, in the same case, never a
+// part of one, since many test names start with another test's whole name and the longer one's failure may be a
+// real regression. A whole name is the name as printed, or its end after a separator: after a ` > ` in a Vitest
+// name (which leaves out the file, or the file and groups), else after a `.` (which leaves out a .NET name's
+// namespace and class). Either may also leave out a .NET test's arguments, the `(…)` that ends its name: such a
+// key covers every case of that test. A separator counts only before the arguments, never inside them.
+function coversName(key, name) {
+  const open = name.indexOf("(");
+  const bare = open > 0 && name.endsWith(")") ? name.slice(0, open) : name;
+  const separator = bare.includes(" > ") ? " > " : ".";
+  return [name, bare].some((form) => {
+    if (form === key) return true;
+    if (!form.endsWith(`${separator}${key}`)) return false;
+    return !form.slice(0, form.length - key.length - separator.length).includes("(");
+  });
+}
+
 // The one line a run's report says about the tests allowed to fail; null when it has nothing to say. `keys` are the
-// keys of the state file's `Allowed failures` section; a key matches a failed test whose printed name contains
-// it, in the same case.
+// keys of the state file's `Allowed failures` section; a key matches a failed test by `coversName`.
 // - Nothing, when no key is listed and no test failed.
 // - Else `allowed failures: <k> of <n> failed tests are on the list`, in the same words for any count.
 // - On the same line, when a failed test is not on the list: `; NOT ALLOWED: ` and those tests' names with ` | `
@@ -158,7 +174,7 @@ const failedCount = (totals, failed) => Math.max(failed.length, (totals?.failed 
 export function allowedFailuresLine(keys, { totals, failed }) {
   const all = failedCount(totals, failed);
   if (keys.length === 0 && all === 0) return null;
-  const others = failed.filter((test) => !keys.some((key) => test.name.includes(key)));
+  const others = failed.filter((test) => !keys.some((key) => coversName(key, test.name)));
   const line = `allowed failures: ${failed.length - others.length} of ${all} failed tests are on the list`;
   const unnamed = all - failed.length;
   if (others.length + unnamed === 0) return line;
