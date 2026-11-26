@@ -21,7 +21,7 @@ import {
 
 // Temporary, for the iPhone test of #113 (reverted with it). Every value here is made up.
 
-/** A test notification as the owner's test message makes it: its made-up balance under `data.test`. */
+/** A test notification as the owner's test message makes it: its made-up balance under `data.test`, the test page its address. */
 const TEST_NOTIFICATION: NotificationLike = {
   title: "Test 1",
   body: "Vymyšlený zůstatek",
@@ -32,9 +32,10 @@ const TEST_NOTIFICATION: NotificationLike = {
       czkPerEur: 25.5,
     },
   },
+  navigate: "https://app.example/test/notifications#t1",
 };
 
-/** A notification of the account check, as the phone lists it: a real balance in its data. */
+/** A notification of the account check, as the phone lists it: a real balance in its data, and one in its address. */
 const BALANCE_NOTIFICATION: NotificationLike = {
   title: "Odešlo 3,80 €",
   body: "Zůstatek 282,60 € (≈ 6 867 Kč)",
@@ -45,6 +46,7 @@ const BALANCE_NOTIFICATION: NotificationLike = {
       czkPerEur: 24.3,
     },
   },
+  navigate: "https://reader.example/#b=282.60",
 };
 
 /** The owner's plain message, with no data. */
@@ -192,11 +194,49 @@ test("A start records its event, time, path, fragment, visibility and how the pa
               value:
                 '{"test":{"amount":101.01,"readAt":"2026-11-26T14:03:21+00:00","czkPerEur":25.5}}',
             },
+            navigate: {
+              kind: "string",
+              value: "https://app.example/test/notifications#t1",
+            },
           },
         ],
         others: 0,
       },
     },
+  ]);
+});
+
+test("A test notification's navigate address is recorded as it came, its # included, or by its kind when it is no address", async () => {
+  const { page } = standInPage({
+    notifications: [
+      {
+        ...TEST_NOTIFICATION,
+        title: "Test 21",
+        navigate: "https://app.example/test/notifications#t21",
+      },
+      { ...TEST_NOTIFICATION, title: "Test 22", navigate: "" },
+      { title: "Test 23", body: "Vymyšlený zůstatek", data: null },
+    ],
+  });
+
+  recordNotifications(page);
+  await answered();
+
+  const [entry] = readRecord(localStorage);
+  expect(
+    entry?.listed?.kind === "listed"
+      ? entry.listed.test.map(({ title, navigate }) => ({ title, navigate }))
+      : entry?.listed,
+  ).toEqual([
+    {
+      title: "Test 21",
+      navigate: {
+        kind: "string",
+        value: "https://app.example/test/notifications#t21",
+      },
+    },
+    { title: "Test 22", navigate: { kind: "string", value: "" } },
+    { title: "Test 23", navigate: { kind: "undefined", value: null } },
   ]);
 });
 
@@ -243,6 +283,7 @@ test("A notification titled Test and a number is a test notification whatever it
       title: `Test ${11 + index}`,
       body: "Vymyšlený zůstatek",
       data,
+      navigate: { kind: "undefined", value: null },
     })),
   });
 });
@@ -266,11 +307,13 @@ test("A test notification's data that JSON cannot hold is recorded by its kind, 
       title: "Test 17",
       body: "Vymyšlený zůstatek",
       data: { kind: "object", value: null },
+      navigate: { kind: "undefined", value: null },
     },
     {
       title: "Test 18",
       body: "Vymyšlený zůstatek",
       data: { kind: "bigint", value: null },
+      navigate: { kind: "undefined", value: null },
     },
   ]);
 });
