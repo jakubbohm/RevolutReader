@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RevolutReader.AcceptanceTests.Drivers;
@@ -105,36 +104,6 @@ public sealed class PushTelemetryTests : AcceptanceTest {
 
     _logs.Leaks(anywhere, outsideThePushClient)
       .ShouldBeEmpty("Log messages, structured values, scope values or exceptions naming a key, an email, the title or the text, or a push address outside the push client's own request lines");
-  }
-
-  /// <summary>
-  /// Temporary, for the iPhone test of #113, reverted with it: a message with a made-up balance logs none of its values.
-  /// Looked for by distinctive parts that survive any format: the amount and the rate with either decimal separator, the
-  /// read time's date and its minutes and seconds (a whole-hour time zone keeps them).
-  /// </summary>
-  [Test]
-  public async Task A_message_with_a_test_balance_logs_none_of_its_values() {
-    await SignIn.HasSignedIn(Visitor.Lucie);
-    TestDevice phone = FakePushService.NewDevice("Hlídka: telefon");
-    (await PushDriver.Register(phone)).ShouldBe(RegistrationAnswer.Registered);
-    JsonObject test = new() { ["amount"] = 7391.58m, ["readAt"] = "2031-07-19T04:37:29.618+00:00", ["czkPerEur"] = 26.417m };
-
-    (await PushDriver.SendMessageWithTestBalance(Visitor.Lucie.Email, TITLE, "/test/notifications#t1", test))
-      .ShouldBe(MessageAnswer.Counts(delivered: 1, failed: 0, removed: 0));
-
-    _logs.EventNames().ShouldContain(PUSH_SENT, "the send's line, so the guard reads the send's lines");
-    (string What, string Value)[] anywhere = [
-      ("the amount", "391.58"),
-      ("the amount, with a decimal comma", "391,58"),
-      ("the rate", "26.417"),
-      ("the rate, with a decimal comma", "26,417"),
-      ("the read time's date", "2031-07-19"),
-      ("the read time's date, as month/day/year", "7/19/2031"),
-      ("the read time's date, as day.month.year", "19.07.2031"),
-      ("the read time's minutes and seconds", "37:29"),
-    ];
-    _logs.Leaks(anywhere, [])
-      .ShouldBeEmpty("Log messages, structured values, scope values or exceptions naming a value of the made-up balance");
   }
 
   protected override void ConfigureTestServices(IServiceCollection services) => services.AddSingleton<ILoggerProvider>(_ => new CapturingLoggerProvider(_logs));

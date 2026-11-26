@@ -104,27 +104,22 @@ public static partial class PushMessages {
   /// at the top level, where the declarative push parser reads it, and the notification's <c>data</c>, exactly
   /// <c>{ "balance": { "amount", "readAt", "czkPerEur" } }</c>, each value written by the same converters as
   /// <c>GET /api/balance</c> writes it (a JSON number for each amount, the ISO 8601 text of the read time); without one,
-  /// neither. Never <c>app_badge</c>, and nothing else. Temporary, for the iPhone test of #113: a message with a made-up
-  /// balance (<see cref="PushMessage.Test"/>, the owner's test message only) carries it as <c>data</c>
-  /// <c>{ "test": { "amount", "readAt", "czkPerEur" } }</c>, written as the balance is, and never <c>mutable</c>.
+  /// neither. Never <c>app_badge</c>, and nothing else.
   /// </summary>
   public static string DeclarativeJson(PushMessage message, Uri appAddress) {
     ArgumentNullException.ThrowIfNull(message);
     ArgumentNullException.ThrowIfNull(appAddress);
 
-    BalanceData? balance = DataOf(message.Balance);
-    BalanceData? test = DataOf(message.Test);
-    NotificationData? data = balance is null && test is null ? null : new NotificationData(balance, test);
+    NotificationData? data = message.Balance is { } balance
+      ? new NotificationData(new BalanceData(balance.Amount, balance.ReadAt, balance.CzkPerEur))
+      : null;
     DeclarativePush push = new(
       DECLARATIVE_WEB_PUSH,
       new Notification(message.Title, message.Text, new Uri(appAddress, message.Page).AbsoluteUri, data),
-      Mutable: balance is null ? null : true);
+      Mutable: data is null ? null : true);
 
     return JsonSerializer.Serialize(push, _json);
   }
-
-  private static BalanceData? DataOf(PushBalance? balance) =>
-    balance is null ? null : new BalanceData(balance.Amount, balance.ReadAt, balance.CzkPerEur);
 
   /// <summary>The push's JSON as Declarative Web Push names its members; <c>mutable</c> left out unless it carries a balance.</summary>
   private sealed record DeclarativePush(
@@ -139,13 +134,8 @@ public static partial class PushMessages {
     [property: JsonPropertyName("navigate")] string Navigate,
     [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NotificationData? Data);
 
-  /// <summary>
-  /// The notification's data (c014 design.md D14): the balance alone; temporary, for #113, the owner's made-up balance
-  /// under <c>test</c> instead. A member left out when it has no value.
-  /// </summary>
-  private sealed record NotificationData(
-    [property: JsonPropertyName("balance"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BalanceData? Balance,
-    [property: JsonPropertyName("test"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] BalanceData? Test);
+  /// <summary>The notification's data (c014 design.md D14): the balance alone.</summary>
+  private sealed record NotificationData([property: JsonPropertyName("balance")] BalanceData Balance);
 
   /// <summary>The balance as <c>GET /api/balance</c> names its members (D14).</summary>
   private sealed record BalanceData(
