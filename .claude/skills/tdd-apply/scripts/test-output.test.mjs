@@ -166,6 +166,32 @@ describe("readTestOutput on dotnet test (Microsoft.Testing.Platform, TUnit)", ()
     ]);
   });
 
+  test("does not take a `FAIL` line in a failed test's message or captured output for a failed Vitest test", () => {
+    const text = [
+      "failed A_real_one (12ms)",
+      "  [Test Failure] ShouldAssertException: the made-up report",
+      "  FAIL something in the made-up report",
+      "  from D:\\repo\\tests\\Made.Up.Tests\\bin\\Debug\\net11.0\\Made.Up.Tests.dll (net11.0|x64)",
+      "  Standard output",
+      "    FAIL a line the made-up test printed",
+      "",
+      "Test run summary: Failed! - D:\\repo\\tests\\Made.Up.Tests\\bin\\Debug\\net11.0\\Made.Up.Tests.dll (net11.0|x64)",
+      "  total: 2",
+      "  failed: 1",
+      "  succeeded: 1",
+      "  skipped: 0",
+      "",
+    ].join("\n");
+
+    const read = readTestOutput(text);
+
+    assert.deepEqual(
+      read.failed.map((f) => f.name),
+      ["A_real_one"],
+    );
+    assert.equal(allowedFailuresLine(["A_real_one"], read), "allowed failures: 1 of 1 failed tests are on the list");
+  });
+
   test("reads a duration of minutes and seconds", () => {
     const { failed } = readTestOutput(
       "failed A_slow_one (1m 02s 345ms)\n  [Test Failure] TimeoutException: too slow\n",
