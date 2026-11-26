@@ -3,7 +3,7 @@ name: chapter-reviewer
 description: Reviews one finished chapter of a /tdd-apply change for defects, read-only and with a fresh context, has every finding checked by a verifier of its own, records the findings in the change's reviews file and returns one short table. Invoked by the tdd-apply main session only.
 tools: Agent, SendMessage, ToolSearch, Read, Grep, Glob, Bash, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
-model: opus
+model: inherit
 effort: xhigh
 ---
 

@@ -3,7 +3,7 @@ name: review-verifier
 description: Checks one finding of a code review read-only, tries to refute it, and judges its severity and the shape of its fix. One definition for both skills. In /tdd-apply the chapter-reviewer starts it, once per finding; in /triage-review the saved workflow starts it, twice per finding.
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, ToolSearch, mcp__codebase-memory-mcp__*
 disallowedTools: mcp__codebase-memory-mcp__index_repository, mcp__codebase-memory-mcp__delete_project, mcp__codebase-memory-mcp__manage_adr, mcp__codebase-memory-mcp__ingest_traces
-model: fable
+model: inherit
 effort: high
 ---
 

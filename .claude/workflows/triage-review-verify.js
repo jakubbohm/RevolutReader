@@ -16,7 +16,7 @@
 // `tdd.mjs route --reports <reportsDir> --ids <ids>`. So a verifier is called without a schema: it returns its
 // report as plain text, as its definition says, and the script uses that text only to tell a check that returned
 // something from one that returned nothing (`missing`); it never returns it. It passes no model and no effort
-// for the verifiers either: their definition sets both.
+// for the verifiers either: their definition sets the effort, and they run on the session's model.
 //
 // Read-only: no agent edits a file of the repository, builds, or runs tests or the app. The agents share one
 // working tree, and the fix round proves each finding with a failing guard test anyway.
