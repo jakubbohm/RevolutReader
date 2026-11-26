@@ -73,10 +73,11 @@ async function appStarts(
   });
 }
 
-test("The test page shows the record, the newest first, each test notification in full and every other one counted", async () => {
+test("The test page shows the record, the newest first, each test notification with its data as it came and every other one counted", async () => {
   await appStarts("/", "", [BALANCE_NOTIFICATION]);
   await appStarts("/test/notifications", "#t2", [
     TEST_NOTIFICATION,
+    { title: "Test 3", body: "Vymyšlený zůstatek", data: undefined },
     BALANCE_NOTIFICATION,
   ]);
 
@@ -86,9 +87,12 @@ test("The test page shows the record, the newest first, each test notification i
   expect(entries).toHaveLength(2);
   expect(entries[0]).toHaveTextContent("#2 spuštění");
   expect(entries[0]).toHaveTextContent("/test/notifications#t2");
-  expect(entries[0]).toHaveTextContent("1 zkušební, 1 jiné");
+  expect(entries[0]).toHaveTextContent("2 zkušební, 1 jiné");
   expect(entries[0]).toHaveTextContent(
-    'Test 2 · Vymyšlený zůstatek · {"amount":102.02,"readAt":"2026-11-26T14:05:00+00:00","czkPerEur":25.5}',
+    'Test 2 · Vymyšlený zůstatek · data: object · {"test":{"amount":102.02,"readAt":"2026-11-26T14:05:00+00:00","czkPerEur":25.5}}',
+  );
+  expect(entries[0]).toHaveTextContent(
+    "Test 3 · Vymyšlený zůstatek · data: undefined · bez hodnoty",
   );
   expect(entries[1]).toHaveTextContent("#1 spuštění");
   expect(entries[1]).toHaveTextContent("/ (bez #)");
