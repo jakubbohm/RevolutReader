@@ -20,7 +20,9 @@ export const REVIEWS_FILE = ".chapter-reviews.md";
 export const TRIAGE_FILE = ".review-triage.md";
 
 // The section of both state files that lists the tests allowed to fail: each a keyed bullet, the key the test's
-// name as the test runner prints it (or a part of it that names one test), the value why and since when.
+// whole name as the test runner prints it, the value why and since when. What comes before the name up to a `.`
+// (a .NET namespace and class) or a ` > ` (a Vitest file, and groups), and a .NET test's arguments after it, may
+// be left out; never any other part of a name (test-output.mjs, `coversName`).
 export const ALLOWED_FAILURES = "Allowed failures";
 
 // The apply's state file's sections, in the file's order.
