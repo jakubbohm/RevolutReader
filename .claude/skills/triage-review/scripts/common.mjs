@@ -173,22 +173,64 @@ export function linesInDiff(patch) {
   return lines;
 }
 
+// The line of the PR's head version that a line of the local HEAD's version is, from `git diff -U0 <PR head> HEAD --
+// <path>` (only its hunk headers count): the line shifted by the lines the local commits added and took out before
+// it, or null when a local commit added or changed it, so the PR's head has no such line. An empty diff (the local
+// commits leave the file as it is) gives the line itself. The triage's commits stay local until the owner pushes them
+// all at once at the end (one CI run), while its findings are posted as they come, on the PR's head as GitHub has it.
+export function headLineOf(localDiff, line) {
+  let shift = 0; // the head's lines minus the local HEAD's, over the hunks before the line
+  for (const text of (localDiff ?? "").split("\n")) {
+    const hunk = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(text);
+    if (!hunk) continue;
+    const removed = hunk[1] === undefined ? 1 : Number(hunk[1]);
+    const start = Number(hunk[2]);
+    const added = hunk[3] === undefined ? 1 : Number(hunk[3]);
+    if (added > 0 && line >= start && line < start + added) return null;
+    // A hunk that only takes lines out starts after the local line it follows, so that line is still before it.
+    if (added > 0 ? line < start : line <= start) break;
+    shift += removed - added;
+  }
+  return line + shift;
+}
+
+// The note planPosts puts below a finding's body when the local commits moved its line, or added it: the place in the
+// local branch, which the verifiers read, and where the comment sits on GitHub. Its first words are fixed, so a rerun
+// can tell a posted finding by its body with the note taken off.
+const LOCAL_NOTE = /\n\n_Line \d+ in the local branch \(its commits after the PR's head are not pushed yet\)[^\n]*_$/;
+function localNote(line, headLine, onLine) {
+  const there = headLine === null ? "the PR's head has no such line" : `line ${headLine} of the PR's head`;
+  const onFile = onLine ? "" : ", so this comment is on the file";
+  return `_Line ${line} in the local branch (its commits after the PR's head are not pushed yet); ${there}${onFile}._`;
+}
+
 // Plans posting a review's findings from the conversation (`{ path, line, body }`, in the review's order) as review
-// comments on the PR, given the PR's files and review comments (the REST API's objects), its head commit, and when
-// its last triage summary was posted (lastSummaryTime; null before the first summary).
+// comments on the PR, given the PR's files and review comments (the REST API's objects), its head commit, when its
+// last triage summary was posted (lastSummaryTime; null before the first summary), and, when the local HEAD is a
+// descendant of the PR's head, each finding path's `git diff -U0 <PR head> HEAD` (a Map from path to the diff's text;
+// null when the local HEAD is the PR's head). The findings' lines are the local HEAD's, the version the review and
+// the verifiers read; the comments go on the PR's head, the version GitHub has.
 // - Returns { errors, posts }: one error per finding that cannot be posted, naming its position in the review
-//   (1-based) and its path; with any error, nothing may be posted. A finding's path must be a file the PR changes,
-//   its body must have text, and its line must be null or a positive whole number.
+//   (1-based) and its path; with any error, nothing may be posted. A finding's path must be a file the PR's head
+//   changes (GitHub takes a comment on no other), its body must have text, and its line must be null or a positive
+//   whole number.
 // - One post per valid finding, in the review's order: `{ action: "post", request }`, where the request goes on the
-//   finding's line (RIGHT side) when the line is in the PR's diff, else on its file (`subject_type: "file"`).
-// - A finding whose body is already a top-level review comment's (line endings and outer spaces aside), posted after
-//   the last triage summary (before the first summary: any), is `{ action: "skip", existingId, request }`: so a run
-//   that failed part-way can run again. Each comment accounts for one finding only. A comment from before the last
-//   summary does not count: an earlier round closed it, and a new report of the same text is a finding of its own,
-//   which the gather would otherwise leave out with that closed thread.
-export function planPosts(findings, prFiles, existingComments, headSha, lastSummaryAt) {
+//   line of the PR's head that the finding's line is (headLineOf) when that line is in the PR's diff, else on its file
+//   (`subject_type: "file"`). With local diffs and a line, the post also has `headLine` (a number, or null when the
+//   PR's head has no such line); when that differs from the finding's line, the body gets a note naming both.
+// - A finding whose body is already a top-level review comment's (line endings, outer spaces and that note aside),
+//   posted after the last triage summary (before the first summary: any), is `{ action: "skip", existingId, request }`:
+//   so a run that failed part-way can run again. Each comment accounts for one finding only. A comment from before the
+//   last summary does not count: an earlier round closed it, and a new report of the same text is a finding of its
+//   own, which the gather would otherwise leave out with that closed thread.
+export function planPosts(findings, prFiles, existingComments, headSha, lastSummaryAt, localDiffs = null) {
   const filesByName = new Map(prFiles.map((f) => [f.filename, f]));
-  const normalized = (text) => text.replace(/\r\n/g, "\n").trim();
+  const normalized = (text) =>
+    text
+      .replace(/\r\n/g, "\n")
+      .trim()
+      .replace(LOCAL_NOTE, "")
+      .trim();
   const sinceSummary = (c) => lastSummaryAt == null || Date.parse(c.created_at) > Date.parse(lastSummaryAt);
   const unclaimed = existingComments
     .filter((c) => c.in_reply_to_id == null && typeof c.body === "string" && sinceSummary(c))
@@ -198,8 +240,15 @@ export function planPosts(findings, prFiles, existingComments, headSha, lastSumm
   findings.forEach((finding, i) => {
     const { path, line, body } = finding ?? {};
     const file = filesByName.get(path);
+    const localDiff = localDiffs?.get(path) ?? "";
     const problems = [];
-    if (!file) problems.push(path ? "the PR does not change this file" : "no path");
+    if (!file && !path) problems.push("no path");
+    else if (!file && localDiff.trim()) {
+      problems.push(
+        "only commits not pushed yet change this file, and GitHub takes a comment only on a file the PR's head " +
+          "changes: put the finding on a file the PR changes and name its place in the body",
+      );
+    } else if (!file) problems.push("the PR does not change this file");
     if (typeof body !== "string" || !body.trim()) problems.push("no body");
     if (line != null && !(Number.isInteger(line) && line > 0)) {
       problems.push(`line ${JSON.stringify(line)} is neither null nor a line number`);
@@ -209,15 +258,19 @@ export function planPosts(findings, prFiles, existingComments, headSha, lastSumm
       return;
     }
 
-    const request =
-      line != null && linesInDiff(file.patch).has(line)
-        ? { body, commit_id: headSha, path, line, side: "RIGHT" }
-        : { body, commit_id: headSha, path, subject_type: "file" };
+    const headLine = line == null ? null : headLineOf(localDiff, line);
+    const onLine = headLine !== null && linesInDiff(file.patch).has(headLine);
+    const moved = localDiffs !== null && line != null && headLine !== line;
+    const text = moved ? `${body.trimEnd()}\n\n${localNote(line, headLine, onLine)}` : body;
+    const request = onLine
+      ? { body: text, commit_id: headSha, path, line: headLine, side: "RIGHT" }
+      : { body: text, commit_id: headSha, path, subject_type: "file" };
+    const plan = localDiffs !== null && line != null ? { request, headLine } : { request };
     const posted = unclaimed.findIndex((c) => normalized(c.body) === normalized(body));
     if (posted === -1) {
-      posts.push({ action: "post", request });
+      posts.push({ action: "post", ...plan });
     } else {
-      posts.push({ action: "skip", existingId: unclaimed[posted].id, request });
+      posts.push({ action: "skip", existingId: unclaimed[posted].id, ...plan });
       unclaimed.splice(posted, 1);
     }
   });

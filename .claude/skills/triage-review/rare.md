@@ -29,9 +29,12 @@ owner where the findings are; never guess.
      concerns.
 2. Run `node .claude/skills/triage-review/scripts/post-findings.mjs <PR> <work folder>/chat-findings.json
    --dry-run` and check the plan it prints, one line per finding: on its line when the line is in the PR's
-   diff, else on its file. A finding that does not land on its real place, because it moved to another file
-   or its line is outside the diff, names that place (`<file>:<line>`) in its body, below the first line,
-   which the gather takes as its title. Correct the file and run the dry run again until the plan is right.
+   diff, else on its file. The round's commits stay local until the owner's one push at the end, and nothing
+   waits for that push: the script finds each line in the PR's head on GitHub and, when the round's commits
+   moved or added it, notes both places in the body by itself. A finding that does not land on its real place
+   for another reason, because it moved to another file or its line is outside the diff, names that place
+   (`<file>:<line>`) in its body, below the first line, which the gather takes as its title. Correct the file
+   and run the dry run again until the plan is right.
 3. Run it without `--dry-run`. It skips a finding this round already posted, so after a failure part-way,
    running it again posts only the rest.
 
@@ -51,9 +54,7 @@ hold after that agent checked the code path, each as `{ path, line, body }`. Eac
 other:
 
 1. Write the list to `<work folder>/new-findings.json` as the workflow returned it.
-2. Post it as this file's § A review from the conversation says in its steps 2 and 3, with that file. If
-   the script refuses because the local HEAD is not the PR's head commit (a restart, with this round's commits
-   in the branch): post nothing, tell the owner each remark in a line, and go on with the sorting.
+2. Post it as this file's § A review from the conversation says in its steps 2 and 3, with that file.
 3. Run the gather again (`once.md` § 1 step 2, the same folder): the new findings are in its list, with the
    next numbers. Add each one's line to `Round <n>` with `tdd put`.
 4. Run the workflow again with those numbers alone as `ids`, the other args as before, and end your turn

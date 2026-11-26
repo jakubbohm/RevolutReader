@@ -16,6 +16,7 @@ import {
   findingLines,
   findingsFrom,
   firstLine,
+  headLineOf,
   lastSummaryTime,
   linesInDiff,
   planPosts,
@@ -838,6 +839,165 @@ describe("planPosts", () => {
     assert.ok(namesFinding(errors, 2, "src/b.mjs"), `no error names finding 2 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 3, "docs/logo.png"), `no error names finding 3 and its path: ${errors}`);
     assert.ok(namesFinding(errors, 4, "docs/a.md"), `no error names finding 4 and its path: ${errors}`);
+  });
+});
+
+// `git diff -U0 <PR head> HEAD -- <path>` as git prints it, for one file the local commits change: the triage's
+// commits are local until the owner's one push, so the PR's head on GitHub lacks them.
+function localDiff(path, ...hunks) {
+  return [`diff --git a/${path} b/${path}`, "index 1111111..2222222 100644", `--- a/${path}`, `+++ b/${path}`, ...hunks]
+    .join("\n")
+    .concat("\n");
+}
+
+describe("headLineOf", () => {
+  test("gives the line itself when the local commits leave the file as the PR's head has it", () => {
+    assert.equal(headLineOf("", 12), 12);
+    assert.equal(headLineOf(undefined, 12), 12);
+  });
+
+  test("gives the line itself for a line before every change of the local commits", () => {
+    const diff = localDiff("src/b.mjs", "@@ -30,0 +31,2 @@ function c", "+one", "+two");
+
+    assert.equal(headLineOf(diff, 30), 30);
+  });
+
+  test("shifts a line after lines the local commits added", () => {
+    // Two lines added after the head's line 5: the local lines 6 and 7.
+    const diff = localDiff("src/b.mjs", "@@ -5,0 +6,2 @@ function b", "+one", "+two");
+
+    assert.equal(headLineOf(diff, 8), 6);
+    assert.equal(headLineOf(diff, 23), 21);
+  });
+
+  test("shifts a line after lines the local commits took out", () => {
+    // The head's lines 5 and 6 taken out: the local line 4 is the head's 4, the local 5 the head's 7.
+    const diff = localDiff("src/b.mjs", "@@ -5,2 +4,0 @@ function b", "-one", "-two");
+
+    assert.equal(headLineOf(diff, 4), 4);
+    assert.equal(headLineOf(diff, 5), 7);
+  });
+
+  test("gives no line for a line the local commits added or changed, which the PR's head does not have", () => {
+    const diff = localDiff(
+      "src/b.mjs",
+      "@@ -5,0 +6,2 @@ function b",
+      "+one",
+      "+two",
+      "@@ -20 +22 @@ function c",
+      "-old",
+      "+new",
+    );
+
+    assert.equal(headLineOf(diff, 6), null);
+    assert.equal(headLineOf(diff, 7), null);
+    assert.equal(headLineOf(diff, 22), null);
+    assert.equal(headLineOf(diff, 21), 19);
+    assert.equal(headLineOf(diff, 23), 21);
+  });
+});
+
+describe("planPosts with local commits that are not pushed yet", () => {
+  const headSha = "0123456789abcdef0123456789abcdef01234567";
+  // The PR's files as GitHub has them, at its head: src/b.mjs's lines 20-22 are in the diff.
+  const prFiles = [
+    {
+      filename: "src/b.mjs",
+      patch: patch("@@ -20,2 +20,3 @@ function b", " const x = 1;", "+const y = 2;", " return x + y;"),
+    },
+  ];
+  // The local commits added two lines after the head's line 5 of src/b.mjs, and changed docs/only-local.md, which
+  // the PR's head does not change.
+  const localDiffs = new Map([
+    ["src/b.mjs", localDiff("src/b.mjs", "@@ -5,0 +6,2 @@ function b", "+one", "+two")],
+    ["docs/only-local.md", localDiff("docs/only-local.md", "@@ -1 +1 @@", "-old", "+new")],
+  ]);
+
+  test("posts a finding on the PR head's line that its local line is, and names the local line in its body", () => {
+    const findings = [{ path: "src/b.mjs", line: 23, body: "This constant is unused." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.equal(posts.length, 1);
+    const { request } = posts[0];
+    assert.equal(posts[0].action, "post");
+    assert.deepEqual(
+      { commit_id: request.commit_id, path: request.path, line: request.line, side: request.side },
+      { commit_id: headSha, path: "src/b.mjs", line: 21, side: "RIGHT" },
+    );
+    assert.ok(request.body.startsWith("This constant is unused.\n\n"), request.body);
+    assert.ok(request.body.includes("Line 23 in the local branch"), request.body);
+    assert.ok(request.body.includes("line 21 of the PR's head"), request.body);
+  });
+
+  test("posts a finding on a line only local commits added on its file, and names the local line in its body", () => {
+    const findings = [{ path: "src/b.mjs", line: 7, body: "The added line is wrong." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    const { request } = posts[0];
+    assert.equal(request.subject_type, "file");
+    assert.equal(request.line, undefined);
+    assert.equal(posts[0].headLine, null);
+    assert.ok(request.body.startsWith("The added line is wrong.\n\n"), request.body);
+    assert.ok(request.body.includes("Line 7 in the local branch"), request.body);
+    assert.ok(request.body.includes("the PR's head has no such line"), request.body);
+  });
+
+  test("adds nothing to the body when the local commits leave the finding's line where it is", () => {
+    const findings = [{ path: "src/b.mjs", line: 4, body: "Before every local change." }];
+    const prFilesWithLine4 = [{ filename: "src/b.mjs", patch: patch("@@ -3,2 +3,2 @@", " three", "-four", "+four!") }];
+
+    const { errors, posts } = planPosts(findings, prFilesWithLine4, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts[0].request, {
+      body: "Before every local change.",
+      commit_id: headSha,
+      path: "src/b.mjs",
+      line: 4,
+      side: "RIGHT",
+    });
+  });
+
+  test("adds nothing to a finding without a line", () => {
+    const findings = [{ path: "src/b.mjs", line: null, body: "The whole file." }];
+
+    const { errors, posts } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(posts[0].request, {
+      body: "The whole file.",
+      commit_id: headSha,
+      path: "src/b.mjs",
+      subject_type: "file",
+    });
+  });
+
+  test("reports a finding on a file only the local commits change, which GitHub takes no comment on", () => {
+    const findings = [{ path: "docs/only-local.md", line: 1, body: "Changed only locally." }];
+
+    const { errors } = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].includes("docs/only-local.md"), errors[0]);
+    assert.ok(errors[0].includes("not pushed yet"), errors[0]);
+  });
+
+  test("skips a finding already posted with its note on the local line, as a rerun finds it", () => {
+    const findings = [{ path: "src/b.mjs", line: 23, body: "Posted before the run stopped." }];
+    const first = planPosts(findings, prFiles, [], headSha, null, localDiffs);
+    const existing = [comment(961, { body: first.posts[0].request.body.replace(/\n/g, "\r\n") })];
+
+    const { errors, posts } = planPosts(findings, prFiles, existing, headSha, null, localDiffs);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+      posts.map((p) => [p.action, p.existingId]),
+      [["skip", 961]],
+    );
   });
 });
 
