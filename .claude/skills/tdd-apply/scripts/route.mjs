@@ -28,7 +28,7 @@
 // first on its line; every other line is not read:
 //
 //   VERDICT: confirmed | refuted | unsure
-//   EVIDENCE: <text>        (`evidence` is false when the text is empty or `none`, in any case; true otherwise)
+//   EVIDENCE: <text>        (`evidence` is false when the text says there is nothing to cite: `NO_EVIDENCE`)
 //   KIND: behaviour | test-quality | docs | cleanup | not applicable
 //   FIX: <local | not local> · <small | medium | large> · spec behaviour <yes | no> · contract change <yes | no> ·
 //        <one-line sketch>   (all on one line; the separator is the middle dot, with any space around it)
@@ -243,6 +243,15 @@ export function reportOf(name) {
 
 // The labels the rules read in a report, and the one that says whose report it is.
 const LABELLED = ["VERDICT", "EVIDENCE", "KIND", "FIX", "FIRST PASS"];
+
+// An EVIDENCE value that says there is nothing to cite, in any case: an empty one, or one that starts with a word
+// for nothing (`none`, `n/a`, `nothing`, or a dash alone) and has nothing after that word but its end or a stop
+// (`None.`, `none: nothing concrete to cite`, `n/a`, `-`). The verifier is asked for `none` alone, and a
+// reading that takes another way of saying it for evidence routes a refuted finding DECLINE with nothing to
+// open. A value in which such a word starts a sentence that goes on (`none found in src/App/Mapping.cs:19`) is
+// a citation, and so evidence. A citation after a stop (`none: see src/App/Mapping.cs:19`) is read as nothing:
+// the finding is then asked, never declined unseen.
+const NO_EVIDENCE = /^(?:$|(?:none|n\/a|nothing|-+|–|—)(?:$|\s*[.:;,!?(–—-]))/i;
 const ID = "ID";
 // The shapes of a FIX line and of a FIRST PASS line, for the messages that refuse one.
 const FIX_SHAPE =
@@ -293,7 +302,7 @@ export function readReport(text, check = 1) {
   const judged = () => {
     const verdict = oneOf("VERDICT", value("VERDICT"), VERDICTS);
     if (verdict === "unsure") return { verdict };
-    const evidence = value("EVIDENCE") !== "" && value("EVIDENCE").toLowerCase() !== "none";
+    const evidence = !NO_EVIDENCE.test(value("EVIDENCE"));
     if (verdict === "refuted") return { verdict, evidence };
 
     const kind = oneOf("KIND", value("KIND"), KINDS);
