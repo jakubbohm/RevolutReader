@@ -3760,7 +3760,7 @@ describe("run", { concurrency: true }, () => {
     assert.equal((await allowing(dir, "A_stub_is_not_written_yet", "parked: question Q2, red commit 1a2b3c4")).code, 0);
 
     const one = await wrapped(dir, temp, "all", printing("dotnet-test-failed.txt", 2));
-    for (const key of ["A_case_ends_as_its_path_says(throws)", "A_list_holds", "A_test_that_writes_output_and_fails"]) {
+    for (const key of ["A_case_ends_as_its_path_says(throws)", "A_list_holds_what_was_added", "A_test_that_writes_output_and_fails"]) {
       await allowing(dir, key, "blocked finding 5, red commit 0f9e8d7");
     }
     const all = await wrapped(dir, temp, "all", printing("dotnet-test-failed.txt", 2));
@@ -3840,7 +3840,7 @@ describe("run", { concurrency: true }, () => {
         await tdd(dir, withChange("init", SWITCHES));
         await allowing(dir, "A_stub_is_not_written_yet", "the apply's list, which a triage does not read");
       }
-      await tdd(dir, withPr("put", { section: "Allowed failures", key: "A_list_holds", value: "blocked finding 5" }));
+      await tdd(dir, withPr("put", { section: "Allowed failures", key: "A_list_holds_what_was_added", value: "blocked finding 5" }));
 
       const r = await tdd(dir, withPr("run", { label: "all" }, "--", ...printing("dotnet-test-failed.txt", 2)), {
         env: tempEnv(temp),
