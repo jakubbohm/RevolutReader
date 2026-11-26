@@ -75,6 +75,13 @@ const TASKS = `${FOLDER}/tasks.md`;
 const TRIAGE = `${FOLDER}/.review-triage.md`;
 const ARCHIVED = `openspec/changes/archive/2026-11-23-${CHANGE}`;
 const PR = "109";
+// Two made-up session ids of the shape Claude Code's have, and what a skill's text holds where Claude Code did not
+// substitute the id.
+const MAIN_SESSION = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+const NEXT_SESSION = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
+const UNSUBSTITUTED = "${CLAUDE_SESSION_ID}";
+// The values of --session that record nothing: an empty one, the placeholder, and two of another shape than an id's.
+const NOT_A_SESSION = ["", UNSUBSTITUTED, "0a1b2c3d-4e5f-4a6b-8c7d", "not a session id"];
 const WINDOWS = process.platform === "win32";
 
 const TASKS_TEXT = [
@@ -1555,6 +1562,54 @@ describe("init", { concurrency: true }, () => {
       const text = read(dir, STATE);
       assert.equal(keyValue(text, "Run", "Issue"), "#67");
       assert.equal(sectionBody(text, "Run").split("\n").at(-1), "- **Issue:** #67");
+    }
+  });
+
+  // The main session's id, which the skill hands over from Claude Code's ${CLAUDE_SESSION_ID} at every start and
+  // resume, so that the compaction hook (.claude/hooks/tdd-resume.mjs) knows whose session it runs in. An id is true
+  // on one machine only: the local file holds it.
+  test("records the main session's id in the local file, never in the state file, and a resume's init the one it is given", async (t) => {
+    const dir = repository(t);
+
+    const r = await tdd(dir, withChange("init", { ...SWITCHES, session: MAIN_SESSION }));
+    assert.equal(r.code, 0, r.err);
+    const atStart = readFileSync(localFile(dir), "utf8");
+    const again = await tdd(dir, withChange("init", { session: NEXT_SESSION }));
+
+    assert.ok(atStart.includes(MAIN_SESSION), atStart);
+    assert.equal(again.code, 0, again.err);
+    const resumed = readFileSync(localFile(dir), "utf8");
+    assert.ok(resumed.includes(NEXT_SESSION), resumed);
+    assert.equal(resumed.includes(MAIN_SESSION), false, resumed);
+    for (const id of [MAIN_SESSION, NEXT_SESSION]) assert.equal(read(dir, STATE).includes(id), false, id);
+  });
+
+  test("records no session id for an empty value, the placeholder left unsubstituted or a value of another shape, and starts as without one", async (t) => {
+    const without = repository(t);
+    assert.equal((await tdd(without, withChange("init", SWITCHES))).code, 0);
+
+    for (const session of NOT_A_SESSION) {
+      const dir = repository(t);
+
+      const r = await tdd(dir, withChange("init", { ...SWITCHES, session }));
+
+      assert.equal(r.code, 0, `${JSON.stringify(session)}: ${r.err}`);
+      assert.equal(readFileSync(localFile(dir), "utf8"), readFileSync(localFile(without), "utf8"), session);
+      assert.equal(read(dir, STATE).includes("CLAUDE_SESSION_ID"), false, session);
+    }
+  });
+
+  // An earlier session's id must never make the compaction hook tell that session outright that it is the main one.
+  test("clears the id recorded before when a resume's init is given a value that records nothing", async (t) => {
+    for (const session of NOT_A_SESSION) {
+      const dir = repository(t);
+      assert.equal((await tdd(dir, withChange("init", { ...SWITCHES, session: MAIN_SESSION }))).code, 0);
+      assert.ok(readFileSync(localFile(dir), "utf8").includes(MAIN_SESSION), "the start recorded the id");
+
+      const r = await tdd(dir, withChange("init", { session }));
+
+      assert.equal(r.code, 0, `${JSON.stringify(session)}: ${r.err}`);
+      assert.equal(readFileSync(localFile(dir), "utf8").includes(MAIN_SESSION), false, JSON.stringify(session));
     }
   });
 
@@ -8249,6 +8304,63 @@ describe("triage-init", { concurrency: true }, () => {
       for (const path of [work, slashed(work), dir, slashed(dir)]) assert.equal(text.includes(path), false, path);
       samePath(pointer(dir).work, work);
       assert.equal(localProject(dir), "not indexed: skipped (TDD_NO_GRAPH=1)", of);
+    }
+  });
+
+  // The main session's id, as for `init`: handed over by the skill at every start and resume, kept in the local file.
+  test("records the main session's id in the triage's local file, never in the state file or the pointer, and a later start the one it is given", async (t) => {
+    for (const whose of [{ change: CHANGE }, { scope: "i900" }]) {
+      const dir = repository(t);
+      const work = tempFolder(t);
+      const what = JSON.stringify(whose);
+
+      const r = await tdd(dir, withPr("triage-init", { round: "1", work, ...whose, session: MAIN_SESSION }));
+      assert.equal(r.code, 0, `${what}: ${r.err}`);
+      const atStart = readFileSync(prLocalFile(dir), "utf8");
+      const again = await tdd(dir, withPr("triage-init", { round: "1", work, ...whose, session: NEXT_SESSION }));
+
+      assert.ok(atStart.includes(MAIN_SESSION), `${what}: ${atStart}`);
+      assert.equal(again.code, 0, `${what}: ${again.err}`);
+      const resumed = readFileSync(prLocalFile(dir), "utf8");
+      assert.ok(resumed.includes(NEXT_SESSION), `${what}: ${resumed}`);
+      assert.equal(resumed.includes(MAIN_SESSION), false, `${what}: ${resumed}`);
+      const state = whose.change ? read(dir, TRIAGE) : readFileSync(prState(dir), "utf8");
+      const points = readFileSync(join(gitFolder(dir), "triage.json"), "utf8");
+      for (const id of [MAIN_SESSION, NEXT_SESSION]) {
+        assert.equal(state.includes(id), false, `${what}: the state file`);
+        assert.equal(points.includes(id), false, `${what}: the pointer`);
+      }
+    }
+  });
+
+  test("records no session id for an empty value, the placeholder left unsubstituted or a value of another shape, and starts as without one", async (t) => {
+    const without = repository(t);
+    assert.equal((await tdd(without, withPr("triage-init", { round: "1", work: tempFolder(t), change: CHANGE }))).code, 0);
+
+    for (const session of NOT_A_SESSION) {
+      const dir = repository(t);
+
+      const r = await tdd(dir, withPr("triage-init", { round: "1", work: tempFolder(t), change: CHANGE, session }));
+
+      assert.equal(r.code, 0, `${JSON.stringify(session)}: ${r.err}`);
+      assert.equal(readFileSync(prLocalFile(dir), "utf8"), readFileSync(prLocalFile(without), "utf8"), session);
+      assert.equal(read(dir, TRIAGE).includes("CLAUDE_SESSION_ID"), false, session);
+    }
+  });
+
+  // As for `init`: an earlier session's id must never make the hook tell that session outright that it is the main one.
+  test("clears the id recorded before when a later start is given a value that records nothing", async (t) => {
+    for (const session of NOT_A_SESSION) {
+      const dir = repository(t);
+      const work = tempFolder(t);
+      const start = (more) => tdd(dir, withPr("triage-init", { round: "1", work, change: CHANGE, ...more }));
+      assert.equal((await start({ session: MAIN_SESSION })).code, 0);
+      assert.ok(readFileSync(prLocalFile(dir), "utf8").includes(MAIN_SESSION), "the start recorded the id");
+
+      const r = await start({ session });
+
+      assert.equal(r.code, 0, `${JSON.stringify(session)}: ${r.err}`);
+      assert.equal(readFileSync(prLocalFile(dir), "utf8").includes(MAIN_SESSION), false, JSON.stringify(session));
     }
   });
 

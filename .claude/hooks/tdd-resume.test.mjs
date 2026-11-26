@@ -139,6 +139,32 @@ async function hook(cwd, input = { hook_event_name: "SessionStart", source: "com
   return { code: r.code, context, out: r.out, err: r.err };
 }
 
+// A made-up session id of the shape Claude Code's have: the main session's.
+const MAIN = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+
+// A repository in which an apply (`apply`) or a PR's triage (`triage`) was started by `tdd.mjs`, with the session id
+// `recorded` given to it (none when null), and the hook's answer to the session with the id `session` after it
+// compacted there.
+async function startedThenCompacted(t, kind, recorded, session) {
+  const dir = tempFolder(t);
+  const branch = kind === "apply" ? "feat/c900-add-made-up-thing" : "fix/made-up-thing";
+  const init = await started("git", ["init", "--quiet", `--initial-branch=${branch}`], { cwd: dir });
+  assert.equal(init.code, 0, init.err);
+  mkdirSync(join(dir, "openspec", "changes", CHANGE), { recursive: true });
+  const starts =
+    kind === "apply"
+      ? ["init", "--change", CHANGE, "--agent-review", "each-chapter", "--human-test-review", "acceptance"]
+      : ["triage-init", "--pr", "109", "--round", "1", "--work", tempFolder(t), "--scope", "i900"];
+  if (kind === "apply") starts.push("--after-chapter", "continue");
+  if (recorded !== null) starts.push("--session", recorded);
+  const began = await started(process.execPath, [TDD, ...starts], {
+    cwd: dir,
+    env: { ...process.env, TDD_NO_GRAPH: "1" },
+  });
+  assert.equal(began.code, 0, `${kind}: ${began.err}`);
+  return hook(dir, { hook_event_name: "SessionStart", source: "compact", cwd: dir, session_id: session });
+}
+
 describe("tdd-resume hook", { concurrency: true }, () => {
   test("for a change that is being applied, says so and adds its Resume here, Open and Agents sections, in that order", async (t) => {
     const dir = await repository(t);
@@ -150,7 +176,7 @@ describe("tdd-resume hook", { concurrency: true }, () => {
     assert.equal(r.err, "");
     const [intro, ...sections] = r.context.split("\n\n");
     assert.match(intro, /^\/tdd-apply is under way for `c900-add-made-up-thing`/);
-    assert.match(intro, /this session is its main session/i);
+    assert.match(intro, /\bif this session started\b/i, "no id is recorded, so the note is the conditional one");
     assert.ok(intro.includes(`\`${GET(CHANGE)} "<name>"\``), intro);
     assert.ok(intro.endsWith("Its Resume here, Open, Agents sections as they stand:"), intro);
     assert.deepEqual(sections, [
@@ -161,14 +187,9 @@ describe("tdd-resume hook", { concurrency: true }, () => {
   });
 
   test("says whose session is meant: the main session's, and not that of an agent it started", async (t) => {
-    const dir = await repository(t);
-    const triaged = await repository(t);
-    stateFile(dir, CHANGE, { change: underWay });
-    await triage(triaged, await prStateFile(triaged), { edit: fixing });
-
     for (const [status, { context }] of [
-      ["applying", await hook(dir)],
-      ["triaging", await hook(triaged)],
+      ["applying", await startedThenCompacted(t, "apply", MAIN, MAIN)],
+      ["triaging", await startedThenCompacted(t, "triage", MAIN, MAIN)],
     ]) {
       assert.ok(
         context.includes(
@@ -596,6 +617,59 @@ describe("tdd-resume hook: a triage", { concurrency: true }, () => {
       assert.equal(r.out, "", pointer);
       assert.match(r.err, /^tdd-resume hook: the triage's pointer .+\n$/, pointer);
       assert.equal(r.err.trim().split("\n").length, 1, r.err);
+    }
+  });
+
+});
+
+// Whose session the note means. The skills hand the main session's id to `tdd.mjs init` and `triage-init` at every
+// start and resume, and the hook compares it with its input's `session_id`: only the session whose id was recorded
+// is told outright that it is the main session. Every other session, and every session while no id is recorded, is
+// told so only on a condition, so that the real main session never loses its note and no other session is told
+// outright that it is the main one.
+describe("tdd-resume hook: whose session it is", { concurrency: true }, () => {
+  const OTHER = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
+  const OUTRIGHT = "This session is its main session.";
+
+  // That a context tells its session the note only on the condition: the main session if it started the run, and
+  // otherwise a session that does not act on the run.
+  const conditional = (context, what) => {
+    assert.equal(context.includes(OUTRIGHT), false, `${what}: ${context}`);
+    assert.match(context, /\bif this session started\b/i, what);
+    assert.match(context, /\bdoes not act on\b/i, what);
+  };
+
+  test("tells the session whose id the run's start recorded that it is the run's main session", async (t) => {
+    for (const kind of ["apply", "triage"]) {
+      const r = await startedThenCompacted(t, kind, MAIN, MAIN);
+
+      assert.equal(r.err, "", kind);
+      assert.ok(r.context.includes(OUTRIGHT), `${kind}: ${r.context}`);
+    }
+  });
+
+  test("tells a session whose id is another one only on the condition, never outright that it is the main session", async (t) => {
+    for (const kind of ["apply", "triage"]) {
+      const r = await startedThenCompacted(t, kind, MAIN, OTHER);
+
+      assert.equal(r.err, "", kind);
+      conditional(r.context, kind);
+    }
+  });
+
+  test("with no id recorded, tells every session only on the condition, also one whose input has no id", async (t) => {
+    const dir = await repository(t);
+    const triaged = await repository(t);
+    stateFile(dir, CHANGE, { change: underWay });
+    await triage(triaged, await prStateFile(triaged), { edit: fixing });
+
+    for (const [what, folder] of [
+      ["apply", dir],
+      ["triage", triaged],
+    ]) {
+      const compacted = { hook_event_name: "SessionStart", source: "compact", cwd: folder };
+      conditional((await hook(folder, { ...compacted, session_id: MAIN })).context, `${what}, an id`);
+      conditional((await hook(folder, compacted)).context, `${what}, no id`);
     }
   });
 });
