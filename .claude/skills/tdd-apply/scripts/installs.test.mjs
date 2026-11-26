@@ -1,13 +1,22 @@
-// Tests for installs.mjs's pure functions: which folders have an npm install to check, and whether an install is
-// what its lockfile says. Texts and names in, texts and objects out: nothing here touches a file, git or npm, and
-// every package, version and address is made up. The lockfiles are built here, as texts: no file named
+// Tests for installs.mjs's pure functions: which folders have an npm install to check, whether an install is
+// what its lockfile says, which failure to read npm's record says that there is none, and how the time limit of
+// `tdd.mjs install` is shared among its installs. Texts, names and numbers in, texts and objects out: nothing
+// here touches a file, a clock, git or npm, and every package, version and address is made up. The lockfiles are built here, as texts: no file named
 // package-lock.json is committed for a test, so that the check never takes one for a folder to install. (That
 // `tdd.mjs install` finds the folders with git, reads the files and runs npm is tested in tdd.test.mjs.)
 //
 //   node --test ".claude/skills/tdd-apply/scripts/*.test.mjs"
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { installDifferences, installFolders, installState, LOCKFILE, RECORD } from "./installs.mjs";
+import {
+  installDifferences,
+  installFolders,
+  installState,
+  installTime,
+  LOCKFILE,
+  notThere,
+  RECORD,
+} from "./installs.mjs";
 
 // A package as a lockfile's `packages` map holds it, from a registry: its version, where it came from and the
 // hash of what was unpacked.
@@ -269,7 +278,7 @@ describe("installState: an install that is not what the lockfile says", () => {
     );
   });
 
-  test("is stale when node_modules is there without npm's record, or with one that cannot be read", () => {
+  test("is stale when node_modules is there without npm's record, or with one whose text cannot be read", () => {
     assert.deepEqual(
       stateOf({ locked: THREE, recorded: null }),
       stale("no node_modules/.package-lock.json, npm's record of what it installed"),
@@ -281,6 +290,62 @@ describe("installState: an install that is not what the lockfile says", () => {
       assert.match(state.why, /^node_modules\/\.package-lock\.json cannot be read: /, record);
       assert.ok(!state.why.includes("\n"), record);
     }
+  });
+
+  test("is stale, and says why, when a package's entry in npm's record is not one npm writes", () => {
+    const path = "node_modules/made-up-dep";
+    const unread = (why) => stale(`node_modules/.package-lock.json cannot be read: ${why}`);
+    for (const [entry, why] of [
+      [null, `its entry ${path} is no object`],
+      ["1.2.4", `its entry ${path} is no object`],
+      [7, `its entry ${path} is no object`],
+      [[from("1.2.4")], `its entry ${path} is no object`],
+      [{ ...from("1.2.4"), version: 1.2 }, `in its entry ${path}, "version" is no string`],
+      [{ ...from("1.2.4"), resolved: 7 }, `in its entry ${path}, "resolved" is no string`],
+      [{ ...from("1.2.4"), integrity: null }, `in its entry ${path}, "integrity" is no string`],
+      [{ ...from("1.2.4"), link: "yes" }, `in its entry ${path}, "link" is neither true nor false`],
+    ]) {
+      assert.deepEqual(stateOf({ locked: THREE, recorded: { ...THREE, [path]: entry } }), unread(why), why);
+    }
+  });
+
+  test("gives what is wrong on one line, whatever the two files hold: a package's path or version with line breaks in it", () => {
+    // Every character that ends a line somewhere: the line feed and the carriage return, the vertical tab and
+    // the form feed, Unicode's next line and its line and paragraph separators.
+    const BREAKS = ["\n", "\r", "\r\n", "\v", "\f", "\x85", "\u{2028}", "\u{2029}"];
+    for (const lineBreak of BREAKS) {
+      const forged = `node_modules/made-up-x${lineBreak}installs in order | 1 folder`;
+      const version = `1.0.0${lineBreak}installs in order | 1 folder`;
+      const states = [
+        stateOf({ locked: { ...THREE, [forged]: from("1.0.0") }, recorded: THREE }),
+        stateOf({ locked: THREE, recorded: { ...THREE, [forged]: from("1.0.0") } }),
+        stateOf({ locked: { ...THREE, "node_modules/made-up-x": from(version) }, recorded: THREE }),
+        stateOf({
+          locked: { ...THREE, "node_modules/made-up-dep": from(version) },
+          recorded: { ...THREE, "node_modules/made-up-dep": from(`2.0.0${lineBreak}installs in order | 1 folder`) },
+        }),
+        stateOf({ locked: THREE, recorded: { ...THREE, [forged]: null } }),
+      ];
+
+      for (const { state, why } of states) {
+        assert.equal(state, "stale");
+        assert.doesNotMatch(why, /[\n\r\v\f\x85\u{2028}\u{2029}]/u, JSON.stringify(lineBreak));
+      }
+    }
+    const forged = "node_modules/made-up-x\ninstalls in order | 1 folder";
+    assert.deepEqual(
+      stateOf({ locked: { ...THREE, [forged]: from("1.0.0") }, recorded: THREE }),
+      stale(
+        "differs from the lockfile in 1 package: node_modules/made-up-x installs in order | 1 folder (not installed)",
+      ),
+      "a line break reads as one blank",
+    );
+  });
+
+  test("does not look at an entry of npm's record that is no installed package", () => {
+    const recorded = { ...THREE, "packages/made-up-workspace": null, "": "no object" };
+
+    assert.deepEqual(stateOf({ locked: THREE, recorded }), OK);
   });
 
   test("is missing when there is no node_modules folder", () => {
@@ -338,12 +403,20 @@ describe("installState: links and a repository's own packages", () => {
 });
 
 describe("installState: a lockfile with nothing to install", () => {
-  test("is ok whatever is there: no node_modules, one without a record, one with a record of nothing", () => {
+  test("is ok whatever is there: no node_modules, one without a record, one with a record of nothing or one whose text cannot be read", () => {
     for (const locked of [{}, { "packages/made-up-workspace": { version: "0.0.0" } }]) {
       assert.deepEqual(stateOf({ locked, recorded: null, modules: false }), OK);
       assert.deepEqual(stateOf({ locked, recorded: null }), OK);
       assert.deepEqual(stateOf({ locked, recorded: {} }), OK);
+      assert.deepEqual(stateOf({ locked, recorded: "not json" }), OK);
     }
+  });
+
+  test("is stale all the same when a record names a package: it is not in the lockfile", () => {
+    assert.deepEqual(
+      stateOf({ locked: {}, recorded: { "node_modules/made-up-dep": from("1.2.4") } }),
+      stale("differs from the lockfile in 1 package: node_modules/made-up-dep (not in the lockfile)"),
+    );
   });
 
   test("is ok without node_modules when every locked package is optional and none is installed", () => {
@@ -381,6 +454,93 @@ describe("installState: a lockfile it cannot judge", () => {
       () => stateOf({ locked: JSON.stringify({ packages: [] }), recorded: THREE }),
       (e) => e.message.startsWith('package-lock.json has no "packages" map (no lockfileVersion): '),
     );
+  });
+
+  test("refuses, naming the entry, a lockfile in which a package's entry is not one npm writes", () => {
+    const path = "node_modules/made-up-dep";
+    for (const [entry, why] of [
+      [null, `its entry ${path} is no object`],
+      [[], `its entry ${path} is no object`],
+      [{ ...from("1.2.4"), version: 5 }, `in its entry ${path}, "version" is no string`],
+      [{ ...from("1.2.4"), link: 1 }, `in its entry ${path}, "link" is neither true nor false`],
+    ]) {
+      assert.throws(
+        () => stateOf({ locked: { ...THREE, [path]: entry }, recorded: THREE }),
+        (e) => e.message === `package-lock.json cannot be read: ${why}`,
+        why,
+      );
+    }
+  });
+
+  test("refuses in one line whatever the lockfile holds: an entry's path or a lockfileVersion with a line break in it", () => {
+    const forged = "node_modules/made-up-x\ninstalls in order | 1 folder";
+    const old = JSON.stringify({ lockfileVersion: "1\rinstalls in order | 1 folder", dependencies: {} });
+
+    assert.throws(
+      () => stateOf({ locked: { ...THREE, [forged]: null }, recorded: THREE }),
+      (e) =>
+        e.message ===
+        "package-lock.json cannot be read: its entry node_modules/made-up-x installs in order | 1 folder is no object",
+    );
+    assert.throws(
+      () => stateOf({ locked: old, recorded: THREE }),
+      (e) => e.message.startsWith('package-lock.json has no "packages" map (lockfileVersion 1 installs in order | '),
+    );
+  });
+});
+
+describe("notThere: which failure to read npm's record says that there is none", () => {
+  // An error as Node gives one for a file it could not read: the system's code, and words that are made up.
+  const failure = (code) => Object.assign(new Error(`${code}: made-up, open 'a/made-up/path'`), { code });
+
+  test("is so for no such file, and for no node_modules folder to hold one", () => {
+    assert.equal(notThere(failure("ENOENT")), true);
+    assert.equal(notThere(failure("ENOTDIR")), true);
+  });
+
+  test("is not so for a record that is there and cannot be opened or read, whatever the system's reason", () => {
+    for (const code of ["EBUSY", "EPERM", "EACCES", "EISDIR", "EMFILE", "ENFILE", "EIO", "ELOOP", "UNKNOWN"]) {
+      assert.equal(notThere(failure(code)), false, code);
+    }
+    assert.equal(notThere(new Error("made-up: an error without a code")), false);
+  });
+});
+
+describe("installTime: whether an install starts, and how long it may run", () => {
+  // The command's default limit, 9 minutes, and a third of it. No test here waits: the times are numbers.
+  const LIMIT = 9 * 60_000;
+  const THIRD = 3 * 60_000;
+  const timeFor = (state, usedMs, limitMs = LIMIT) => installTime({ limitMs, usedMs, state });
+
+  test("gives an install all that is left of the limit, and no more: what the ones before it did not use", () => {
+    for (const state of ["missing", "stale"]) {
+      assert.deepEqual(timeFor(state, 0), { start: true, forMs: LIMIT }, state);
+      assert.deepEqual(timeFor(state, 200_000), { start: true, forMs: 340_000 }, state);
+    }
+  });
+
+  test("starts no install in a stale folder with less than a third of the limit left", () => {
+    assert.deepEqual(timeFor("stale", LIMIT - THIRD), { start: true, forMs: THIRD }, "a third is left");
+    assert.deepEqual(timeFor("stale", LIMIT - THIRD + 1), { start: false, left: "less than a third" });
+    assert.deepEqual(timeFor("stale", LIMIT - 1), { start: false, left: "less than a third" });
+    assert.deepEqual(timeFor("stale", LIMIT), { start: false, left: "less than a third" });
+    assert.deepEqual(timeFor("stale", LIMIT + 5_000), { start: false, left: "less than a third" });
+  });
+
+  test("starts the install of a missing folder while any time is left: there is no node_modules to lose", () => {
+    assert.deepEqual(timeFor("missing", LIMIT - THIRD + 1), { start: true, forMs: THIRD - 1 });
+    assert.deepEqual(timeFor("missing", LIMIT - 1), { start: true, forMs: 1 });
+    assert.deepEqual(timeFor("missing", LIMIT), { start: false, left: "none" });
+    assert.deepEqual(timeFor("missing", LIMIT + 5_000), { start: false, left: "none" });
+  });
+
+  test("takes the third of the limit it is given, so that it follows a --timeout", () => {
+    // 0.05 minutes are 3 seconds, and 30 minutes 1,800: a third of them is 1 second, and 600.
+    assert.deepEqual(timeFor("stale", 2_000, 3_000), { start: true, forMs: 1_000 });
+    assert.deepEqual(timeFor("stale", 2_001, 3_000), { start: false, left: "less than a third" });
+    assert.deepEqual(timeFor("stale", 1_200_000, 1_800_000), { start: true, forMs: 600_000 });
+    assert.deepEqual(timeFor("stale", 1_200_001, 1_800_000), { start: false, left: "less than a third" });
+    assert.deepEqual(timeFor("missing", 2_999, 3_000), { start: true, forMs: 1 });
   });
 });
 

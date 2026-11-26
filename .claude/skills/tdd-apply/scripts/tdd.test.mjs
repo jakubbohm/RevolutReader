@@ -60,6 +60,7 @@ import {
   setAside,
   throwAway,
   tickTasks,
+  visible,
   windowsCommandLine,
 } from "./tdd.mjs";
 
@@ -314,7 +315,12 @@ function fakeGraph(t) {
 //   a package.json for each locked package (none for one of the made-up system `made-up-os`), and writes its
 //   record of them, node_modules/.package-lock.json;
 // - `fail`: it clears node_modules, prints an error as npm words one, and exits 1;
+// - `fail-old`: the same, the error worded as npm did before its version 10 (`npm ERR! …`);
+// - `fail-quiet`: it clears node_modules, prints lines of which none is worded as an error, and exits 1;
+// - `fail-control`: it clears node_modules, prints an error line that holds control characters (a carriage
+//   return, a terminal's sequence, a backspace and Unicode's next line), and exits 1;
 // - `nothing`: it exits 0 and installs nothing;
+// - `spoil`: it installs as `ok` does, leaves a package-lock.json that is no JSON, and exits 0;
 // - `hang`: it never ends.
 function fakeNpm(t) {
   const dir = tempFolder(t);
@@ -334,9 +340,20 @@ function fakeNpm(t) {
       '} else if (mode !== "nothing") {',
       '  rmSync("node_modules", { recursive: true, force: true });',
       '  mkdirSync("node_modules");',
-      '  if (mode === "fail") {',
-      '    console.error("npm error code EPERM");',
-      '    console.error("npm error made-up: a file is held by another program");',
+      '  if (mode === "fail" || mode === "fail-old") {',
+      '    const error = mode === "fail" ? "npm error" : "npm ERR!";',
+      '    console.error(error + " code EPERM");',
+      '    console.error(error + " made-up: a file is held by another program");',
+      "    process.exit(1);",
+      "  }",
+      '  if (mode === "fail-quiet") {',
+      '    console.error("made-up: the first line\\n\\nmade-up: the second line\\n   \\nmade-up: the last line");',
+      "    process.exit(1);",
+      "  }",
+      '  if (mode === "fail-control") {',
+      '    const [escape, backspace, nextLine] = [27, 8, 0x85].map((code) => String.fromCharCode(code));',
+      '    const forged = "installs in order | 1 folder";',
+      '    console.error("npm error made-up\\r" + forged + escape + "[2K" + backspace + nextLine + forged);',
       "    process.exit(1);",
       "  }",
       '  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));',
@@ -348,6 +365,7 @@ function fakeNpm(t) {
       '    writeFileSync(join(path, "package.json"), JSON.stringify({ version: entry.version }));',
       "  }",
       '  writeFileSync("node_modules/.package-lock.json", JSON.stringify({ lockfileVersion: 3, requires: true, packages }));',
+      '  if (mode === "spoil") writeFileSync("package-lock.json", "not json");',
       "}",
       "",
     ].join("\n"),
@@ -375,6 +393,26 @@ function fakeNpm(t) {
           .map((l) => JSON.parse(l))
       : [];
   return { env, received };
+}
+
+// A file that is there and that no system starts: a text under a program's name, which may not be executed. The
+// system's refusal is another one than for a file that is not there, and Node reports it another way: on Windows
+// `spawn` throws it, elsewhere the started process emits it.
+function noProgram(t) {
+  const file = join(tempFolder(t), "not-a-program.exe");
+  writeFileSync(file, "a text, and no program\n", { mode: 0o644 });
+  return file;
+}
+
+// Programs that the system refuses to start for another reason than that the file is not there. Node reports
+// such a refusal in one of two ways, by the system's reason (tdd.mjs, `logged`): `spawn` throws it, or the
+// process it answers emits it. Between them these make `spawn` throw on Windows and on Linux, the two systems
+// the tests run on. `noProgram` is thrown on Windows and emitted elsewhere, so everywhere else a name stands
+// beside it that is one byte longer than a file's name may be (255); Windows takes such a name for a file that
+// is not there. Seen with Node 24 on 2026-11-26: `spawn UNKNOWN`, thrown, on Windows 11; on Linux
+// `spawn … EACCES`, emitted, and `spawn ENAMETOOLONG`, thrown. Not tried on macOS.
+function unstartable(t) {
+  return WINDOWS ? [noProgram(t)] : [noProgram(t), `/${"x".repeat(256)}`];
 }
 
 const samePath = (a, b) => assert.equal(realpathSync(a).toLowerCase(), realpathSync(b).toLowerCase());
@@ -554,6 +592,66 @@ describe("logFileName", () => {
       logFileName("c900_unit.red-2", new Date(2026, 0, 2, 13, 14, 15)),
       "20260102-131415-c900_unit.red-2.log",
     );
+  });
+});
+
+describe("visible", () => {
+  // A character by its code, so that this file holds none of the characters it tests.
+  const char = (code) => String.fromCodePoint(code);
+  // The characters that end a line somewhere: the line feed, the vertical tab, the form feed, the carriage
+  // return, Unicode's next line and its line and paragraph separators.
+  const LINE_ENDS = [0x0a, 0x0b, 0x0c, 0x0d, 0x85, 0x2028, 0x2029];
+
+  test("leaves a text without a control character as it is", () => {
+    const text = 'install: src/Made.Up.Web | stale: 1.2.4 locked · "č" … | run again: tdd.mjs --root "D:\\a b\\n"';
+
+    assert.equal(visible(text), text);
+    assert.equal(visible(""), "");
+  });
+
+  test("writes a line feed, a carriage return and a tab as the escapes a reader knows", () => {
+    assert.equal(visible("one\ntwo\r\nthree\rfour\tfive"), "one\\ntwo\\r\\nthree\\rfour\\tfive");
+  });
+
+  test("writes every other control character, and each line and paragraph separator, as its code", () => {
+    for (const [code, escape] of [
+      [0x00, "0000"],
+      [0x07, "0007"],
+      [0x08, "0008"],
+      [0x0b, "000b"],
+      [0x0c, "000c"],
+      [0x1b, "001b"],
+      [0x7f, "007f"],
+      [0x85, "0085"],
+      [0x9b, "009b"],
+      [0x2028, "2028"],
+      [0x2029, "2029"],
+    ]) {
+      assert.equal(visible(`a${char(code)}b`), `a\\u${escape}b`, escape);
+    }
+  });
+
+  test("writes a character that is not shown, or that turns the writing direction, as its code too", () => {
+    for (const [code, escape] of [
+      [0xad, "\\u00ad"],
+      [0x200b, "\\u200b"],
+      [0x200d, "\\u200d"],
+      [0x202e, "\\u202e"],
+      [0x2066, "\\u2066"],
+      [0xfeff, "\\ufeff"],
+      [0xe0001, "\\u{e0001}"],
+    ]) {
+      assert.equal(visible(`a${char(code)}b`), `a${escape}b`, escape);
+    }
+  });
+
+  test("leaves nothing that ends a line, so that a text is one line of output whatever it held", () => {
+    const forged = LINE_ENDS.map((code) => `${char(code)}installs in order | 1 folder`).join("");
+
+    const shown = visible(`install: a folder${forged}`);
+
+    for (const code of LINE_ENDS) assert.equal(shown.includes(char(code)), false, code.toString(16));
+    assert.ok(shown.startsWith("install: a folder\\ninstalls in order | 1 folder\\u000binstalls in order"), shown);
   });
 });
 
@@ -2658,19 +2756,23 @@ describe("install", { concurrency: true }, () => {
     tdd(cwd, ["install", ...args.flatMap(optionsAsArguments)], { env: { ...tempEnv(temp), ...env } });
   const DONE = String.raw`npm ci: done in \d+(\.\d)?s`;
   const AGAIN = "run again: node .claude/skills/tdd-apply/scripts/tdd.mjs install";
+  // The line that ends a run in which the install of every folder is in order, and no other run. It starts
+  // unlike a folder's line, whatever a folder is named.
+  const IN_ORDER = (folders) => `installs in order | ${folders} folder${folders === 1 ? "" : "s"}\n`;
+  const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  test("says in one line that a repository tracks no lockfile, and starts no npm", async (t) => {
+  test("says in its one line that a repository tracks no lockfile, and starts no npm", async (t) => {
     const dir = repository(t);
     const npm = fakeNpm(t);
 
     const r = await installing(dir, tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, "install: no folder with a tracked package-lock.json\n");
+    assert.equal(r.out, "installs in order | no folder with a tracked package-lock.json\n");
     assert.deepEqual(npm.received(), []);
   });
 
-  test("says ok for an install that is what its lockfile says, and starts no npm", async (t) => {
+  test("says ok for an install that is what its lockfile says, ends with the line of a run in order, and starts no npm", async (t) => {
     const dir = await withProjects(t, CLIENT);
     const npm = fakeNpm(t);
     npmInstalled(dir, CLIENT);
@@ -2678,7 +2780,7 @@ describe("install", { concurrency: true }, () => {
     const r = await installing(dir, tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, `install: ${CLIENT} | ok\n`);
+    assert.equal(r.out, `install: ${CLIENT} | ok\n${IN_ORDER(1)}`);
     assert.equal(r.err, "");
     assert.deepEqual(npm.received(), []);
     assert.deepEqual(await status(dir), [], "the working tree stays clean");
@@ -2693,15 +2795,127 @@ describe("install", { concurrency: true }, () => {
     const again = await installing(dir, temp, npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.match(r.out, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}\\n$`));
+    assert.match(r.out, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`));
     assert.equal(r.err, "");
     const [call, ...more] = npm.received();
     assert.deepEqual(more, [], "npm is started once");
     assert.deepEqual(call.args, ["ci"]);
     samePath(call.cwd, join(dir, CLIENT));
-    assert.equal(again.out, `install: ${CLIENT} | ok\n`);
+    assert.equal(again.out, `install: ${CLIENT} | ok\n${IN_ORDER(1)}`);
     assert.deepEqual(await status(dir), [], "node_modules is ignored, and the lockfile is as it was");
   });
+
+  test("ends with the line of a run in order only when every folder is: not after a failure, and not for a dry run that would install", async (t) => {
+    const dir = await withProjects(t, CLIENT, WEB);
+    const npm = fakeNpm(t);
+    npmInstalled(dir, WEB);
+
+    const dryBehind = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+    const failed = await installing(dir, tempFolder(t), npm.env("fail"));
+    const made = await installing(dir, tempFolder(t), npm.env());
+    const dryInOrder = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+
+    assert.equal(dryBehind.code, 0, dryBehind.err);
+    assert.equal(
+      dryBehind.out,
+      `install: ${WEB} | ok\ninstall: ${CLIENT} | missing | npm ci: not run (--dry-run)\n`,
+      "a folder is not in order, so the last line is a folder's",
+    );
+    assert.equal(failed.code, 1);
+    assert.equal(failed.out, `install: ${WEB} | ok\n`, "the folder that is ok does not make the run one in order");
+    assert.equal(made.code, 0, made.err);
+    assert.ok(made.out.endsWith(`\n${IN_ORDER(2)}`), made.out);
+    assert.equal(dryInOrder.out, `install: ${WEB} | ok\ninstall: ${CLIENT} | ok\n${IN_ORDER(2)}`);
+  });
+
+  test("gives a folder that is named like the last line's start a line that still starts unlike it", async (t) => {
+    const dir = await withProjects(t, "installs in order");
+    const npm = fakeNpm(t);
+
+    const dry = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+    const failed = await installing(dir, tempFolder(t), npm.env("fail"));
+
+    assert.equal(dry.out, "install: installs in order | missing | npm ci: not run (--dry-run)\n");
+    assert.doesNotMatch(dry.out, /^installs in order/m);
+    assert.equal(failed.code, 1);
+    assert.equal(failed.out, "");
+    assert.match(failed.err, /^ERROR: install: installs in order \| missing \| npm ci failed /);
+  });
+
+  // What a run printed, line by line, a line ending at every character that ends one somewhere: the line feed,
+  // the carriage return, the vertical tab, the form feed, Unicode's next line and its two separators.
+  const printedLines = (run) => (run.out + run.err).split(/[\n\r\v\f\x85\u{2028}\u{2029}]+/u).filter(Boolean);
+  const startsLikeTheLast = (line) => line.startsWith("installs in order");
+
+  test("keeps a folder's line on one line whatever its lockfile holds, so that no line but the last starts like the last", async (t) => {
+    const dir = await withProjects(t, CLIENT);
+    const npm = fakeNpm(t);
+    // A package whose path in the lockfile ends a line and goes on as the line of a run in order would. It is not
+    // installed, so the folder's line names it.
+    const forged = "node_modules/made-up-x\ninstalls in order | 1 folder";
+    npmProject(dir, CLIENT, { ...LOCKED, [forged]: from("9.9.9") });
+    npmInstalled(dir, CLIENT);
+    const state =
+      "stale: differs from the lockfile in 1 package: " +
+      "node_modules/made-up-x installs in order | 1 folder (not installed)";
+
+    const dry = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+    const failed = await installing(dir, tempFolder(t), npm.env("fail"));
+
+    assert.equal(dry.out, `install: ${CLIENT} | ${state} | npm ci: not run (--dry-run)\n`);
+    assert.equal(failed.code, 1);
+    assert.equal(failed.out, "");
+    const start = `ERROR: install: ${CLIENT} | ${state} | npm ci failed (exit 1) after `;
+    assert.ok(failed.err.startsWith(start), failed.err);
+    for (const run of [dry, failed]) {
+      assert.equal(printedLines(run).length, 1, run.out + run.err);
+      assert.deepEqual(printedLines(run).filter(startsLikeTheLast), []);
+    }
+  });
+
+  test("keeps what npm said on the folder's one line, its control characters made visible", async (t) => {
+    const dir = await withProjects(t, CLIENT);
+
+    const r = await installing(dir, tempFolder(t), fakeNpm(t).env("fail-control"));
+
+    assert.equal(r.code, 1);
+    assert.equal(r.out, "");
+    assert.equal(printedLines(r).length, 1, r.err);
+    // The carriage return, the backspace and the next line stand as their escapes; the terminal's sequence
+    // between them is taken out, as from every line of npm's.
+    const said = "npm error made-up\\rinstalls in order | 1 folder\\u0008\\u0085installs in order | 1 folder";
+    assert.ok(r.err.endsWith(` | npm said: ${said}\n`), r.err);
+  });
+
+  test(
+    "gives a folder whose name ends a line one line all the same",
+    { skip: WINDOWS && "Windows has no folder with a line break in its name" },
+    async (t) => {
+      const dir = await withProjects(t, "tools/made-up\ninstalls in order | 1 folder");
+      const npm = fakeNpm(t);
+      const shown = "tools/made-up\\ninstalls in order | 1 folder";
+
+      const dry = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+      const failed = await installing(dir, tempFolder(t), npm.env("fail"));
+      const made = await installing(dir, tempFolder(t), npm.env());
+
+      assert.equal(dry.out, `install: ${shown} | missing | npm ci: not run (--dry-run)\n`);
+      assert.equal(failed.code, 1);
+      assert.equal(failed.out, "");
+      const start = `ERROR: install: ${shown} | missing | npm ci failed (exit 1) after `;
+      assert.ok(failed.err.startsWith(start), failed.err);
+      for (const run of [dry, failed]) {
+        assert.equal(printedLines(run).length, 1, run.out + run.err);
+        assert.deepEqual(printedLines(run).filter(startsLikeTheLast), []);
+      }
+      assert.equal(made.code, 0, made.err);
+      // The failed install left a node_modules without npm's record, so the folder is stale by now.
+      const [line, last, ...more] = printedLines(made);
+      assert.match(line, new RegExp(`^install: ${escaped(shown)} \\| stale: no [^|]+ \\| ${DONE}$`));
+      assert.equal(`${last}\n`, IN_ORDER(1));
+      assert.deepEqual(more, []);
+    },
+  );
 
   test("keeps npm's own output out of what it prints, in a log beside the run's logs", async (t) => {
     const dir = await withProjects(t, CLIENT);
@@ -2731,7 +2945,7 @@ describe("install", { concurrency: true }, () => {
       r.out,
       new RegExp(
         `^install: ${CLIENT} \\| stale: differs from the lockfile in 1 package: ` +
-          `node_modules/made-up-dep \\(1\\.2\\.4 locked, 1\\.2\\.3 installed\\) \\| ${DONE}\\n$`,
+          `node_modules/made-up-dep \\(1\\.2\\.4 locked, 1\\.2\\.3 installed\\) \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`,
       ),
     );
     assert.deepEqual(
@@ -2753,8 +2967,69 @@ describe("install", { concurrency: true }, () => {
     assert.match(
       r.out,
       new RegExp(
-        `^install: ${CLIENT} \\| stale: no node_modules/\\.package-lock\\.json, npm's record of what it installed \\| ${DONE}\\n$`,
+        `^install: ${CLIENT} \\| stale: no node_modules/\\.package-lock\\.json, npm's record of what it installed \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`,
       ),
+    );
+  });
+
+  test("takes a record of npm's whose text cannot be read for a stale install, never for an error, and installs again", async (t) => {
+    const RECORD = `${CLIENT}/node_modules/.package-lock.json`;
+    const unreadable = String.raw`stale: node_modules/\.package-lock\.json cannot be read: `;
+    // Each text that is no record of npm's, and what the folder's line says of it.
+    const records = [
+      ['{"packages":{"node_modules/made-up-dep":null}}', "its entry node_modules/made-up-dep is no object"],
+      ["not json", "Unexpected token"],
+    ];
+    for (const [text, why] of records) {
+      const dir = await withProjects(t, CLIENT);
+      const npm = fakeNpm(t);
+      npmInstalled(dir, CLIENT);
+      write(dir, RECORD, text);
+
+      const r = await installing(dir, tempFolder(t), npm.env());
+
+      assert.equal(r.err, "", why);
+      assert.equal(r.code, 0, why);
+      assert.match(
+        r.out,
+        new RegExp(
+          `^install: ${CLIENT} \\| ${unreadable}[^|]*${why}[^|]* \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`,
+        ),
+      );
+      assert.equal(npm.received().length, 1, why);
+      const record = JSON.parse(read(dir, RECORD));
+      assert.equal(record.packages["node_modules/made-up-dep"].version, "1.2.4", "npm wrote its record again");
+    }
+  });
+
+  test("tells a record of npm's that is there and cannot be opened in its folder's ERROR line, installs nothing there, and checks the others", async (t) => {
+    const dir = await withProjects(t, CLIENT, WEB);
+    const npm = fakeNpm(t);
+    npmInstalled(dir, CLIENT);
+    // The install is a good one, and its record cannot be read as a file: a folder stands in its place. Every
+    // system refuses that, as it refuses a record that another program holds.
+    const RECORD = `${CLIENT}/node_modules/.package-lock.json`;
+    rmSync(join(dir, RECORD));
+    mkdirSync(join(dir, RECORD));
+
+    const r = await installing(dir, tempFolder(t), npm.env());
+    const dry = await installing(dir, tempFolder(t), npm.env(), { "dry-run": true });
+
+    assert.equal(r.code, 1);
+    assert.match(r.out, new RegExp(`^install: ${escaped(WEB)} \\| missing \\| ${DONE}\\n$`), "no last line");
+    assert.equal(dry.code, 1);
+    assert.equal(dry.out, `install: ${WEB} | ok\n`);
+    const unopened = String.raw`node_modules/\.package-lock\.json cannot be read: EISDIR[^|]*`;
+    for (const run of [r, dry]) {
+      assert.ok(oneLine(run.err), run.err);
+      assert.match(run.err, new RegExp(`^ERROR: install: ${CLIENT} \\| ${unopened}\\n$`));
+    }
+    assert.equal(npm.received().length, 1, "npm is started in the other folder alone");
+    samePath(npm.received()[0].cwd, join(dir, WEB));
+    assert.equal(
+      read(dir, `${CLIENT}/node_modules/made-up-dep/package.json`),
+      JSON.stringify({ version: "1.2.4" }),
+      "the install is as it was",
     );
   });
 
@@ -2766,9 +3041,10 @@ describe("install", { concurrency: true }, () => {
     const r = await installing(dir, tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    const [web, client, ...more] = r.out.trimEnd().split("\n");
+    const [web, client, last, ...more] = r.out.trimEnd().split("\n");
     assert.equal(web, `install: ${WEB} | ok`);
     assert.match(client, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}$`));
+    assert.equal(`${last}\n`, IN_ORDER(2));
     assert.deepEqual(more, []);
     assert.equal(npm.received().length, 1);
     samePath(npm.received()[0].cwd, join(dir, CLIENT));
@@ -2806,7 +3082,7 @@ describe("install", { concurrency: true }, () => {
     const r = await installing(dir, tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, `install: ${CLIENT} | ok\n`);
+    assert.equal(r.out, `install: ${CLIENT} | ok\n${IN_ORDER(1)}`);
     assert.deepEqual(npm.received(), []);
   });
 
@@ -2819,7 +3095,7 @@ describe("install", { concurrency: true }, () => {
     const r = await installing(dir, tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.equal(r.out, `install: ${WEB} | ok\n`);
+    assert.equal(r.out, `install: ${WEB} | ok\n${IN_ORDER(1)}`);
     assert.deepEqual(npm.received(), []);
   });
 
@@ -2831,8 +3107,30 @@ describe("install", { concurrency: true }, () => {
     const r = await installing(join(dir, "src", "App"), tempFolder(t), npm.env());
 
     assert.equal(r.code, 0, r.err);
-    assert.match(r.out, new RegExp(`^install: \\. \\| missing \\| ${DONE}\\ninstall: ${CLIENT} \\| ok\\n$`));
+    assert.match(
+      r.out,
+      new RegExp(`^install: \\. \\| missing \\| ${DONE}\\ninstall: ${CLIENT} \\| ok\\n${escaped(IN_ORDER(2))}$`),
+    );
     samePath(npm.received()[0].cwd, dir);
+  });
+
+  test("with --root works on the repository of the folder named, from a folder outside every repository", async (t) => {
+    const dir = await withProjects(t, CLIENT);
+    const outside = tempFolder(t);
+    const npm = fakeNpm(t);
+
+    const r = await installing(outside, tempFolder(t), npm.env(), { root: join(dir, "src", "App") });
+    const without = await installing(outside, tempFolder(t), npm.env());
+
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}\\n${escaped(IN_ORDER(1))}$`));
+    samePath(npm.received()[0].cwd, join(dir, CLIENT));
+    assert.equal(without.code, 1);
+    assert.match(
+      without.err,
+      /^ERROR: .+ is not inside a git repository; run from inside one or give --root <path>\n$/,
+    );
+    assert.equal(npm.received().length, 1);
   });
 
   test("tells a failed install in one ERROR line, with the way on, and still installs the other folders", async (t) => {
@@ -2857,6 +3155,46 @@ describe("install", { concurrency: true }, () => {
     assert.equal(npm.received().length, 2);
   });
 
+  test("says what npm said of a failure: its error lines as it worded them before its version 10 too, else its last three lines", async (t) => {
+    const said = async (mode) => {
+      const dir = await withProjects(t, CLIENT);
+      const r = await installing(dir, tempFolder(t), fakeNpm(t).env(mode));
+      assert.equal(r.code, 1, mode);
+      assert.ok(oneLine(r.err), r.err);
+      return / \| npm said: (.+)\n$/.exec(r.err)?.[1];
+    };
+
+    assert.equal(
+      await said("fail-old"),
+      "npm ERR! code EPERM | npm ERR! made-up: a file is held by another program",
+      "the error lines alone, without the line npm printed before them",
+    );
+    assert.equal(
+      await said("fail-quiet"),
+      "made-up: the first line | made-up: the second line | made-up: the last line",
+      "the last three lines that are not blank, when none is worded as an error",
+    );
+  });
+
+  test("names the command to run again as it was called, with --root as a whole path and --timeout", async (t) => {
+    const dir = await initialized(t);
+    npmProject(dir, CLIENT);
+    await git(dir, "add", "-A");
+    const npm = fakeNpm(t);
+    const inside = join(dir, "src", "App");
+    const again = (r) => / \| (run again: [^|]+) \| log: /.exec(r.err)?.[1];
+
+    const all = await installing(inside, tempFolder(t), npm.env("fail"), {
+      change: CHANGE,
+      root: "../..",
+      timeout: "2",
+    });
+    const none = await installing(inside, tempFolder(t), npm.env("fail"));
+
+    assert.equal(again(all), `${AGAIN} --change ${CHANGE} --root "${slashed(dir)}" --timeout 2`);
+    assert.equal(again(none), AGAIN);
+  });
+
   test("tells it when npm ends without an error and the install is still not what the lockfile says", async (t) => {
     const dir = await withProjects(t, CLIENT);
     const npm = fakeNpm(t);
@@ -2874,29 +3212,63 @@ describe("install", { concurrency: true }, () => {
     assert.doesNotMatch(r.err, /run again/, "running it again would end the same way");
   });
 
-  test("stops an install at the command's time limit and starts none after it", async (t) => {
-    const dir = await withProjects(t, CLIENT, WEB);
+  test("tells it when the folder cannot be judged after an npm ci that ended without an error", async (t) => {
+    const dir = await withProjects(t, CLIENT);
     const npm = fakeNpm(t);
 
-    // 0.05 minutes: 3 seconds, enough for the stand-in to start on a busy machine.
-    const r = await installing(dir, tempFolder(t), npm.env("hang"), { timeout: "0.05" });
+    const r = await installing(dir, tempFolder(t), npm.env("spoil"));
 
     assert.equal(r.code, 1);
     assert.equal(r.out, "");
+    assert.ok(oneLine(r.err), r.err);
+    assert.match(
+      r.err,
+      /^ERROR: install: tools\/made-up-client \| missing \| npm ci ended without an error after \d+(\.\d)?s, and the install is still not what the lockfile says: package-lock\.json cannot be read: Unexpected token[^|]* \| log: \S+\.log\n$/,
+    );
+  });
+
+  // The one test of `install` that runs against the clock. How the time limit is shared among the folders is a
+  // rule of numbers, tested without a process and without a clock (installs.test.mjs, `installTime`). Here
+  // nothing has to end inside a time: the first folder's install never ends, so it is stopped when the limit is
+  // over, however long the stand-in takes to start, and from then on less than a third of the limit is left,
+  // whatever the machine. The limit only has to outlast the script's own way to that install, one call of git
+  // and a few files read: 0.15 minutes are 9 seconds.
+  test("stops an install at the command's time limit and says so, and starts none in a stale folder after it", async (t) => {
+    const dir = await withProjects(t, CLIENT, WEB);
+    const temp = tempFolder(t);
+    const npm = fakeNpm(t);
+    npmInstalled(dir, CLIENT, { ...HERE, "node_modules/made-up-dep": from("1.2.3") });
+    const behind =
+      "stale: differs from the lockfile in 1 package: node_modules/made-up-dep (1.2.4 locked, 1.2.3 installed)";
+
+    const r = await installing(dir, temp, npm.env("hang"), { timeout: "0.15" });
+
+    assert.equal(r.code, 1);
+    assert.equal(r.out, "", "no line of a run in order");
     const [first, second, ...more] = r.err.trimEnd().split("\n");
     assert.deepEqual(more, []);
+    const again = `${AGAIN} --timeout 0.15`;
     assert.match(
       first,
       new RegExp(
-        `^ERROR: install: ${WEB.replace(/\./g, "\\.")} \\| missing \\| npm ci stopped at the time limit \\(0\\.05 min\\): ` +
-          `its node_modules may now be incomplete \\| ${AGAIN.replace(/\./g, "\\.")} \\| log: \\S+\\.log$`,
+        `^ERROR: install: ${escaped(WEB)} \\| missing \\| npm ci stopped at the time limit \\(0\\.15 min\\) ` +
+          `after \\d+\\.\\ds: its node_modules may now be incomplete \\| ${escaped(again)} \\| log: \\S+\\.log$`,
       ),
     );
     assert.equal(
       second,
-      `ERROR: install: ${CLIENT} | missing | npm ci not started: the time limit (0.05 min) was reached | ${AGAIN}`,
+      `ERROR: install: ${CLIENT} | ${behind} | ` +
+        `npm ci not started: less than a third of the time limit (0.15 min) was left | ${again}`,
     );
-    assert.equal(npm.received().length, 1);
+    // One install was started, by the script's own count: it opens a log for each. (What the stand-in recorded
+    // is not asked: it may have been stopped before it wrote.)
+    assert.equal(readdirSync(join(temp, "tdd-runs", "install")).length, 1);
+    for (const call of npm.received()) samePath(call.cwd, join(dir, WEB));
+    assert.equal(
+      read(dir, `${CLIENT}/node_modules/made-up-dep/package.json`),
+      JSON.stringify({ version: "1.2.3" }),
+      "the install that is behind is still there, and usable",
+    );
   });
 
   test("tells in one line per folder that npm cannot be started", async (t) => {
@@ -2913,6 +3285,29 @@ describe("install", { concurrency: true }, () => {
     );
     assert.equal(existsSync(join(dir, CLIENT, "node_modules")), false);
     assert.deepEqual(readdirSync(join(temp, "tdd-runs", "install")), [], "no empty log is left");
+  });
+
+  test("tells the same for an npm that the system refuses to start, in the system's words and whichever way Node reports it, and goes on to the next folder", async (t) => {
+    const dir = await withProjects(t, CLIENT, WEB);
+
+    for (const npm of unstartable(t)) {
+      const temp = tempFolder(t);
+
+      const r = await installing(dir, temp, { TDD_NPM_CLI: npm });
+
+      assert.equal(r.code, 1, npm);
+      assert.equal(r.out, "", npm);
+      const lines = r.err.trimEnd().split("\n");
+      assert.deepEqual(
+        lines.map((line) => line.replace(/: spawn .+$/, ": spawn <the system's reason>")),
+        [WEB, CLIENT].map(
+          (folder) => `ERROR: install: ${folder} | missing | npm ci cannot be started: spawn <the system's reason>`,
+        ),
+        npm,
+      );
+      assert.doesNotMatch(r.err, /is not on the PATH/, npm);
+      assert.deepEqual(readdirSync(join(temp, "tdd-runs", "install")), [], "no empty log is left");
+    }
   });
 
   test("tells a lockfile it cannot judge in its folder's ERROR line, starts no npm there, and checks the others", async (t) => {
@@ -2933,6 +3328,23 @@ describe("install", { concurrency: true }, () => {
       );
     }
     assert.deepEqual(npm.received(), []);
+  });
+
+  test("tells a lockfile it cannot read in its folder's ERROR line, by the file's name, and still installs where it must", async (t) => {
+    const dir = await withProjects(t, CLIENT, WEB);
+    const npm = fakeNpm(t);
+    // Git still tracks the lockfile; in the working tree a folder of its name stands in its place.
+    rmSync(join(dir, WEB, "package-lock.json"));
+    mkdirSync(join(dir, WEB, "package-lock.json"));
+
+    const r = await installing(dir, tempFolder(t), npm.env());
+
+    assert.equal(r.code, 1);
+    assert.match(r.out, new RegExp(`^install: ${CLIENT} \\| missing \\| ${DONE}\\n$`), "no line of a run in order");
+    assert.ok(oneLine(r.err), r.err);
+    assert.match(r.err, new RegExp(`^ERROR: install: ${escaped(WEB)} \\| package-lock\\.json cannot be read: EISDIR`));
+    assert.equal(npm.received().length, 1);
+    samePath(npm.received()[0].cwd, join(dir, CLIENT));
   });
 
   test("takes --change or --pr, puts the log with that run's logs, and names the same command to run again", async (t) => {
@@ -3258,6 +3670,23 @@ describe("run", { concurrency: true }, () => {
     assert.equal(r.out, "");
     assert.match(r.err, /^ERROR: .*no-such-command-made-up/);
     assert.ok(oneLine(r.err), r.err);
+  });
+
+  test("fails the same way for a command that the system refuses to start, whichever way Node reports it, and leaves no log", async (t) => {
+    const dir = repository(t);
+
+    for (const command of unstartable(t)) {
+      const temp = tempFolder(t);
+
+      const r = await wrapped(dir, temp, "none", [command, "--version"]);
+
+      assert.equal(r.code, 127, command);
+      assert.equal(r.out, "", command);
+      assert.ok(r.err.startsWith(`ERROR: cannot start ${command}: spawn `), r.err);
+      assert.doesNotMatch(r.err, /is not on the PATH/, command);
+      assert.ok(oneLine(r.err), r.err);
+      assert.deepEqual(readdirSync(join(temp, "tdd-runs", CHANGE)), [], "no empty log is left");
+    }
   });
 
   test("fails with one line without a command, without a label, and for a time limit that is no number", async (t) => {

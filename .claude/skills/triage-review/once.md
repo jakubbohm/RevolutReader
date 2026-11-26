@@ -57,10 +57,11 @@ is recorded nowhere.
    - Then the npm installs, at every start of the skill and before anything else: `tdd install --pr <id>`,
      with the Bash tool's `timeout` set to 600000. The script checks the installed packages of every folder
      with a `package-lock.json`, and installs by itself where they are missing or behind the lockfile. When
-     each line it prints ends `| ok` or `| npm ci: done in <time>`, go on. For anything else, a line that
-     starts `ERROR:` (a full stop) or a command the tool moved to the background, follow
-     `.claude/skills/tdd-apply/once.md` § The npm installs: Grep that file for `^## `, and Read that section
-     only.
+     the install of every folder is in order at the end, and only then, it prints a line that starts
+     `installs in order |`. Go on only when the output holds that line, never by the lines before it. For
+     anything else (no such line, or a command the tool moved to the background) follow
+     `.claude/skills/tdd-apply/once.md` § The npm installs from its step 2, the command being run already:
+     Grep that file for `^## `, and Read that section only.
    - The state file is read and written only through `tdd … --pr <id>`, with a change and without one alike:
      never with Read, and never as a whole.
    - Then read `tdd get --pr <id> --section "Round <n>" --section Open --section "Resume here"`. If `Round

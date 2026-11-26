@@ -44,8 +44,12 @@
 //   check returned no result, and still exits 0. `get`, asked for several sections, prints those the file has and
 //   names each other one (`get: no section "<name>" in <file>; the sections are: …`); it is refused only when
 //   the file has none of them. `install` answers each folder on a line of its own: one it could not check or
-//   install is a line `ERROR: install: <folder> | …` on stderr, never cut, the others are still checked, and the
-//   exit code is then 1.
+//   install is a line `ERROR: install: <folder> | …` on stderr, the others are still checked, and the exit code
+//   is then 1. Such a line is never cut as a whole: the folder, its state, the command to run again and the
+//   log's path are always whole. What it takes from an error it met (why a folder could not be checked, or npm
+//   not started) and from npm's output is cut at 300 characters each. A folder's line, on either output, is one
+//   line whatever the folder is named and whatever its lockfile, npm's record or npm's output hold: a control
+//   character in it, a line break among them, is written as its escape (`visible`).
 // - Every command that writes a state file, a local file, the reviews file, tasks.md or the pointer (init,
 //   triage-init, set, add, put, drop, review, commit, unguard, and index for the local file) holds the working
 //   tree's lock from its first read to its last write, `commit` and `unguard` to the end of `git commit`, and every
@@ -56,12 +60,19 @@
 // - `install` is how both skills make sure, at every start and every resume, that the packages of each npm
 //   folder are installed in this checkout before an agent builds or tests (docs/conventions/testing.md § Test-first
 //   workflow): an install is per checkout, so a new worktree or clone has none, and a lockfile that changed since
-//   leaves one behind. It finds the folders with git (each that holds a tracked package-lock.json; installs.mjs
-//   says which never count), judges each from two files alone, so that a check starts no npm, and runs `npm ci`,
-//   never `npm install`, where the install is not there or not what the lockfile says. An install takes minutes
-//   and needs the network, which is why it is a command of its own and no part of `init` or `triage-init`: their
+//   leaves one behind. A skill runs it once more when a runner stops because an install looks incomplete. It
+//   finds the folders with git (each that holds a tracked package-lock.json; installs.mjs says which never
+//   count), judges each by reading files alone (the lockfile, npm's record of the install, and whether each
+//   package's folder holds a package.json), so that a check starts no npm, and runs `npm ci`, never
+//   `npm install`, where the install is not there or not what the lockfile says. An install takes minutes and
+//   needs the network, which is why it is a command of its own and no part of `init` or `triage-init`: their
 //   line must reach the caller at once, and a caller gives this one the time it needs. It ends by itself at its
-//   time limit, 9 minutes unless --timeout says otherwise: the tool that runs it allows a command 10 at most.
+//   time limit, 9 minutes unless --timeout says otherwise (the tool that runs it allows a command 10 at most).
+//   Of that limit an install gets what the ones before it left; in a stale folder none starts with less than a
+//   third of the limit left, and in a missing one it starts while any time is left (installs.mjs,
+//   `installTime`). Its last line, `installs in order | …`, is there when the install of every folder is in
+//   order, and never otherwise, and no other line of the command starts as it does: a caller goes on by that
+//   line alone, so that a run that was cut off is never taken for a whole one.
 // - `report` is how a review's check saves its report: the checks are read-only agents, and this command is the
 //   one way they have to write a file. So it writes nothing but a text that reads as the report of the check and
 //   the finding the file's name says (route.mjs), and never inside a repository: not this one, not another one,
@@ -124,7 +135,7 @@ import { constants, tmpdir } from "node:os";
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { guard, guardReport, parseStatus, STEPS } from "./guard.mjs";
-import { installFolders, installState, LOCKFILE, RECORD } from "./installs.mjs";
+import { installFolders, installState, installTime, LOCKFILE, notThere, RECORD } from "./installs.mjs";
 import { readText, withLock, writeAtomic } from "./lock.mjs";
 import { checkRecord, readRecord, recordFindings, recordIds, recordSummary, reviewSection } from "./review.mjs";
 import {
@@ -217,16 +228,30 @@ it, and so does init on a state file that exists.
 install checks the npm install of every folder in which git tracks a package-lock.json that is in the working tree
 (none under a folder named node_modules or fixtures), and prints one line per folder:
 "install: <folder> | <state>[ | npm ci: <what was done>]". The state is ok; missing, when there is no node_modules
-folder; or "stale: <what is wrong>", when one is there and is not what the lockfile says. It is read from two
-files, the lockfile and node_modules/.package-lock.json, npm's own record of what it installed (installs.mjs has
-the rule), so the check starts no npm. In each folder that is missing or stale it runs "npm ci", never "npm
-install", with npm's output in a log under the temp folder's tdd-runs (with --change or --pr beside that run's
-logs, else in "install"), and checks the folder again afterwards. With --dry-run it only says what it would run.
---timeout is the limit of the whole command: an install still running then is stopped, and no later one is started.
+folder; or "stale: <what is wrong>", when one is there and is not what the lockfile says. It is read from files
+alone: the lockfile, node_modules/.package-lock.json, npm's own record of what it installed, and whether each
+package's folder holds a package.json (installs.mjs has the rule), so the check starts no npm. In each folder that
+is missing or stale it runs "npm ci", never "npm install", with npm's output in a log under the temp folder's
+tdd-runs (with --change or --pr beside that run's logs, else in "install"), and checks the folder again
+afterwards. With --dry-run it only says what it would run.
+When the install of every folder is in order at the end, and only then, the last line is
+"installs in order | <the number of folders, as in 2 folders>", or without a folder to check
+"installs in order | no folder with a tracked package-lock.json". A run that ends without that line was cut off,
+failed in a folder, or only said what it would run.
+--timeout is the limit of the whole command: an install still running then is stopped, and each install gets the
+time the ones before it left. In a stale folder none is started with less than a third of the limit left, because
+npm ci empties node_modules before it installs; in a missing folder, which has none to lose, one is started while
+any time is left.
 A folder it could not check or install is one line "ERROR: install: <folder> | ..." on stderr, and the exit code
-is then 1. The line says what failed. For an install that npm began and did not finish it also says that the
-folder's node_modules may now be incomplete, and gives the command to run again, the log and what npm said. The
-other folders are checked and installed all the same.
+is then 1; the other folders are checked and installed all the same. The line says what failed, and names npm's
+log when npm ran. A lockfile it cannot read or judge is such a failure, and so is a record of npm's that is there
+and cannot be opened or read (another program holds it, say): the line names the file and the system's error, and
+nothing is installed in that folder. For an install that npm began and did not finish (it failed, or was stopped
+at the time limit) it also says that the folder's node_modules may now be incomplete and gives the command to run
+again, from the repository's root, and for one that failed, what npm said. An install that was not started for
+lack of time has the command to run again too.
+A folder's line is always one line: a control character in what it holds (a line break in a folder's or a
+package's name, or in npm's output) is written as its escape, such as \\n.
 
 shelve sets aside every uncommitted change of the working tree but the bookkeeping's files (changed, deleted and
 new files; not ignored ones; a staged file as it stands on disk) under --key, and takes those paths back to the
@@ -382,6 +407,22 @@ const oneLine = (text) => {
   const line = joined(text);
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 };
+
+// Unicode's control characters (the line feed, the carriage return, the escape, the next line and their kin),
+// its format characters (those that are not shown, or that turn the writing direction) and its line and
+// paragraph separators.
+const CONTROL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+const KNOWN_ESCAPES = { "\n": "\\n", "\r": "\\r", "\t": "\\t" };
+
+// A text as a line of output holds it when part of it comes from a file, a folder's name or another program:
+// each control character in it written as its escape, `\n`, `\r` and `\t` for the three a reader knows, else
+// `\u` and the character's code. So the text is one line whatever it held, and nothing in it moves the cursor
+// or stays unseen.
+export const visible = (text) =>
+  String(text).replace(CONTROL, (character) => {
+    const code = character.codePointAt(0).toString(16);
+    return KNOWN_ESCAPES[character] ?? (code.length > 4 ? `\\u{${code}}` : `\\u${code.padStart(4, "0")}`);
+  });
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const say = (...lines) => void process.stdout.write(`${lines.join("\n")}\n`);
@@ -2333,19 +2374,27 @@ function timeLimit(given, byDefault) {
 // error output going, in the order written, to a new log file of that name in the logs' folder. At the time limit
 // it stops the command with everything it started. Answers the log's path, how long the command ran, and how it
 // ended: `error` when it could not be started (the log is then removed), else its exit `code`, 124 when it was
-// stopped at the limit (`timedOut`).
+// stopped at the limit (`timedOut`). Node reports a command it could not start in one of two ways, by the
+// system's reason: `spawn` throws, or the process it answers emits `error` (a file that is not there is emitted;
+// on Windows a file that is there and is no program is thrown). Either one is the `error` answered here.
 async function logged(plan, { cwd, logs, name, limitMs }) {
   mkdirSync(logs, { recursive: true });
   const log = openLog(logs, name);
   const started = Date.now();
   const ended = await new Promise((done) => {
-    const child = spawn(plan.file, plan.args, {
-      ...plan.options,
-      cwd,
-      stdio: ["ignore", log.fd, log.fd],
-      windowsHide: true,
-      detached: process.platform !== "win32",
-    });
+    let child;
+    try {
+      child = spawn(plan.file, plan.args, {
+        ...plan.options,
+        cwd,
+        stdio: ["ignore", log.fd, log.fd],
+        windowsHide: true,
+        detached: process.platform !== "win32",
+      });
+    } catch (error) {
+      done({ error });
+      return;
+    }
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -2380,13 +2429,33 @@ async function logged(plan, { cwd, logs, name, limitMs }) {
 }
 
 // The install of one npm folder as it stands: its state, and what is wrong with it (installs.mjs). Throws for a
-// lockfile that cannot be judged, and for a file that cannot be read.
+// lockfile that cannot be read or judged, for a node_modules that cannot be looked at, and for a record of npm's
+// that is there and cannot be opened or read, naming which with the system's error. Such a record is no stale
+// install (installs.mjs says why): only its text is the rule's to judge.
 function installOf(root, folder) {
   const at = (path) => join(root, folder, path);
+  // What reading a file or looking at a folder answers, or a failure that names the path.
+  const reading = (path, read) => {
+    try {
+      return read(at(path));
+    } catch (e) {
+      throw new Error(`${path} cannot be read: ${e.message}`);
+    }
+  };
+  // A file's text; null for npm's record when it is not there.
+  const text = (path) => readFileSync(path, "utf8");
+  const textIfThere = (path) => {
+    try {
+      return text(path);
+    } catch (e) {
+      if (notThere(e)) return null;
+      throw e;
+    }
+  };
   return installState({
-    lockfile: readFileSync(at(LOCKFILE), "utf8"),
-    record: existsSync(at(RECORD)) ? readFileSync(at(RECORD), "utf8") : null,
-    modules: statSync(at("node_modules"), { throwIfNoEntry: false })?.isDirectory() === true,
+    lockfile: reading(LOCKFILE, text),
+    record: reading(RECORD, textIfThere),
+    modules: reading("node_modules", (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true),
     holds: (path) => existsSync(at(join(path, "package.json"))),
   });
 }
@@ -2408,25 +2477,47 @@ function npmSaid(log) {
 // Checks the npm install of every install folder of the working tree and has npm make the ones that are missing
 // or stale: `npm ci` in the folder, its output in a log, and the folder checked again afterwards. One line per
 // folder; a folder that could not be checked or installed is an `ERROR:` line on stderr, the others still get
-// their turn, and the exit code is then 1. With --dry-run nothing is run.
+// their turn, and the exit code is then 1. With --dry-run nothing is run. The one time limit is the whole
+// command's: `installTime` (installs.mjs) says, from what is left of it, whether a folder's install starts and
+// how long it may run.
+//
+// The last line, `installs in order | …`, is printed when the install of every folder is in order at the end,
+// and never otherwise: a run that was cut off, that failed in a folder, or that only said what it would run,
+// ends without it. A caller goes by that line alone. No other line of the command starts as it does: a folder's
+// line starts `install: ` or `ERROR: install: `, and is one line whatever the folder is named and whatever its
+// lockfile, npm's record and npm's output hold (`line` below).
 async function install(ctx, options) {
   const minutes = timeLimit(options.timeout, 9);
-  const deadline = Date.now() + minutes * 60_000;
+  const limitMs = minutes * 60_000;
+  const started = Date.now();
   const tracked = git(ctx.root, ["ls-files", "-z", "--", `:(glob)**/${LOCKFILE}`]).stdout.split("\0");
   const folders = installFolders(tracked.filter((path) => path && existsSync(join(ctx.root, path))));
-  if (folders.length === 0) return say(`install: no folder with a tracked ${LOCKFILE}`);
+  if (folders.length === 0) return say(`installs in order | no folder with a tracked ${LOCKFILE}`);
 
-  // The command as it was called, for the line of a folder whose install failed.
-  const whose = [
-    ...(options.change === undefined ? [] : [` --change ${options.change}`]),
-    ...(options.pr === undefined ? [] : [` --pr ${options.pr}`]),
+  // The command as it was called, for the line of a folder whose install is to be run again. It is run from the
+  // repository's root, as both skills run every command: the script's own path in it starts there. A --root is
+  // given as a whole path, with forward slashes and in double quotes, so that it names the same folder wherever
+  // the first call was made from, and a blank in it does not split it. (A path that holds a double quote, a `$`
+  // or a backtick still needs the reader's care.)
+  const called = [
+    ...(options.change === undefined ? [] : [`--change ${options.change}`]),
+    ...(options.pr === undefined ? [] : [`--pr ${options.pr}`]),
+    ...(options.root === undefined ? [] : [`--root "${slashed(resolve(options.root))}"`]),
+    ...(options.timeout === undefined ? [] : [`--timeout ${minutes}`]),
   ];
-  const again = `run again: node .claude/skills/tdd-apply/scripts/tdd.mjs install${whose.join("")}`;
+  const again = ["run again: node .claude/skills/tdd-apply/scripts/tdd.mjs install", ...called].join(" ");
   const npm = process.env.TDD_NPM_CLI || "npm";
+  // A folder's line: `install: `, the folder and what is to say of it. Much of that comes from elsewhere: the
+  // folder's name from git, its state from the lockfile and npm's record, an error from the system, npm's words
+  // from its log, a --root from the caller. So the whole line goes through `visible`, and is one line whatever
+  // those hold.
+  const line = (folder, ...parts) => visible(`install: ${[folder, ...parts].join(" | ")}`);
+  // Whether a folder could not be checked or installed, and whether every folder's install is in order.
   let failed = false;
+  let inOrder = true;
   const fail = (folder, ...parts) => {
     failed = true;
-    process.stderr.write(`ERROR: install: ${[folder, ...parts].join(" | ")}\n`);
+    process.stderr.write(`ERROR: ${line(folder, ...parts)}\n`);
   };
 
   for (const folder of folders) {
@@ -2439,16 +2530,17 @@ async function install(ctx, options) {
     }
     const state = installText(found);
     if (found.state === "ok") {
-      say(`install: ${folder} | ok`);
+      say(line(folder, "ok"));
       continue;
     }
     if (options["dry-run"]) {
-      say(`install: ${folder} | ${state} | npm ci: not run (--dry-run)`);
+      inOrder = false;
+      say(line(folder, state, "npm ci: not run (--dry-run)"));
       continue;
     }
-    const left = deadline - Date.now();
-    if (left <= 0) {
-      fail(folder, state, `npm ci not started: the time limit (${minutes} min) was reached`, again);
+    const time = installTime({ limitMs, usedMs: Date.now() - started, state: found.state });
+    if (!time.start) {
+      fail(folder, state, `npm ci not started: ${time.left} of the time limit (${minutes} min) was left`, again);
       continue;
     }
     const cwd = join(ctx.root, folder);
@@ -2456,7 +2548,7 @@ async function install(ctx, options) {
       cwd,
       logs: join(tmpdir(), "tdd-runs", ctx.runs ?? "install"),
       name: logFileName(`npm ci ${folder}`, new Date()),
-      limitMs: left,
+      limitMs: time.forMs,
     });
     if (ended.error) {
       const why = ended.error.code === "ENOENT" ? `${oneLine(npm)} is not on the PATH` : oneLine(ended.error.message);
@@ -2467,7 +2559,8 @@ async function install(ctx, options) {
     const took = formatDuration(ended.durationMs);
     const incomplete = "its node_modules may now be incomplete";
     if (ended.timedOut) {
-      fail(folder, state, `npm ci stopped at the time limit (${minutes} min): ${incomplete}`, again, log);
+      const stopped = `npm ci stopped at the time limit (${minutes} min) after ${took}: ${incomplete}`;
+      fail(folder, state, stopped, again, log);
       continue;
     }
     if (ended.code !== 0) {
@@ -2487,9 +2580,11 @@ async function install(ctx, options) {
       fail(folder, state, `npm ci ended without an error after ${took}, and ${still}`, log);
       continue;
     }
-    say(`install: ${folder} | ${state} | npm ci: done in ${took}`);
+    say(line(folder, state, `npm ci: done in ${took}`));
   }
-  return failed ? 1 : 0;
+  if (failed) return 1;
+  if (inOrder) say(`installs in order | ${plural(folders.length, "folder")}`);
+  return 0;
 }
 
 // Runs a command in the repository's root, where CLAUDE.md § Commands says every command runs, with its standard

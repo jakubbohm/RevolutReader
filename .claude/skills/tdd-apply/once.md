@@ -52,28 +52,39 @@ Steps 1 and 2 only read. Nothing is created, started or asked before they are do
 
 ## The npm installs
 
-§ A start step 4 and § A resume step 1 send you here, right after `tdd init`; `/triage-review` sends its main
-session here too, right after `tdd triage-init`. Every folder with a `package-lock.json` needs its packages
-installed in this checkout, in its `node_modules`: a new worktree or clone has none, and a lockfile that
-changed since leaves an install behind. The script checks every such folder and installs by itself. Nobody is
-asked, and no agent starts before this is done.
+Every folder with a `package-lock.json` needs its packages installed in this checkout, in its `node_modules`:
+a new worktree or clone has none, and a lockfile that changed since leaves an install behind. The script
+checks every such folder and installs by itself: you ask the owner nothing before an install, and nothing
+about whether to make one. No agent starts before this is done. § A start step 4 and § A resume step 1 send
+you here right after `tdd init`. `/triage-review` has run the command already when it sends you here (its
+`once.md` § 0 step 4): never start it a second time, and begin at step 2.
 
 1. Run `tdd install`, with `--change <change>` (a triage: `--pr <id>`), and with the Bash tool's `timeout` set
    to 600000, ten minutes, the most the tool gives: an install can take minutes and needs the network. The
    script ends by itself after nine.
-2. It prints one line per folder, `install: <folder> | <state>`. The state is `ok`; `missing`, when there is
-   no `node_modules`; or `stale: <what is wrong>`, when what is installed is not what the lockfile says. In a
-   folder that is missing or stale it runs `npm ci`, and the line ends `| npm ci: done in <time>`. With every
-   line `ok` or done, go on.
-3. A line that starts `ERROR: install:` is a failed check at the start, a full stop (your skill's SKILL.md
-   § Questions for the owner). It names the folder and what failed. Where npm was started and did not finish,
-   it also says that the folder's `node_modules` may now be incomplete, and gives the command to run again.
-   Tell the owner the line as it is. Run `tdd install` again only on the owner's word, once the cause is gone,
-   and go on only when no line starts `ERROR:`. Never install another way: no `npm install`, and no `npm ci`
-   of your own.
-4. If the tool answers that it moved the command to the background, the install is still running: start
-   nothing, and end your turn. Its notice names the file that holds the lines the command printed: Read it,
-   and go by those lines.
+2. **If the tool answers that it moved the command to the background, the run has not ended.** The tool does
+   that with a command that reaches the tool's time limit, and the command runs on. Its answer names the
+   file the command's output goes to, which holds only the lines printed so far: do not Read it yet. Start
+   nothing, and end your turn. A notice arrives when the command has ended. Only then Read the file, and go
+   by steps 3 and 4.
+3. The command prints one line per folder, `install: <folder> | <state>`. The state is `ok`; `missing`, when
+   there is no `node_modules`; or `stale: <what is wrong>`, when what is installed is not what the lockfile
+   says. In a folder that is missing or stale it runs `npm ci`, and the line ends `| npm ci: done in <time>`.
+   When the install of every folder is in order at the end, and only then, it prints a line that starts
+   `installs in order |`. **Go on only when the output holds that line.** Never go by the folders' lines: a
+   run that was cut off prints no error, and may have printed some of them.
+4. A run without that line is a full stop (your skill's SKILL.md § Questions for the owner). Tell the owner
+   what the command printed, as it is. Each `ERROR:` line says what failed, for a folder or for the call
+   itself, and gives the command to run again where that helps. With no `ERROR:` line the run was cut off
+   before its end: say so. Run `tdd install` again only on the owner's word, and go on only when that run
+   prints the line of step 3. Never install another way: no `npm install`, and no `npm ci` of your own.
+
+**After a runner's `BLOCKED`** whose `WHY:` says that an install looks incomplete (§ A runner that is
+blocked; a triage: its `rare.md` § Stops): before you tell the owner, run `tdd install` again by steps 1 to
+3, with no question, as at a start. Then tell the owner the runner's `WHY:` and what that run printed. If
+every folder read `ok`, the script's check does not see what the runner met: say so. If the run did not
+print the line of step 3, step 4 holds for it too. Resume the runner with `CONTINUE` only on the owner's
+word, as after every `BLOCKED`.
 
 ## The design files
 
@@ -327,6 +338,9 @@ SKILL.md § 1 step 5 sends you here for a hand-back whose `RESULT` is `BLOCKED` 
   says the work is; once the cause is gone, resume the runner with `CONTINUE: run the way out your BLOCKED
   line names, then go on`. Record the line in "Resume here" at the stop. A runner that cannot be resumed
   then: a fresh one, whose brief's `START AT:` gives that line and says to run its way out first.
+- `BLOCKED` whose `WHY:` says that an install looks incomplete: a full stop too, but first you run `tdd
+  install` again yourself. § The npm installs says how, under "After a runner's `BLOCKED`", and what the
+  stop then tells the owner.
 - Any other `BLOCKED`, and `NEEDS_OWNER`: a full stop. Tell the owner what stopped the runner or what it
   needs; once that is cleared, resume it with `CONTINUE`.
 

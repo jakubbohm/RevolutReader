@@ -288,7 +288,10 @@ questions that are left in SKILL.md § 4.
   differently: tell the owner the cause, the line's part after `The cause:`, and where the line says the
   work is; once the cause is gone, resume the runner with `CONTINUE: run the way out your BLOCKED line
   names, then go on`. Record the line in "Resume here" at the stop. A runner that cannot be resumed then: a
-  fresh one, with the line and "run its way out first" after `FIX ROUND:` in its brief.
+  fresh one, with the line and "run its way out first" after `FIX ROUND:` in its brief. One whose `WHY` says
+  that an install looks incomplete is a full stop too, but first you run `tdd install --pr <id>` again
+  yourself: `.claude/skills/tdd-apply/once.md` § The npm installs says how, under "After a runner's
+  `BLOCKED`", and what the stop then tells the owner (Grep that file for `^## `, and Read that section only).
 - **`NEEDS_OWNER`** (a runner). Tell the owner its `NEEDS` (Docker is not running, a file outside the
   repository is missing); once it is there, resume the runner with `CONTINUE`.
 - **A close check that did not pass.** The hand-back's `CLOSE CHECKS:` line, which you recorded (SKILL.md
@@ -303,11 +306,15 @@ questions that are left in SKILL.md § 4.
     close checks again before it handed back: a repair commit owes no further run. The finding's reply
     stands as it is: one that is posted is never posted again for a repair, whatever its line now says. A
     repair the owner ordered (under `failed:` below) comes back as `repaired:` too, and asks the same.
-  - **`failed:`** is a full stop. A check passes only when its command succeeded, and the runner's
-    instructions have the whole rule. For a failed test (a fix broke something else, or a test is unstable),
-    a failed API client drift check (its command failed, or it left a generated file changed: the runner put
-    both files back), a Bicep lint failure, a failure in a file that no fix of this round touched, or a
-    format, lint or type check whose command could not run, the runner repaired nothing. A part that ends
+  - **`failed:`** is a full stop. A check passes only when its command succeeded, and two checks need more
+    than that, the API client's and the Bicep check; the runner's instructions have the whole rule. For a
+    failed test (a fix broke something else, or a test is unstable), a failed API client drift check (its
+    command failed, or it left a generated file changed: the runner put both files back, and its part says
+    which of them had changed), a failed Bicep check (its command failed, or its output holds a warning,
+    whose line the part gives), a failure in a file that no fix of this round touched, a format, lint or
+    type check whose command could not run, or a check that failed because a package or a tool of an install
+    was not found (its part says that an install looks incomplete), the runner repaired nothing. That last
+    one is never sent back to the runner as a repair either: no agent repairs an install. A part that ends
     `repair <commit> did not help` is a check that still failed after its one repair: that commit stays in
     the branch and in the finding's line. `for <number>` names
     the finding whose fix caused the failure. It is there when a repair was tried, or when the failing

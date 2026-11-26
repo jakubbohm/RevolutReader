@@ -63,7 +63,8 @@ repository root (a here-document and `<` do not work in PowerShell). The command
 - `tdd run --label <name> -- <command>`: runs a build, a test command or a check, keeps the full output in a
   log file and prints the exit code, the totals and, for failed tests, each name with the first lines of its
   message. Run every build and test through it. Open the log file only for a failure whose printed lines do
-  not show whether it failed at runtime.
+  not show whether it failed at runtime. One log is searched, never read, after a run that succeeded: the
+  Bicep check's (§ A fix round, The close checks).
   - When tests failed, or the section "Allowed failures" has entries, it adds a line: how many of the failed
     tests are on that list, and after `NOT ALLOWED:` the names of those that are not. Wherever a step below
     says which tests may fail, the tests on the list may fail too (§ A question for the owner). A test named
@@ -122,8 +123,16 @@ naming the tasks that wait for it (§ A question for the owner).
 the script check each such folder, and install where one is missing or behind its lockfile, at every start
 and resume of its skill, before it starts you (`docs/conventions/testing.md` § Test-first workflow). Never
 run `npm ci` or `npm install`. A run that fails because a package or a tool of an install is not there
-(`Cannot find module …`, `'<tool>' is not recognized …`) fails like any other: a red baseline is a
-`BLOCKED`, and a close check is reported as failed. Say in that line that an install looks incomplete.
+(`Cannot find module …`, `'<tool>' is not recognized …`) fails like any other run of its kind. Wherever you
+then tell the failure, say that an install looks incomplete, in which folder, and what was not found:
+
+- a red baseline is a `BLOCKED`: say it in the hand-back's `WHY:`;
+- a close check that failed this way is reported as failed and never repaired through an agent, also when its
+  output names files (§ A close check that fails): say it in that check's `failed:` part;
+- a run that verifies an agent's work goes back to that agent: say it in your message. The agent does not
+  repair an install: it installs only a package that its own task needs (its definition). If it answers that
+  its work did not cause the failure, or its report says by itself that an install looks incomplete (its
+  `NOTES`), nothing in your chapter can repair it: hand back `BLOCKED`, and say it in the `WHY:`.
 
 ## Waiting, and handing back
 
@@ -649,15 +658,21 @@ back) is recorded the same way and gets no progress note. Then replace an agent 
 
 **The close checks** (`CLOSE CHECKS: since <commit>`), after the last finding, each through `tdd run`. A check
 passes only when its command succeeded: the first line `tdd run` prints says `exit 0`. A command that did not
-succeed is a failed check, whatever else it printed or left unchanged. The one exception is the full suite: a
-run in which tests failed, and every one of them is on the list of allowed failures, passes (§ Your commands).
-The checks:
+succeed is a failed check, whatever else it printed or left unchanged. Two checks need more than `exit 0` to
+pass, the Bicep check and the API client's: their entries below say what. The one exception the other way is
+the full suite: a run in which tests failed, and every one of them is on the list of allowed failures, passes
+(§ Your commands). The checks:
 
 - the full suite: `dotnet test` and the frontend's tests;
 - `dotnet format whitespace RevolutReader.slnx --verify-no-changes`;
 - the frontend's `run lint`, `run typecheck` and `run format:check`;
-- if `git diff --name-only <commit>..HEAD` lists a file under `infra/`: `az bicep lint --file
-  infra/main.bicep`;
+- if `git diff --name-only <commit>..HEAD` lists a file under `infra/`: the Bicep check, `az bicep lint
+  --file infra/main.bicep`. It passes only when the command exited 0 and its log holds no warning. Bicep
+  exits 0 on a warning of its compiler, and of a command with `exit 0` `tdd run` prints no line of output.
+  So after `exit 0` search the log that the first line names (`log: <path>`): Grep it for ` : Warning `,
+  as written here, with a blank, a colon and a blank before the word and a blank after it. It is the text
+  the pull request's own check looks for (`.github/workflows/ci.yml`, the step `Bicep`). A line that holds
+  it is a warning, and the check failed: give that line in the `failed:` part;
 - if it lists a file under `.claude/skills/` or `.claude/hooks/`: the tests `CLAUDE.md` § Commands names for
   those scripts;
 - if it lists a file under `src/RevolutReader.Api/`: the API client's drift check, `npm --prefix
@@ -665,17 +680,20 @@ The checks:
   `git status --porcelain` then lists neither `openapi.json` nor `schema.d.ts`. Otherwise the check failed,
   in one of two ways: the command did not exit 0 (its first half may have rewritten `openapi.json` before its
   second half failed), or it exited 0 and one of the two files is listed (a fix that changes the API contract
-  is never routed to you). Either way restore both files with `git restore`, and say in the `failed:` part
-  which way it was.
+  is never routed to you). Either way, first note which of the two files `git status --porcelain` lists,
+  then restore both with `git restore`. Say in the `failed:` part which way it was, and which of the two
+  files was listed, or that neither was: a listed `openapi.json` under a command that did not exit 0 may be
+  a changed contract, which the command's own failure must not hide.
 
 **A close check that fails.** Four of the checks judge how the code is written, never what it does: `dotnet
 format … --verify-no-changes` and the frontend's `lint`, `typecheck` and `format:check`. What they report is
 repaired at once, in one pass over all of it, and the owner is only told:
 
-1. **The files.** Take every file those four name, each by a path git knows. The frontend's three run in
-   `src/RevolutReader.Web` and print paths from that folder: `src/api/client.ts` in their output is
-   `src/RevolutReader.Web/src/api/client.ts`. `git ls-files -- <path>` prints the file when the path is
-   right, and nothing when it is not.
+1. **The files.** Take every file those four name, each by a path git knows; but none from a check that
+   failed because a package or a tool of an install was not found, which is not repaired (below). The
+   frontend's three run in `src/RevolutReader.Web` and print paths from that folder: `src/api/client.ts` in
+   their output is `src/RevolutReader.Web/src/api/client.ts`. `git ls-files -- <path>` prints the file when
+   the path is right, and nothing when it is not.
 2. **The finding of each file.** `git log --oneline <commit>..HEAD -- <path>`, with the commit of the
    message's `CLOSE CHECKS` line, lists the file's commits of this round, the newest first: the first one
    with `[review] <id>:` in it names the finding whose fix caused the failure. A file without such a commit
@@ -693,10 +711,14 @@ repaired at once, in one pass over all of it, and the owner is only told:
 Not repaired by you, reported in your hand-back as failed, and nothing changed for it:
 
 - a failed test: a fix broke something else, or a test is unstable, and the owner decides;
-- the API client's drift check, whichever way it failed, and a Bicep lint failure;
+- the API client's drift check, whichever way it failed, and the Bicep check, whether its command failed or
+  its log holds a warning;
 - a failure in a file that no fix of this round touched;
 - one of those four checks whose command did not succeed and names no file: it could not start, or stopped
-  before it checked anything.
+  before it checked anything;
+- a check that failed because a package or a tool of an install was not found (`Cannot find module …`,
+  `'<tool>' is not recognized …`), also when its output names files: no agent can repair an install, and the
+  `failed:` part says that an install looks incomplete (§ Your commands, the npm installs).
 
 Whatever a check still names in its second run is reported as failed too, in one part with the repair that
 did not help (§ Hand-backs). That repair's commit stays in the branch and in the finding's record.
@@ -720,9 +742,9 @@ findings:
 2. Commit what each agent changed: `--tag review --summary "<id>: close check <name> repaired"`. For test
    code `--type test`, without `--check`. For any other code `--type fix --check green` when the failed check
    is a test (the repair changes what the code does), else `--type refactor --check green` (the four checks
-   above, the Bicep lint, the API client's drift). Add each such commit to the finding's record, as step 3
-   above does. That is all the record gets: the repair is not the finding's close, so it gets no `--done`
-   and no record line of its own, and the record's reply field stays as it is.
+   above, the Bicep check, the API client's drift check). Add each such commit to the finding's record, as
+   step 3 above does. That is all the record gets: the repair is not the finding's close, so it gets no
+   `--done` and no record line of its own, and the record's reply field stays as it is.
 3. Then the close checks, as the message's `CLOSE CHECKS` line says, and a check that fails as this section
    says. In your hand-back the repair is a part of `CLOSE CHECKS:`, `repaired:` when the check passes now and
    `failed: …, repair <commit> did not help` when it does not, and no line under `FINDINGS:`: the finding's

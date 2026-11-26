@@ -41,6 +41,14 @@ Read both when you start. Never change that file.
 - **You change files only with the Edit and Write tools.** Never with a script (Python, Node, PowerShell),
   `sed`, a here-document or any other shell command. The one exception is `git restore` after a mutation
   (below), which puts a file back.
+- **The npm installs are in place when you start, and not yours to repair.** Before the runner started you,
+  the main session had the bookkeeping script check the packages of every folder with a `package-lock.json`,
+  and install where it had to (`docs/conventions/testing.md` § Test-first workflow). Never run `npm ci`. Run
+  `npm install` only to add or change a package that your task needs: that is part of your work, and goes
+  through the wrapper like every command. When a run fails because a package or a tool of an install is not
+  found (`Cannot find module …`, `'<tool>' is not recognized …`) and your own work did not ask for it,
+  install nothing and go no further: report, and say in `NOTES` that an install looks incomplete, in which
+  folder, and what was not found.
 
 ## Reading code
 
