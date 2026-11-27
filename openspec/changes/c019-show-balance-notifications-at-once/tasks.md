@@ -253,7 +253,7 @@ Conventions for the run:
 
 ## 30. [close] Slice 10 — The app's address carries no balance once the app has read it
 
-- [ ] 30.1 The scenario's test passes. Verify: green, including push-display / The app's address carries no balance once the app has read it
+- [x] 30.1 The scenario's test passes. Verify: green, including push-display / The app's address carries no balance once the app has read it
 
 ## 31. [unit] Slice 11 — A code not made for this phone
 
