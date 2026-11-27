@@ -176,7 +176,7 @@ Conventions for the run:
 - [ ] 13.1 The scenario's test and 1.7's pass. Verify: green, including push-display / A tap on a notification with a balance replaces the balance the phone keeps, and push-display / The app opened from a push's notification shows its balance while the server wakes
 - [ ] 13.2 Docs:
   - **ADR-0007**, a dated note on item 3 (design.md D13).
-  - **lessons.md R-107** (D1, D5, D13).
+  - **lessons.md R-107** (D1, D5, D13), and R-107 named in the Lessons column of `docs/software-factory/creating-handover-package.md`'s rows for `pushDisplay.ts` and the service worker stand-in (chapter B's review, B-1).
   - **`testing.md`** § the frontend kit: `getNotifications`, the address helpers and `balanceLook`.
 
   Verify: each names design.md
