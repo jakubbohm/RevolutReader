@@ -319,9 +319,11 @@ export function useAccountScreen(): AccountScreenModel {
       }
 
       setReading("no");
+      // Only a successful read confirms the shown balance; every other outcome (offline, the 60 s limit, a bank problem,
+      // an unexpected answer) leaves it unconfirmed, so a failed "Obnovit" turns a live balance stale (c019 design.md D8).
+      setReadConfirmed(read.kind === "read");
       if (read.kind === "read") {
         setBalance(read.balance);
-        setReadConfirmed(true);
         // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
         void storeBalance(read.balance);
       }

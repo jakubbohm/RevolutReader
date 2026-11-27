@@ -346,12 +346,12 @@ Conventions for the run:
 
 ## 49. [unit] Slice 18 — A failed read
 
-- [ ] 49.1 A read that ends offline, with a bank problem, with an unexpected answer or at the 60 s limit clears `confirmed`
+- [x] 49.1 A read that ends offline, with a bank problem, with an unexpected answer or at the 60 s limit clears `confirmed`
 - [x] 49.2 A login that ends clears it with everything else, as today
 
 ## 50. [wiring] Slice 18 — Failing reads
 
-- [ ] 50.1 `useAccountScreen.readTheBalance` clears `confirmed` on every outcome but a read. Verify: group 49 green
+- [x] 50.1 `useAccountScreen.readTheBalance` clears `confirmed` on every outcome but a read. Verify: group 49 green
 
 ## 51. [close] Slice 18 — A failed refresh turns the balance grey
 
