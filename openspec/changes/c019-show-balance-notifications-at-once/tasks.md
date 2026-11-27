@@ -286,7 +286,7 @@ Conventions for the run:
 ## 37. [close] Slice 12 — A push with a balance replaces the balance the phone keeps
 
 - [ ] 37.1 The scenario's test, 1.17's and 1.18's pass. 1.17 is proven by a mutation: with `balanceOf` accepting a missing `readAt`, it fails. Verify: green, including push-display / A push with a balance replaces the balance the phone keeps, / A push with a balance of the wrong shape leaves the kept balance as it was, and / A push still shows its notification when the phone's storage fails; the mutation's red result in `.tdd-state.md`
-- [ ] 37.2 Docs: `docs/software-factory/creating-handover-package.md`'s rows for `pushDisplay.ts` and the service worker stand-in describe the balance read from the push's `navigate` fragment and checked with the worker's own subscription (D7), not from the notification's `data` (the owner, 2026-11-27). Verify: neither row names `data.balance`
+- [ ] 37.2 Docs: `docs/software-factory/creating-handover-package.md`'s rows for `pushDisplay.ts` and the service worker stand-in describe the balance read from the push's `navigate` fragment and checked with the worker's own subscription (D7), not from the notification's `data` (the owner, 2026-11-27). The stand-in's row also names its `registration.pushManager.getSubscription()` with a made-up `auth` secret (this phone's by default, another device's, or none) and the proposed notification's `navigate`; both rows name R-108 in their Lessons column (chapter D's review, D-1, the owner, 2026-11-27). Verify: neither row names `data.balance`, and both name R-108
 
 ## 38. [unit] Slice 13 — The header's state
 
