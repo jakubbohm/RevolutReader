@@ -1,5 +1,6 @@
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { vi } from "vitest";
+import { cryptoWorkFinished, cryptoWorkUnderWay } from "./cryptoWork";
 
 /**
  * The test's clock (c009 design.md D8, § Risks), for scenarios that wait: the 1.5 s, 30 s and 60 s marks, the 4-minute
@@ -10,7 +11,8 @@ import { vi } from "vitest";
  * Using it:
  * - `startTestClock()` first in the test; `setup.ts` stops it after every test.
  * - `timePasses(ms)` moves the clock on and lets the app answer in between; `timePasses(0)` lets what is due now
- *   happen (answers already on their way, renders) without moving the clock.
+ *   happen (answers already on their way, renders) without moving the clock. After each step it also waits for the
+ *   crypto work the app has under way (c019: ./cryptoWork.ts), which ends in real time, not on the clock.
  * - Read the screen with `getBy…`/`queryBy…` after `timePasses`. `findBy…` and `waitFor` move the clock themselves on
  *   it, in 50 ms steps, so a scenario that states a time does not use them.
  * - Tap with `userOnTheTestClock()`.
@@ -126,8 +128,17 @@ export function userOnTheTestClock(): UserEvent {
   });
 }
 
+/**
+ * The app's real turns after a step: `TURNS_TO_SETTLE` of them, and while crypto work the app started is under way
+ * (./cryptoWork.ts, answered from Node's thread pool in real time), the wait for it and as many turns again, until the
+ * turns end with none under way.
+ */
 async function settle(): Promise<void> {
-  for (let turn = 0; turn < TURNS_TO_SETTLE; turn += 1) await realTurn();
+  for (;;) {
+    for (let turn = 0; turn < TURNS_TO_SETTLE; turn += 1) await realTurn();
+    if (cryptoWorkUnderWay() === 0) return;
+    await cryptoWorkFinished();
+  }
 }
 
 /** The global Testing Library checks for Jest's fake timers (`jest.advanceTimersByTime`), which Vitest's equal. */

@@ -48,6 +48,11 @@ export interface PushWorker {
       title: string,
       options?: { body?: string; data?: unknown },
     ): Promise<void>;
+    pushManager: {
+      getSubscription(): Promise<{
+        getKey(name: "auth"): ArrayBuffer | null;
+      } | null>;
+    };
   };
   clients: {
     matchAll(options: {

@@ -40,8 +40,8 @@ Conventions for the run:
 
 ## 1. [acceptance] Acceptance tests
 
-- [ ] 1.1 The removed scenarios' tests deleted (design.md D10), the test-writer's: `tests/RevolutReader.AcceptanceTests/Scenarios/PushArrivals/` and `src/RevolutReader.Web/src/scenarios/push-arrivals.test.ts`. The code they tested stays until chapter C. Verify: the build passes; the traceability check reports no claim naming a removed scenario
-- [ ] 1.2 Foundation (API), the push kit of design.md D12 and § Public API sketch, the test-writer's:
+- [x] 1.1 The removed scenarios' tests deleted (design.md D10), the test-writer's: `tests/RevolutReader.AcceptanceTests/Scenarios/PushArrivals/` and `src/RevolutReader.Web/src/scenarios/push-arrivals.test.ts`. The code they tested stays until chapter C. Verify: the build passes; the traceability check reports no claim naming a removed scenario
+- [x] 1.2 Foundation (API), the push kit of design.md D12 and § Public API sketch, the test-writer's:
   - `PushReceived` gains `CarriesData`, `CheckCodeAccepted` and `BalanceFragment`;
   - `Balance` is read from `navigate`'s `#balance=<payload>.<code>`, and `Navigate` is the address without that fragment;
   - the receiving test device checks the code with its own secret, using the kit's own HKDF-SHA-256 (salt `"tarjeta-papa"`, info `"notification balance check code v1"`) and HMAC-SHA-256, compared in constant time;
@@ -49,7 +49,7 @@ Conventions for the run:
   - a `data` or a `mutable` is read, never a failed step, so a scenario can pin its absence.
 
   Verify: the build passes; every acceptance test that was green stays green, but for the one that reads `Balance` (1.4's): the old push carries no fragment, so it is red until slice 1, as expected
-- [ ] 1.3 Foundation (frontend), the test-writer's:
+- [x] 1.3 Foundation (frontend), the test-writer's:
   - `src/test/push.ts`'s registration gains `getNotifications()` listing what the test shows (`{ title, body, navigate }`), with `getNotificationsFails` and `getNotificationsWaits`;
   - the service worker stand-in's `registration.pushManager.getSubscription()`;
   - a new `src/test/notificationBalance.ts`: `balanceAddress(balance, secret)` and `wrongCode(…)`, with Node's `crypto`, never the production module;
@@ -57,35 +57,35 @@ Conventions for the run:
   - `balanceLook()` reading `data-balance` as "grey, moving", "grey, still" or "ink".
 
   Each helper has its own test next to it. Verify: those tests pass; the frontend checks are clean
-- [ ] 1.4 Acceptance: account-check / The notification carries the new balance for the phone to keep (modified: in the address, with a code the phone accepts; no `mutable`, no `data`)
-- [ ] 1.5 Acceptance: account-check / Each device's notification carries a check code of its own
-- [ ] 1.6 Acceptance: push-display / A tap on a notification with a balance replaces the balance the phone keeps (frontend)
-- [ ] 1.7 Acceptance: push-display / The app opened from a push's notification shows its balance while the server wakes (frontend; text unchanged, rewritten: the tap opens the app at the notification's address)
-- [ ] 1.8 Acceptance: push-display / A tap on a notification while the app is in the background replaces the balance the phone keeps (frontend)
-- [ ] 1.9 Acceptance: push-display / Opening the app from its icon takes the balance of a notification still shown (frontend)
-- [ ] 1.10 Acceptance: push-display / Coming back to the app takes the balance of a notification still shown (frontend)
-- [ ] 1.11 Acceptance: push-display / Of several notifications, the balance read last is kept (frontend; the newer one listed first)
-- [ ] 1.12 Acceptance: push-display / A push with a balance read earlier than the kept one leaves it as it was (frontend; modified: by a tap)
-- [ ] 1.13 Acceptance: push-display / A push with a balance stores none on a phone that keeps none (frontend; modified: by a tap)
-- [ ] 1.14 Acceptance: push-display / The app's address carries no balance once the app has read it (frontend)
-- [ ] 1.15 Acceptance: push-display / A balance without this phone's check code leaves the kept balance as it was (frontend)
-- [ ] 1.16 Acceptance: push-display / A push with a balance replaces the balance the phone keeps (frontend; modified: the service worker in a browser that does not show the message itself, the balance in `navigate`)
-- [ ] 1.17 Acceptance: push-display / A push with a balance of the wrong shape leaves the kept balance as it was (frontend; text unchanged, rewritten: a valid code over a payload without `readAt`)
-- [ ] 1.18 Acceptance: push-display / A push still shows its notification when the phone's storage fails (frontend; text unchanged, rewritten: the balance in `navigate`)
-- [ ] 1.19 Acceptance: account-balance / A stored balance is grey and moving while an awake server answers (frontend)
-- [ ] 1.20 Acceptance: account-balance / The balance turns ink when the server's balance arrives (frontend)
-- [ ] 1.21 Acceptance: account-balance / A stored balance is grey and moving while the server wakes (frontend)
-- [ ] 1.22 Acceptance: account-balance / Offline, the stored balance is grey and still (frontend)
-- [ ] 1.23 Acceptance: account-balance / After a failed read, the stored balance is grey and still (frontend)
-- [ ] 1.24 Acceptance: account-balance / A failed refresh turns the balance grey (frontend)
-- [ ] 1.25 Acceptance: account-balance / A refresh keeps a confirmed balance in ink (frontend)
-- [ ] 1.26 Acceptance: account-balance / Coming back to the app turns the balance grey until the answer (frontend)
-- [ ] 1.27 Acceptance: account-balance / A grey balance is spoken as a balance in ink (frontend)
-- [ ] 1.28 Acceptance: account-check / A real payment brings the notification on the iPhone (manual; the row rewritten: within a minute of Revolut's own notification, the app closed)
-- [ ] 1.29 Acceptance: push-display / A payment's notification on the iPhone opens the app on its balance (manual; the row rewritten for the address: no service worker any more, the new app opened once after the deploy)
-- [ ] 1.30 Acceptance: push-display / A payment's notification on the iPhone brings its balance to an opening from the icon (manual; a new row)
-- [ ] 1.31 Acceptance: account-balance / The grey balance moves in step with the waking-up bar (manual; a new row: the first opening after a quiet spell)
-- [ ] 1.32 Acceptance: account-balance / Under reduced motion the grey balance stands still (manual; a new row: Reduce Motion on, a sleeping server)
+- [x] 1.4 Acceptance: account-check / The notification carries the new balance for the phone to keep (modified: in the address, with a code the phone accepts; no `mutable`, no `data`)
+- [x] 1.5 Acceptance: account-check / Each device's notification carries a check code of its own
+- [x] 1.6 Acceptance: push-display / A tap on a notification with a balance replaces the balance the phone keeps (frontend)
+- [x] 1.7 Acceptance: push-display / The app opened from a push's notification shows its balance while the server wakes (frontend; text unchanged, rewritten: the tap opens the app at the notification's address)
+- [x] 1.8 Acceptance: push-display / A tap on a notification while the app is in the background replaces the balance the phone keeps (frontend)
+- [x] 1.9 Acceptance: push-display / Opening the app from its icon takes the balance of a notification still shown (frontend)
+- [x] 1.10 Acceptance: push-display / Coming back to the app takes the balance of a notification still shown (frontend)
+- [x] 1.11 Acceptance: push-display / Of several notifications, the balance read last is kept (frontend; the newer one listed first)
+- [x] 1.12 Acceptance: push-display / A push with a balance read earlier than the kept one leaves it as it was (frontend; modified: by a tap)
+- [x] 1.13 Acceptance: push-display / A push with a balance stores none on a phone that keeps none (frontend; modified: by a tap)
+- [x] 1.14 Acceptance: push-display / The app's address carries no balance once the app has read it (frontend)
+- [x] 1.15 Acceptance: push-display / A balance without this phone's check code leaves the kept balance as it was (frontend)
+- [x] 1.16 Acceptance: push-display / A push with a balance replaces the balance the phone keeps (frontend; modified: the service worker in a browser that does not show the message itself, the balance in `navigate`)
+- [x] 1.17 Acceptance: push-display / A push with a balance of the wrong shape leaves the kept balance as it was (frontend; text unchanged, rewritten: a valid code over a payload without `readAt`)
+- [x] 1.18 Acceptance: push-display / A push still shows its notification when the phone's storage fails (frontend; text unchanged, rewritten: the balance in `navigate`)
+- [x] 1.19 Acceptance: account-balance / A stored balance is grey and moving while an awake server answers (frontend)
+- [x] 1.20 Acceptance: account-balance / The balance turns ink when the server's balance arrives (frontend)
+- [x] 1.21 Acceptance: account-balance / A stored balance is grey and moving while the server wakes (frontend)
+- [x] 1.22 Acceptance: account-balance / Offline, the stored balance is grey and still (frontend)
+- [x] 1.23 Acceptance: account-balance / After a failed read, the stored balance is grey and still (frontend)
+- [x] 1.24 Acceptance: account-balance / A failed refresh turns the balance grey (frontend)
+- [x] 1.25 Acceptance: account-balance / A refresh keeps a confirmed balance in ink (frontend)
+- [x] 1.26 Acceptance: account-balance / Coming back to the app turns the balance grey until the answer (frontend)
+- [x] 1.27 Acceptance: account-balance / A grey balance is spoken as a balance in ink (frontend)
+- [x] 1.28 Acceptance: account-check / A real payment brings the notification on the iPhone (manual; the row rewritten: within a minute of Revolut's own notification, the app closed)
+- [x] 1.29 Acceptance: push-display / A payment's notification on the iPhone opens the app on its balance (manual; the row rewritten for the address: no service worker any more, the new app opened once after the deploy)
+- [x] 1.30 Acceptance: push-display / A payment's notification on the iPhone brings its balance to an opening from the icon (manual; a new row)
+- [x] 1.31 Acceptance: account-balance / The grey balance moves in step with the waking-up bar (manual; a new row: the first opening after a quiet spell)
+- [x] 1.32 Acceptance: account-balance / Under reduced motion the grey balance stands still (manual; a new row: Reduce Motion on, a sleeping server)
 
 ## 2. [unit] Slice 1 — The balance in the address
 

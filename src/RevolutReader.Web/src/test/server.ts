@@ -45,6 +45,15 @@ import { realTurn } from "./clock";
  * blocks marked "c016", in the same vocabulary: the arrival is recorded (204) unless the test sets another answer
  * (`arrivals: serverError`, `noConnection`, `after(…)`, any `Trouble`). The service worker's stand-in
  * (`./serviceWorker.ts`) sends its requests here, so a report shows in the timeline and in `bodiesSent()`.
+ *
+ * The page's address (c019 design.md D5, D6, D12, in blocks marked "c019"): the app opens at its start page unless the
+ * test opens it at another address of its own origin (`openPageAt`, through `renderApp`'s `address`), such as a
+ * notification's, its fragment included. The recording `location` reads that address; setting its `hash` goes to the
+ * fragment, as a browser does, and the window hears `hashchange` when it changed; `history.replaceState` and
+ * `pushState` change it too, firing nothing, as in a browser. `pageAddress()` gives it as path, query and fragment;
+ * `resetFakeServer` puts the start page back. A tap on a notification while the app is in the background
+ * (`tapNotificationInTheBackground`) goes to its fragment while the page is still hidden, then returns to the app, as
+ * the spike saw on the iPhone.
  */
 
 /** What any request can meet besides its own answers. */
@@ -473,6 +482,11 @@ type Outcome =
   | { kind: "no answer" };
 
 let page = new URL("http://localhost:3000/");
+// ---- c019 ----
+/** The app's start page, where every test opens it unless it names another address (`openPageAt`). */
+let startPage = new URL(page);
+/** jsdom's own `history.replaceState` and `pushState`, which the fake server's stand-ins call before changing `page`. */
+let jsdomReplaceState: History["replaceState"] | null = null;
 let whoIsSignedIn: readonly Delayed<WhoIsSignedIn>[] = [];
 let signOut: readonly Delayed<SignOutAnswer>[] = [];
 let balanceAnswers: readonly Delayed<BalanceAnswer>[] = [];
@@ -574,6 +588,72 @@ export function leaveApp(): void {
 /** The user comes back to the app: the page turns visible and hears `visibilitychange`. */
 export function returnToApp(): void {
   setVisibility("visible");
+}
+
+// ---- c019: the page's address (design.md D5, D6, D12) ----
+
+/**
+ * The app's page is at `address` (a path, or a full address on the page's own origin), its fragment included, as a
+ * notification's address opens it; `renderApp` calls it with its `address`, by default the start page `/`. Fires
+ * nothing: call it before the app opens.
+ */
+export function openPageAt(address: string): void {
+  const target = new URL(address, startPage);
+  if (target.origin !== startPage.origin)
+    throw new Error(
+      `The app's page is on ${startPage.origin}, so it cannot open at ${target.href}.`,
+    );
+  page = target;
+}
+
+/** The app's address now, as path, query and fragment on its own origin. */
+export function pageAddress(): string {
+  return onThePage(page);
+}
+
+/**
+ * A tap on a notification whose address is `address` while the app is in the background (after `leaveApp`), on the
+ * page the app shows: as the spike saw on the iPhone (c019 design.md D5), the page goes to the address's fragment while
+ * it is still hidden, and hears `hashchange`; then the app comes back to the front (`returnToApp`). A tap on another
+ * page is a new launch, which this does not stand in for.
+ */
+export function tapNotificationInTheBackground(address: string): void {
+  if (visibility !== "hidden")
+    throw new Error(
+      "A tap in the background needs the app in the background: call leaveApp() first.",
+    );
+  const target = new URL(address, page);
+  if (
+    target.origin !== page.origin ||
+    target.pathname !== page.pathname ||
+    target.search !== page.search
+  )
+    throw new Error(
+      `The tapped notification opens ${target.href}, not the page the app shows (${page.href}): that is a new launch.`,
+    );
+  recordingLocation.hash = target.hash;
+  returnToApp();
+}
+
+/**
+ * The page goes to `target`'s fragment, as setting `location.hash` does in a browser: the window hears `hashchange`
+ * (with the old and the new address) when the address changed, and nothing when it did not.
+ */
+function goToFragment(target: URL): void {
+  if (target.href === page.href) return;
+  const oldURL = page.href;
+  page = target;
+  act(() => {
+    window.dispatchEvent(
+      new HashChangeEvent("hashchange", { oldURL, newURL: target.href }),
+    );
+  });
+}
+
+/** `history.replaceState` or `pushState` with `url`: the page's address changes to it, firing nothing, as in a browser. */
+function changeAddressTo(url: string | URL | null | undefined): void {
+  if (url === null || url === undefined) return;
+  page = new URL(String(url), page);
 }
 
 /**
@@ -711,6 +791,9 @@ export function resetFakeServer(): void {
   online = true;
   visibility = "visible";
   entries = [];
+  // ---- c019 ----
+  page = new URL(startPage);
+  jsdomReplaceState?.call(history, null, "", startPage.href);
 }
 
 /**
@@ -719,7 +802,20 @@ export function resetFakeServer(): void {
  */
 export function installFakeServer(): void {
   page = new URL(globalThis.location.href);
+  startPage = new URL(page);
   globalThis.fetch = fakeFetch;
+  // ---- c019: the address changes with the history's, as in a browser ----
+  const replaceState = history.replaceState;
+  const pushState = history.pushState;
+  jsdomReplaceState = replaceState;
+  history.replaceState = (data, unused, url) => {
+    replaceState.call(history, data, unused, url);
+    changeAddressTo(url);
+  };
+  history.pushState = (data, unused, url) => {
+    pushState.call(history, data, unused, url);
+    changeAddressTo(url);
+  };
   Object.defineProperty(globalThis, "location", {
     configurable: true,
     get: () => recordingLocation,
@@ -1425,6 +1521,12 @@ const recordingLocation = {
   },
   get hash(): string {
     return page.hash;
+  },
+  // ---- c019 ----
+  set hash(fragment: string) {
+    const target = new URL(page);
+    target.hash = fragment;
+    goToFragment(target);
   },
   assign(target: string | URL): void {
     navigate(target);

@@ -131,8 +131,33 @@ public sealed class AccountCheckScenarios : AcceptanceTest {
     await Check.PhoneAsksForACheck();
 
     PushReceived notification = Push.Received(phone).ShouldHaveSingleItem();
-    notification.MarkedForServiceWorker.ShouldBeTrue("marked for the app's service worker");
-    notification.Balance.ShouldBe(BalanceReading.Of(45.20m, readAt: Check.Now, czkPerEur: 24.6m));
+    notification.ShouldSatisfyAllConditions(
+      () => notification.MarkedForServiceWorker.ShouldBeFalse("not marked for the app's service worker"),
+      () => notification.CarriesData.ShouldBeFalse("it has no data"),
+      () => notification.Balance.ShouldBe(BalanceReading.Of(45.20m, readAt: Check.Now, czkPerEur: 24.6m), "its address carries the balance"),
+      () => notification.CheckCodeAccepted.ShouldBeTrue("with a check code her phone accepts"));
+  }
+
+  [Test, Scenario("account-check", "Each device's notification carries a check code of its own")]
+  public async Task Each_devices_notification_carries_a_check_code_of_its_own() {
+    await Check.HasKept(lastSeen: 49.00m, lastNotified: 49.00m);
+    Bank.HasAvailableBalance(45.20m, "EUR");
+    PhoneForPush phone = Push.NewPhone("Lucie's phone");
+    PhoneForPush tablet = Push.NewPhone("Lucie's tablet");
+    await SignIn.HasSignedIn(Visitor.Lucie);
+    await Push.HasRegistered(phone);
+    await Push.HasRegistered(tablet);
+
+    await Check.PhoneAsksForACheck();
+
+    PushReceived toThePhone = Push.Received(phone).ShouldHaveSingleItem("her phone receives the notification");
+    PushReceived toTheTablet = Push.Received(tablet).ShouldHaveSingleItem("her tablet receives the notification");
+    toThePhone.ShouldSatisfyAllConditions(
+      () => toThePhone.Balance.ShouldNotBeNull("her phone receives the balance").Amount.ShouldBe(45.20m),
+      () => toThePhone.CheckCodeAccepted.ShouldBeTrue("with a check code her phone accepts"),
+      () => toTheTablet.Balance.ShouldNotBeNull("her tablet receives the balance").Amount.ShouldBe(45.20m),
+      () => toTheTablet.CheckCodeAccepted.ShouldBeTrue("with a check code her tablet accepts"),
+      () => tablet.Accepts(toThePhone).ShouldBeFalse("the tablet does not accept the phone's check code"));
   }
 
   [Test, Scenario("account-check", "A failed bank read sends nothing and answers as the balance does")]

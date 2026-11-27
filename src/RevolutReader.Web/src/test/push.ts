@@ -22,6 +22,14 @@
  *   - `getSubscription()` answers the subscription it holds, or `null`; it fails with the test's `getSubscriptionFails`.
  *     Under `getSubscriptionWaits` it waits until the test lets it go, then answers as without it.
  *   - `permissionState()` answers the notification permission as push names it (`default` is `prompt`).
+ * - The notifications the phone shows now (c019 design.md D5, § Ports and contracts: the browser's notification list,
+ *   as the spike saw it on the iPhone): `registration.getNotifications()` lists those the test shows (`notifications`,
+ *   and those that arrive later, `notificationArrives`), each with its `title`, `body` (`""` when it has none),
+ *   `navigate` (when it has one, its fragment included) and `data` `null`, as iOS lists the ones its push daemon
+ *   showed; the tapped one is never listed, so a test lists only the others. Under `getNotificationsFails` it fails
+ *   with the test's error; under `getNotificationsWaits` it waits until the test lets it go
+ *   (`letWaitingCallsSettle`), then lists what is shown then. `dismissNotifications()` clears them all, as the user
+ *   clearing Notification Center.
  * - A `PushSubscription` (`madeUpSubscription`, or one `subscribe` made): its `endpoint`, `expirationTime` (`null`),
  *   `options` (`userVisibleOnly`, and `applicationServerKey` as an `ArrayBuffer`, or `null`), `getKey`, `toJSON()`
  *   (`{ endpoint, expirationTime, keys: { p256dh, auth } }`, the keys in base64url without padding) and
@@ -64,8 +72,33 @@ export interface SubscriptionInit {
   leavesOut?: "applicationServerKey" | "options";
 }
 
+/** A notification the phone shows, as the test gives it: its title, its text and the address a tap opens. */
+export interface ShownNotification {
+  title: string;
+  body?: string;
+  navigate?: string;
+}
+
+/** A notification as `registration.getNotifications()` lists it (c019 design.md § Ports and contracts). */
+export interface ListedNotification {
+  readonly title: string;
+  readonly body: string;
+  readonly navigate?: string;
+  readonly data: null;
+  close(): void;
+}
+
 /** How the phone's push and notifications stand for this test. */
 export interface PushStandInOptions {
+  /** The notifications the phone shows when the test starts; by default none. */
+  notifications?: readonly ShownNotification[];
+  /** `getNotifications()` fails with this error, as when the browser refuses to list them. */
+  getNotificationsFails?: Error;
+  /**
+   * `getNotifications()` waits, as a browser that leaves it hanging, until the test lets it go
+   * (`letWaitingCallsSettle`); then it lists what is shown then. By default it does not wait.
+   */
+  getNotificationsWaits?: boolean;
   /** The notification permission; by default `default` (never asked). */
   permission?: NotificationPermission;
   /** What `Notification.requestPermission()` answers; by default `granted`. */
@@ -129,10 +162,14 @@ export interface PushStandIns {
   /** The subscription the registration holds now, or `null`. */
   subscription(): PushSubscription | null;
   /**
-   * Lets every call left waiting (`subscribeWaits`, `getSubscriptionWaits`, a held subscription's `unsubscribeWaits`) go
-   * on, each as it would have without waiting.
+   * Lets every call left waiting (`subscribeWaits`, `getSubscriptionWaits`, `getNotificationsWaits`, a held
+   * subscription's `unsubscribeWaits`) go on, each as it would have without waiting.
    */
   letWaitingCallsSettle(): void;
+  /** A notification arrives and is shown from now on, after those shown already. */
+  notificationArrives(notification: ShownNotification): void;
+  /** Every notification the phone shows is cleared, as the user clearing Notification Center. */
+  dismissNotifications(): void;
 }
 
 /** What `installPushStandIns` put in place, to remove it after the test. */
@@ -261,9 +298,34 @@ export function installPushStandIns(
     }
   }
 
+  /** The notifications the phone shows now, in the order they came. */
+  let shown: ShownNotification[] = [...(options.notifications ?? [])];
+  const listed = (notification: ShownNotification): ListedNotification => ({
+    title: notification.title,
+    body: notification.body ?? "",
+    ...(notification.navigate === undefined
+      ? {}
+      : { navigate: notification.navigate }),
+    data: null,
+    close: () => {
+      shown = shown.filter((each) => each !== notification);
+    },
+  });
+  const getNotifications = (): Promise<ListedNotification[]> => {
+    // What is shown when it answers, so a call left waiting lists what is shown once let go.
+    const answer = (): Promise<ListedNotification[]> =>
+      options.getNotificationsFails !== undefined
+        ? Promise.reject(options.getNotificationsFails)
+        : Promise.resolve(shown.map(listed));
+    return options.getNotificationsWaits === true
+      ? untilLetGo().then(answer)
+      : answer();
+  };
+
   const registration = {
     scope: `${globalThis.location.origin}/`,
     pushManager: new StandInPushManager(),
+    getNotifications,
   } as unknown as ServiceWorkerRegistration;
 
   if (!without.has("Notification"))
@@ -294,6 +356,12 @@ export function installPushStandIns(
       const letGo = waiting;
       waiting = [];
       for (const go of letGo) go();
+    },
+    notificationArrives: (notification) => {
+      shown = [...shown, { ...notification }];
+    },
+    dismissNotifications: () => {
+      shown = [];
     },
   };
 }

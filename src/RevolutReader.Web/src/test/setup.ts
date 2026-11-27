@@ -6,11 +6,13 @@
 // every test (`emptyThePhone`), with jsdom's `localStorage` (c012: the remembered "Teď ne"); the test clock (./clock.ts)
 // is stopped after every test.
 // The push stand-ins (c011, ./push.ts) are installed by the tests that need them and removed after every test.
+// The operations started on `crypto.subtle` are counted (c019, ./cryptoWork.ts), so the test clock waits for them.
 import "fake-indexeddb/auto";
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach } from "vitest";
 import { stopTestClock } from "./clock";
+import { countCryptoWork } from "./cryptoWork";
 import {
   installIntersectionObserver,
   resetIntersectionObservers,
@@ -20,6 +22,7 @@ import { emptyThePhone, installFakeServer, resetFakeServer } from "./server";
 
 installFakeServer();
 installIntersectionObserver();
+countCryptoWork();
 
 beforeEach(async () => {
   await emptyThePhone();

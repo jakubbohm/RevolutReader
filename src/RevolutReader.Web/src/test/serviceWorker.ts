@@ -4,6 +4,7 @@ import type {
   PushWorker,
   WindowLike,
 } from "../app/pushDisplay";
+import { PHONE_SECRET } from "./notificationBalance";
 
 /**
  * The service worker's side, as the app's tests see it (c012 design.md D9, D10): jsdom runs no service worker, so the
@@ -14,6 +15,10 @@ import type {
  * - `location.origin`: the service worker's own origin, by default `ORIGIN`.
  * - `registration.showNotification(title, options)`: shows a notification of the service worker's own, recorded in
  *   `shownNotifications()` with its title, body and data.
+ * - `registration.pushManager.getSubscription()` (c019 design.md D7): the push subscription the service worker gets its
+ *   pushes for, whose `getKey("auth")` gives its secret's bytes (by default `PHONE_SECRET`, so a notification's
+ *   balance made with `./notificationBalance.ts` for the phone is this one's), and `null` for any other key; with
+ *   `subscription: null`, none.
  * - `clients`: the windows open now (`openWindows`, by default none; and `uncontrolledWindows`, which `matchAll` answers
  *   only with `includeUncontrolled: true`). `matchAll` answers them, whatever their origin, so a test can check that
  *   the handler counts only its own origin's as the app;
@@ -67,6 +72,11 @@ export interface ServiceWorkerStandInOptions {
   uncontrolledWindows?: readonly string[];
   /** The service worker's own origin; by default `ORIGIN`. */
   origin?: string;
+  /**
+   * The push subscription `registration.pushManager.getSubscription()` answers: its secret (`auth`) in base64url; by
+   * default `PHONE_SECRET`. `null`: the service worker holds none.
+   */
+  subscription?: { auth: string } | null;
 }
 
 /** A notification the service worker showed. */
@@ -126,6 +136,17 @@ export function installServiceWorkerStandIn(
   const uncontrolled: WindowLike[] = (options.uncontrolledWindows ?? []).map(
     windowAt,
   );
+  const held =
+    options.subscription === undefined
+      ? { auth: PHONE_SECRET }
+      : options.subscription;
+  const subscription =
+    held === null
+      ? null
+      : {
+          getKey: (name: string): ArrayBuffer | null =>
+            name === "auth" ? bytesOf(held.auth).buffer : null,
+        };
 
   const worker: PushWorker & WorkerFetch = {
     location: { origin },
@@ -140,6 +161,9 @@ export function installServiceWorkerStandIn(
           data: notificationOptions?.data,
         });
         return Promise.resolve();
+      },
+      pushManager: {
+        getSubscription: () => Promise.resolve(subscription),
       },
     },
     clients: {
@@ -235,6 +259,12 @@ export function installServiceWorkerStandIn(
     openedWindows: () => [...opened],
     focusedWindows: () => [...focused],
   };
+}
+
+/** The bytes of base64url text, the stand-in's own reading, independent of the app's. */
+function bytesOf(text: string): Uint8Array<ArrayBuffer> {
+  const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 }
 
 /**

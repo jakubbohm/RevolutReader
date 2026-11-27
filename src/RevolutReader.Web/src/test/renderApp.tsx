@@ -5,6 +5,8 @@ import {
   answerWith,
   closeApp,
   navigations,
+  openPageAt,
+  pageAddress,
   requests,
   timeline,
   type ServerAnswers,
@@ -24,14 +26,26 @@ export interface RenderedApp extends RenderResult {
   navigations(): string[];
   /** Requests, answers, failures, aborts and navigations, in the order they happened (./server.ts). */
   timeline(): string[];
+  /** The app's address now, as path, query and fragment on its own origin (c019: `pageAddress` of ./server.ts). */
+  address(): string;
   /**
-   * Closes the app and opens it again where it was first opened (c009 design.md D8): unmounted, then a new launch.
-   * The server keeps its answers and goes on with them in order, the phone keeps what it stored (the balance, the
-   * remembered "Teď ne"), and the push stand-ins (./push.ts) stay as they are; answers to the closed app's requests
-   * never arrive. The network and the screen stay as they are, so `goOffline()` first opens it offline. Returns the new
-   * launch. On the test clock, `timePasses(0)` lets it read the phone's storage.
+   * Closes the app and opens it again where it was first opened (c009 design.md D8): unmounted, then a new launch,
+   * from the app's icon, so at its start page `/` whatever address the first launch had (c019). The server keeps its
+   * answers and goes on with them in order, the phone keeps what it stored (the balance, the remembered "Teď ne"), and
+   * the push stand-ins (./push.ts) stay as they are, the notifications they show too; answers to the closed app's
+   * requests never arrive. The network and the screen stay as they are, so `goOffline()` first opens it offline.
+   * Returns the new launch. On the test clock, `timePasses(0)` lets it read the phone's storage.
    */
   reopen(): RenderedApp;
+}
+
+/** How the app is launched (c019). */
+export interface Launch {
+  /**
+   * The address it opens at, on its own origin, its fragment included: a notification's address for a launch by a tap
+   * on it (c019 design.md D5); by default the start page `/`, as from the app's icon.
+   */
+  address?: string;
 }
 
 /** Safari on an iPhone, as it reports itself. */
@@ -56,17 +70,24 @@ const devices: Record<Opened, Device> = {
  *
  * On the test clock (`./clock.ts`), rendering moves no time: the app has sent its first requests, and their answers
  * arrive on `timePasses(0)` (or after their `after`).
+ *
+ * The app opens at `launchedAs.address` when given (c019), else at its start page `/`.
  */
 export function renderApp(
   opened: Opened,
   server: ServerAnswers = {},
+  launchedAs: Launch = {},
 ): RenderedApp {
   answerWith(server);
 
-  return launch(opened);
+  return launch(opened, launchedAs.address ?? START_PAGE);
 }
 
-function launch(opened: Opened): RenderedApp {
+/** The app's start page, where an opening from its icon lands (the manifest's `start_url`). */
+const START_PAGE = "/";
+
+function launch(opened: Opened, address: string): RenderedApp {
+  openPageAt(address);
   const rendered = render(<App device={devices[opened]} />);
 
   return {
@@ -76,10 +97,11 @@ function launch(opened: Opened): RenderedApp {
       requests().filter((sent) => sent === request).length,
     navigations,
     timeline,
+    address: pageAddress,
     reopen: () => {
       rendered.unmount();
       closeApp();
-      return launch(opened);
+      return launch(opened, START_PAGE);
     },
   };
 }

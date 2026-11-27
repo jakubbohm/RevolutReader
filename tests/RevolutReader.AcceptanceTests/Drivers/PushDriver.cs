@@ -54,8 +54,10 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// device's own keys (<see cref="TestDevice.Decrypt"/>) and read as <see cref="PushReceived"/> describes; its
 /// <c>TTL</c> as the lifetime in seconds, its <c>Urgency</c> as it is, whether its token passed the fake's checks, and
 /// whether the fake accepted it (201) as reaching the phone; since C9a also <c>mutable</c> at the message's top level and
-/// the balance in <c>notification.data</c> (c014 design.md D14). The reading is the test-writer's, as the fake push service
-/// and the test device are (c011 design.md D7); its self-tests are <c>HarnessSelfTests/PushReadingSelfTests</c>.</item>
+/// since c019 whether the notification has <c>data</c>, both read whatever they hold, and the balance in <c>navigate</c>'s
+/// fragment with whether the device accepts its check code (c019 design.md D2, D3, D12). The reading is the
+/// test-writer's, as the fake push service and the test device are (c011 design.md D7); its self-tests are
+/// <c>HarnessSelfTests/PushReadingSelfTests</c>.</item>
 /// </list>
 /// Filled in by the wiring groups (tasks.md 3.4, 10.4, 22.1, 25.1, 48.1); until then every method throws.
 /// </summary>
@@ -135,12 +137,19 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
   private const string NAVIGATE = "navigate";
 
   /// <summary>
-  /// The members a notification about the account adds (c014 design.md D14): <c>mutable</c> at the message's top level, and
-  /// in the notification's <c>data</c> the <c>balance</c>, with the members <c>GET /api/balance</c> answers.
+  /// The members a notification about the account carried until c019 (c014 design.md D14), which the reading still reads
+  /// so a scenario can pin their absence (c019 design.md D1, D12): <c>mutable</c> at the message's top level, and the
+  /// notification's <c>data</c>.
   /// </summary>
   private const string MUTABLE = "mutable";
   private const string DATA = "data";
-  private const string BALANCE = "balance";
+
+  /// <summary>
+  /// The balance in <c>navigate</c>'s fragment (c019 design.md D2): <c>#balance=&lt;payload&gt;.&lt;code&gt;</c>, the payload
+  /// holding the members <c>GET /api/balance</c> answers.
+  /// </summary>
+  private const char FRAGMENT = '#';
+  private const char CODE_SEPARATOR = '.';
   private const string AMOUNT = "amount";
   private const string READ_AT = "readAt";
   private const string CZK_PER_EUR = "czkPerEur";
@@ -519,39 +528,45 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
       throw new InvalidOperationException($"A push to {device.Name} does not decrypt with its own keys: {exception.Message}", exception);
     }
 
-    return AsTheDeviceReadsIt(device.Name, content, push);
+    return AsTheDeviceReadsIt(device, content, push);
   }
 
   /// <summary>
-  /// <paramref name="push"/> to the device named <paramref name="device"/>, whose body decrypted to <paramref name="content"/>,
-  /// as the device reads it: the content strictly as a Declarative Web Push message (<see cref="DeclarativeMessage"/>), the
-  /// push's <c>TTL</c> and <c>Urgency</c> headers, whether its token passed the fake's checks, and whether the fake accepted
-  /// it (201). Content that is not such a message fails the step, naming why. Also for the self-tests
-  /// (<c>HarnessSelfTests/PushReadingSelfTests</c>), which hand it messages they build themselves.
+  /// <paramref name="push"/> to <paramref name="device"/>, whose body decrypted to <paramref name="content"/>, as the device
+  /// reads it: the content strictly as a Declarative Web Push message (<see cref="DeclarativeMessage"/>), the balance in
+  /// <c>navigate</c>'s fragment (<see cref="BalanceIn"/>) and whether the device accepts its check code
+  /// (<see cref="TestDevice.Accepts"/>), the push's <c>TTL</c> and <c>Urgency</c> headers, whether its token passed the
+  /// fake's checks, and whether the fake accepted it (201). Content that is not such a message fails the step, naming why.
+  /// Also for the self-tests (<c>HarnessSelfTests/PushReadingSelfTests</c>), which hand it messages they build themselves.
   /// </summary>
-  internal static PushReceived AsTheDeviceReadsIt(string device, string content, ReceivedPush push) {
+  internal static PushReceived AsTheDeviceReadsIt(TestDevice device, string content, ReceivedPush push) {
+    ArgumentNullException.ThrowIfNull(device);
     ArgumentNullException.ThrowIfNull(push);
 
-    PushContent message = DeclarativeMessage(device, content);
+    PushContent message = DeclarativeMessage(device.Name, content);
+    (string navigate, string? fragment, BalanceReading? balance) = BalanceIn(device.Name, message.Navigate, content);
 
     return new PushReceived(
       message.Title,
       message.Text,
-      message.Navigate,
-      LifetimeSeconds(device, push),
+      navigate,
+      LifetimeSeconds(device.Name, push),
       push.Headers.TryGetValue(URGENCY, out string? urgency) ? urgency : null,
       push.SignedWithServerKey,
       ReachedThePhone: push.Answer == HttpStatusCode.Created,
       message.MarkedForServiceWorker,
-      message.Balance);
+      message.CarriesData,
+      balance,
+      CheckCodeAccepted: fragment is not null && device.Accepts(fragment),
+      fragment);
   }
 
   /// <summary>
   /// The content of a Declarative Web Push message: a JSON object of exactly <c>web_push</c>, the number 8030, and
-  /// <c>notification</c>, and <c>mutable</c>, exactly <c>true</c>, when it is marked for the app's service worker (c014
-  /// design.md D14); its <c>notification</c> an object of exactly <c>title</c> and <c>navigate</c>, strings, <c>body</c>, a
-  /// string, when there is text, and <c>data</c> when it carries a balance (<see cref="BalanceIn"/>). Anything else fails the
-  /// step, naming why.
+  /// <c>notification</c>, and <c>mutable</c>, whatever its value, when the message has one (c014 design.md D14; read, never
+  /// failed, c019 design.md D12); its <c>notification</c> an object of exactly <c>title</c> and <c>navigate</c>, strings,
+  /// <c>body</c>, a string, when there is text, and <c>data</c>, whatever its value, when it has one. Anything else fails
+  /// the step, naming why.
   /// </summary>
   private static PushContent DeclarativeMessage(string device, string content) {
     JsonElement message = JsonObjectOrNull(content)
@@ -563,41 +578,60 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
       && version == DECLARATIVE_WEB_PUSH;
 
     if (!declarative)
-      throw new InvalidOperationException($"A push to {device} is not a Declarative Web Push message (exactly {WEB_PUSH} {DECLARATIVE_WEB_PUSH} and {NOTIFICATION}, and {MUTABLE} when marked for the service worker): {content}");
+      throw new InvalidOperationException($"A push to {device} is not a Declarative Web Push message (exactly {WEB_PUSH} {DECLARATIVE_WEB_PUSH} and {NOTIFICATION}, and {MUTABLE} when it has one): {content}");
 
-    bool markedForServiceWorker = message.TryGetProperty(MUTABLE, out JsonElement mutable);
-
-    if (markedForServiceWorker && mutable.ValueKind != JsonValueKind.True)
-      throw new InvalidOperationException($"A push to {device} has a {MUTABLE} other than true, the only value the app writes: {content}");
-
+    bool markedForServiceWorker = message.TryGetProperty(MUTABLE, out _);
     JsonElement notification = message.GetProperty(NOTIFICATION);
 
     bool wellFormed = HasMembers(notification, [TITLE, NAVIGATE], [BODY, DATA])
       && notification.EnumerateObject().Where(static member => member.Name != DATA).All(static member => member.Value.ValueKind == JsonValueKind.String);
 
     return wellFormed && Text(notification, TITLE) is string title && Text(notification, NAVIGATE) is string navigate
-      ? new PushContent(title, Text(notification, BODY), navigate, markedForServiceWorker, BalanceIn(device, notification, content))
-      : throw new InvalidOperationException($"A push to {device} has a {NOTIFICATION} other than exactly {TITLE}, {NAVIGATE} and, with text, {BODY}, each a string, and, with a balance, {DATA}: {content}");
+      ? new PushContent(title, Text(notification, BODY), navigate, markedForServiceWorker, CarriesData: notification.TryGetProperty(DATA, out _))
+      : throw new InvalidOperationException($"A push to {device} has a {NOTIFICATION} other than exactly {TITLE}, {NAVIGATE} and, with text, {BODY}, each a string, and {DATA} when it has one: {content}");
   }
 
   /// <summary>
-  /// The balance in <paramref name="notification"/>'s <c>data</c> (c014 design.md D14): <c>data</c> an object of exactly
-  /// <c>balance</c>, an object of exactly <c>amount</c> and <c>czkPerEur</c>, JSON numbers, and <c>readAt</c>, a JSON string
-  /// holding an ISO 8601 date and time, read as an instant (in UTC), as <see cref="BalanceDriver"/> reads the balance's
-  /// answer. <see langword="null"/> when there is no <c>data</c>; any other <c>data</c> fails the step, naming why.
+  /// The balance in <paramref name="navigate"/>'s fragment (c019 design.md D2): the address without the fragment, the raw
+  /// fragment (<c>balance=&lt;payload&gt;.&lt;code&gt;</c>, without the <c>#</c>) and the balance its payload holds. The
+  /// payload is base64url without padding of UTF-8 JSON, an object of exactly <c>amount</c> and <c>czkPerEur</c>, JSON
+  /// numbers, and <c>readAt</c>, a JSON string holding an ISO 8601 date and time, read as an instant (in UTC), as
+  /// <see cref="BalanceDriver"/> reads the balance's answer; the code is whatever follows the last <c>.</c>, checked by the
+  /// device (<see cref="TestDevice.Accepts"/>), not here. An address without a fragment, or with a fragment of another
+  /// kind, is read as it is, with no balance; a balance fragment of any other shape fails the step, naming why.
   /// </summary>
-  private static BalanceReading? BalanceIn(string device, JsonElement notification, string content) {
-    if (!notification.TryGetProperty(DATA, out JsonElement data))
-      return null;
+  private static (string Navigate, string? Fragment, BalanceReading? Balance) BalanceIn(string device, string navigate, string content) {
+    int hash = navigate.IndexOf(FRAGMENT, StringComparison.Ordinal);
+    string? fragment = hash < 0 ? null : navigate[(hash + 1)..];
 
-    JsonElement balance = HasMembers(data, [BALANCE], []) ? data.GetProperty(BALANCE) : default;
+    if (fragment is null || !fragment.StartsWith(TestDevice.BALANCE_FRAGMENT_START, StringComparison.Ordinal))
+      return (navigate, null, null);
 
-    return HasMembers(balance, [AMOUNT, READ_AT, CZK_PER_EUR], [])
-      && Number(balance, AMOUNT) is decimal amount
-      && Instant(balance, READ_AT) is DateTimeOffset readAt
-      && Number(balance, CZK_PER_EUR) is decimal czkPerEur
+    string value = fragment[TestDevice.BALANCE_FRAGMENT_START.Length..];
+    int separator = value.LastIndexOf(CODE_SEPARATOR, StringComparison.Ordinal);
+    JsonElement? payload = separator > 0 ? PayloadOrNull(value[..separator]) : null;
+
+    BalanceReading? balance = payload is JsonElement json
+      && HasMembers(json, [AMOUNT, READ_AT, CZK_PER_EUR], [])
+      && Number(json, AMOUNT) is decimal amount
+      && Instant(json, READ_AT) is DateTimeOffset readAt
+      && Number(json, CZK_PER_EUR) is decimal czkPerEur
       ? BalanceReading.Of(amount, readAt.ToUniversalTime(), czkPerEur)
-      : throw new InvalidOperationException($"A push to {device} has a {NOTIFICATION}.{DATA} other than exactly {BALANCE}, an object of exactly {AMOUNT} and {CZK_PER_EUR}, numbers, and {READ_AT}, an ISO 8601 date and time: {content}");
+      : null;
+
+    return balance is not null
+      ? (navigate[..hash], fragment, balance)
+      : throw new InvalidOperationException($"A push to {device} has a {NAVIGATE} whose balance fragment is not {TestDevice.BALANCE_FRAGMENT_START}<payload>.<code>, its payload base64url of a JSON object of exactly {AMOUNT} and {CZK_PER_EUR}, numbers, and {READ_AT}, an ISO 8601 date and time: {content}");
+  }
+
+  /// <summary>The payload's JSON object: base64url without padding of strict UTF-8 JSON; <see langword="null"/> when it is not one.</summary>
+  private static JsonElement? PayloadOrNull(string payload) {
+    try {
+      return JsonObjectOrNull(new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true).GetString(Base64Url.DecodeFromChars(payload)));
+    }
+    catch (Exception exception) when (exception is FormatException or DecoderFallbackException) {
+      return null;
+    }
   }
 
   /// <summary>The push's <c>TTL</c> in seconds; <see langword="null"/> when it has none. A <c>TTL</c> that is not a whole number fails the step.</summary>
@@ -634,7 +668,7 @@ public sealed class PushDriver(HttpClient browser, HttpClient owner, FakePushSer
     value.TryGetProperty(name, out JsonElement member) && member.ValueKind == JsonValueKind.String && member.TryGetDateTimeOffset(out DateTimeOffset instant) ? instant : null;
 
   /// <summary>A Declarative Web Push message's content, as <see cref="DeclarativeMessage"/> reads it.</summary>
-  private sealed record PushContent(string Title, string? Text, string Navigate, bool MarkedForServiceWorker, BalanceReading? Balance);
+  private sealed record PushContent(string Title, string? Text, string Navigate, bool MarkedForServiceWorker, bool CarriesData);
 
   /// <summary>The member <paramref name="name"/> when it is a JSON number an <see cref="int"/> holds; otherwise <see langword="null"/>.</summary>
   private static int? Int(JsonElement value, string name) =>

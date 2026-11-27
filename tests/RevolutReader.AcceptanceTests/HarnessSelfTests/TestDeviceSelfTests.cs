@@ -33,6 +33,14 @@ public sealed class TestDeviceSelfTests {
     "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPT"
     + "pK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN";
 
+  /// <summary>
+  /// c019 design.md D12's known-answer vector: the balance fragment the secret 0x00 to 0x0f makes for the balance
+  /// <c>{"amount":45.20,"readAt":"2026-11-21T09:14:03+00:00","czkPerEur":24.6}</c>, all made up. Made once with Node's
+  /// crypto (<c>crypto.hkdfSync</c>, <c>crypto.createHmac</c>), outside both implementations.
+  /// </summary>
+  private const string VECTOR_FRAGMENT =
+    "balance=eyJhbW91bnQiOjQ1LjIwLCJyZWFkQXQiOiIyMDI2LTExLTIxVDA5OjE0OjAzKzAwOjAwIiwiY3prUGVyRXVyIjoyNC42fQ.gHNRottXJIXZNAvXcA5P_kbRkFAcBIPEngYqomaE9wM";
+
   /// <summary>Where RFC 8291 § 5's example sends it.</summary>
   private static readonly Uri _pushAddress = new("https://push.example.net/push/JzLQ3raZJfFBR0aqvOMsLrt54w4rJUsV");
 
@@ -80,6 +88,43 @@ public sealed class TestDeviceSelfTests {
 
     _ = Should.Throw<CryptographicException>(() => another.Decrypt(Base64Url.DecodeFromChars(BODY)));
   }
+
+  // c019 design.md D3, D12: the check code of a notification's balance.
+
+  [Test]
+  public void The_test_device_accepts_the_check_code_of_the_known_answer_vector() {
+    TestDevice.WithSecret("the vector's phone", VectorSecret()).Accepts(VECTOR_FRAGMENT).ShouldBeTrue();
+  }
+
+  /// <param name="changed">How the vector's fragment, or the device checking it, differs from the vector.</param>
+  [Test]
+  [Arguments("a device with another secret")]
+  [Arguments("one character of the payload changed")]
+  [Arguments("one character of the code changed")]
+  [Arguments("the code one character short")]
+  [Arguments("no code")]
+  [Arguments("another fragment name")]
+  public void The_test_device_accepts_no_other_check_code(string changed) {
+    TestDevice phone = TestDevice.WithSecret("the vector's phone", VectorSecret());
+    int separator = VECTOR_FRAGMENT.LastIndexOf('.', StringComparison.Ordinal);
+    string payload = VECTOR_FRAGMENT[..separator];
+    string code = VECTOR_FRAGMENT[(separator + 1)..];
+
+    (TestDevice device, string fragment) = changed switch {
+      "a device with another secret" => (TestDevice.WithSecret("another phone", [.. VectorSecret().Select(static value => (byte)(value ^ 0xff))]), VECTOR_FRAGMENT),
+      "one character of the payload changed" => (phone, $"{payload[..^1]}{(payload[^1] == 'Q' ? 'R' : 'Q')}.{code}"),
+      "one character of the code changed" => (phone, $"{payload}.{code[..^1]}{(code[^1] == 'A' ? 'Q' : 'A')}"),
+      "the code one character short" => (phone, $"{payload}.{code[..^1]}"),
+      "no code" => (phone, payload),
+      "another fragment name" => (phone, $"saldo={VECTOR_FRAGMENT["balance=".Length..]}"),
+      _ => throw new ArgumentOutOfRangeException(nameof(changed), changed, "Not a known case."),
+    };
+
+    device.Accepts(fragment).ShouldBeFalse();
+  }
+
+  /// <summary>design.md D12's made-up secret: the 16 bytes 0x00 to 0x0f.</summary>
+  private static byte[] VectorSecret() => [.. Enumerable.Range(0, 16).Select(static value => (byte)value)];
 
   /// <summary>The RFC's user agent, as a test device.</summary>
   private static TestDevice TheReceiver() => TestDevice.WithKeys(
