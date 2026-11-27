@@ -37,6 +37,7 @@ import {
   nobodySignedIn,
   openPageAt,
   phoneKeeps,
+  phoneStorageFails,
   pushKey,
   refused,
   requests,
@@ -2112,4 +2113,78 @@ test("A launch's intake reads the list as well as the address", async () => {
 
   expect(amountShown(result.current.shown)).toBe(286.4);
   expect(amounts, "the older kept balance never shows").not.toContain(250);
+});
+
+// ---- c019: the intake at a return (design.md D5, D6) ----
+
+/** Lucie's phone, subscribed with the server's key and the secret the notifications are made for. */
+function lucysPhoneForNotifications(): PushStandIns {
+  return phoneSubscribed({
+    subscription: {
+      endpoint: LUCIES_PHONE,
+      applicationServerKey: SERVER_KEY,
+      auth: PHONE_SECRET,
+    },
+  });
+}
+
+test("Every return to the screen runs the intake with both sources, and the screen then shows the newer of what it showed and what the phone keeps", async () => {
+  startTestClock();
+  const phone = lucysPhoneForNotifications();
+  // The launch's read shows 250,00 €; the read every return repeats gets no answer.
+  answerWith({ ...LUCIES_SERVER, balance: [balance(250), noAnswerYet] });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the launch's read").toBe(250);
+
+  // In the background, a notification read later than that arrives; the app comes back.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.notificationArrives({
+    title: "Přišlo 36,40 €",
+    navigate: await balanceAddress(kept(286.4, ago(0)), PHONE_SECRET),
+  });
+  returnToApp();
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "from the list").toBe(286.4);
+
+  // In the background again, the page's own address comes to carry a newer balance, with no hashchange.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.dismissNotifications();
+  history.replaceState(
+    null,
+    "",
+    await balanceAddress(kept(301.9, ago(0)), PHONE_SECRET),
+  );
+  returnToApp();
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "from the address").toBe(301.9);
+});
+
+test("A return's intake that keeps nothing leaves the shown balance as it was", async () => {
+  startTestClock();
+  const keptBefore = kept(250, ago(2 * HOUR));
+  await phoneKeeps(keptBefore);
+  const phone = lucysPhoneForNotifications();
+  answerWith({ ...LUCIES_SERVER, balance: [balance(286.4), noAnswerYet] });
+  // The launch's read shows 286,40 €, but the phone cannot keep it: it keeps the older 250,00 €.
+  const restoreStorage = phoneStorageFails();
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  restoreStorage();
+  expect(amountShown(result.current.shown), "the launch's read").toBe(286.4);
+
+  // A notification read earlier than the kept balance is still shown: the return's intake keeps nothing.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.notificationArrives({
+    title: "Odešlo 3,80 €",
+    navigate: await balanceAddress(kept(200, ago(3 * HOUR)), PHONE_SECRET),
+  });
+  returnToApp();
+  await timePasses(0);
+
+  expect(await keptBalance(), "nothing kept").toEqual(keptBefore);
+  expect(amountShown(result.current.shown), "as it was").toBe(286.4);
 });
