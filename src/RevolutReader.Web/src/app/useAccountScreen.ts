@@ -133,12 +133,20 @@ interface Wake {
 }
 
 /**
- * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, shown at once
- * until a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
- * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen.
+ * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, loaded once the
+ * launch's intake of notification balances has ended, or after 300 ms at most (`LAUNCH_INTAKE_LIMIT_MS`, c019
+ * design.md D6); and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance (`GET /api/balance`),
+ * one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. The balance shown is
+ * the newer, by `readAt`, of the latest read and the one the phone keeps, the read on a tie (`newer`, c019 D6): a read
+ * does not replace a kept balance read later.
  * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
  * without an answer it is long, and an answer that took that long woke the server; from 30 s it is slow, and "Zkusit
  * znovu" asks again and starts the 30 s over (D2). The first load has no other cap (D3).
+ *
+ * Notifications' balances are taken in (`takeInNotificationBalances`, c019 design.md D5, D6) at a launch, from the
+ * page's address and the notifications the phone still shows; at every return to the screen, from both; and at every
+ * `hashchange`, from the address. Each keeps a balance only by c015's rule (`keepNotificationBalance`), and the kept
+ * balance is loaded again only when one kept something; an intake that ends after the launch's 300 ms still does.
  *
  * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
  * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
@@ -452,15 +460,16 @@ export function useAccountScreen(): AccountScreenModel {
   useEffect(() => {
     onPage.current = true;
 
-    // What the phone keeps shows at once, before any answer (D2); a failing store reads as none.
+    // Loads what the phone keeps, without waiting for any answer (D2); a failing store reads as none. At a launch it
+    // runs once the intake has ended or its 300 ms have passed (`loadStored`), later after each intake that kept one.
     async function showStored(): Promise<void> {
       const kept = await loadStoredBalance();
       if (onPage.current) setStored(kept);
     }
 
     // A launch first takes in the balance of the notification that opened it and of those the phone still shows (c019
-    // design.md D5, D6), so the older kept balance never flashes before it; a browser call left hanging holds the kept balance back for 300 ms at most, and
-    // an intake that ends later still shows what it kept.
+    // design.md D5, D6), so the older kept balance never flashes before it; a browser call left hanging holds the kept
+    // balance back for 300 ms at most, and an intake that ends later still shows what it kept.
     async function loadStored(): Promise<void> {
       const intake = takeInNotificationBalances({
         fromAddress: true,
