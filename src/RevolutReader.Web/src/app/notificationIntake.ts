@@ -37,6 +37,16 @@ export async function takeInNotificationBalances(options: {
   return { kept: await keepNotificationBalance(balance) };
 }
 
+/** Runs `onChange` on every `hashchange` (D5); returns the stop function. */
+export function watchAddress(
+  onChange: () => void,
+  browser?: Window,
+): () => void {
+  void onChange;
+  void browser;
+  throw new Error("Not implemented: watchAddress (c019 design.md D5)");
+}
+
 /**
  * The secret of the push subscription the phone holds (`getKey("auth")`, D5), or null: no registration, no subscription,
  * no secret, or a browser call that fails.

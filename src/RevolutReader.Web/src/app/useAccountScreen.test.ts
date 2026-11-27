@@ -2060,3 +2060,26 @@ test("An intake still running after 300 ms lets the kept balance show, and the s
 
   expect(amountShown(result.current.shown), "once the intake ends").toBe(286.4);
 });
+
+// ---- c019: a hashchange's intake (design.md D5, D6) ----
+
+test("A hashchange runs the intake with the page's address, and the screen shows the kept balance after it", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  installPushStandIns({ subscription: { auth: PHONE_SECRET } });
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the kept balance at start").toBe(
+    250,
+  );
+
+  // The page goes to a notification's fragment, with no launch and no return.
+  const notified = kept(286.4, ago(MINUTE));
+  const notification = new URL(await balanceAddress(notified, PHONE_SECRET));
+  location.hash = notification.hash;
+  await timePasses(0);
+
+  expect(await keptBalance(), "kept by the intake").toEqual(notified);
+  expect(amountShown(result.current.shown), "shown after it").toBe(286.4);
+});

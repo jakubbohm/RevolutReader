@@ -6,7 +6,7 @@ import {
   type PushStandInOptions,
 } from "../test/push";
 import { kept, keptBalance, openPageAt, phoneKeeps } from "../test/server";
-import { takeInNotificationBalances } from "./notificationIntake";
+import { takeInNotificationBalances, watchAddress } from "./notificationIntake";
 
 // The page's intake of a notification's balance (c019 design.md D5, D6): the page's own address, checked with the
 // secret of the push subscription the phone holds (`getKey("auth")`), kept by c015's rule. The browser is the kit's
@@ -67,4 +67,22 @@ test("No registration, no subscription or no auth key means nothing is kept, and
     ).resolves.toEqual({ kept: false });
     expect(await keptBalance(), label).toEqual(KEPT);
   }
+});
+
+test("watchAddress calls back on every hashchange and stops when asked", () => {
+  let calls = 0;
+  const hashChanges = (): void => {
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  };
+
+  const stop = watchAddress(() => {
+    calls += 1;
+  });
+  hashChanges();
+  hashChanges();
+  expect(calls, "every hashchange").toBe(2);
+
+  stop();
+  hashChanges();
+  expect(calls, "none once stopped").toBe(2);
 });
