@@ -342,7 +342,7 @@ Conventions for the run:
 
 ## 48. [close] Slice 17 — After a failed read, the stored balance is grey and still
 
-- [ ] 48.1 The scenario's test passes, as expected after slice 13, and is proven by the same mutation as 47.1. Verify: green, including account-balance / After a failed read, the stored balance is grey and still; the mutation's red result in `.tdd-state.md`
+- [x] 48.1 The scenario's test passes, as expected after slice 13, and is proven by the same mutation as 47.1. Verify: green, including account-balance / After a failed read, the stored balance is grey and still; the mutation's red result in `.tdd-state.md`
 
 ## 49. [unit] Slice 18 — A failed read
 
