@@ -265,12 +265,12 @@ Conventions for the run:
 
 ## 33. [unit] The spike's leftover record (design.md D11, no scenario)
 
-- [ ] 33.1 `removeSpikeLeftovers` removes `tarjeta-papa.notification-test.record` and nothing else
-- [ ] 33.2 A `localStorage` that throws is ignored
+- [x] 33.1 `removeSpikeLeftovers` removes `tarjeta-papa.notification-test.record` and nothing else
+- [x] 33.2 A `localStorage` that throws is ignored
 
 ## 34. [wiring] The spike's leftover record
 
-- [ ] 34.1 `app/leftovers.ts`, called once at the app's start (`main.tsx`), before the first render. Verify: group 33 green; the frontend suite green
+- [x] 34.1 `app/leftovers.ts`, called once at the app's start (`main.tsx`), before the first render. Verify: group 33 green; the frontend suite green
 
 ## 35. [unit] Slice 12 — The service worker's balance
 
