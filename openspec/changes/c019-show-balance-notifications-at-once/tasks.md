@@ -291,7 +291,7 @@ Conventions for the run:
 ## 38. [unit] Slice 13 — The header's state
 
 - [ ] 38.1 `headerOf` gives `live` when `confirmed`; `waiting` when not, while who is signed in is asked or a balance read runs; `stale` otherwise
-- [ ] 38.2 A placeholder header has no state
+- [x] 38.2 A placeholder header has no state
 - [ ] 38.3 `BalanceHeader` marks the amount and `data-balance` with its `state` (default `live`), and the koruna line and the freshness line do not change with it
 
 ## 39. [wiring] Slice 13 — The state shown

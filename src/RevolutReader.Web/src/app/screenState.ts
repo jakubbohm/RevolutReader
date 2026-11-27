@@ -16,6 +16,9 @@ export type Problem =
   /** Turning notifications on failed (c012 design.md D8): offline, or "later". */
   | { kind: "notifications failed"; offline: boolean };
 
+/** Whether the shown balance is live (c019 design.md D8): confirmed, waiting for what can confirm it, or stale. */
+export type BalanceState = "live" | "waiting" | "stale";
+
 /** What the list reports to the screen at the join (c010 design.md D8). */
 export interface ListReport {
   /** Its newest page is being read, at first or again. */
@@ -32,6 +35,8 @@ export interface Facts {
   session: Session | "waiting";
   /** The latest read, else the one the phone keeps, as loaded at start. */
   balance: Balance | null;
+  /** The shown balance is what this opening's latest balance read returned, and it succeeded (c019 design.md D8). */
+  confirmed: boolean;
   /** A balance read under way. */
   reading: "no" | "first" | "refresh";
   /** The first load's wait: under 1.5 s, from 1.5 s, from 30 s. */

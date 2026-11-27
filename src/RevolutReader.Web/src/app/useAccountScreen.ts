@@ -640,6 +640,7 @@ export function useAccountScreen(): AccountScreenModel {
   const facts: Facts = {
     session,
     balance: newer(balance, stored),
+    confirmed: false,
     reading,
     wait,
     wokeUp: wake !== null,

@@ -6,6 +6,7 @@ import {
   formatEur,
   formatUpdated,
 } from "../app/format";
+import type { BalanceState } from "../app/screenState";
 import { Button } from "./Button";
 
 export interface BalanceHeaderProps {
@@ -21,6 +22,8 @@ export interface BalanceHeaderProps {
   refreshing: boolean;
   /** "Obnovit". */
   onRefresh: () => void;
+  /** Whether the balance is live (c019 design.md D8, D9); `live` when not given. */
+  state?: BalanceState;
 }
 
 /**
