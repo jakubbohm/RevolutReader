@@ -2188,3 +2188,64 @@ test("A return's intake that keeps nothing leaves the shown balance as it was", 
   expect(await keptBalance(), "nothing kept").toEqual(keptBefore);
   expect(amountShown(result.current.shown), "as it was").toBe(286.4);
 });
+
+// ---- c019: whether the shown balance is confirmed (design.md D8) ----
+
+/** The header the screen shows: its balance and state; null when it shows none or only the placeholder. */
+function headerShown(
+  shown: AccountScreenModel["shown"],
+): { balance: { amount: number }; state: string } | null {
+  if (shown.screen !== "account") return null;
+  return typeof shown.header === "object" && shown.header !== null
+    ? { balance: shown.header.balance, state: shown.header.state }
+    : null;
+}
+
+test("A successful balance read makes the shown balance confirmed", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: after(READ_TIME, balance(286.4)),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the kept balance, while the read runs",
+  ).toMatchObject({ balance: { amount: 250 }, state: "waiting" });
+
+  await timePasses(READ_TIME);
+
+  expect(
+    headerShown(result.current.shown),
+    "the read's balance, once it has answered",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+});
+
+test("A balance the intake shows in place of the confirmed one is not confirmed", async () => {
+  startTestClock();
+  installPushStandIns({ subscription: { auth: PHONE_SECRET } });
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: balance(250, { readAt: ago(MINUTE) }),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the read's balance, confirmed",
+  ).toMatchObject({ balance: { amount: 250 }, state: "live" });
+
+  // The page goes to a notification's fragment read after that, with no launch, no return and no read.
+  const notification = new URL(
+    await balanceAddress(kept(286.4, ago(0)), PHONE_SECRET),
+  );
+  location.hash = notification.hash;
+  await timePasses(0);
+
+  expect(
+    headerShown(result.current.shown),
+    "the notification's balance, in place of the confirmed one",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
+});
