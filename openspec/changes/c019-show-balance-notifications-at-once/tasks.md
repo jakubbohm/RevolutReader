@@ -324,13 +324,13 @@ Conventions for the run:
 
 ## 44. [unit] Slice 15 — The waiting clock
 
-- [ ] 44.1 `waitClockDelay(t)` is `-(t mod 1500)ms`, with `document.timeline.currentTime` as `t` by default
-- [ ] 44.2 `useWaitClock` sets the delay on its element when `active` turns on, and keeps it through renders while it stays on
-- [ ] 44.3 `WakingUp`'s bar runs `animate-wait-bar` with the delay set at mount; `BalanceHeader`'s amount gets the delay when `waiting` begins
+- [x] 44.1 `waitClockDelay(t)` is `-(t mod 1500)ms`, with `document.timeline.currentTime` as `t` by default
+- [x] 44.2 `useWaitClock` sets the delay on its element when `active` turns on, and keeps it through renders while it stays on
+- [x] 44.3 `WakingUp`'s bar runs `animate-wait-bar` with the delay set at mount; `BalanceHeader`'s amount gets the delay when `waiting` begins
 
 ## 45. [wiring] Slice 15 — One clock
 
-- [ ] 45.1 `components/waitClock.ts`; `WakingUp` and `BalanceHeader` use it. Verify: group 44 green; `WakingUp`'s tests green
+- [x] 45.1 `components/waitClock.ts`; `WakingUp` and `BalanceHeader` use it. Verify: group 44 green; `WakingUp`'s tests green
 
 ## 46. [close] Slice 15 — A stored balance is grey and moving while the server wakes
 

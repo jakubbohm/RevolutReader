@@ -2,6 +2,7 @@ import * as Progress from "@radix-ui/react-progress";
 import { Moon, RefreshCw } from "lucide-react";
 import type { JSX } from "react";
 import { Button } from "./Button";
+import { useWaitClock } from "./waitClock";
 
 export interface WakingUpProps {
   /** The first request has had no answer for 30 s: the slow variant, with "Zkusit znovu". */
@@ -17,8 +18,13 @@ export interface WakingUpProps {
  * `Progress` with no value, so it waits rather than counts. Announced as a status. Under reduced motion the bar stands
  * still as a half-tone bar across the track. The slow variant says it takes longer than usual and offers "Zkusit znovu",
  * a secondary button across the card.
+ *
+ * The bar runs on the one wait clock (c019 design.md D9, `useWaitClock`): its phase is the document timeline's, set at
+ * mount, so it moves in step with a waiting balance's shine whichever appeared first.
  */
 export function WakingUp({ slow, onRetry }: WakingUpProps): JSX.Element {
+  const bar = useWaitClock<HTMLDivElement>(true);
+
   return (
     <div
       role="status"
@@ -42,7 +48,10 @@ export function WakingUp({ slow, onRetry }: WakingUpProps): JSX.Element {
         aria-label="Probouzení serveru"
         className="mt-3 h-1 w-full overflow-hidden rounded-full bg-accent-soft"
       >
-        <Progress.Indicator className="h-full w-2/5 animate-wait-bar rounded-full bg-accent motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-50" />
+        <Progress.Indicator
+          ref={bar}
+          className="h-full w-2/5 animate-wait-bar rounded-full bg-accent motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-50"
+        />
       </Progress.Root>
       {slow ? (
         <div className="mt-3 w-full">
