@@ -376,7 +376,7 @@ Conventions for the run:
 
 ## 56. [close] Slice 21 — A grey balance is spoken as a balance in ink
 
-- [ ] 56.1 The scenario's test passes, as expected after slice 13, and is proven by a mutation: with `BalanceHeader` adding a hidden "neověřeno" when not live, it fails. Verify: green, including account-balance / A grey balance is spoken as a balance in ink; the mutation's red result in `.tdd-state.md`
+- [x] 56.1 The scenario's test passes, as expected after slice 13, and is proven by a mutation: with `BalanceHeader` adding a hidden "neověřeno" when not live, it fails. Verify: green, including account-balance / A grey balance is spoken as a balance in ink; the mutation's red result in `.tdd-state.md`
 
 ## 57. [close] Acceptance green
 
