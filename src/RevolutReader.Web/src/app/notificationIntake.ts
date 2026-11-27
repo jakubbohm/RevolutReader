@@ -73,8 +73,14 @@ async function takeInAddress(
   try {
     return push === null ? false : await keepNewest([address], push.secret);
   } finally {
-    cleanAddress(browser);
+    cleanAddress(browser, address);
   }
+}
+
+/** The text after the address's first `#`, or null when it has none. */
+function fragmentOf(address: string): string | null {
+  const hash = address.indexOf("#");
+  return hash === -1 ? null : address.slice(hash + 1);
 }
 
 /**
@@ -95,13 +101,16 @@ async function keepNewest(
 }
 
 /**
- * The page's address without its balance fragment, valid or not (D6), whatever the intake came to and on a browser
- * without push too: the same path and query, by `history.replaceState`, which fires no `hashchange` and leaves no entry,
- * so a bookmark, a share or the back button never carries it. Another fragment, or none, is left as it is.
+ * The page's address without the balance fragment this intake read (`read`), valid or not (D6), whatever the intake
+ * came to and on a browser without push too: the same path and query, by `history.replaceState`, which fires no
+ * `hashchange` and leaves no entry, so a bookmark, a share or the back button never carries it. Only while the address
+ * still carries that same fragment: one that came after it is left for the intake its `hashchange` started, since
+ * intakes run side by side. Another fragment, or none, is left as it is.
  */
-function cleanAddress(browser: Window): void {
+function cleanAddress(browser: Window, read: string): void {
+  if (!carriesBalance(read)) return;
   const { href, pathname, search } = browser.location;
-  if (!carriesBalance(href)) return;
+  if (fragmentOf(href) !== fragmentOf(read)) return;
   try {
     browser.history.replaceState(browser.history.state, "", pathname + search);
   } catch {
