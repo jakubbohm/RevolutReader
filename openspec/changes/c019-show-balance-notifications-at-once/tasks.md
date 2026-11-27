@@ -338,7 +338,7 @@ Conventions for the run:
 
 ## 47. [close] Slice 16 — Offline, the stored balance is grey and still
 
-- [ ] 47.1 The scenario's test passes, as expected after slice 13, and is proven by a mutation: with `headerOf` answering `waiting` when nothing is out, it fails. Verify: green, including account-balance / Offline, the stored balance is grey and still; the mutation's red result in `.tdd-state.md`
+- [x] 47.1 The scenario's test passes, as expected after slice 13, and is proven by a mutation: with `headerOf` answering `waiting` when nothing is out, it fails. Verify: green, including account-balance / Offline, the stored balance is grey and still; the mutation's red result in `.tdd-state.md`
 
 ## 48. [close] Slice 17 — After a failed read, the stored balance is grey and still
 
