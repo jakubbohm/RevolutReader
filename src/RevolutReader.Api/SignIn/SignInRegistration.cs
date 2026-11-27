@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using FastEndpoints;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -8,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
-using RevolutReader.Api.Push;
 using RevolutReader.Api.Security;
 
 namespace RevolutReader.Api.SignIn;
@@ -38,18 +36,16 @@ public static class SignInRegistration {
 
   /// <summary>
   /// The login's lifetime (D4): 30 days from sign-in or from its last renewal. ASP.NET renews it on a request once more
-  /// than half of it has passed, so a login ends 15 to 30 days after its last use; a report of a push's arrival is not a
-  /// use of the app and never renews it (c016 design.md D3).
+  /// than half of it has passed, so a login ends 15 to 30 days after its last use.
   /// </summary>
   private static readonly TimeSpan _loginLifetime = TimeSpan.FromDays(30);
 
   /// <summary>
   /// The <c>SignIn</c> settings, bound and validated at start (<see cref="SignInOptionsValidator"/>). The cookie scheme as
-  /// the default and the challenge scheme: the login cookie <see cref="SignInCookies.SESSION"/> (D4), renewed by any request
-  /// but a report of a push's arrival (c016 design.md D3), and its login and access-denied redirects become 401 and 403
-  /// without a body, so <c>UseStatusCodePages</c> answers them with the problem descriptions <c>Unauthorized</c> and
-  /// <c>Forbidden</c>; a 403 for an account the allowlist refuses names its own email
-  /// address (D3). OpenID Connect against Microsoft (D2–D4), which only <see cref="LoginEndpoint"/> challenges, by name; a
+  /// the default and the challenge scheme: the login cookie <see cref="SignInCookies.SESSION"/> (D4), renewed by any request,
+  /// and its login and access-denied redirects become 401 and 403 without a body, so <c>UseStatusCodePages</c> answers
+  /// them with the problem descriptions <c>Unauthorized</c> and <c>Forbidden</c>; a 403 for an account the allowlist
+  /// refuses names its own email address (D3). OpenID Connect against Microsoft (D2–D4), which only <see cref="LoginEndpoint"/> challenges, by name; a
   /// sign-in by an account not on the allowlist is logged once, as <see cref="SignInLog.SignInRefused"/>, and still
   /// completes; a sign-in that is cancelled or fails lands on <see cref="SignInAddresses.LANDING"/> without signing anyone
   /// in, and is logged without a token, an email address or an exception message (D3). The
@@ -84,11 +80,6 @@ public static class SignInRegistration {
         options.Cookie.Path = WHOLE_APP;
         options.ExpireTimeSpan = _loginLifetime;
         options.SlidingExpiration = true;
-        options.Events.OnCheckSlidingExpiration = static context => {
-          NeverRenewForAnArrivalReport(context);
-
-          return Task.CompletedTask;
-        };
         options.Events.OnRedirectToLogin = static context => AnswerWithStatus(context, StatusCodes.Status401Unauthorized);
         options.Events.OnRedirectToAccessDenied = static context => AnswerWithStatus(context, StatusCodes.Status403Forbidden);
       })
@@ -253,18 +244,6 @@ public static class SignInRegistration {
         && user.FindFirstValue(JwtRegisteredClaimNames.Email) is { Length: > 0 } email
         && !http.RequestServices.GetRequiredService<Allowlist>().Allows(email))
       context.ProblemDetails.Extensions[EMAIL_EXTENSION] = email;
-  }
-
-  /// <summary>
-  /// A report of a push's arrival (<see cref="ArrivalReportEndpoint"/>) never renews the login (c016 design.md D3): the
-  /// service worker sends one for every balance push while nobody uses the app, so a renewal would keep a device nobody
-  /// opens signed in for ever, against sign-in's "a login unused for 30 days has ended". The report is still accepted
-  /// while the login lasts. Told by the endpoint routing chose for the request, which is known before authentication runs,
-  /// so its method and address are matched exactly as routing matched them.
-  /// </summary>
-  private static void NeverRenewForAnArrivalReport(CookieSlidingExpirationContext context) {
-    if (context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<EndpointDefinition>()?.EndpointType == typeof(ArrivalReportEndpoint))
-      context.ShouldRenew = false;
   }
 
   /// <summary>Answers the cookie handler's redirect with <paramref name="status"/> instead: no <c>Location</c>, no body.</summary>
