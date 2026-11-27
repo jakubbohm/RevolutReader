@@ -172,3 +172,15 @@ test("BalanceHeader's amount gets the delay when waiting begins", () => {
   rerender(headerIn("waiting"));
   expect(amount.style.animationDelay, "kept while it lasts").toBe("-500ms");
 });
+
+// c019 design.md D9: `amount-live` settles once over `--duration-base` (200 ms). The wait clock's delay, up to -1.5 s,
+// would skip that settle, so the delay goes when `waiting` ends.
+test("BalanceHeader's amount loses the delay when waiting ends, so the live amount settles from its start", () => {
+  documentTimeIs(5000);
+  const { rerender } = render(headerIn("waiting"));
+  const amount = screen.getByText("286,40 €");
+  expect(amount.style.animationDelay, "while waiting").toBe("-500ms");
+
+  rerender(headerIn("live"));
+  expect(amount.style.animationDelay, "once live").toBe("");
+});
