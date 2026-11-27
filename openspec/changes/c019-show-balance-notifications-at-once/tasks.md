@@ -320,7 +320,7 @@ Conventions for the run:
 
 ## 43. [close] Slice 14 — The balance turns ink when the server's balance arrives
 
-- [ ] 43.1 The scenario's test passes. Verify: green, including account-balance / The balance turns ink when the server's balance arrives
+- [x] 43.1 The scenario's test passes. Verify: green, including account-balance / The balance turns ink when the server's balance arrives
 
 ## 44. [unit] Slice 15 — The waiting clock
 
