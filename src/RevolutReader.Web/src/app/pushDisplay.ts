@@ -1,12 +1,10 @@
 /**
  * What the service worker does with a push and a tap on its notification (c012 design.md D9), the balance a push
- * brings (c015 design.md D2-D4) and the report of its arrival (c016 design.md D1, D5). Imported by `sw.ts` and by the
- * tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
+ * brings (c015 design.md D2-D4). Imported by `sw.ts` and by the tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
  * members of the service worker's scope it uses as its own small interfaces, and imports nothing that needs `window`
  * (c015 design.md D5).
  */
 
-import { reportArrival } from "./arrivalReport";
 import { balanceOf, type Balance } from "./balanceRecord";
 import { keepPushedBalance } from "./storedBalance";
 
@@ -38,11 +36,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * The members of the service worker's global scope this module uses (both ServiceWorkerGlobalScope and the stand-in
- * fit); `fetch` for the report of a push's arrival (c016 design.md D5), so it is a `ReportingWorker`.
+ * fit).
  */
 export interface PushWorker {
   location: { origin: string };
-  fetch(input: string, init: RequestInit): Promise<unknown>;
   registration: {
     showNotification(
       title: string,
@@ -109,23 +106,17 @@ function balanceIn(notification: unknown): unknown {
 }
 
 /**
- * Listens for pushes and taps (D9): a push's balance is kept (c015 design.md D4) and its arrival reported with the
- * balance's read time (c016 design.md D1, D5), a push without a balance reporting nothing; a push with the browser's own
+ * Listens for pushes and taps (D9): a push's balance is kept (c015 design.md D4); a push with the browser's own
  * notification is left alone; otherwise its declarative message is shown (title, body, navigate in data). A tap closes
  * the notification and focuses an open window of the app on the worker's origin, or opens navigate's path, query and
  * fragment on that origin.
  */
 export function listenForPushes(worker: PushWorker): void {
   worker.addEventListener("push", (event) => {
-    // The balance first, under the event's waitUntil so the worker lives until it is written (c015 design.md D4); beside
-    // it, under its own waitUntil, the report of the push's arrival with the balance's read time (c016 design.md D1, D5),
-    // whether or not the write replaces the kept balance. Neither rejects nor waits for the other, and the message below
-    // starts in the same turn, so it never waits for either.
+    // The balance first, under the event's waitUntil so the worker lives until it is written (c015 design.md D4); the
+    // write never rejects, and the message below starts in the same turn, so it never waits for it.
     const balance = pushedBalance(event);
-    if (balance !== null) {
-      event.waitUntil(keepPushedBalance(balance));
-      event.waitUntil(reportArrival(worker, balance.readAt));
-    }
+    if (balance !== null) event.waitUntil(keepPushedBalance(balance));
     // The browser read the message and shows its own notification (Declarative Web Push): leave it, so it shows once.
     if (event.notification !== undefined && event.notification !== null) return;
     const message = declarativeMessage(pushJson(event));
