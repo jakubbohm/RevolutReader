@@ -152,11 +152,11 @@ Conventions for the run:
 
 ## 10. [unit] Slice 3 — Reading and checking an address
 
-- [ ] 10.1 The known-answer vector's address gives its balance (the fragment pinned in 2.1)
-- [ ] 10.2 `carriesBalance` is true for `#balance=…`, whatever follows, and false for no fragment or another one
-- [ ] 10.3 A fragment that is not `<payload>.<code>` in base64url, or whose payload is not JSON, gives no balance
-- [ ] 10.4 A payload whose shape `balanceOf` refuses gives no balance
-- [ ] 10.5 No secret, or a `crypto.subtle` that throws, gives no balance and never rejects
+- [x] 10.1 The known-answer vector's address gives its balance (the fragment pinned in 2.1)
+- [x] 10.2 `carriesBalance` is true for `#balance=…`, whatever follows, and false for no fragment or another one
+- [x] 10.3 A fragment that is not `<payload>.<code>` in base64url, or whose payload is not JSON, gives no balance
+- [x] 10.4 A payload whose shape `balanceOf` refuses gives no balance
+- [x] 10.5 No secret, or a `crypto.subtle` that throws, gives no balance and never rejects
 
 ## 11. [unit] Slice 3 — The launch's intake
 
