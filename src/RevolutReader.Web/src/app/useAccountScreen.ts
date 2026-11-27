@@ -533,13 +533,15 @@ export function useAccountScreen(): AccountScreenModel {
     // While the screen is on the page (c019 design.md D5, D6): a tap on a notification while the app is in the
     // background, on this page, changes its fragment, and every change is taken in; every return to the screen takes in
     // the notifications the phone still shows, and the page's address in case. The screen then shows the balance kept
-    // from them; an intake that keeps nothing changes nothing.
+    // from them; a fragment's intake that keeps nothing changes nothing. A return always loads the kept balance again,
+    // as every opening does (account-balance): the service worker may have kept a push's balance behind the open page,
+    // from a notification of its own that carries no address; the newer of it and the read is shown.
     async function takeIn(fromList: boolean): Promise<void> {
       const { kept } = await takeInNotificationBalances({
         fromAddress: true,
         fromList,
       });
-      if (kept) await showStored();
+      if (kept || fromList) await showStored();
     }
     const stopWatchingAddress = watchAddress(() => {
       void takeIn(false);
