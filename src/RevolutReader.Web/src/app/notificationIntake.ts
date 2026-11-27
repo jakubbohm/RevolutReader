@@ -22,8 +22,9 @@ const NOT_KEPT: IntakeOutcome = { kept: false };
 
 /**
  * Takes in the newest valid balance of the page's own address (`fromAddress`) and of every listed notification's
- * `navigate` (`fromList`), kept by `keepNotificationBalance`; removes a balance fragment from the page's address. Never
- * rejects: every browser call that fails means no balance from it.
+ * `navigate` (`fromList`), kept by `keepNotificationBalance`: the address's first, then the address cleaned of its
+ * balance fragment, then the list's. `kept` is whether either replaced the kept balance. Never rejects: every browser
+ * call that fails means no balance from it, and a list left hanging holds back only the list's.
  */
 export async function takeInNotificationBalances(options: {
   fromAddress: boolean;
@@ -31,11 +32,66 @@ export async function takeInNotificationBalances(options: {
   browser?: Window;
 }): Promise<IntakeOutcome> {
   const browser = options.browser ?? window;
+  if (!options.fromAddress && !options.fromList) return NOT_KEPT;
+  const address = options.fromAddress ? browser.location.href : null;
+
+  // Without a registration or a subscription's secret nothing can verify, and there are no notifications to read (D5).
+  const push = await pushOf(browser);
+
+  // The address first, kept and cleaned on its own, so a list the browser leaves hanging never holds it back (D5:
+  // every browser call may fail or hang). The list's newest then goes through the same not-earlier rule (c015 D3), so
+  // what stays kept is the newest of all, whichever was kept first.
+  const fromAddress =
+    address === null ? false : await takeInAddress(address, push, browser);
+  const fromList =
+    options.fromList && push !== null
+      ? await keepNewest(await listedAddresses(push.registration), push.secret)
+      : false;
+  return { kept: fromAddress || fromList };
+}
+
+/** The registration push needs and its subscription's secret; null without either (D5). Never rejects. */
+async function pushOf(browser: Window): Promise<{
+  registration: ServiceWorkerRegistration;
+  secret: ArrayBuffer;
+} | null> {
+  const registration = await pushRegistration(browser);
+  if (registration === null) return null;
+  const secret = await subscriptionSecret(registration);
+  return secret === null ? null : { registration, secret };
+}
+
+/**
+ * Keeps the balance in the page's `address` when it is valid, then cleans the address (D6), also when there is no
+ * push to verify it with; whether it was kept.
+ */
+async function takeInAddress(
+  address: string,
+  push: { secret: ArrayBuffer } | null,
+  browser: Window,
+): Promise<boolean> {
   try {
-    return await takeIn(options, browser);
+    return push === null ? false : await keepNewest([address], push.secret);
   } finally {
-    if (options.fromAddress) cleanAddress(browser);
+    cleanAddress(browser);
   }
+}
+
+/**
+ * Of these addresses, the balance whose code verifies under `secret` and whose shape is right, the one read last (D6),
+ * kept by `keepNotificationBalance`; whether it replaced the kept one.
+ */
+async function keepNewest(
+  addresses: readonly string[],
+  secret: ArrayBuffer,
+): Promise<boolean> {
+  const valid = (
+    await Promise.all(
+      addresses.map((address) => balanceInAddress(address, secret)),
+    )
+  ).filter((balance) => balance !== null);
+  const latest = newest(valid);
+  return latest === null ? false : keepNotificationBalance(latest);
 }
 
 /**
@@ -51,33 +107,6 @@ function cleanAddress(browser: Window): void {
   } catch {
     // The browser refused: the address keeps the fragment, and the next intake reads it again (Error model).
   }
-}
-
-async function takeIn(
-  options: { fromAddress: boolean; fromList: boolean },
-  browser: Window,
-): Promise<IntakeOutcome> {
-  if (!options.fromAddress && !options.fromList) return NOT_KEPT;
-
-  // Without a registration or a subscription's secret nothing can verify, and there are no notifications to read (D5).
-  const registration = await pushRegistration(browser);
-  if (registration === null) return NOT_KEPT;
-  const secret = await subscriptionSecret(registration);
-  if (secret === null) return NOT_KEPT;
-
-  const addresses = [
-    ...(options.fromAddress ? [browser.location.href] : []),
-    ...(options.fromList ? await listedAddresses(registration) : []),
-  ];
-  // Of every candidate whose code verifies and whose shape is right, only the one read last is kept (D6).
-  const valid = (
-    await Promise.all(
-      addresses.map((address) => balanceInAddress(address, secret)),
-    )
-  ).filter((balance) => balance !== null);
-  const latest = newest(valid);
-  if (latest === null) return NOT_KEPT;
-  return { kept: await keepNotificationBalance(latest) };
 }
 
 /** Runs `onChange` on every `hashchange` (D5); returns the stop function. */
