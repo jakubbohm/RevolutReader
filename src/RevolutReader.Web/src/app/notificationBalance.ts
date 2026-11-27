@@ -53,8 +53,11 @@ export async function balanceInAddress(
 
 /** The balance read last, `readAt` compared as moments; null for none. */
 export function newest(balances: readonly Balance[]): Balance | null {
-  void balances;
-  throw new Error("Not implemented: newest (c019 design.md D6)");
+  let found: Balance | null = null;
+  for (const balance of balances)
+    if (found === null || Date.parse(balance.readAt) > Date.parse(found.readAt))
+      found = balance;
+  return found;
 }
 
 /** The text after the address's first `#`, or null when it has none. */

@@ -223,12 +223,12 @@ Conventions for the run:
 
 ## 23. [unit] Slice 7 — The newest counts
 
-- [ ] 23.1 `newest` gives the balance read last, `readAt` compared as moments (two offsets of the same moment are equal)
-- [ ] 23.2 The intake keeps only the newest valid candidate, whatever the order of the list and the address
+- [x] 23.1 `newest` gives the balance read last, `readAt` compared as moments (two offsets of the same moment are equal)
+- [x] 23.2 The intake keeps only the newest valid candidate, whatever the order of the list and the address
 
 ## 24. [wiring] Slice 7 — The newest kept
 
-- [ ] 24.1 `notificationIntake` keeps `newest` of the valid candidates. Verify: group 23 green
+- [x] 24.1 `notificationIntake` keeps `newest` of the valid candidates. Verify: group 23 green
 
 ## 25. [close] Slice 7 — Of several notifications, the balance read last is kept
 

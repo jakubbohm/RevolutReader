@@ -1,6 +1,6 @@
 // The page's intake of notifications' balances (c019 design.md D5, D6): from its own address and from the notifications
 // the phone still shows, kept by c015's rule.
-import { balanceInAddress } from "./notificationBalance";
+import { balanceInAddress, newest } from "./notificationBalance";
 import { currentSubscription } from "./push";
 import { keepNotificationBalance } from "./storedBalance";
 import { pushRegistration } from "./subscriptionUpkeep";
@@ -39,12 +39,15 @@ export async function takeInNotificationBalances(options: {
     ...(options.fromAddress ? [browser.location.href] : []),
     ...(options.fromList ? await listedAddresses(registration) : []),
   ];
-  for (const address of addresses) {
-    const balance = await balanceInAddress(address, secret);
-    if (balance !== null)
-      return { kept: await keepNotificationBalance(balance) };
-  }
-  return NOT_KEPT;
+  // Of every candidate whose code verifies and whose shape is right, only the one read last is kept (D6).
+  const valid = (
+    await Promise.all(
+      addresses.map((address) => balanceInAddress(address, secret)),
+    )
+  ).filter((balance) => balance !== null);
+  const latest = newest(valid);
+  if (latest === null) return NOT_KEPT;
+  return { kept: await keepNotificationBalance(latest) };
 }
 
 /** Runs `onChange` on every `hashchange` (D5); returns the stop function. */
