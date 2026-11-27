@@ -261,7 +261,7 @@ Conventions for the run:
 
 ## 32. [close] Slice 11 — A balance without this phone's check code leaves the kept balance as it was
 
-- [ ] 32.1 The scenario's test passes, as expected after slice 3, and is proven by a mutation: with `balanceInAddress` skipping the `verify`, it and group 31 fail. Verify: green, including push-display / A balance without this phone's check code leaves the kept balance as it was; the mutation's red result in `.tdd-state.md`
+- [x] 32.1 The scenario's test passes, as expected after slice 3, and is proven by a mutation: with `balanceInAddress` skipping the `verify`, it and group 31 fail. Verify: green, including push-display / A balance without this phone's check code leaves the kept balance as it was; the mutation's red result in `.tdd-state.md`
 
 ## 33. [unit] The spike's leftover record (design.md D11, no scenario)
 
