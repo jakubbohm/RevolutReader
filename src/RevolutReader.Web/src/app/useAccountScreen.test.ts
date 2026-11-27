@@ -54,7 +54,7 @@ import {
   type SignOutAnswer,
   type WhoIsSignedIn,
 } from "../test/server";
-import type { Problem } from "./screenState";
+import type { Problem, ShownAccount } from "./screenState";
 import { useAccountScreen, type AccountScreenModel } from "./useAccountScreen";
 
 // The account screen's sequence (c009 design.md D2, D3; § Rule ownership: useAccountScreen), driven through the hook on
@@ -2060,6 +2060,69 @@ test("An intake still running after 300 ms lets the kept balance show, and the s
   await timePasses(0);
 
   expect(amountShown(result.current.shown), "once the intake ends").toBe(286.4);
+});
+
+test("A launch offline shows no whole-screen offline state while the kept balance waits for the intake", async () => {
+  // app-shell "A kept balance shows at once": the phone keeps a balance, so the offline state is never the whole
+  // screen, also while the intake holds the kept balance back (review finding 2 of PR 119).
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  // The browser leaves the subscription's question hanging, so the intake runs until its 300 ms are up.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    getSubscriptionWaits: true,
+  });
+  answerWith({ whoIsSignedIn: LUCIE });
+  goOffline();
+  const bodies: string[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    if (model.shown.screen === "account") bodies.push(model.shown.body);
+    return model;
+  });
+
+  await timePasses(0);
+  await timePasses(300);
+
+  expect(amountShown(result.current.shown), "the kept balance, at 300 ms").toBe(
+    286.4,
+  );
+  expect(result.current.shown, "under the offline banner").toMatchObject({
+    banner: { kind: "offline" },
+  });
+  expect(bodies, "never the whole-screen offline state").not.toContain(
+    "offline",
+  );
+});
+
+test("A launch whose server answers shows no first-read placeholder while the kept balance waits for the intake", async () => {
+  // app-shell "A kept balance shows at once": the phone keeps a balance, so the balance's placeholder never shows, also
+  // while the intake holds the kept balance back and the server has answered who is signed in (review finding 2 of PR 119).
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  // The browser leaves the subscription's question hanging, so the intake runs until its 300 ms are up.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    getSubscriptionWaits: true,
+  });
+  answerWith({ whoIsSignedIn: LUCIE, balance: noAnswerYet });
+  const headers: ShownAccount["header"][] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    if (model.shown.screen === "account") headers.push(model.shown.header);
+    return model;
+  });
+
+  await timePasses(0);
+  await timePasses(300);
+
+  expect(balanceReadsSent(), "the first read, under way").toBe(1);
+  expect(amountShown(result.current.shown), "the kept balance, at 300 ms").toBe(
+    286.4,
+  );
+  expect(headers, "never the balance's placeholder").not.toContain(
+    "placeholder",
+  );
 });
 
 // ---- c019: a hashchange's intake (design.md D5, D6) ----
