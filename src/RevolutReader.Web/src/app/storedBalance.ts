@@ -34,37 +34,40 @@ export async function storeBalance(balance: Balance): Promise<void> {
   }
 }
 
-/**
- * Keeps a balance a push brought in place of the one the phone keeps (c015 design.md D3): only when the phone keeps a
- * balance of the right shape and the pushed one was not read earlier (`readAt` compared as moments); read, compared and
- * written in one IndexedDB transaction (idb-keyval's `update`), only the three fields. Never rejects: a failure is ignored.
- */
+/** Keeps a balance a push brought, as `keepNotificationBalance` does (c015 design.md D3). Never rejects. */
 export async function keepPushedBalance(pushed: Balance): Promise<void> {
-  const { amount, readAt, czkPerEur } = pushed;
+  await keepNotificationBalance(pushed);
+}
+
+/**
+ * Keeps a notification's balance in place of the one the phone keeps, by c015 design.md D3's rule (c019 design.md D6:
+ * `keepPushedBalance` renamed): only when the phone keeps a balance of the right shape and the notification's was not
+ * read earlier (`readAt` compared as moments); read, compared and written in one IndexedDB transaction (idb-keyval's
+ * `update`), only the three fields. Resolves whether it replaced; never rejects: a failure is ignored, and replaces
+ * nothing.
+ */
+export async function keepNotificationBalance(
+  balance: Balance,
+): Promise<boolean> {
+  const { amount, readAt, czkPerEur } = balance;
+  let replaced = false;
   try {
     // The get and the put share one readwrite transaction, so the page's own write after a read, or its delete when a
     // login ends, never falls between the compare and the write. Not replacing puts back what was there: for a phone
     // that keeps nothing that is `undefined`, which reads as nothing kept.
     await update<unknown>(
       LAST,
-      (record) =>
-        replacesKept(readAt, record) ? { amount, readAt, czkPerEur } : record,
+      (record) => {
+        replaced = replacesKept(readAt, record);
+        return replaced ? { amount, readAt, czkPerEur } : record;
+      },
       phone,
     );
+    return replaced;
   } catch {
-    // Nothing kept from this push: the next read of the balance keeps a newer one.
+    // Nothing kept this time: the next read of the balance keeps a newer one.
+    return false;
   }
-}
-
-/**
- * Keeps a notification's balance in place of the one the phone keeps, by c015 design.md D3's rule (c019 design.md D6:
- * `keepPushedBalance` renamed). Resolves whether it replaced; never rejects.
- */
-export function keepNotificationBalance(balance: Balance): Promise<boolean> {
-  void balance;
-  throw new Error(
-    "Not implemented: keepNotificationBalance (c019 design.md D6)",
-  );
 }
 
 /**

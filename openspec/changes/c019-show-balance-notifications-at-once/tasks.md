@@ -160,11 +160,11 @@ Conventions for the run:
 
 ## 11. [unit] Slice 3 — The launch's intake
 
-- [ ] 11.1 `keepNotificationBalance` (renamed from `keepPushedBalance`; the c015 tests renamed by the test-writer) resolves whether it replaced
-- [ ] 11.2 `takeInNotificationBalances({ fromAddress: true })` keeps the page address's valid balance and reports `kept`
-- [ ] 11.3 No registration, no subscription or no `auth` key means nothing is kept, and it never rejects
-- [ ] 11.4 At a launch the kept balance is loaded after the intake has ended (design.md D6)
-- [ ] 11.5 An intake still running after 300 ms lets the kept balance show, and the screen shows the newer one when the intake ends (the tests' clock)
+- [x] 11.1 `keepNotificationBalance` (renamed from `keepPushedBalance`; the c015 tests renamed by the test-writer) resolves whether it replaced
+- [x] 11.2 `takeInNotificationBalances({ fromAddress: true })` keeps the page address's valid balance and reports `kept`
+- [x] 11.3 No registration, no subscription or no `auth` key means nothing is kept, and it never rejects
+- [x] 11.4 At a launch the kept balance is loaded after the intake has ended (design.md D6)
+- [x] 11.5 An intake still running after 300 ms lets the kept balance show, and the screen shows the newer one when the intake ends (the tests' clock)
 
 ## 12. [wiring] Slice 3 — The intake at a launch
 

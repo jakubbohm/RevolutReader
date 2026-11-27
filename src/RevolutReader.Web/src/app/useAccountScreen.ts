@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
+import {
+  LAUNCH_INTAKE_LIMIT_MS,
+  takeInNotificationBalances,
+} from "./notificationIntake";
 import { watchRefreshTriggers, watchReturns } from "./refreshTriggers";
 import {
   OFFLINE,
@@ -67,6 +71,28 @@ async function atMostTheRefreshLimit(work: Promise<void>): Promise<void> {
   });
   try {
     await Promise.race([work, limit]);
+  } finally {
+    clearTimeout(limitTimer);
+  }
+}
+
+/** What `withinLimit` answers when the limit came first. */
+const LIMIT_REACHED = Symbol("limit reached");
+
+/**
+ * `work`'s answer when it settles within `ms`, else `LIMIT_REACHED`, while `work` goes on (c019 design.md D6: the
+ * launch's wait for the intake). A timer of the page's own, cleared once `work` settles, so the tests' clock drives it.
+ */
+async function withinLimit<T>(
+  work: Promise<T>,
+  ms: number,
+): Promise<T | typeof LIMIT_REACHED> {
+  let limitTimer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<typeof LIMIT_REACHED>((resolve) => {
+    limitTimer = setTimeout(() => resolve(LIMIT_REACHED), ms);
+  });
+  try {
+    return await Promise.race([work, limit]);
   } finally {
     clearTimeout(limitTimer);
   }
@@ -416,9 +442,23 @@ export function useAccountScreen(): AccountScreenModel {
     onPage.current = true;
 
     // What the phone keeps shows at once, before any answer (D2); a failing store reads as none.
-    async function loadStored(): Promise<void> {
+    async function showStored(): Promise<void> {
       const kept = await loadStoredBalance();
       if (onPage.current) setStored(kept);
+    }
+
+    // A launch first takes in the balance of the notification that opened it (c019 design.md D6), so the older kept
+    // balance never flashes before it; a browser call left hanging holds the kept balance back for 300 ms at most, and
+    // an intake that ends later still shows what it kept.
+    async function loadStored(): Promise<void> {
+      const intake = takeInNotificationBalances({
+        fromAddress: true,
+        fromList: false,
+      });
+      const first = await withinLimit(intake, LAUNCH_INTAKE_LIMIT_MS);
+      await showStored();
+      if (first !== LIMIT_REACHED) return;
+      if ((await intake).kept) await showStored();
     }
 
     // The first question unanswered after 1.5 s: the server is waking (D2).
