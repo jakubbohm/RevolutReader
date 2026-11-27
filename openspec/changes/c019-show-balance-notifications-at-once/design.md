@@ -419,7 +419,10 @@ public sealed record PushReceived(
 - **Frontend:** a notification's balance is a convenience, so nothing in the intake, the check or the keep ever rejects or shows an error.
   - A failed or refused browser call means no candidate from it, whether it is `getRegistration`, `getNotifications`, `getSubscription`, `getKey`, `crypto.subtle` or IndexedDB.
   - A malformed fragment is no balance.
-  - A launch's hanging intake is capped (D6). A hanging return intake changes nothing until it ends.
+  - A launch's hanging intake is capped (D6).
+  - A hanging notification list holds back only the list's balances: the intake reads its address once at its start, keeps the address's balance and cleans the address first (chapter C's review, C-1).
+  - A hanging `getRegistration` or `getSubscription` holds back the whole intake, its cleanup included, until it ends.
+  - An intake cleans only the fragment it read itself, and only while the address still carries it, so an intake still under way never removes a newer fragment that a tap brought (C-2).
   - `removeSpikeLeftovers` ignores a throwing `localStorage`.
 - **The service worker:** the same, under `waitUntil`. The notification never waits for the balance (D7).
 
