@@ -140,8 +140,8 @@ Conventions for the run:
 
 ## 9. [close] Removal — the arrival reports gone
 
-- [ ] 9.1 The full suite is green and the traceability check passes with no claim of `push-arrivals`. Verify: `dotnet test` and the frontend suite green
-- [ ] 9.2 Docs (design.md D10):
+- [x] 9.1 The full suite is green and the traceability check passes with no claim of `push-arrivals`. Verify: `dotnet test` and the frontend suite green
+- [x] 9.2 Docs (design.md D10):
   - `docs/operations/deployment.md` § Push arrivals (c016) and every link to it removed;
   - `docs/conventions/testing.md` (§ the captured log lines, § the worker's own requests), `.claude/rules/testing.md`, `.claude/agents/runner.md` and `.claude/agents/test-writer.md` lose the reports' mentions;
   - `tests/manual-scenarios.md` loses the push-arrivals row;
