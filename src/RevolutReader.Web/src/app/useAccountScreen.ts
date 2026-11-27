@@ -210,6 +210,11 @@ export function useAccountScreen(): AccountScreenModel {
    * once one has ended, nothing is read again nor any upkeep run (`repeat`, `runUpkeep`).
    */
   const loginsEnded = useRef(0);
+  /**
+   * How many returns to the screen there have been (c019 design.md D8: every return is an opening): a balance read
+   * confirms the balance only when none came while it ran.
+   */
+  const openings = useRef(0);
   /** As `readUnderWay`, for an upkeep of the push subscription: an opening while one runs is ignored, not queued. */
   const upkeepUnderWay = useRef(false);
 
@@ -270,20 +275,18 @@ export function useAccountScreen(): AccountScreenModel {
   }, [landed]);
 
   /**
-   * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
-   * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
-   * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
-   * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
-   * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
-   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, the
-   * wake no longer waits for it (`landed`): after the wake, reads show the header refreshing or the placeholder, never
-   * the waking-up screen (D2, D3).
+   * One balance read, as `readTheBalance` (below) describes. Answers how the balance is read once more, when a return to the
+   * screen came while this read ran (a refresh once a read has succeeded, else as this one), or `null` when no read
+   * follows.
    */
-  const readTheBalance = useCallback(
-    async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
-      if (readUnderWay.current) return;
+  const readOnce = useCallback(
+    async (
+      as: "first" | "refresh",
+      firstLoad: boolean,
+    ): Promise<"first" | "refresh" | null> => {
       readUnderWay.current = true;
       const login = loginsEnded.current;
+      const opening = openings.current;
       setReading(as);
       setProblem(null);
 
@@ -303,7 +306,7 @@ export function useAccountScreen(): AccountScreenModel {
         clearTimeout(limitTimer);
         readUnderWay.current = false;
       }
-      if (!onPage.current || login !== loginsEnded.current) return;
+      if (!onPage.current || login !== loginsEnded.current) return null;
 
       // A read has landed, whatever it brought: a wake no longer waits for it (D2, D3; c010 design.md D8).
       landed("balance");
@@ -312,17 +315,19 @@ export function useAccountScreen(): AccountScreenModel {
       // the no-access screen, naming the account.
       if (read.kind === "signed out") {
         await endLogin({ kind: "signed-out", justSignedOut: false });
-        return;
+        return null;
       }
       if (read.kind === "refused") {
         await endLogin({ kind: "refused", email: read.email });
-        return;
+        return null;
       }
 
       setReading("no");
-      // Only a successful read confirms the shown balance; every other outcome (offline, the 60 s limit, a bank problem,
-      // an unexpected answer) leaves it unconfirmed, so a failed "Obnovit" turns a live balance stale (c019 design.md D8).
-      setReadConfirmed(read.kind === "read");
+      // Only a successful read started in the current opening confirms the shown balance; every other outcome (offline,
+      // the 60 s limit, a bank problem, an unexpected answer) leaves it unconfirmed, so a failed "Obnovit" turns a live
+      // balance stale, and a read started before a return confirms nothing (c019 design.md D8).
+      const sameOpening = opening === openings.current;
+      setReadConfirmed(read.kind === "read" && sameOpening);
       if (read.kind === "read") {
         setBalance(read.balance);
         // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
@@ -337,8 +342,40 @@ export function useAccountScreen(): AccountScreenModel {
         read.kind === "unexpected"
       )
         setProblem({ kind: read.kind });
+
+      // A return came while this read ran, and its own repeat was ignored: the opening gets a read of its own now.
+      if (sameOpening) return null;
+      return read.kind === "read" ? "refresh" : as;
     },
     [endLogin, landed],
+  );
+
+  /**
+   * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
+   * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
+   * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
+   * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
+   * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
+   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, the
+   * wake no longer waits for it (`landed`): after the wake, reads show the header refreshing or the placeholder, never
+   * the waking-up screen (D2, D3).
+   *
+   * Only a read started in the current opening confirms the balance (c019 design.md D8, E-1). A return to the screen
+   * while a read is under way finds its own repeat ignored; so once that read has landed, confirming nothing, the
+   * balance is read once more, with the refresh's limit, and that read is the opening's own. One read after another,
+   * never a queue: other repeats during a read, such as "Obnovit", stay ignored.
+   */
+  const readTheBalance = useCallback(
+    async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
+      if (readUnderWay.current) return;
+      let next: "first" | "refresh" | null = as;
+      let first = firstLoad;
+      while (next !== null) {
+        next = await readOnce(next, first);
+        first = false;
+      }
+    },
+    [readOnce],
   );
 
   /**
@@ -504,8 +541,10 @@ export function useAccountScreen(): AccountScreenModel {
       void takeIn(false);
     });
     // Every return is an opening (c019 design.md D8): the balance is no longer confirmed, and waits for the read the
-    // return repeats (`watchRefreshTriggers`). Coming back online is no opening and leaves it as it is.
+    // return repeats (`watchRefreshTriggers`), or, with a read under way, for the one that follows it (`readTheBalance`).
+    // Coming back online is no opening and leaves it as it is.
     const stopWatchingReturns = watchReturns(() => {
+      openings.current += 1;
       setReadConfirmed(false);
       void takeIn(true);
     });
