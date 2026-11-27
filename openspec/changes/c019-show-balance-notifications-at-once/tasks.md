@@ -281,7 +281,7 @@ Conventions for the run:
 
 ## 36. [wiring] Slice 12 — The worker reads the address
 
-- [ ] 36.1 `pushDisplay.ts` (design.md D7): `PushWorker.registration.pushManager`, `pushedBalance(event, secret)`, the listener; `sw.ts` unchanged but for its comment. Verify: group 35 green; `typecheck` green under `tsconfig.sw.json`; the built `dist/sw.js` carries no API client (c015 D5's check)
+- [x] 36.1 `pushDisplay.ts` (design.md D7): `PushWorker.registration.pushManager`, `pushedBalance(event, secret)`, the listener; `sw.ts` unchanged but for its comment. Verify: group 35 green; `typecheck` green under `tsconfig.sw.json`; the built `dist/sw.js` carries no API client (c015 D5's check)
 
 ## 37. [close] Slice 12 — A push with a balance replaces the balance the phone keeps
 
