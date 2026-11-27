@@ -148,9 +148,10 @@ From the spike's answers (on the iPhone, iOS 27.2.1):
   - otherwise `waiting` when a request that can confirm it is out: who is signed in is being asked (`session === "waiting"`), or a balance read runs (`reading !== "no"`);
   - otherwise `stale`.
 - **What sets `confirmed`** (`useAccountScreen`):
-  - A successful read sets it.
+  - A successful read sets it, but only a read started in the current opening: one that started before a return confirms nothing (chapter E's review, E-1).
   - Any other outcome of a read clears it: offline, a bank problem, an unexpected answer, the 60 s limit. That includes a failed "Obnovit" (the owner, decision 3b), so a failed refresh turns a live balance stale.
   - **Every return to the screen clears it** (the owner, decision 3a: every return is an opening), so the balance is waiting until that return's read answers.
+  - **A return that finds a read under way** reads once more when that read lands, so the opening still gets its own read and the balance turns live by itself (the owner, 2026-11-27, E-1 option a). This is one read after another, not a queue: extra "Obnovit" taps during a read stay ignored, not queued (c009).
   - An intake that shows a newer balance clears it.
   - A login's end clears everything, as today.
 - **"Obnovit" on a live balance** keeps `confirmed` while it runs: ink, "Obnovuji…" and the busy button (design: "shine a live balance during `Obnovit`" is a Don't).

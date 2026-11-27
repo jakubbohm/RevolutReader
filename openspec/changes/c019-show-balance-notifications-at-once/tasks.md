@@ -383,6 +383,7 @@ Conventions for the run:
 - [x] 57.1 All 24 scenario tests of this change pass and the full suite is green. The traceability check passes, `dotnet format whitespace --verify-no-changes` and the frontend checks are clean, and `openapi.json` and `schema.d.ts` match the regeneration. Verify: each command's output
 - [ ] 57.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP), the owner looking:
   - the stored balance is grey and shining at an opening, and turns ink when the balance arrives;
+  - the shine's band is about 40 % of the digits' width and crosses the digits, never past them (chapter E's review, E-2: no automated test can see layout, the owner, 2026-11-27);
   - with the browser offline, it is grey and still with "Jsi offline";
   - a return to the tab is grey until the answer;
   - `/#balance=` with a made-up code shows nothing new, and the address loses it.
