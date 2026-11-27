@@ -363,12 +363,12 @@ Conventions for the run:
 
 ## 53. [unit] Slice 20 — Every return is an opening
 
-- [ ] 53.1 A return to the screen clears `confirmed` before the read it repeats, so the balance is `waiting` until it answers
-- [ ] 53.2 "Obnovit" and coming back online are no openings and leave `confirmed` as it is
+- [x] 53.1 A return to the screen clears `confirmed` before the read it repeats, so the balance is `waiting` until it answers
+- [x] 53.2 "Obnovit" and coming back online are no openings and leave `confirmed` as it is
 
 ## 54. [wiring] Slice 20 — Returns
 
-- [ ] 54.1 `useAccountScreen` clears `confirmed` at every return (`watchReturns`). Verify: group 53 green
+- [x] 54.1 `useAccountScreen` clears `confirmed` at every return (`watchReturns`). Verify: group 53 green
 
 ## 55. [close] Slice 20 — Coming back to the app turns the balance grey until the answer
 

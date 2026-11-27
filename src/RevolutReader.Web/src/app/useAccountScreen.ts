@@ -139,7 +139,8 @@ interface Wake {
  * one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. The balance shown is
  * the newer, by `readAt`, of the latest read and the one the phone keeps, the read on a tie (`newer`, c019 D6): a read
  * does not replace a kept balance read later. The shown balance is confirmed (c019 D8) while it is what a successful
- * read returned: a balance an intake shows in its place is not.
+ * read returned: a balance an intake shows in its place is not. Any other outcome of a read, and every return to the
+ * screen (an opening), clears it; "Obnovit" and coming back online leave it as it is.
  * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
  * without an answer it is long, and an answer that took that long woke the server; from 30 s it is slow, and "Zkusit
  * znovu" asks again and starts the 30 s over (D2). The first load has no other cap (D3).
@@ -502,7 +503,10 @@ export function useAccountScreen(): AccountScreenModel {
     const stopWatchingAddress = watchAddress(() => {
       void takeIn(false);
     });
+    // Every return is an opening (c019 design.md D8): the balance is no longer confirmed, and waits for the read the
+    // return repeats (`watchRefreshTriggers`). Coming back online is no opening and leaves it as it is.
     const stopWatchingReturns = watchReturns(() => {
+      setReadConfirmed(false);
       void takeIn(true);
     });
 
