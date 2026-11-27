@@ -232,7 +232,7 @@ Conventions for the run:
 
 ## 25. [close] Slice 7 — Of several notifications, the balance read last is kept
 
-- [ ] 25.1 The scenario's test passes. Verify: green, including push-display / Of several notifications, the balance read last is kept
+- [x] 25.1 The scenario's test passes. Verify: green, including push-display / Of several notifications, the balance read last is kept
 
 ## 26. [close] Slice 8 — A push with a balance read earlier than the kept one leaves it as it was
 
