@@ -8,7 +8,8 @@ namespace RevolutReader.Api.Push;
 /// case, as the allowlist compares accounts) are found first. An account not on the allowlist is refused
 /// (<see cref="AccountNotAllowed"/>): its devices are deleted, one Warning line counts them without naming the account,
 /// and nothing is sent. Otherwise every one of its devices gets one push at once, each carrying the message's Declarative Web Push JSON
-/// on the app's own address (<c>Push:Subject</c>), kept for <see cref="LIFETIME"/> by the push service and sent as urgent.
+/// on the app's own address (<c>Push:Subject</c>), one content for all, or for a message with a balance each device's own,
+/// made with its secret (c019 design.md D4), kept for <see cref="LIFETIME"/> by the push service and sent as urgent.
 /// A device its push service reports gone is forgotten at once, with a line of the status only. The answer counts the
 /// devices reached, those whose push failed (kept) and those gone (removed); one line of those counts is logged, and
 /// nothing of the message, the account or a device. Never retried (D3). A message <see cref="PushMessages.Check"/> refuses is a
@@ -46,8 +47,12 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
       return new AccountNotAllowed();
     }
 
-    OutgoingPush push = new(PushMessages.DeclarativeJson(message, options.Value.Subject), LIFETIME, PushUrgency.High);
-    DeliveryOutcome[] outcomes = await Task.WhenAll(devices.Select(device => DeliverOrForget(device, push, cancellationToken)));
+    Uri appAddress = options.Value.Subject;
+    OutgoingPush? sameForAll = message.Balance is null
+      ? new(PushMessages.DeclarativeJson(message, appAddress), LIFETIME, PushUrgency.High)
+      : null;
+    DeliveryOutcome[] outcomes = await Task.WhenAll(devices.Select(device =>
+      DeliverOrForget(device, sameForAll, message, appAddress, cancellationToken)));
 
     PushSent sent = new(
       Delivered: outcomes.Count(static outcome => outcome.Value is Delivered),
@@ -59,10 +64,26 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
   }
 
   /// <summary>
-  /// Hands <paramref name="push"/> over for <paramref name="device"/>; a device its push service reports gone is forgotten
-  /// at once and logged with the status only (D3, D4).
+  /// The push of a message with a balance for <paramref name="device"/> alone (c019 design.md D4): its JSON made with the
+  /// device's own secret, its <c>Auth</c> decoded, so its balance fragment carries a check code of its own. A stored
+  /// <c>Auth</c> that does not decode to 16 bytes, which registration never stores, throws: a bug or a broken store, never
+  /// a counted failure.
   /// </summary>
-  private async Task<DeliveryOutcome> DeliverOrForget(PushDevice device, OutgoingPush push, CancellationToken cancellationToken) {
+  private static OutgoingPush ForDevice(PushMessage message, Uri appAddress, PushDevice device) {
+    byte[] secret = StrictBase64Url.Decode(device.Auth)
+      ?? throw new InvalidOperationException("A stored push device's secret is not base64url.");
+
+    return new OutgoingPush(PushMessages.DeclarativeJson(message, appAddress, secret), LIFETIME, PushUrgency.High);
+  }
+
+  /// <summary>
+  /// Hands over <paramref name="sameForAll"/>, or for a message with a balance the push made for <paramref name="device"/>
+  /// alone, for <paramref name="device"/>; a device its push service reports gone is forgotten at once and logged with the
+  /// status only (D3, D4). The device's push is built here, inside this device's own task, so a stored secret that does not
+  /// decode faults this task alone: every other device still gets its push before the send throws.
+  /// </summary>
+  private async Task<DeliveryOutcome> DeliverOrForget(PushDevice device, OutgoingPush? sameForAll, PushMessage message, Uri appAddress, CancellationToken cancellationToken) {
+    OutgoingPush push = sameForAll ?? ForDevice(message, appAddress, device);
     DeliveryOutcome outcome = await delivery.Deliver(device, push, cancellationToken);
 
     if (outcome.Value is DeviceGone gone) {

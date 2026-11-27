@@ -76,7 +76,7 @@ public sealed class FakeCnb : IDisposable {
   private static readonly JsonSerializerOptions _asTheCnbWrites = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
   private readonly WireMockServer _server;
-  private readonly ArrivalCount _arrivals;
+  private readonly RequestCount _requestCount;
 
   /// <summary>
   /// The id of the answer a test sets up: each one is set up under it, so it replaces the one before (WireMock.Net replaces
@@ -90,22 +90,22 @@ public sealed class FakeCnb : IDisposable {
   /// <summary>Where the server listens; the app copy's CNB address.</summary>
   public Uri Address { get; }
 
-  /// <summary>Every request the fake received so far, answered or not, counted as it arrived (<see cref="ArrivalCount"/>).</summary>
-  public int RequestsReceived => _arrivals.Count;
+  /// <summary>Every request the fake received so far, answered or not, counted as it arrived (<see cref="RequestCount"/>).</summary>
+  public int RequestsReceived => _requestCount.Count;
 
   /// <summary>The CNB's answer captured on 2026-11-21 (<c>Drivers/CnbDaily.json</c>), as text; for the fake's self-tests.</summary>
   internal static string CapturedAnswer => _capture.Value;
 
-  private FakeCnb(WireMockServer server, ArrivalCount arrivals, string defaultAnswer) {
+  private FakeCnb(WireMockServer server, RequestCount requestCount, string defaultAnswer) {
     _server = server;
-    _arrivals = arrivals;
+    _requestCount = requestCount;
     Address = new Uri(server.Url ?? throw new InvalidOperationException("The fake CNB started without an address."));
     _server.Given(DailyRatesRequest()).AtPriority(FALLBACK_PRIORITY).RespondWith(JsonAnswer(defaultAnswer));
   }
 
   /// <summary>
   /// Starts a fake CNB on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server kept out of
-  /// every trace (<see cref="FakeBank.SilenceHostingTelemetry"/>), with <see cref="ArrivalCount"/> in front of WireMock.Net's
+  /// every trace (<see cref="FakeBank.SilenceHostingTelemetry"/>), with <see cref="RequestCount"/> in front of WireMock.Net's
   /// own handling, answering <see cref="DEFAULT_CZK_PER_EUR"/> for the date of <paramref name="clock"/> now (the app copy's
   /// clock, <see cref="FakeMicrosoft.Clock"/>). Call it before the app copy starts, so its address is known.
   /// </summary>
@@ -113,13 +113,13 @@ public sealed class FakeCnb : IDisposable {
     ArgumentNullException.ThrowIfNull(clock);
 
     string defaultAnswer = DailyRates(DEFAULT_CZK_PER_EUR, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime));
-    ArrivalCount arrivals = new();
+    RequestCount requestCount = new();
     WireMockServer server = LoopbackWireMock.Start(new WireMockServerSettings {
       AdditionalServiceRegistration = FakeBank.SilenceHostingTelemetry,
-      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record),
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(requestCount.Record),
     });
 
-    return new(server, arrivals, defaultAnswer);
+    return new(server, requestCount, defaultAnswer);
   }
 
   /// <summary>
@@ -143,7 +143,7 @@ public sealed class FakeCnb : IDisposable {
   /// (the test's one answer, <see cref="_answer"/>).
   /// </summary>
   public void AnswerRate(decimal czkPerEur, DateOnly clockDay) {
-    _arrivals.Holding = false;
+    _requestCount.Holding = false;
     _server.Given(DailyRatesRequest()).WithGuid(_answer).RespondWith(JsonAnswer(DailyRates(czkPerEur, clockDay)));
   }
 
@@ -152,17 +152,17 @@ public sealed class FakeCnb : IDisposable {
   /// up before. Not captured: the CNB cannot be made to fail on demand, so the answer is written here.
   /// </summary>
   public void AnswerServerError() {
-    _arrivals.Holding = false;
+    _requestCount.Holding = false;
     _server.Given(DailyRatesRequest()).WithGuid(_answer).RespondWith(Response.Create().WithStatusCode(500));
   }
 
   /// <summary>
   /// The daily rates are answered only later than the 2 s limit (<see cref="TimeLimit"/>), so the app's ask runs out of
   /// time; disposing the fake ends a request still waiting. Each request for them is held in front of WireMock.Net's own
-  /// handling (<see cref="ArrivalCount"/>), counted, until the app gives up on it or the fake is disposed, and then cut off
+  /// handling (<see cref="RequestCount"/>), counted, until the app gives up on it or the fake is disposed, and then cut off
   /// unanswered; an answer set up later (<see cref="AnswerRate"/>, <see cref="AnswerServerError"/>) replaces it.
   /// </summary>
-  public void AnswerNeverInTime() => _arrivals.Holding = true;
+  public void AnswerNeverInTime() => _requestCount.Holding = true;
 
   /// <summary>
   /// The captured answer with the euro's <c>rate</c> <paramref name="czkPerEur"/> and its <c>validFor</c>
@@ -195,7 +195,7 @@ public sealed class FakeCnb : IDisposable {
   /// While <see cref="Holding"/>, it holds each request for the daily rates instead of passing it on, until the client gives
   /// up on it or the fake stops (<see cref="Stop"/>), and then cuts it off unanswered (<see cref="AnswerNeverInTime"/>).
   /// </summary>
-  private sealed class ArrivalCount {
+  private sealed class RequestCount {
     /// <summary>Ends every held request: completed when the fake stops.</summary>
     private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -237,7 +237,7 @@ public sealed class FakeCnb : IDisposable {
   #region IDisposable
 
   public void Dispose() {
-    _arrivals.Stop();
+    _requestCount.Stop();
     _server.Dispose();
   }
 

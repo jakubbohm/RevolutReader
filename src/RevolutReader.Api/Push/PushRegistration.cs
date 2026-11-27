@@ -8,7 +8,7 @@ public static class PushRegistration {
   /// The <c>Push</c> settings, bound and validated at start (<see cref="PushOptionsValidator"/>, D5), so the app refuses to
   /// start without a valid VAPID pair, message key and app address. <see cref="KnownPushServices"/>, a singleton, so the
   /// patterns are parsed once; <see cref="RegisterDeviceHandler"/>, <see cref="ForgetDeviceHandler"/>,
-  /// <see cref="SendPushHandler"/> and, since c016, <see cref="RecordArrivalHandler"/>, scoped, as the other handlers.
+  /// and <see cref="SendPushHandler"/>, scoped, as the other handlers.
   /// <see cref="WebPushDelivery"/> as <see cref="IPushDelivery"/>, a typed client whose timeout is
   /// <see cref="PushOptions.RequestTimeout"/> (D13): no retry handler (D1, README.md § Backend code), and the framework's
   /// request logging and traces kept (D4). What they use is registered elsewhere: the device store by
@@ -27,7 +27,6 @@ public static class PushRegistration {
     services.AddScoped<RegisterDeviceHandler>();
     services.AddScoped<ForgetDeviceHandler>();
     services.AddScoped<SendPushHandler>();
-    services.AddScoped<RecordArrivalHandler>();
 
     services.AddHttpClient<IPushDelivery, WebPushDelivery>(static (provider, http) =>
       http.Timeout = provider.GetRequiredService<IOptions<PushOptions>>().Value.RequestTimeout);

@@ -33,6 +33,11 @@ public sealed class SendPushHandlerTests {
   /// <summary>Distinctive texts, so none can turn up in a log line by coincidence.</summary>
   private static readonly PushMessage _message = new("Zkušební titulek 5c1e", "Zkušební zpráva 9d2a", "/transakce-7f3b");
 
+  /// <summary>The same message as a notification about the account, carrying a made-up balance (c019 design.md D4).</summary>
+  private static readonly PushMessage _messageWithBalance = _message with {
+    Balance = new PushBalance(45.20m, new DateTimeOffset(2026, 11, 21, 9, 14, 3, TimeSpan.Zero), 24.6m),
+  };
+
   [Test]
   public async Task Every_device_of_an_allowed_account_gets_the_message_once() {
     PushDevice phone = Device(LUCIE);
@@ -53,6 +58,70 @@ public sealed class SendPushHandlerTests {
     string declarativeJson = PushMessages.DeclarativeJson(_message, new Uri(APP_ADDRESS));
     delivery.HandedOver.ShouldNotBeEmpty();
     delivery.HandedOver.ShouldAllBe(handedOver => handedOver.Push.Content == declarativeJson, "every push carries the message as Declarative Web Push JSON on the app's address");
+  }
+
+  /// <summary>
+  /// A message with a balance (a notification about the account, c019 design.md D4) is built for each device: every device
+  /// gets the message's Declarative Web Push JSON made with its own secret, its <c>Auth</c> decoded, so each device's
+  /// balance fragment carries a check code of its own, and no two devices get the same content.
+  /// </summary>
+  [Test]
+  public async Task The_sender_hands_each_device_a_content_whose_code_is_made_with_that_devices_own_secret() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice tablet = Device(LUCIE);
+    PushDevice laptop = Device(LUCIE);
+    StubPushDelivery delivery = new();
+
+    _ = await Handler(await StoreWith(phone, tablet, laptop), delivery).Send(LUCIE, _messageWithBalance, CancellationToken.None);
+
+    IReadOnlyList<(PushDevice Device, OutgoingPush Push)> handedOver = delivery.HandedOver;
+    handedOver.ShouldSatisfyAllConditions(
+      () => handedOver.Select(static push => push.Device).ShouldBe([phone, tablet, laptop], ignoreOrder: true, "one push for each of Lucie's devices"),
+      () => handedOver.ShouldAllBe(push => push.Push.Content == WithItsOwnSecret(_messageWithBalance, push.Device), "each device's push is the message made with that device's own secret"),
+      () => handedOver.Select(static push => push.Push.Content).Distinct(StringComparer.Ordinal).Count().ShouldBe(3, "no two devices get the same content"));
+  }
+
+  /// <summary>
+  /// A message without a balance (the owner's messages, D4) is built once, as before: every device gets the same content,
+  /// the message's Declarative Web Push JSON. The devices' secrets are not read, so a device whose stored <c>Auth</c> does
+  /// not decode gets that content too.
+  /// </summary>
+  [Test]
+  public async Task The_sender_hands_every_device_the_same_content_for_a_message_without_a_balance() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice unreadableSecret = Device(LUCIE) with { Auth = "not base64url!" };
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new();
+
+    _ = await Handler(await StoreWith(phone, unreadableSecret, tablet), delivery).Send(LUCIE, _message, CancellationToken.None);
+
+    string declarativeJson = PushMessages.DeclarativeJson(_message, new Uri(APP_ADDRESS));
+    IReadOnlyList<(PushDevice Device, OutgoingPush Push)> handedOver = delivery.HandedOver;
+    handedOver.ShouldSatisfyAllConditions(
+      () => handedOver.Select(static push => push.Device).ShouldBe([phone, unreadableSecret, tablet], ignoreOrder: true, "one push for each of Lucie's devices"),
+      () => handedOver.ShouldAllBe(push => push.Push.Content == declarativeJson, "every device gets the same content, the message's JSON"));
+  }
+
+  /// <summary>
+  /// A stored <c>Auth</c> that does not decode (a bug or a broken store, c019 design.md D4) fails that device's push alone:
+  /// for a message with a balance, every other device of the account still gets its own push, those stored after the bad
+  /// one as well as those before it, and only then does the send throw, never counting the bad device (review finding 1 of
+  /// PR 119).
+  /// </summary>
+  [Test]
+  public async Task A_device_whose_stored_secret_does_not_decode_stops_no_other_devices_push() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice unreadableSecret = Device(LUCIE) with { Auth = "not base64url!" };
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new();
+    SendPushHandler sender = Handler(await StoreWith(phone, unreadableSecret, tablet), delivery);
+
+    _ = await Should.ThrowAsync<InvalidOperationException>(() => sender.Send(LUCIE, _messageWithBalance, CancellationToken.None));
+
+    IReadOnlyList<(PushDevice Device, OutgoingPush Push)> handedOver = delivery.HandedOver;
+    handedOver.ShouldSatisfyAllConditions(
+      () => handedOver.Select(static push => push.Device).ShouldBe([phone, tablet], ignoreOrder: true, "the phone and the tablet, stored before and after the bad device, each get the message once"),
+      () => handedOver.ShouldAllBe(push => push.Push.Content == WithItsOwnSecret(_messageWithBalance, push.Device), "each device's push is the message made with that device's own secret"));
   }
 
   /// <summary>
@@ -436,6 +505,10 @@ public sealed class SendPushHandlerTests {
       Subject = new Uri(APP_ADDRESS),
       Services = new Dictionary<string, string>(StringComparer.Ordinal) { ["Google"] = "https://fcm.googleapis.com" },
     }), logger ?? new CapturedLog());
+
+  /// <summary><paramref name="message"/>'s Declarative Web Push JSON on the app's address, made with <paramref name="device"/>'s own secret, its <c>Auth</c> decoded.</summary>
+  private static string WithItsOwnSecret(PushMessage message, PushDevice device) =>
+    PushMessages.DeclarativeJson(message, new Uri(APP_ADDRESS), Base64Url.DecodeFromChars(device.Auth));
 
   private static async Task<InMemoryPushDeviceStore> StoreWith(params PushDevice[] devices) {
     InMemoryPushDeviceStore store = new();

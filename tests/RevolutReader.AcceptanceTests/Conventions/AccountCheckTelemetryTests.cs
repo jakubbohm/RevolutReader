@@ -20,6 +20,9 @@ namespace RevolutReader.AcceptanceTests.Conventions;
 /// rate the notification carries, the one the app copy answered: the fake CNB's, c017 design.md D10) and the card
 /// payment's amount, with a dot or a decimal comma, with an ordinary or a no-break space between thousands (a U+2212 minus
 /// is caught by the digits after it);</item>
+/// <item>since c019, the balance fragment of each phone's notification (design.md D2, "the fragment never reaches a log"),
+/// whole or its payload alone, the new balance in base64url JSON; looked for only when the notification carries one, which
+/// the account-check scenario pins, so the guard stays green until the server puts it there and holds it from then on;</item>
 /// <item>the card payment's payee or its reference;</item>
 /// <item>a time a balance was read (the new read's and the kept balances');</item>
 /// <item>an email address of the allowlist;</item>
@@ -69,6 +72,12 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
   /// <summary>The bank's new balance, a fall from <see cref="KEPT"/>, made up.</summary>
   private const decimal READ = 9297.30m;
 
+  /// <summary>
+  /// The CNB's latest rate the check reads, made up and set, so the koruna value the guard looks for is known without
+  /// reading it from the notification, whose balance moved into its address in c019 (design.md D2).
+  /// </summary>
+  private const decimal CZK_PER_EUR = 24.6m;
+
   private readonly CapturedLogs _logs = new();
 
   [Test]
@@ -82,13 +91,13 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
     await Push.HasRegistered(petrsPhone);
     await Check.HasKept(lastSeen: KEPT, lastNotified: KEPT);
     Bank.HasAvailableBalance(READ, "EUR");
+    Rate.TheCnbsLatestRateIs(CZK_PER_EUR);
     Transactions.BankLists(TodaysPayment());
     DateTimeOffset readAt = Check.Now;
 
     (await Check.PhoneAsksForACheck()).ShouldBe(CheckAnswer.BalanceChanged, "the check notified the change");
-    PushReceived notification = Push.Received(luciesPhone).ShouldHaveSingleItem("Lucie's phone got the notification");
-    Push.Received(petrsPhone).ShouldHaveSingleItem("Petr's phone got the notification");
-    decimal czkPerEur = notification.Balance.ShouldNotBeNull("the notification carries the new balance").CzkPerEur.ShouldNotBeNull("with the rate the app copy answered");
+    PushReceived luciesPush = Push.Received(luciesPhone).ShouldHaveSingleItem("Lucie's phone got the notification");
+    PushReceived petrsPush = Push.Received(petrsPhone).ShouldHaveSingleItem("Petr's phone got the notification");
 
     string[] guarded = [CHECK_ENDED, CHANGE_SENT, PUSH_SENT];
     guarded.Except(_logs.EventNames(), StringComparer.Ordinal).ShouldBeEmpty("lines not written, so the guard would not read them");
@@ -100,10 +109,12 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
       .. AmountForms("the kept balance", KEPT),
       .. AmountForms("the new balance", READ),
       .. AmountForms("the change", KEPT - READ),
-      .. KorunaForms("the new balance's koruna value", READ * czkPerEur),
+      .. KorunaForms("the new balance's koruna value", READ * CZK_PER_EUR),
       .. TimeForms("the new read's time", readAt),
       .. TimeForms("the kept balances' time", readAt.AddHours(-1)),
       .. AmountForms("the card payment's amount", PAYMENT),
+      .. FragmentForms("Lucie's notification's balance fragment", luciesPush.BalanceFragment),
+      .. FragmentForms("Petr's notification's balance fragment", petrsPush.BalanceFragment),
       ("the card payment's payee", PAYEE),
       ("the card payment's reference", PAYMENT_REFERENCE),
       ("Lucie's email", Visitor.Lucie.Email),
@@ -189,6 +200,24 @@ public sealed class AccountCheckTelemetryTests : AcceptanceTest {
       ($"{what} as a number", whole.ToString(CultureInfo.InvariantCulture)),
       ($"{what} with a space between thousands", $"{thousands} {rest}"),
       ($"{what} with a no-break space between thousands", $"{thousands}\u00A0{rest}"),
+    ];
+  }
+
+  /// <summary>
+  /// A notification's balance fragment (c019 design.md D2: <c>balance=&lt;payload&gt;.&lt;code&gt;</c>, the new balance
+  /// in base64url JSON), as a line could write it: whole, and its payload alone. None when the notification carries no
+  /// fragment: whether it carries one is the scenario's claim (account-check, "The notification carries the new balance
+  /// for the phone to keep"), not this guard's.
+  /// </summary>
+  private static (string What, string Value)[] FragmentForms(string what, string? fragment) {
+    if (fragment is null)
+      return [];
+
+    string payload = fragment[(fragment.IndexOf('=', StringComparison.Ordinal) + 1)..].Split('.')[0];
+
+    return [
+      ($"{what}, whole", fragment),
+      ($"{what}'s payload", payload),
     ];
   }
 

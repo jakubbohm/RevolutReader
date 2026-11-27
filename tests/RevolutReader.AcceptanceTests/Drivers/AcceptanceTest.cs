@@ -24,7 +24,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// </para>
 /// <para>
 /// Every app copy's log lines that name their event are captured with their structured values
-/// (<see cref="CapturedLogEvents"/>, c016 design.md D7), for the scenarios whose outcome shows only in the telemetry.
+/// (<see cref="CapturedLogEvents"/>, c016 design.md D7), for the guards in <c>Conventions/</c> that read them.
 /// </para>
 /// </summary>
 public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
@@ -50,8 +50,6 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private BalanceDsl? _balance;
   private string? _checkKey;
   private CheckDsl? _check;
-  private ArrivalDsl? _arrivals;
-  private ArrivalDriver? _arrivalDriver;
   private RateDsl? _rate;
 
   protected HealthDsl Health => _health ??= new(HealthDriver);
@@ -98,22 +96,9 @@ public abstract class AcceptanceTest : WebApplicationTest<ApiFactory, Program> {
   private string CheckKey => _checkKey ??= AccountCheckDriver.NewKey();
 
   /// <summary>
-  /// Push arrivals (spec push-arrivals, c016 design.md D7): the phone's reports of a push's arrival, in the browser
-  /// <see cref="SignIn"/> signs in with, on the app copy's clock; and the arrivals the app copy recorded, its
-  /// <c>PushArrived</c> lines in <see cref="LogEvents"/>.
-  /// </summary>
-  protected ArrivalDsl Arrivals => _arrivals ??= new(ArrivalDriver);
-
-  /// <summary>
-  /// The driver under <see cref="Arrivals"/>, the same browser and clock, for the guards in <c>Conventions/</c> that report
-  /// a read time of their own and look for it (<c>PushArrivalTelemetryTests</c>). Scenarios use <see cref="Arrivals"/> only.
-  /// </summary>
-  protected ArrivalDriver ArrivalDriver => _arrivalDriver ??= new(Browser, FakeMicrosoft.Clock, LogEvents);
-
-  /// <summary>
   /// The app copy's log lines that name their event, with their categories and structured values; registered in its
   /// container before it starts. Open to the guards in <c>Conventions/</c> that read the app copy's own lines
-  /// (<c>KorunaRateTelemetryTests</c>, c017 design.md D12). Scenarios read them through a DSL only (<see cref="Arrivals"/>).
+  /// (<c>KorunaRateTelemetryTests</c>, c017 design.md D12). A scenario would read them through a DSL only.
   /// </summary>
   protected CapturedLogEvents LogEvents { get; } = new();
 

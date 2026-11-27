@@ -178,60 +178,6 @@
         }
       }
     },
-    "/api/push/arrivals": {
-      "post": {
-        "tags": [
-          "Api"
-        ],
-        "summary": "Reports that a push reached this device, so the server records how long it took",
-        "operationId": "RevolutReaderApiPushArrivalReportEndpoint",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RevolutReaderApiPushArrivalReportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MicrosoftAspNetCoreMvcProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RevolutReaderApiSignInRefusedProblem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/push/key": {
       "get": {
         "tags": [
@@ -759,20 +705,6 @@
           }
         },
         "description": "A transaction as the app shows it"
-      },
-      "RevolutReaderApiPushArrivalReportRequest": {
-        "type": "object",
-        "properties": {
-          "readAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "When the server read the balance the push carried, exactly as the push gave it",
-            "format": "date-time"
-          }
-        },
-        "description": "A push's arrival on this device, named by the read time its balance carried"
       },
       "RevolutReaderApiPushForgetSubscriptionRequest": {
         "type": "object",

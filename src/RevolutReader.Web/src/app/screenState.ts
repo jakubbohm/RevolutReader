@@ -16,6 +16,9 @@ export type Problem =
   /** Turning notifications on failed (c012 design.md D8): offline, or "later". */
   | { kind: "notifications failed"; offline: boolean };
 
+/** Whether the shown balance is live (c019 design.md D8): confirmed, waiting for what can confirm it, or stale. */
+export type BalanceState = "live" | "waiting" | "stale";
+
 /** What the list reports to the screen at the join (c010 design.md D8). */
 export interface ListReport {
   /** Its newest page is being read, at first or again. */
@@ -30,8 +33,18 @@ export interface ListReport {
 export interface Facts {
   /** The answer to who is signed in, once it came; `"waiting"` while it is asked, at first or again. */
   session: Session | "waiting";
-  /** The latest read, else the one the phone keeps, as loaded at start. */
+  /**
+   * The shown balance: the newer, by `readAt`, of the latest read and the one the phone keeps (loaded at start, and
+   * again whenever an intake keeps a notification's balance), the read on a tie (c019 design.md D6).
+   */
   balance: Balance | null;
+  /**
+   * The balance the phone keeps has not been loaded yet at a launch: it waits for the intake, at most 300 ms (c019
+   * design.md D6). Absent: it has.
+   */
+  keptLoading?: boolean;
+  /** The shown balance is what this opening's latest balance read returned, and it succeeded (c019 design.md D8). */
+  confirmed: boolean;
   /** A balance read under way. */
   reading: "no" | "first" | "refresh";
   /** The first load's wait: under 1.5 s, from 1.5 s, from 30 s. */
@@ -56,7 +69,10 @@ export type Shown =
       screen: "account";
       /** The menu, once the server named the user. */
       account: { name: string; email: string } | null;
-      header: { balance: Balance; refreshing: boolean } | "placeholder" | null;
+      header:
+        | { balance: Balance; refreshing: boolean; state: BalanceState }
+        | "placeholder"
+        | null;
       banner: Problem | null;
       /** The list slot, or a whole-screen state. */
       body:
@@ -76,9 +92,10 @@ export type ShownAccount = Extract<Shown, { screen: "account" }>;
  * What the screen shows for these facts; pure (c007 design.md D3, D5; c009 D2, D5, D7; c010 D8). Nobody signed in: the
  * sign-in screen; a refused account: the no-access screen, naming it. Otherwise the account screen: the menu once the
  * server named the user, the header (`headerOf`), the one banner (`bannerOf`), and under the header the list slot
- * (`bodyOf`); with no header and no list, the empty frame. Offline (D2; app-shell), whichever read found it so: with
- * nothing to show, the offline state is the whole screen under the top bar, in place of the header and the banner;
- * otherwise what there is, under the offline banner.
+ * (`bodyOf`); with no header and no list, the empty frame. While the kept balance is still loading at a launch and there
+ * is nothing to show, the screen as before any answer, never the offline state (c019 design.md D6). Offline (D2;
+ * app-shell), whichever read found it so: with nothing to show, the offline state is the whole screen under the top
+ * bar, in place of the header and the banner; otherwise what there is, under the offline banner.
  */
 export function shown(facts: Facts): Shown {
   const { session } = facts;
@@ -86,6 +103,18 @@ export function shown(facts: Facts): Shown {
     return { screen: "sign-in", justSignedOut: session.justSignedOut };
   if (session !== "waiting" && session.kind === "refused")
     return { screen: "no access", email: session.email };
+
+  // With the kept balance still loading at a launch, the phone may yet have one to show (app-shell "A kept balance shows
+  // at once"): the screen stays as before any answer, never the whole-screen offline state nor the balance's placeholder.
+  if (facts.keptLoading && facts.balance === null && !listOnScreen(facts))
+    return {
+      screen: "account",
+      account: accountOf(session),
+      header: null,
+      banner: null,
+      body: wakingOf(facts) ?? "empty",
+      signingOut: facts.signingOut,
+    };
 
   const offline = isOffline(facts);
   if (facts.balance === null && !listOnScreen(facts) && offline)
@@ -230,15 +259,32 @@ function accountOf(session: Facts["session"]): ShownAccount["account"] {
 }
 
 /**
- * The header: the balance, the latest read or else the stored one, refreshing while it is read again (`readsOnAwake`);
- * with no balance, the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake
- * the waking-up screen stays instead, never a placeholder); otherwise none.
+ * The header: the balance shown (the newer of the latest read and the kept one), refreshing while it is read again (`readsOnAwake`);
+ * with whether it is live (`balanceStateOf`; c019 design.md D8). With no balance, the placeholder, which has no state,
+ * while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen stays
+ * instead, never a placeholder) and the kept balance has loaded (c019 design.md D6: it may yet show); otherwise none.
  */
 function headerOf(facts: Facts): ShownAccount["header"] {
   if (facts.balance !== null)
-    return { balance: facts.balance, refreshing: readsOnAwake(facts) };
-  if (facts.reading === "first" && !facts.wokeUp) return "placeholder";
+    return {
+      balance: facts.balance,
+      refreshing: readsOnAwake(facts),
+      state: balanceStateOf(facts),
+    };
+  if (facts.reading === "first" && !facts.wokeUp && !facts.keptLoading)
+    return "placeholder";
   return null;
+}
+
+/**
+ * Whether the shown balance is live (c019 design.md D8, the design system's BalanceHeader § Live or not): `live` when
+ * it is this opening's successful read (`confirmed`); otherwise `waiting` while a request that can confirm it is out,
+ * who is signed in being asked or a balance read running; otherwise `stale`. The list's read cannot confirm it.
+ */
+function balanceStateOf(facts: Facts): BalanceState {
+  if (facts.confirmed) return "live";
+  if (facts.session === "waiting" || facts.reading !== "no") return "waiting";
+  return "stale";
 }
 
 /**

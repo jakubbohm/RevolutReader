@@ -86,10 +86,9 @@ public sealed class CapturedLogTexts {
 
 /// <summary>
 /// The app copy's log lines that name their event (an <see cref="EventId"/> with a name, as every <c>[LoggerMessage]</c>
-/// line of the app has), each with its event's name and its own structured values, in the order written: a scenario's
-/// channel where the telemetry is the only place a capability's outcome shows (spec push-arrivals: the owner reads the
-/// arrivals only there, c016 design.md D7; <see cref="ArrivalDriver"/> reads its <c>PushArrived</c> lines). Every app copy
-/// has one: <see cref="AcceptanceTest"/> registers <see cref="Provider"/> in its container, so what reaches it has passed
+/// line of the app has), each with its event's name and its own structured values, in the order written (c016 design.md
+/// D7): read by the guards in <c>Conventions/</c> that check what the app copy logs (<c>KorunaRateTelemetryTests</c>), and
+/// a scenario's channel when the telemetry is the only place a capability's outcome shows. Every app copy has one: <see cref="AcceptanceTest"/> registers <see cref="Provider"/> in its container, so what reaches it has passed
 /// the app copy's log level settings (<c>Logging:LogLevel</c>), and only this app copy's loggers write into it. Lines whose
 /// event has no name are left out. The guards in <c>Conventions/</c> keep captures of their own, which also read each
 /// line's texts and scopes.

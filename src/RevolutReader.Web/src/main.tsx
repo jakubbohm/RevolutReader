@@ -4,7 +4,11 @@ import { registerSW } from "virtual:pwa-register";
 import "./index.css";
 import { App } from "./App";
 import { readDevice } from "./app/device";
+import { removeSpikeLeftovers } from "./app/leftovers";
 import { watchForUpdates } from "./app/updates";
+
+// Before anything else of the screen, what earlier work left on the phone goes (c019 design.md D11).
+removeSpikeLeftovers();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

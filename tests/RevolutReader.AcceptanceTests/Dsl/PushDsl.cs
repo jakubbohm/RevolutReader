@@ -32,12 +32,13 @@ public sealed class PushDsl(PushDriver driver, FakePushService pushService) {
 
   /// <summary>A new phone named <paramref name="name"/>, subscribed at the fake push service with keys of its own; not registered with the app yet.</summary>
   public PhoneForPush NewPhone(string name) {
-    PhoneForPush phone = new(name);
-
-    if (_devices.ContainsKey(phone))
+    if (_devices.Keys.Any(made => string.Equals(made.Name, name, StringComparison.Ordinal)))
       throw new InvalidOperationException($"The scenario already has a phone named {name}: give each phone its own name.");
 
-    _devices.Add(phone, pushService.NewDevice(name));
+    TestDevice device = pushService.NewDevice(name);
+    PhoneForPush phone = new(name, device);
+
+    _devices.Add(phone, device);
 
     return phone;
   }

@@ -41,10 +41,14 @@ import { realTurn } from "./clock";
  * phone kept it, and `phoneRemembersNotNow()` sets it before a launch. A failing `PUT /api/push/subscription` needs
  * nothing new: a test sets it as `subscription: serverError` (or any other `Trouble`).
  *
- * The answer to the service worker's report of a push's arrival, `POST /api/push/arrivals` (c016 design.md D7), sits in
- * blocks marked "c016", in the same vocabulary: the arrival is recorded (204) unless the test sets another answer
- * (`arrivals: serverError`, `noConnection`, `after(…)`, any `Trouble`). The service worker's stand-in
- * (`./serviceWorker.ts`) sends its requests here, so a report shows in the timeline and in `bodiesSent()`.
+ * The page's address (c019 design.md D5, D6, D12, in blocks marked "c019"): the app opens at its start page unless the
+ * test opens it at another address of its own origin (`openPageAt`, through `renderApp`'s `address`), such as a
+ * notification's, its fragment included. The recording `location` reads that address; setting its `hash` goes to the
+ * fragment, as a browser does, and the window hears `hashchange` when it changed; `history.replaceState` and
+ * `pushState` change it too, firing nothing, as in a browser. `pageAddress()` gives it as path, query and fragment;
+ * `resetFakeServer` puts the start page back. A tap on a notification while the app is in the background
+ * (`tapNotificationInTheBackground`) goes to its fragment while the page is still hidden, then returns to the app, as
+ * the spike saw on the iPhone.
  */
 
 /** What any request can meet besides its own answers. */
@@ -185,18 +189,6 @@ export type ForgetAnswer =
   | { kind: "refused"; email: string | null }
   | Trouble;
 
-// ---- c016: push arrivals (design.md D7) ----
-
-/** What the server answers when the service worker reports a push's arrival, `POST /api/push/arrivals` (c016 design.md D3). */
-export type ArrivalAnswer =
-  /** 204: the arrival is recorded. */
-  | { kind: "recorded" }
-  /** 401 with the problem description `Unauthorized`: the login has ended. */
-  | { kind: "nobody" }
-  /** 403 with the problem description `Forbidden`, naming the account's email unless `null`. */
-  | { kind: "refused"; email: string | null }
-  | Trouble;
-
 /** A request the app sent with a body: the request as the timeline writes it, its content type, and the body it sent. */
 export interface SentBody {
   request: string;
@@ -244,9 +236,6 @@ export interface ServerAnswers {
   subscription?: Answers<SubscriptionAnswer>;
   /** `DELETE /api/push/subscription`. Without one, the device is forgotten (204). After a sign-out, 401. */
   forgetSubscription?: Answers<ForgetAnswer>;
-  // ---- c016: push arrivals ----
-  /** `POST /api/push/arrivals`, the service worker's report of a push's arrival. Without one, it is recorded (204). After a sign-out, 401. */
-  arrivals?: Answers<ArrivalAnswer>;
 }
 
 /** The balance the phone keeps (c009 design.md D4): the record as the app stores it, `readAt` in ISO 8601. */
@@ -442,11 +431,6 @@ export function subscriptionRefused(member: string): SubscriptionAnswer {
   return { kind: "subscription refused", member };
 }
 
-// ---- c016: push arrivals (design.md D7) ----
-
-/** The push's arrival is recorded (204). */
-export const recorded = { kind: "recorded" } as const;
-
 const SIGN_OUT = "POST /api/auth/logout";
 const WHO_IS_SIGNED_IN = "GET /api/me";
 const BALANCE = "GET /api/balance";
@@ -458,8 +442,6 @@ const OLDER_TRANSACTIONS = "GET /api/transactions/older";
 const PUSH_KEY = "GET /api/push/key";
 const SEND_SUBSCRIPTION = "PUT /api/push/subscription";
 const FORGET_SUBSCRIPTION = "DELETE /api/push/subscription";
-// ---- c016 ----
-const REPORT_ARRIVAL = "POST /api/push/arrivals";
 
 /** The phone's own database for the balance it keeps (c009 design.md D4). */
 const PHONE_DATABASE = "tarjeta-papa";
@@ -473,6 +455,11 @@ type Outcome =
   | { kind: "no answer" };
 
 let page = new URL("http://localhost:3000/");
+// ---- c019 ----
+/** The app's start page, where every test opens it unless it names another address (`openPageAt`). */
+let startPage = new URL(page);
+/** jsdom's own `history.replaceState` and `pushState`, which the fake server's stand-ins call before changing `page`. */
+let jsdomReplaceState: History["replaceState"] | null = null;
 let whoIsSignedIn: readonly Delayed<WhoIsSignedIn>[] = [];
 let signOut: readonly Delayed<SignOutAnswer>[] = [];
 let balanceAnswers: readonly Delayed<BalanceAnswer>[] = [];
@@ -485,8 +472,6 @@ let olderTransactionsAnswers: Readonly<
 let pushKeyAnswers: readonly Delayed<PushKeyAnswer>[] = [];
 let subscriptionAnswers: readonly Delayed<SubscriptionAnswer>[] = [];
 let forgetAnswers: readonly Delayed<ForgetAnswer>[] = [];
-// ---- c016 ----
-let arrivalAnswers: readonly Delayed<ArrivalAnswer>[] = [];
 let bodies: SentBody[] = [];
 /** How many requests of each kind the server has answered or is answering, to pick the next answer in order. */
 let asked = new Map<string, number>();
@@ -517,7 +502,6 @@ export function answerWith(answers: ServerAnswers): void {
   pushKeyAnswers = inOrder(answers.pushKey);
   subscriptionAnswers = inOrder(answers.subscription);
   forgetAnswers = inOrder(answers.forgetSubscription);
-  arrivalAnswers = inOrder(answers.arrivals);
   asked = new Map();
   loginEnded = false;
 }
@@ -574,6 +558,72 @@ export function leaveApp(): void {
 /** The user comes back to the app: the page turns visible and hears `visibilitychange`. */
 export function returnToApp(): void {
   setVisibility("visible");
+}
+
+// ---- c019: the page's address (design.md D5, D6, D12) ----
+
+/**
+ * The app's page is at `address` (a path, or a full address on the page's own origin), its fragment included, as a
+ * notification's address opens it; `renderApp` calls it with its `address`, by default the start page `/`. Fires
+ * nothing: call it before the app opens.
+ */
+export function openPageAt(address: string): void {
+  const target = new URL(address, startPage);
+  if (target.origin !== startPage.origin)
+    throw new Error(
+      `The app's page is on ${startPage.origin}, so it cannot open at ${target.href}.`,
+    );
+  page = target;
+}
+
+/** The app's address now, as path, query and fragment on its own origin. */
+export function pageAddress(): string {
+  return onThePage(page);
+}
+
+/**
+ * A tap on a notification whose address is `address` while the app is in the background (after `leaveApp`), on the
+ * page the app shows: as the spike saw on the iPhone (c019 design.md D5), the page goes to the address's fragment while
+ * it is still hidden, and hears `hashchange`; then the app comes back to the front (`returnToApp`). A tap on another
+ * page is a new launch, which this does not stand in for.
+ */
+export function tapNotificationInTheBackground(address: string): void {
+  if (visibility !== "hidden")
+    throw new Error(
+      "A tap in the background needs the app in the background: call leaveApp() first.",
+    );
+  const target = new URL(address, page);
+  if (
+    target.origin !== page.origin ||
+    target.pathname !== page.pathname ||
+    target.search !== page.search
+  )
+    throw new Error(
+      `The tapped notification opens ${target.href}, not the page the app shows (${page.href}): that is a new launch.`,
+    );
+  recordingLocation.hash = target.hash;
+  returnToApp();
+}
+
+/**
+ * The page goes to `target`'s fragment, as setting `location.hash` does in a browser: the window hears `hashchange`
+ * (with the old and the new address) when the address changed, and nothing when it did not.
+ */
+function goToFragment(target: URL): void {
+  if (target.href === page.href) return;
+  const oldURL = page.href;
+  page = target;
+  act(() => {
+    window.dispatchEvent(
+      new HashChangeEvent("hashchange", { oldURL, newURL: target.href }),
+    );
+  });
+}
+
+/** `history.replaceState` or `pushState` with `url`: the page's address changes to it, firing nothing, as in a browser. */
+function changeAddressTo(url: string | URL | null | undefined): void {
+  if (url === null || url === undefined) return;
+  page = new URL(String(url), page);
 }
 
 /**
@@ -704,13 +754,15 @@ export function resetFakeServer(): void {
   pushKeyAnswers = [];
   subscriptionAnswers = [];
   forgetAnswers = [];
-  arrivalAnswers = [];
   bodies = [];
   asked = new Map();
   loginEnded = false;
   online = true;
   visibility = "visible";
   entries = [];
+  // ---- c019 ----
+  page = new URL(startPage);
+  jsdomReplaceState?.call(history, null, "", startPage.href);
 }
 
 /**
@@ -719,7 +771,20 @@ export function resetFakeServer(): void {
  */
 export function installFakeServer(): void {
   page = new URL(globalThis.location.href);
+  startPage = new URL(page);
   globalThis.fetch = fakeFetch;
+  // ---- c019: the address changes with the history's, as in a browser ----
+  const replaceState = history.replaceState;
+  const pushState = history.pushState;
+  jsdomReplaceState = replaceState;
+  history.replaceState = (data, unused, url) => {
+    replaceState.call(history, data, unused, url);
+    changeAddressTo(url);
+  };
+  history.pushState = (data, unused, url) => {
+    pushState.call(history, data, unused, url);
+    changeAddressTo(url);
+  };
   Object.defineProperty(globalThis, "location", {
     configurable: true,
     get: () => recordingLocation,
@@ -833,7 +898,7 @@ async function fakeFetch(
       throw abortReason(signal!);
     }
 
-    const ending = await arrival(outcome, signal ?? undefined);
+    const ending = await outcomeReaches(outcome, signal ?? undefined);
     if (sentIn !== generation) return new Promise<Response>(() => {});
 
     if (ending === "aborted") {
@@ -878,7 +943,7 @@ async function bodyOf(
 }
 
 /** Waits until the outcome reaches the app (a real turn, or `after` ms) or the app aborts the request. */
-function arrival(
+function outcomeReaches(
   outcome: Outcome,
   signal: AbortSignal | undefined,
 ): Promise<"arrived" | "aborted"> {
@@ -938,11 +1003,6 @@ function outcomeOf(request: string): Outcome {
     case FORGET_SUBSCRIPTION: {
       const answer = nextOf(request, forgetAnswers) ?? forgotten;
       return forgetOutcome(loginEnded ? nobodySignedIn : answer);
-    }
-    // ---- c016 ----
-    case REPORT_ARRIVAL: {
-      const answer = nextOf(request, arrivalAnswers) ?? recorded;
-      return arrivalOutcome(loginEnded ? nobodySignedIn : answer);
     }
     case HEALTH:
       return {
@@ -1227,29 +1287,6 @@ function forgetOutcome(answer: Delayed<ForgetAnswer>): Outcome {
   }
 }
 
-// ---- c016: push arrivals' answers ----
-
-function arrivalOutcome(answer: Delayed<ArrivalAnswer>): Outcome {
-  switch (answer.kind) {
-    case "recorded":
-      return {
-        kind: "answer",
-        after: answer.after,
-        response: () => new Response(null, { status: 204 }),
-      };
-    case "nobody":
-      return {
-        kind: "answer",
-        after: answer.after,
-        response: () => problem(401, "Unauthorized"),
-      };
-    case "refused":
-      return refusedOutcome(answer);
-    default:
-      return troubleOutcome(answer);
-  }
-}
-
 function troubleOutcome(answer: Delayed<Trouble>): Outcome {
   switch (answer.kind) {
     case "server error":
@@ -1425,6 +1462,12 @@ const recordingLocation = {
   },
   get hash(): string {
     return page.hash;
+  },
+  // ---- c019 ----
+  set hash(fragment: string) {
+    const target = new URL(page);
+    target.hash = fragment;
+    goToFragment(target);
   },
   assign(target: string | URL): void {
     navigate(target);

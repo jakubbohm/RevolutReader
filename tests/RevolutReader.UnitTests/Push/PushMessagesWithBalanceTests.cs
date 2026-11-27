@@ -1,106 +1,141 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using RevolutReader.Api.Account;
 using RevolutReader.Api.Push;
 using Shouldly;
-using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
 namespace RevolutReader.UnitTests.Push;
 
 /// <summary>
-/// A notification about the account carries the balance (c014 design.md D14, N2; spec push-sending): a message with a
-/// balance becomes Declarative Web Push JSON with <c>"mutable": true</c> at its top level, where the parser reads it, and
-/// <c>notification.data.balance</c> holding <c>amount</c>, <c>readAt</c> and <c>czkPerEur</c>; each value is written as
-/// <c>GET /api/balance</c> writes the same value; and the size check counts the two members, while the check's own
-/// notification stays far inside the 3993 bytes. C8a's tests of a message without a balance
-/// (<see cref="PushMessagesTests"/>) are unchanged. The JSON is read as a browser reads it, by member and value; for
-/// 24.2, each value's own text. The app's address is made up, an https origin of a reserved domain; the amounts are
+/// A notification about the account carries its balance in the address a tap opens (c019 design.md D1, D2; spec
+/// push-sending): a message with a balance becomes a plain Declarative Web Push, with no <c>"mutable"</c> and no
+/// <c>notification.data</c>, whose <c>navigate</c> is the page with <c>#</c> and <see cref="BalanceInAddress.Fragment"/>
+/// for the device's secret, in place of a fragment the page has; the size check measures it with that fragment. A message
+/// without a balance is written as before, and a secret given with it is not read. C8a's tests of a message without a
+/// balance (<see cref="PushMessagesTests"/>) are unchanged; c014's tests here pinned <c>mutable</c> and
+/// <c>data.balance</c>, and now pin their absence (the payload's values as <c>GET /api/balance</c> writes them are
+/// <see cref="BalanceInAddressTests"/>'). The JSON is read as a browser reads it, by member and value. The fragments are
+/// known answers Node's crypto made (design.md D12's vector, and the same balance under a second secret), outside both
+/// implementations. The app's address is made up, an https origin of a reserved domain; the balance and the secrets are
 /// made up.
 /// </summary>
 public sealed class PushMessagesWithBalanceTests {
   /// <summary>The most bytes of JSON a push may carry (c011 design.md D2).</summary>
   private const int MOST_BYTES = 3993;
 
+  /// <summary>design.md D12's known-answer vector: the fragment for its balance under the secret 0x00 to 0x0f.</summary>
+  private const string VECTOR_FRAGMENT =
+    "balance=eyJhbW91bnQiOjQ1LjIwLCJyZWFkQXQiOiIyMDI2LTExLTIxVDA5OjE0OjAzKzAwOjAwIiwiY3prUGVyRXVyIjoyNC42fQ.gHNRottXJIXZNAvXcA5P_kbRkFAcBIPEngYqomaE9wM";
+
+  /// <summary>The vector's payload, the fragment's text between <c>balance=</c> and the <c>.</c>.</summary>
+  private const string VECTOR_PAYLOAD = "eyJhbW91bnQiOjQ1LjIwLCJyZWFkQXQiOiIyMDI2LTExLTIxVDA5OjE0OjAzKzAwOjAwIiwiY3prUGVyRXVyIjoyNC42fQ";
+
+  /// <summary>The vector's check code, under the secret 0x00 to 0x0f.</summary>
+  private const string VECTOR_CODE = "gHNRottXJIXZNAvXcA5P_kbRkFAcBIPEngYqomaE9wM";
+
+  /// <summary>The check code of the vector's payload under the secret 0x10 to 0x1f, made by Node's crypto as the vector was.</summary>
+  private const string OTHER_SECRETS_CODE = "ozL1Qb-hh4IaDjtFA2BQv2G_L3Kj_abbpow3_myjGDE";
+
+  /// <summary>The bytes a balance's fragment adds to <c>navigate</c> of a page without one: the <c>#</c> and the fragment, all ASCII, none escaped in JSON.</summary>
+  private const int FRAGMENT_BYTES = 1 + 146;
+
   private static readonly Uri _appAddress = new("https://app.example.net");
 
-  /// <summary>A read time to the tick, an hour east of UTC.</summary>
-  private static readonly DateTimeOffset _readAt = new DateTimeOffset(2026, 11, 21, 10, 14, 3, TimeSpan.FromHours(1)).AddTicks(5_123_456);
+  /// <summary>The vector's balance: 45.20 euros, read 2026-11-21T09:14:03+00:00, at 24.6 koruna per euro.</summary>
+  private static readonly PushBalance _vectorBalance = new(45.20m, new DateTimeOffset(2026, 11, 21, 9, 14, 3, TimeSpan.Zero), 24.6m);
 
-  /// <summary>The check's notification for a fall to 45.20, as design.md D14's example: its title, text and balance.</summary>
+  /// <summary>The vector's secret, the bytes 0x00 to 0x0f.</summary>
+  private static readonly byte[] _vectorSecret = SecretFrom(0);
+
+  /// <summary>The check's notification for a fall to 45.20, as c014 design.md D14's example, with the vector's balance: its title, text, the start page and the balance.</summary>
   private static readonly PushMessage _accountNotification = new(
-    "Odešlo 3,80\u00A0€",
-    "Zůstatek 45,20\u00A0€ (≈\u00A01\u00A0098\u00A0Kč)",
+    "Odešlo 3,80 €",
+    "Zůstatek 45,20 € (≈ 1 112 Kč)",
     "/",
-    new PushBalance(45.20m, _readAt, 24.3m));
+    _vectorBalance);
 
+  /// <summary>
+  /// The push is plain: <c>web_push</c> and <c>notification</c> only, no <c>mutable</c> at its top level, and the
+  /// notification has its title, text and <c>navigate</c>, no <c>data</c>. <c>navigate</c> is the start page with
+  /// <c>#</c> and the balance's fragment, its code made with the secret given: the vector's secret gives the vector, another
+  /// secret the same payload under its own code.
+  /// </summary>
+  /// <param name="firstByte">The secret's first byte; the secret is the 16 bytes counting up from it.</param>
+  /// <param name="code">The check code Node's crypto made for the vector's payload under that secret.</param>
   [Test]
-  public void A_message_with_a_balance_becomes_JSON_with_mutable_true_at_the_top_level_and_notification_data_balance_holding_amount_readAt_and_czkPerEur() {
-    JsonElement json = DeclarativeJson(_accountNotification);
+  [Arguments(0x00, VECTOR_CODE)] // design.md D12's vector
+  [Arguments(0x10, OTHER_SECRETS_CODE)] // another device's secret
+  public void A_message_with_a_balance_has_no_mutable_and_no_data_and_its_navigate_is_the_start_page_with_the_fragment_for_the_given_secret(int firstByte, string code) {
+    JsonElement json = DeclarativeJson(_accountNotification, SecretFrom(firstByte));
 
     JsonElement notification = json.GetProperty("notification");
     json.ShouldSatisfyAllConditions(
-      () => MemberNames(json).ShouldBe(["web_push", "notification", "mutable"], ignoreOrder: true, "mutable at the message's top level, beside web_push and notification"),
-      () => json.GetProperty("mutable").ValueKind.ShouldBe(JsonValueKind.True, "mutable is the JSON value true"),
-      () => MemberNames(notification).ShouldBe(["title", "body", "navigate", "data"], ignoreOrder: true, "data in the notification, beside its title, text and page"),
-      () => MemberNames(notification.GetProperty("data")).ShouldBe(["balance"], "the data holds the balance alone"));
-
-    JsonElement balance = notification.GetProperty("data").GetProperty("balance");
-    balance.ShouldSatisfyAllConditions(
-      () => MemberNames(balance).ShouldBe(["amount", "readAt", "czkPerEur"], ignoreOrder: true),
-      () => balance.GetProperty("amount").ValueKind.ShouldBe(JsonValueKind.Number, "amount is a JSON number"),
-      () => balance.GetProperty("amount").GetDecimal().ShouldBe(45.20m),
-      () => balance.GetProperty("readAt").GetDateTimeOffset().ShouldBe(_readAt, "readAt is the read time, as an ISO 8601 text"),
-      () => balance.GetProperty("czkPerEur").ValueKind.ShouldBe(JsonValueKind.Number, "czkPerEur is a JSON number"),
-      () => balance.GetProperty("czkPerEur").GetDecimal().ShouldBe(24.3m));
+      () => MemberNames(json).ShouldBe(["web_push", "notification"], ignoreOrder: true, "no mutable at the message's top level"),
+      () => MemberNames(notification).ShouldBe(["title", "body", "navigate"], ignoreOrder: true, "no data in the notification, beside its title, text and page"),
+      () => notification.GetProperty("navigate").GetString().ShouldBe($"https://app.example.net/#balance={VECTOR_PAYLOAD}.{code}", "the start page with # and the balance's fragment for the given secret"));
   }
 
   /// <summary>
-  /// Each value of the push's balance is written as <c>GET /api/balance</c> writes the same values (D14): its answer,
-  /// <see cref="BalanceResponse"/>, written with ASP.NET's JSON options for HTTP answers, which the app leaves at their
-  /// defaults (it configures none). The numbers compare as their JSON text, so a number written as a text, or an amount
-  /// that lost its trailing zeros (a <see cref="double"/>'s 45.2 for 45.20), fails; <c>readAt</c> compares as the ISO 8601
-  /// text it holds, so another format (<c>Z</c> for <c>+00:00</c>, milliseconds for ticks, fractions of a second written
-  /// out as zeros) fails. How JSON escapes a character of that text, <c>+</c> for one, is not part of it.
+  /// A page with a fragment of its own gets the balance's in its place (D2), whatever its path and query: only one
+  /// fragment, the balance's, follows the <c>#</c>.
   /// </summary>
-  /// <param name="amount">The amount in euros, as invariant text.</param>
-  /// <param name="readAt">The read time, as ISO 8601 text.</param>
-  /// <param name="czkPerEur">The rate, as invariant text.</param>
+  /// <param name="page">The message's page, with a fragment of its own.</param>
+  /// <param name="opened">The address the page opens, without its fragment.</param>
   [Test]
-  [Arguments("45.20", "2026-11-21T10:14:03.5123456+01:00", "24.3")] // trailing zeros, ticks, an offset east of UTC
-  [Arguments("-5.00", "2026-11-21T09:14:03+00:00", "24.345")] // a negative amount, a whole second, UTC
-  [Arguments("1234567.89", "2026-11-20T21:02:44.1-05:00", "24")] // a large amount, a tenth of a second, west of UTC, a whole rate
-  public void The_pushs_balance_is_written_exactly_as_GET_api_balance_writes_the_same_values(string amount, string readAt, string czkPerEur) {
-    decimal euros = decimal.Parse(amount, NumberStyles.Number, CultureInfo.InvariantCulture);
-    DateTimeOffset read = DateTimeOffset.Parse(readAt, CultureInfo.InvariantCulture);
-    decimal rate = decimal.Parse(czkPerEur, NumberStyles.Number, CultureInfo.InvariantCulture);
+  [Arguments("/#jinde", "https://app.example.net/")] // the start page
+  [Arguments("/transakce?od=1#jinde", "https://app.example.net/transakce?od=1")] // a path and a query
+  public void The_balances_fragment_takes_the_place_of_a_fragment_the_page_has(string page, string opened) {
+    string? navigate = DeclarativeJson(_accountNotification with { Page = page }, _vectorSecret)
+      .GetProperty("notification").GetProperty("navigate").GetString();
 
-    JsonElement inThePush = DeclarativeJson(_accountNotification with { Balance = new PushBalance(euros, read, rate) })
-      .GetProperty("notification").GetProperty("data").GetProperty("balance");
-    JsonElement fromTheApi = JsonSerializer.SerializeToElement(new BalanceResponse(euros, read, rate), new HttpJsonOptions().SerializerOptions);
-
-    inThePush.ShouldSatisfyAllConditions(
-      () => inThePush.GetProperty("amount").GetRawText().ShouldBe(fromTheApi.GetProperty("amount").GetRawText(), "amount, as the balance's answer writes it"),
-      () => inThePush.GetProperty("readAt").ValueKind.ShouldBe(JsonValueKind.String),
-      () => inThePush.GetProperty("readAt").GetString().ShouldBe(fromTheApi.GetProperty("readAt").GetString(), "readAt, the same ISO 8601 text"),
-      () => inThePush.GetProperty("czkPerEur").GetRawText().ShouldBe(fromTheApi.GetProperty("czkPerEur").GetRawText(), "czkPerEur, as the balance's answer writes it"));
+    navigate.ShouldBe($"{opened}#{VECTOR_FRAGMENT}", "the page's own fragment replaced by the balance's");
   }
 
   /// <summary>
-  /// The check's own notification, with its balance, fits a push. And the size check counts the two members: a message
-  /// whose JSON without a balance is exactly 3993 bytes, which fits (c011's own test), is refused, naming <c>message</c>,
-  /// once it carries a balance.
+  /// <see cref="PushMessages.Check"/> measures a message with a balance with its fragment, whose length does not depend on
+  /// the secret (D2): the check's own notification fits; a message that is exactly 3993 bytes with the fragment fits; one a
+  /// byte longer is refused as too long, naming <c>message</c>, though without the balance it is just under 3993 bytes and
+  /// fits.
   /// </summary>
   [Test]
-  public void A_message_with_a_balance_still_fits_the_3993_bytes_and_the_size_check_counts_the_two_members() {
-    PushMessage atTheLimitWithoutBalance = AsciiMessageOfBytes(MOST_BYTES);
+  public void Check_measures_a_message_with_a_balance_with_its_fragment_so_one_just_under_3993_bytes_without_it_and_over_with_it_is_refused_as_too_long() {
+    VECTOR_FRAGMENT.Length.ShouldBe(FRAGMENT_BYTES - 1, "the test's own count of the fragment's bytes");
+    PushMessage atTheLimitWithTheFragment = AsciiMessageOfBytes(MOST_BYTES - FRAGMENT_BYTES) with { Balance = _vectorBalance };
+    PushMessage justUnderWithoutTheFragment = AsciiMessageOfBytes(MOST_BYTES - FRAGMENT_BYTES + 1);
 
-    atTheLimitWithoutBalance.ShouldSatisfyAllConditions(
+    justUnderWithoutTheFragment.ShouldSatisfyAllConditions(
       () => PushMessages.Check(_accountNotification, _appAddress).ShouldBeEmpty("the check's notification, with its balance, fits a push"),
-      () => PushMessages.Check(atTheLimitWithoutBalance, _appAddress).ShouldBeEmpty("3993 bytes without a balance fit"),
-      () => PushMessages.Check(atTheLimitWithoutBalance with { Balance = _accountNotification.Balance }, _appAddress)
-        .ShouldHaveSingleItem("the same message with a balance is too long").Member.ShouldBe("message"));
+      () => PushMessages.Check(atTheLimitWithTheFragment, _appAddress).ShouldBeEmpty("3993 bytes with the fragment fit"),
+      () => PushMessages.Check(justUnderWithoutTheFragment, _appAddress).ShouldBeEmpty("just under 3993 bytes without a balance fit"),
+      () => PushMessages.Check(justUnderWithoutTheFragment with { Balance = _vectorBalance }, _appAddress)
+        .ShouldHaveSingleItem("the same message with a balance is a byte over with its fragment").Member.ShouldBe("message"));
   }
+
+  /// <summary>
+  /// A message without a balance is the same plain push whatever secret is given, and whether one is given at all: a
+  /// device's secret, none, or one of a length no device has, which a message with a balance would refuse, are never read.
+  /// </summary>
+  /// <param name="length">The secret's length in bytes.</param>
+  [Test]
+  [Arguments(16)] // a device's secret
+  [Arguments(0)] // none
+  [Arguments(5)] // a length no device has
+  public void A_message_without_a_balance_is_written_as_before_and_a_secret_given_with_it_is_not_read(int length) {
+    PushMessage withoutBalance = _accountNotification with { Balance = null, Page = "/transakce" };
+    byte[] secret = [.. SecretFrom(0x20).Take(length)];
+
+    string written = PushMessages.DeclarativeJson(withoutBalance, _appAddress, secret);
+
+    JsonElement json = DeclarativeJson(withoutBalance, secret);
+    JsonElement notification = json.GetProperty("notification");
+    written.ShouldSatisfyAllConditions(
+      () => written.ShouldBe(PushMessages.DeclarativeJson(withoutBalance, _appAddress), "the same JSON as without a secret"),
+      () => MemberNames(json).ShouldBe(["web_push", "notification"], ignoreOrder: true),
+      () => MemberNames(notification).ShouldBe(["title", "body", "navigate"], ignoreOrder: true),
+      () => notification.GetProperty("navigate").GetString().ShouldBe("https://app.example.net/transakce", "the page, with no fragment"));
+  }
+
+  /// <summary>The 16 bytes counting up from <paramref name="firstByte"/>: a made-up secret.</summary>
+  private static byte[] SecretFrom(int firstByte) => [.. Enumerable.Range(firstByte, 16).Select(static value => (byte)value)];
 
   /// <summary>
   /// A message with no balance whose JSON is exactly <paramref name="bytes"/> bytes, padded with ASCII letters in its text,
@@ -118,9 +153,9 @@ public sealed class PushMessagesWithBalanceTests {
   /// <summary>The UTF-8 bytes of the message's JSON on the made-up app address.</summary>
   private static int JsonBytes(PushMessage message) => Encoding.UTF8.GetByteCount(PushMessages.DeclarativeJson(message, _appAddress));
 
-  /// <summary>The message's JSON for the made-up app address, parsed as a browser reads it.</summary>
-  private static JsonElement DeclarativeJson(PushMessage message) {
-    using JsonDocument document = JsonDocument.Parse(PushMessages.DeclarativeJson(message, _appAddress));
+  /// <summary>The message's JSON for the made-up app address and <paramref name="secret"/>, parsed as a browser reads it.</summary>
+  private static JsonElement DeclarativeJson(PushMessage message, byte[] secret) {
+    using JsonDocument document = JsonDocument.Parse(PushMessages.DeclarativeJson(message, _appAddress, secret));
 
     return document.RootElement.Clone();
   }

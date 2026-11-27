@@ -30,7 +30,7 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// </para>
 /// <para>
 /// Every request is answered by this class itself, a middleware in front of WireMock.Net's own handling (as
-/// <see cref="FakeBank"/>'s arrival log is), checked as Apple would check a push, and more (D7):
+/// <see cref="FakeBank"/>'s request log is), checked as Apple would check a push, and more (D7):
 /// <list type="bullet">
 /// <item><c>Authorization</c> is <c>vapid t=&lt;JWT&gt;, k=&lt;key&gt;</c> (RFC 8292 § 3), <c>k</c> the run's VAPID public
 /// key, and the token an ES256 JWT signed with its private half, whose <c>aud</c> is this server's scheme and host
@@ -190,13 +190,13 @@ public sealed class FakePushService : IDisposable {
     using CancellationTokenSource deadline = new(within);
 
     while (true) {
-      Task nextArrival = _checks.NextArrival();
+      Task nextPush = _checks.NextPush();
 
       if (ReachedCount(device) >= count)
         return;
 
       try {
-        await nextArrival.WaitAsync(deadline.Token);
+        await nextPush.WaitAsync(deadline.Token);
       }
       catch (OperationCanceledException) when (deadline.IsCancellationRequested) {
         throw new TimeoutException(string.Create(
@@ -252,8 +252,8 @@ public sealed class FakePushService : IDisposable {
     private readonly ConcurrentDictionary<string, bool> _gone = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _failOnce = new(StringComparer.Ordinal);
 
-    /// <summary>Set when the next push is recorded, then replaced by a new one (<see cref="NextArrival"/>).</summary>
-    private TaskCompletionSource _nextArrival = NewArrival();
+    /// <summary>Set when the next push is recorded, then replaced by a new one (<see cref="NextPush"/>).</summary>
+    private TaskCompletionSource _nextPush = NewPushSignal();
 
     public IReadOnlyList<ReceivedPush> Received() => [.. _received];
 
@@ -261,7 +261,7 @@ public sealed class FakePushService : IDisposable {
     /// A task that ends when the next push is recorded. Taken before looking at <see cref="Received"/>, it ends for any push
     /// recorded after that look, so a waiter never misses one.
     /// </summary>
-    public Task NextArrival() => Volatile.Read(ref _nextArrival).Task;
+    public Task NextPush() => Volatile.Read(ref _nextPush).Task;
 
     public void Gone(string path) => _gone[path] = true;
 
@@ -291,12 +291,12 @@ public sealed class FakePushService : IDisposable {
         body.ToArray(),
         signedWithServerKey,
         answer));
-      _ = Interlocked.Exchange(ref _nextArrival, NewArrival()).TrySetResult();
+      _ = Interlocked.Exchange(ref _nextPush, NewPushSignal()).TrySetResult();
 
       context.Response.StatusCode = (int)answer;
     }
 
-    private static TaskCompletionSource NewArrival() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static TaskCompletionSource NewPushSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Whether <paramref name="authorization"/> is one <c>vapid t=…, k=…</c> header whose <c>k</c> is the server's key and

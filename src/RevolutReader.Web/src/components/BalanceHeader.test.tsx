@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { JSX } from "react";
 import { expect, test } from "vitest";
+import type { BalanceState } from "../app/screenState";
+import { documentTimeIs } from "../test/documentTimeline";
 import { BalanceHeader } from "./BalanceHeader";
 
 // The balance header (design system BalanceHeader, c009 design.md D10): "Na účtu máš" as the page's heading, the amount
@@ -92,4 +94,93 @@ test('"Obnovit" in the refreshing state reads "Obnovuji…", spins and ignores t
   );
   await user.click(refresh);
   expect(refreshes, "the tap is ignored").toBe(0);
+});
+
+// c019 design.md D8, D9: whether the balance is live is the header's `state`, written as the amount's class
+// (`amount-live`, `amount-waiting`, `amount-stale`) and as `data-balance` on the section, never as text; the koruna line
+// and the freshness line stay as they are whatever the state (the design: the koruna line keeps its contrast and does
+// not shine). The amount carries exactly one of the three classes.
+const states: {
+  label: string;
+  state: BalanceState | undefined;
+  marked: BalanceState;
+}[] = [
+  { label: "no state given", state: undefined, marked: "live" },
+  { label: "live", state: "live", marked: "live" },
+  { label: "waiting", state: "waiting", marked: "waiting" },
+  { label: "stale", state: "stale", marked: "stale" },
+];
+
+/** The header over the made-up balance, with `state` when one is given. */
+function headerIn(state: BalanceState | undefined): JSX.Element {
+  return (
+    <BalanceHeader
+      amount={286.4}
+      rate={24.3}
+      readAt={READ_AT}
+      now={TWO_MINUTES_LATER}
+      refreshing={false}
+      onRefresh={() => {}}
+      {...(state === undefined ? {} : { state })}
+    />
+  );
+}
+
+test("BalanceHeader marks the amount and data-balance with its state (default live), and the koruna line and the freshness line do not change with it", () => {
+  const lines: { koruna: string; freshness: string }[] = [];
+
+  for (const { label, state, marked } of states) {
+    const { unmount } = render(headerIn(state));
+
+    expect(
+      screen.getByRole("region", { name: "Na účtu máš" }),
+      `${label}: the section's data-balance`,
+    ).toHaveAttribute("data-balance", marked);
+    const amountClasses = [...screen.getByText("286,40 €").classList].filter(
+      (name) => name.startsWith("amount-"),
+    );
+    expect(amountClasses, `${label}: the amount's state class`).toEqual([
+      `amount-${marked}`,
+    ]);
+    lines.push({
+      koruna: screen.getByLabelText("přibližně 6 960 Kč").outerHTML,
+      freshness: screen.getByText("Aktualizováno před 2 min").outerHTML,
+    });
+
+    unmount();
+  }
+
+  for (const [index, { label }] of states.entries())
+    expect(
+      lines[index],
+      `${label}: the koruna line and the freshness line as with no state given`,
+    ).toEqual(lines[0]);
+});
+
+// c019 design.md D9: the waiting amount's shine runs on the one wait clock (./waitClock.ts), the document timeline's
+// phase set as its delay when `waiting` begins and kept while it lasts; the time is the kit's stand-in.
+test("BalanceHeader's amount gets the delay when waiting begins", () => {
+  documentTimeIs(4200);
+  const { rerender } = render(headerIn("stale"));
+  const amount = screen.getByText("286,40 €");
+
+  documentTimeIs(5000);
+  rerender(headerIn("waiting"));
+  expect(amount.style.animationDelay, "waiting begins").toBe("-500ms");
+
+  documentTimeIs(5600);
+  rerender(headerIn("waiting"));
+  expect(amount.style.animationDelay, "kept while it lasts").toBe("-500ms");
+});
+
+// c019 design.md D9: `amount-live` settles once over `--duration-base` (200 ms). The wait clock's delay, up to -1.5 s,
+// would skip that settle, so the delay goes when `waiting` ends.
+test("BalanceHeader's amount loses the delay when waiting ends, so the live amount settles from its start", () => {
+  documentTimeIs(5000);
+  const { rerender } = render(headerIn("waiting"));
+  const amount = screen.getByText("286,40 €");
+  expect(amount.style.animationDelay, "while waiting").toBe("-500ms");
+
+  rerender(headerIn("live"));
+  expect(amount.style.animationDelay, "once live").toBe("");
 });

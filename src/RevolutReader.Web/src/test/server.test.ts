@@ -4,11 +4,16 @@ import {
   after,
   answerWith,
   closeApp,
+  leaveApp,
   noAnswerYet,
+  openPageAt,
+  pageAddress,
   refused,
+  resetFakeServer,
   serverError,
   stored,
   subscriptionRefused,
+  tapNotificationInTheBackground,
   timeline,
 } from "./server";
 
@@ -131,6 +136,101 @@ async function endingOf(sent: Promise<Response>): Promise<string> {
     (error: unknown) => (error as Error).name,
   );
 }
+
+// ---- c019: the page's address (design.md D5, D6, D12) ----
+// The app reads its own address from `location` and cleans it with `history.replaceState`; a tap in the background goes
+// to the notification's fragment while the page is hidden. The fake server's recording `location` must follow all of
+// it, as a browser does, and start every test at the start page again.
+
+const FRAGMENT = "#balance=made-up.code";
+
+test("The page opens at the address the test gives, its fragment included", () => {
+  openPageAt(`/${FRAGMENT}`);
+
+  expect(location.hash).toBe(FRAGMENT);
+  expect(location.pathname).toBe("/");
+  expect(pageAddress()).toBe(`/${FRAGMENT}`);
+});
+
+test("history.replaceState changes the page's address and fires no hashchange", () => {
+  openPageAt(`/${FRAGMENT}`);
+  const heard: string[] = [];
+  const hear = (): void => {
+    heard.push("hashchange");
+  };
+  window.addEventListener("hashchange", hear);
+
+  try {
+    history.replaceState(null, "", "/");
+  } finally {
+    window.removeEventListener("hashchange", hear);
+  }
+
+  expect(location.hash).toBe("");
+  expect(pageAddress()).toBe("/");
+  expect(heard).toEqual([]);
+});
+
+test("Setting location.hash goes to the fragment and fires hashchange once, none when it is already there", () => {
+  const heard: string[] = [];
+  const hear = (event: HashChangeEvent): void => {
+    heard.push(
+      `${new URL(event.oldURL).hash} -> ${new URL(event.newURL).hash}`,
+    );
+  };
+  window.addEventListener("hashchange", hear);
+
+  try {
+    location.hash = FRAGMENT;
+    location.hash = FRAGMENT;
+  } finally {
+    window.removeEventListener("hashchange", hear);
+  }
+
+  expect(pageAddress()).toBe(`/${FRAGMENT}`);
+  expect(heard).toEqual([` -> ${FRAGMENT}`]);
+});
+
+test("A tap in the background goes to the fragment while the page is hidden, then returns to the app", () => {
+  leaveApp();
+  const heard: string[] = [];
+  const hearHash = (): void => {
+    heard.push(`hashchange while ${document.visibilityState}`);
+  };
+  const hearReturn = (): void => {
+    heard.push(`visibilitychange to ${document.visibilityState}`);
+  };
+  window.addEventListener("hashchange", hearHash);
+  document.addEventListener("visibilitychange", hearReturn);
+
+  try {
+    tapNotificationInTheBackground(`${location.origin}/${FRAGMENT}`);
+  } finally {
+    window.removeEventListener("hashchange", hearHash);
+    document.removeEventListener("visibilitychange", hearReturn);
+  }
+
+  expect(heard).toEqual([
+    "hashchange while hidden",
+    "visibilitychange to visible",
+  ]);
+  expect(pageAddress()).toBe(`/${FRAGMENT}`);
+});
+
+test("A tap in the background needs the app in the background", () => {
+  expect(() => {
+    tapNotificationInTheBackground(`/${FRAGMENT}`);
+  }).toThrow(/leaveApp/);
+});
+
+test("The next test starts at the start page", () => {
+  openPageAt(`/${FRAGMENT}`);
+
+  resetFakeServer();
+
+  expect(pageAddress()).toBe("/");
+  expect(location.hash).toBe("");
+});
 
 async function realTurns(count: number): Promise<void> {
   for (let turn = 0; turn < count; turn += 1) await realTurn();

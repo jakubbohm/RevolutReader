@@ -4,10 +4,12 @@ import type { ListProblem } from "./listState";
 import {
   OFFLINE,
   shown,
+  type BalanceState,
   type Facts,
   type ListReport,
   type Problem,
   type Shown,
+  type ShownAccount,
 } from "./screenState";
 
 // What the account screen shows, from what it knows (c009 design.md D2, the phases of the first load; D7, the list slot
@@ -33,6 +35,7 @@ function facts(changes: Partial<Facts>): Facts {
   return {
     session: "waiting",
     balance: null,
+    confirmed: false,
     reading: "no",
     wait: "short",
     wokeUp: false,
@@ -63,7 +66,8 @@ test("A signed-in user with a read balance gets the header, the menu and the lis
   expect(shown(facts({ session: LUCIE, balance: READ }))).toEqual({
     screen: "account",
     account: { name: "Lucie Nováková", email: "lucie@example.com" },
-    header: { balance: READ, refreshing: false },
+    // The header's state is claimed by c019's tests below.
+    header: expect.objectContaining({ balance: READ, refreshing: false }),
     banner: null,
     body: "list",
     signingOut: false,
@@ -623,6 +627,124 @@ test.each(
     });
   },
 );
+
+// ---- c019: whether the balance is live (c019 design.md D8) ----
+// `live` when the shown balance is the one this opening's latest read returned (`confirmed`); otherwise `waiting` while
+// a request that can confirm it is out, who is signed in being asked or a balance read running; otherwise `stale`. The
+// list's own read cannot confirm the balance, so it leaves the balance stale.
+
+const states: {
+  label: string;
+  changes: Partial<Facts>;
+  state: BalanceState;
+}[] = [
+  {
+    label: "confirmed, nothing out",
+    changes: { session: LUCIE, balance: READ, confirmed: true },
+    state: "live",
+  },
+  {
+    label: 'confirmed, while "Obnovit" reads',
+    changes: {
+      session: LUCIE,
+      balance: READ,
+      confirmed: true,
+      reading: "refresh",
+    },
+    state: "live",
+  },
+  {
+    label: "not confirmed, while who is signed in is asked",
+    changes: { balance: STORED },
+    state: "waiting",
+  },
+  {
+    label: "not confirmed, while who is signed in is asked on a waking server",
+    changes: { balance: STORED, wait: "long" },
+    state: "waiting",
+  },
+  {
+    label: "not confirmed, while the first balance read runs",
+    changes: { session: LUCIE, balance: STORED, reading: "first" },
+    state: "waiting",
+  },
+  {
+    label: "not confirmed, while the first balance read runs after a wake",
+    changes: {
+      session: LUCIE,
+      balance: STORED,
+      reading: "first",
+      wait: "long",
+      wokeUp: true,
+    },
+    state: "waiting",
+  },
+  {
+    label: "not confirmed, while a refresh reads",
+    changes: { session: LUCIE, balance: STORED, reading: "refresh" },
+    state: "waiting",
+  },
+  {
+    label: "not confirmed, nothing out",
+    changes: { session: LUCIE, balance: STORED },
+    state: "stale",
+  },
+  {
+    label: "not confirmed, who is signed in found the phone offline",
+    changes: { session: { kind: "offline" }, balance: STORED },
+    state: "stale",
+  },
+  {
+    label: "not confirmed, the balance read failed at the bank",
+    changes: { session: LUCIE, balance: STORED, problem: BANK_DOWN },
+    state: "stale",
+  },
+  {
+    label: "not confirmed, only the list is read",
+    changes: {
+      session: LUCIE,
+      balance: STORED,
+      list: listReport({ reading: true }),
+    },
+    state: "stale",
+  },
+];
+
+test.each(states)(
+  "headerOf gives live when confirmed; waiting when not, while who is signed in is asked or a balance read runs; stale otherwise: $label",
+  ({ changes, state }) => {
+    expect(shown(facts(changes))).toMatchObject({
+      screen: "account",
+      header: { balance: changes.balance, state },
+    });
+  },
+);
+
+test("A placeholder header has no state", () => {
+  const placeholders: { label: string; changes: Partial<Facts> }[] = [
+    {
+      label: "the first read on an awake server",
+      changes: { session: LUCIE, reading: "first", wait: "short" },
+    },
+    {
+      label: "the first read on an awake server, confirmed on record",
+      changes: {
+        session: LUCIE,
+        reading: "first",
+        wait: "short",
+        confirmed: true,
+      },
+    },
+  ];
+
+  for (const { label, changes } of placeholders)
+    expect(headerOfScreen(shown(facts(changes))), label).toBe("placeholder");
+});
+
+/** The account screen's header; `undefined` for any other screen. */
+function headerOfScreen(screen: Shown): ShownAccount["header"] | undefined {
+  return screen.screen === "account" ? screen.header : undefined;
+}
 
 /** The account screen's banner; `undefined` for any other screen. */
 function bannerOf(screen: Shown): Problem | null | undefined {

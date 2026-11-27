@@ -1,6 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { ago, HOUR, SECOND, startTestClock, timePasses } from "../test/clock";
+import {
+  ago,
+  HOUR,
+  MINUTE,
+  SECOND,
+  startTestClock,
+  timePasses,
+} from "../test/clock";
+import { balanceAddress, PHONE_SECRET } from "../test/notificationBalance";
 import {
   installPushStandIns,
   type PushStandInOptions,
@@ -27,7 +35,9 @@ import {
   noAnswerYet,
   noConnection,
   nobodySignedIn,
+  openPageAt,
   phoneKeeps,
+  phoneStorageFails,
   pushKey,
   refused,
   requests,
@@ -44,7 +54,7 @@ import {
   type SignOutAnswer,
   type WhoIsSignedIn,
 } from "../test/server";
-import type { Problem } from "./screenState";
+import type { Problem, ShownAccount } from "./screenState";
 import { useAccountScreen, type AccountScreenModel } from "./useAccountScreen";
 
 // The account screen's sequence (c009 design.md D2, D3; § Rule ownership: useAccountScreen), driven through the hook on
@@ -1987,3 +1997,525 @@ test("A new turn-on clears its earlier failure, and only that", async () => {
     banner: { kind: "bank unavailable" },
   });
 });
+
+// ---- c019: the launch's intake of a notification's balance (design.md D6) ----
+
+/** The amount the header shows, or null when it shows none. */
+function amountShown(shown: AccountScreenModel["shown"]): number | null {
+  if (shown.screen !== "account") return null;
+  return typeof shown.header === "object" && shown.header !== null
+    ? shown.header.balance.amount
+    : null;
+}
+
+/**
+ * A launch at a notification's address carrying 286.40 € read a minute ago, made for this phone's subscription, while
+ * the phone keeps 250,00 € read two hours ago and the server does not answer yet: every amount the header showed, in
+ * order of its renders.
+ */
+async function launchFromANotification(push: PushStandInOptions = {}): Promise<{
+  result: { current: AccountScreenModel };
+  amounts: (number | null)[];
+  phone: PushStandIns;
+}> {
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  const phone = installPushStandIns({
+    ...push,
+    subscription: { auth: PHONE_SECRET },
+  });
+  openPageAt(await balanceAddress(kept(286.4, ago(MINUTE)), PHONE_SECRET));
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const amounts: (number | null)[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    amounts.push(amountShown(model.shown));
+    return model;
+  });
+  return { result, amounts, phone };
+}
+
+test("At a launch the kept balance is loaded after the intake has ended", async () => {
+  startTestClock();
+  const { result, amounts } = await launchFromANotification();
+
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown)).toBe(286.4);
+  expect(amounts, "the older kept balance never shows").not.toContain(250);
+});
+
+test("An intake still running after 300 ms lets the kept balance show, and the screen shows the newer one when the intake ends", async () => {
+  startTestClock();
+  // The browser leaves the subscription's question hanging, so the intake cannot end.
+  const { result, amounts, phone } = await launchFromANotification({
+    getSubscriptionWaits: true,
+  });
+
+  await timePasses(299);
+  expect(amounts, "before 300 ms, the kept balance waits").not.toContain(250);
+  await timePasses(1);
+  expect(amountShown(result.current.shown), "at 300 ms").toBe(250);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown), "once the intake ends").toBe(286.4);
+});
+
+test("A launch offline shows no whole-screen offline state while the kept balance waits for the intake", async () => {
+  // app-shell "A kept balance shows at once": the phone keeps a balance, so the offline state is never the whole
+  // screen, also while the intake holds the kept balance back (review finding 2 of PR 119).
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  // The browser leaves the subscription's question hanging, so the intake runs until its 300 ms are up.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    getSubscriptionWaits: true,
+  });
+  answerWith({ whoIsSignedIn: LUCIE });
+  goOffline();
+  const bodies: string[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    if (model.shown.screen === "account") bodies.push(model.shown.body);
+    return model;
+  });
+
+  await timePasses(0);
+  await timePasses(300);
+
+  expect(amountShown(result.current.shown), "the kept balance, at 300 ms").toBe(
+    286.4,
+  );
+  expect(result.current.shown, "under the offline banner").toMatchObject({
+    banner: { kind: "offline" },
+  });
+  expect(bodies, "never the whole-screen offline state").not.toContain(
+    "offline",
+  );
+});
+
+test("A launch whose server answers shows no first-read placeholder while the kept balance waits for the intake", async () => {
+  // app-shell "A kept balance shows at once": the phone keeps a balance, so the balance's placeholder never shows, also
+  // while the intake holds the kept balance back and the server has answered who is signed in (review finding 2 of PR 119).
+  startTestClock();
+  await phoneKeeps(kept(286.4, ago(2 * HOUR)));
+  // The browser leaves the subscription's question hanging, so the intake runs until its 300 ms are up.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    getSubscriptionWaits: true,
+  });
+  answerWith({ whoIsSignedIn: LUCIE, balance: noAnswerYet });
+  const headers: ShownAccount["header"][] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    if (model.shown.screen === "account") headers.push(model.shown.header);
+    return model;
+  });
+
+  await timePasses(0);
+  await timePasses(300);
+
+  expect(balanceReadsSent(), "the first read, under way").toBe(1);
+  expect(amountShown(result.current.shown), "the kept balance, at 300 ms").toBe(
+    286.4,
+  );
+  expect(headers, "never the balance's placeholder").not.toContain(
+    "placeholder",
+  );
+});
+
+// ---- c019: a hashchange's intake (design.md D5, D6) ----
+
+test("A hashchange runs the intake with the page's address, and the screen shows the kept balance after it", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  installPushStandIns({ subscription: { auth: PHONE_SECRET } });
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the kept balance at start").toBe(
+    250,
+  );
+
+  // The page goes to a notification's fragment, with no launch and no return.
+  const notified = kept(286.4, ago(MINUTE));
+  const notification = new URL(await balanceAddress(notified, PHONE_SECRET));
+  location.hash = notification.hash;
+  await timePasses(0);
+
+  expect(await keptBalance(), "kept by the intake").toEqual(notified);
+  expect(amountShown(result.current.shown), "shown after it").toBe(286.4);
+});
+
+// ---- c019: the list at a launch (design.md D5) ----
+
+test("A launch's intake reads the list as well as the address", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  // Opened from the app's icon: the start page, no fragment; the notification is still shown.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    notifications: [
+      {
+        title: "Odešlo 3,80 €",
+        body: "Zůstatek 286,40 €",
+        navigate: await balanceAddress(kept(286.4, ago(MINUTE)), PHONE_SECRET),
+      },
+    ],
+  });
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const amounts: (number | null)[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    amounts.push(amountShown(model.shown));
+    return model;
+  });
+
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown)).toBe(286.4);
+  expect(amounts, "the older kept balance never shows").not.toContain(250);
+});
+
+// ---- c019: the intake at a return (design.md D5, D6) ----
+
+/** Lucie's phone, subscribed with the server's key and the secret the notifications are made for. */
+function lucysPhoneForNotifications(): PushStandIns {
+  return phoneSubscribed({
+    subscription: {
+      endpoint: LUCIES_PHONE,
+      applicationServerKey: SERVER_KEY,
+      auth: PHONE_SECRET,
+    },
+  });
+}
+
+test("Every return to the screen runs the intake with both sources, and the screen then shows the newer of what it showed and what the phone keeps", async () => {
+  startTestClock();
+  const phone = lucysPhoneForNotifications();
+  // The launch's read shows 250,00 €; the read every return repeats gets no answer.
+  answerWith({ ...LUCIES_SERVER, balance: [balance(250), noAnswerYet] });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the launch's read").toBe(250);
+
+  // In the background, a notification read later than that arrives; the app comes back.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.notificationArrives({
+    title: "Přišlo 36,40 €",
+    navigate: await balanceAddress(kept(286.4, ago(0)), PHONE_SECRET),
+  });
+  returnToApp();
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "from the list").toBe(286.4);
+
+  // In the background again, the page's own address comes to carry a newer balance, with no hashchange.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.dismissNotifications();
+  history.replaceState(
+    null,
+    "",
+    await balanceAddress(kept(301.9, ago(0)), PHONE_SECRET),
+  );
+  returnToApp();
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "from the address").toBe(301.9);
+});
+
+test("A return's intake that keeps nothing leaves the shown balance as it was", async () => {
+  startTestClock();
+  const keptBefore = kept(250, ago(2 * HOUR));
+  await phoneKeeps(keptBefore);
+  const phone = lucysPhoneForNotifications();
+  answerWith({ ...LUCIES_SERVER, balance: [balance(286.4), noAnswerYet] });
+  // The launch's read shows 286,40 €, but the phone cannot keep it: it keeps the older 250,00 €.
+  const restoreStorage = phoneStorageFails();
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  restoreStorage();
+  expect(amountShown(result.current.shown), "the launch's read").toBe(286.4);
+
+  // A notification read earlier than the kept balance is still shown: the return's intake keeps nothing.
+  leaveApp();
+  await timePasses(MINUTE);
+  phone.notificationArrives({
+    title: "Odešlo 3,80 €",
+    navigate: await balanceAddress(kept(200, ago(3 * HOUR)), PHONE_SECRET),
+  });
+  returnToApp();
+  await timePasses(0);
+
+  expect(await keptBalance(), "nothing kept").toEqual(keptBefore);
+  expect(amountShown(result.current.shown), "as it was").toBe(286.4);
+});
+
+test("A return offline shows a newer balance the service worker kept behind the open page", async () => {
+  // push-display "A push with a balance replaces the balance the phone keeps", at a return (an opening, account-balance):
+  // on a browser where the service worker shows its own notification, it keeps the push's balance, and the notification
+  // carries the address only in its data, so the return's intake keeps nothing (review finding 3 of PR 119).
+  startTestClock();
+  const phone = lucysPhoneForNotifications();
+  answerWith({
+    ...LUCIES_SERVER,
+    balance: [balance(286.4, { readAt: ago(HOUR) }), noAnswerYet],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the launch's read").toBe(286.4);
+
+  // In the background, a push arrives: the worker keeps its balance and shows its own notification, with no address.
+  leaveApp();
+  await timePasses(MINUTE);
+  await phoneKeeps(kept(301.9, ago(0)));
+  phone.notificationArrives({ title: "Přišlo 15,50 €" });
+  goOffline();
+  returnToApp();
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown), "the balance the worker kept").toBe(
+    301.9,
+  );
+});
+
+// ---- c019: whether the shown balance is confirmed (design.md D8) ----
+
+/** The header the screen shows: its balance and state; null when it shows none or only the placeholder. */
+function headerShown(
+  shown: AccountScreenModel["shown"],
+): { balance: { amount: number }; state: string } | null {
+  if (shown.screen !== "account") return null;
+  return typeof shown.header === "object" && shown.header !== null
+    ? { balance: shown.header.balance, state: shown.header.state }
+    : null;
+}
+
+test("A successful balance read makes the shown balance confirmed", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: after(READ_TIME, balance(286.4)),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the kept balance, while the read runs",
+  ).toMatchObject({ balance: { amount: 250 }, state: "waiting" });
+
+  await timePasses(READ_TIME);
+
+  expect(
+    headerShown(result.current.shown),
+    "the read's balance, once it has answered",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+});
+
+test("A balance the intake shows in place of the confirmed one is not confirmed", async () => {
+  startTestClock();
+  installPushStandIns({ subscription: { auth: PHONE_SECRET } });
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: balance(250, { readAt: ago(MINUTE) }),
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the read's balance, confirmed",
+  ).toMatchObject({ balance: { amount: 250 }, state: "live" });
+
+  // The page goes to a notification's fragment read after that, with no launch, no return and no read.
+  const notification = new URL(
+    await balanceAddress(kept(286.4, ago(0)), PHONE_SECRET),
+  );
+  location.hash = notification.hash;
+  await timePasses(0);
+
+  expect(
+    headerShown(result.current.shown),
+    "the notification's balance, in place of the confirmed one",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
+});
+
+// D8: every outcome of a read but a read clears `confirmed`, a failed "Obnovit" included (the owner, decision 3b): the
+// balance stays shown, now stale, since nothing that can confirm it is out any more.
+const failedReads: {
+  label: string;
+  failure: BalanceAnswer;
+  /** How long the refresh takes to end. */
+  ends: number;
+}[] = [
+  { label: "offline", failure: noConnection, ends: 0 },
+  { label: "the bank does not answer", failure: bankUnavailable, ends: 0 },
+  { label: "the bank's limit is reached", failure: bankRateLimited, ends: 0 },
+  {
+    label: "the bank's access has expired",
+    failure: bankAccessExpired,
+    ends: 0,
+  },
+  { label: "an unexpected answer", failure: serverError, ends: 0 },
+  { label: "the 60 s limit", failure: noAnswerYet, ends: 60 * SECOND },
+];
+
+test.each(failedReads)(
+  "A read that ends offline, with a bank problem, with an unexpected answer or at the 60 s limit clears confirmed: $label",
+  async ({ failure, ends }) => {
+    startTestClock();
+    answerWith({ whoIsSignedIn: LUCIE, balance: [balance(286.4), failure] });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(
+      headerShown(result.current.shown),
+      "the read's balance, confirmed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    act(() => {
+      result.current.refresh();
+    });
+    await timePasses(ends);
+
+    expect(
+      headerShown(result.current.shown),
+      "once the refresh has failed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
+  },
+);
+
+// D8: every return to the screen is an opening (the owner, decision 3a): it clears `confirmed` before the read it
+// repeats, so the balance is waiting until that read answers. "Obnovit" and coming back online are no openings: a
+// confirmed balance stays in ink while they read.
+
+test("A return to the screen clears confirmed before the read it repeats, so the balance is waiting until it answers", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [balance(286.4), after(READ_TIME, balance(301.9))],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the launch's read, confirmed",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+  leavesAndReturns();
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "while the return's read runs",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "waiting" });
+
+  await timePasses(READ_TIME);
+  expect(
+    headerShown(result.current.shown),
+    "once it has answered",
+  ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+});
+
+test.each(repeatsThatAreNoOpening)(
+  '"Obnovit" and coming back online are no openings and leave confirmed as it is: $label',
+  async ({ repeat }) => {
+    startTestClock();
+    answerWith({
+      whoIsSignedIn: LUCIE,
+      balance: [balance(286.4), after(READ_TIME, balance(301.9))],
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(
+      headerShown(result.current.shown),
+      "the launch's read, confirmed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    repeat(result.current);
+    await timePasses(0);
+    expect(balanceReadsSent(), "the balance read again").toBe(2);
+    expect(
+      headerShown(result.current.shown),
+      "while it reads again",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    await timePasses(READ_TIME);
+    expect(
+      headerShown(result.current.shown),
+      "once it has answered",
+    ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+  },
+);
+
+// D8 (chapter E's review, E-1, the owner's option a): only a read started in the current opening confirms the balance.
+// A return that finds a read under way leaves that read to land, which confirms nothing, then reads once more, so the
+// opening gets its own read and the balance turns live by itself.
+const returnsDuringARead: {
+  label: string;
+  answers: ServerAnswers;
+  /** Until a balance read is under way, started before the return. */
+  readUnderWay: (screen: AccountScreenModel) => Promise<void>;
+  /** When that read lands, from the return. */
+  lands: number;
+}[] = [
+  {
+    label: 'during an "Obnovit" read',
+    answers: {
+      whoIsSignedIn: LUCIE,
+      balance: [
+        balance(286.4),
+        after(READ_TIME, balance(290)),
+        after(READ_TIME, balance(301.9)),
+      ],
+    },
+    readUnderWay: async (screen) => {
+      await timePasses(0);
+      act(() => {
+        screen.refresh();
+      });
+      await timePasses(0);
+    },
+    lands: READ_TIME,
+  },
+  {
+    label: "during the first load's read after a wake",
+    answers: {
+      whoIsSignedIn: after(20 * SECOND, LUCIE),
+      balance: [
+        after(20 * SECOND, balance(290)),
+        after(READ_TIME, balance(301.9)),
+      ],
+    },
+    readUnderWay: async () => {
+      await timePasses(20 * SECOND);
+    },
+    lands: 20 * SECOND,
+  },
+];
+
+test.each(returnsDuringARead)(
+  "A read started before a return confirms nothing, and the return gets a read of its own once it lands: $label",
+  async ({ answers, readUnderWay, lands }) => {
+    startTestClock();
+    await phoneKeeps(kept(250, ago(2 * HOUR)));
+    answerWith(answers);
+    const { result } = renderHook(() => useAccountScreen());
+    await readUnderWay(result.current);
+    const readsBefore = balanceReadsSent();
+
+    leavesAndReturns();
+    await timePasses(lands);
+
+    expect(
+      headerShown(result.current.shown),
+      "the earlier read has landed: shown, not confirmed",
+    ).toMatchObject({ balance: { amount: 290 }, state: "waiting" });
+    expect(balanceReadsSent(), "the return's own read").toBe(readsBefore + 1);
+
+    await timePasses(READ_TIME);
+    expect(
+      headerShown(result.current.shown),
+      "once the return's own read has answered",
+    ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+  },
+);

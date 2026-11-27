@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readBalance, type Balance, type BalanceRead } from "./balance";
+import {
+  LAUNCH_INTAKE_LIMIT_MS,
+  takeInNotificationBalances,
+  watchAddress,
+} from "./notificationIntake";
 import { watchRefreshTriggers, watchReturns } from "./refreshTriggers";
 import {
   OFFLINE,
@@ -72,6 +77,38 @@ async function atMostTheRefreshLimit(work: Promise<void>): Promise<void> {
   }
 }
 
+/** What `withinLimit` answers when the limit came first. */
+const LIMIT_REACHED = Symbol("limit reached");
+
+/**
+ * `work`'s answer when it settles within `ms`, else `LIMIT_REACHED`, while `work` goes on (c019 design.md D6: the
+ * launch's wait for the intake). A timer of the page's own, cleared once `work` settles, so the tests' clock drives it.
+ */
+async function withinLimit<T>(
+  work: Promise<T>,
+  ms: number,
+): Promise<T | typeof LIMIT_REACHED> {
+  let limitTimer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<typeof LIMIT_REACHED>((resolve) => {
+    limitTimer = setTimeout(() => resolve(LIMIT_REACHED), ms);
+  });
+  try {
+    return await Promise.race([work, limit]);
+  } finally {
+    clearTimeout(limitTimer);
+  }
+}
+
+/**
+ * The balance to show (c019 design.md D6): the newer, by `readAt` compared as moments, of the latest read and the one
+ * the phone keeps, which a notification's balance may have replaced; the read on a tie; either when the other is none.
+ */
+function newer(read: Balance | null, kept: Balance | null): Balance | null {
+  if (read === null) return kept;
+  if (kept === null) return read;
+  return Date.parse(kept.readAt) > Date.parse(read.readAt) ? kept : read;
+}
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
@@ -96,12 +133,22 @@ interface Wake {
 }
 
 /**
- * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, shown at once
- * until a read replaces it; and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance
- * (`GET /api/balance`), one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen.
+ * The account screen's sequence (c009 design.md D2, D3, D4, D7): at start, the balance the phone keeps, loaded once the
+ * launch's intake of notification balances has ended, or after 300 ms at most (`LAUNCH_INTAKE_LIMIT_MS`, c019
+ * design.md D6); and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance (`GET /api/balance`),
+ * one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. The balance shown is
+ * the newer, by `readAt`, of the latest read and the one the phone keeps, the read on a tie (`newer`, c019 D6): a read
+ * does not replace a kept balance read later. The shown balance is confirmed (c019 D8) while it is what a successful
+ * read returned: a balance an intake shows in its place is not. Any other outcome of a read, and every return to the
+ * screen (an opening), clears it; "Obnovit" and coming back online leave it as it is.
  * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
  * without an answer it is long, and an answer that took that long woke the server; from 30 s it is slow, and "Zkusit
  * znovu" asks again and starts the 30 s over (D2). The first load has no other cap (D3).
+ *
+ * Notifications' balances are taken in (`takeInNotificationBalances`, c019 design.md D5, D6) at a launch, from the
+ * page's address and the notifications the phone still shows; at every return to the screen, from both; and at every
+ * `hashchange`, from the address. Each keeps a balance only by c015's rule (`keepNotificationBalance`), and the kept
+ * balance is loaded again only when one kept something; an intake that ends after the launch's 300 ms still does.
  *
  * One signal repeats what was under way (`repeat`): "Obnovit", "Zkusit znovu", every return to the screen and coming
  * back online (`watchRefreshTriggers`). With who is signed in unanswered (found offline, no usable answer), it asks
@@ -134,7 +181,11 @@ interface Wake {
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
   const [stored, setStored] = useState<Balance | null>(null);
+  /** The kept balance has not been loaded yet at the launch: it waits for the intake (c019 design.md D6). */
+  const [keptLoading, setKeptLoading] = useState(true);
   const [balance, setBalance] = useState<Balance | null>(null);
+  /** `balance` is what this opening's latest balance read returned, and that read succeeded (c019 design.md D8). */
+  const [readConfirmed, setReadConfirmed] = useState(false);
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
   const [wait, setWait] = useState<Facts["wait"]>("short");
@@ -161,6 +212,11 @@ export function useAccountScreen(): AccountScreenModel {
    * once one has ended, nothing is read again nor any upkeep run (`repeat`, `runUpkeep`).
    */
   const loginsEnded = useRef(0);
+  /**
+   * How many returns to the screen there have been (c019 design.md D8: every return is an opening): a balance read
+   * confirms the balance only when none came while it ran.
+   */
+  const openings = useRef(0);
   /** As `readUnderWay`, for an upkeep of the push subscription: an opening while one runs is ignored, not queued. */
   const upkeepUnderWay = useRef(false);
 
@@ -181,6 +237,7 @@ export function useAccountScreen(): AccountScreenModel {
 
     setSession(next);
     setBalance(null);
+    setReadConfirmed(false);
     setStored(null);
     setReading("no");
     setProblem(null);
@@ -220,20 +277,18 @@ export function useAccountScreen(): AccountScreenModel {
   }, [landed]);
 
   /**
-   * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
-   * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
-   * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
-   * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
-   * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
-   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, the
-   * wake no longer waits for it (`landed`): after the wake, reads show the header refreshing or the placeholder, never
-   * the waking-up screen (D2, D3).
+   * One balance read, as `readTheBalance` (below) describes. Answers how the balance is read once more, when a return to the
+   * screen came while this read ran (a refresh once a read has succeeded, else as this one), or `null` when no read
+   * follows.
    */
-  const readTheBalance = useCallback(
-    async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
-      if (readUnderWay.current) return;
+  const readOnce = useCallback(
+    async (
+      as: "first" | "refresh",
+      firstLoad: boolean,
+    ): Promise<"first" | "refresh" | null> => {
       readUnderWay.current = true;
       const login = loginsEnded.current;
+      const opening = openings.current;
       setReading(as);
       setProblem(null);
 
@@ -253,7 +308,7 @@ export function useAccountScreen(): AccountScreenModel {
         clearTimeout(limitTimer);
         readUnderWay.current = false;
       }
-      if (!onPage.current || login !== loginsEnded.current) return;
+      if (!onPage.current || login !== loginsEnded.current) return null;
 
       // A read has landed, whatever it brought: a wake no longer waits for it (D2, D3; c010 design.md D8).
       landed("balance");
@@ -262,14 +317,19 @@ export function useAccountScreen(): AccountScreenModel {
       // the no-access screen, naming the account.
       if (read.kind === "signed out") {
         await endLogin({ kind: "signed-out", justSignedOut: false });
-        return;
+        return null;
       }
       if (read.kind === "refused") {
         await endLogin({ kind: "refused", email: read.email });
-        return;
+        return null;
       }
 
       setReading("no");
+      // Only a successful read started in the current opening confirms the shown balance; every other outcome (offline,
+      // the 60 s limit, a bank problem, an unexpected answer) leaves it unconfirmed, so a failed "Obnovit" turns a live
+      // balance stale, and a read started before a return confirms nothing (c019 design.md D8).
+      const sameOpening = opening === openings.current;
+      setReadConfirmed(read.kind === "read" && sameOpening);
       if (read.kind === "read") {
         setBalance(read.balance);
         // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
@@ -284,8 +344,40 @@ export function useAccountScreen(): AccountScreenModel {
         read.kind === "unexpected"
       )
         setProblem({ kind: read.kind });
+
+      // A return came while this read ran, and its own repeat was ignored: the opening gets a read of its own now.
+      if (sameOpening) return null;
+      return read.kind === "read" ? "refresh" : as;
     },
     [endLogin, landed],
+  );
+
+  /**
+   * Reads the balance and takes in what it brought, unless a read is under way: then nothing is sent. `as` is how the
+   * screen shows it: as the first read until one has succeeded, then as a refresh. Every read but the first load's own
+   * (`firstLoad`, the one after the first answer to who is signed in) is a refresh for the limit: with no answer after
+   * `REFRESH_LIMIT_MS` it is aborted, and so ends as offline (D3); the first load's read has no limit, since the first
+   * load shows the waking-up screens instead (D2). A read that lands after the login ended is neither shown nor kept
+   * (D4); one that finds the login ended (401, 403) ends it here too. Once a read has landed, whatever its outcome, the
+   * wake no longer waits for it (`landed`): after the wake, reads show the header refreshing or the placeholder, never
+   * the waking-up screen (D2, D3).
+   *
+   * Only a read started in the current opening confirms the balance (c019 design.md D8, E-1). A return to the screen
+   * while a read is under way finds its own repeat ignored; so once that read has landed, confirming nothing, the
+   * balance is read once more, with the refresh's limit, and that read is the opening's own. One read after another,
+   * never a queue: other repeats during a read, such as "Obnovit", stay ignored.
+   */
+  const readTheBalance = useCallback(
+    async (as: "first" | "refresh", firstLoad: boolean): Promise<void> => {
+      if (readUnderWay.current) return;
+      let next: "first" | "refresh" | null = as;
+      let first = firstLoad;
+      while (next !== null) {
+        next = await readOnce(next, first);
+        first = false;
+      }
+    },
+    [readOnce],
   );
 
   /**
@@ -415,11 +507,53 @@ export function useAccountScreen(): AccountScreenModel {
   useEffect(() => {
     onPage.current = true;
 
-    // What the phone keeps shows at once, before any answer (D2); a failing store reads as none.
-    async function loadStored(): Promise<void> {
+    // Loads what the phone keeps, without waiting for any answer (D2); a failing store reads as none. At a launch it
+    // runs once the intake has ended or its 300 ms have passed (`loadStored`), later after each intake that kept one.
+    async function showStored(): Promise<void> {
       const kept = await loadStoredBalance();
       if (onPage.current) setStored(kept);
     }
+
+    // A launch first takes in the balance of the notification that opened it and of those the phone still shows (c019
+    // design.md D5, D6), so the older kept balance never flashes before it; a browser call left hanging holds the kept
+    // balance back for 300 ms at most, and an intake that ends later still shows what it kept. Until the kept balance
+    // has loaded, the screen shows neither the whole-screen offline state nor the balance's placeholder (`keptLoading`).
+    async function loadStored(): Promise<void> {
+      const intake = takeInNotificationBalances({
+        fromAddress: true,
+        fromList: true,
+      });
+      const first = await withinLimit(intake, LAUNCH_INTAKE_LIMIT_MS);
+      await showStored();
+      if (onPage.current) setKeptLoading(false);
+      if (first !== LIMIT_REACHED) return;
+      if ((await intake).kept) await showStored();
+    }
+
+    // While the screen is on the page (c019 design.md D5, D6): a tap on a notification while the app is in the
+    // background, on this page, changes its fragment, and every change is taken in; every return to the screen takes in
+    // the notifications the phone still shows, and the page's address in case. The screen then shows the balance kept
+    // from them; a fragment's intake that keeps nothing changes nothing. A return always loads the kept balance again,
+    // as every opening does (account-balance): the service worker may have kept a push's balance behind the open page,
+    // from a notification of its own that carries no address; the newer of it and the read is shown.
+    async function takeIn(fromList: boolean): Promise<void> {
+      const { kept } = await takeInNotificationBalances({
+        fromAddress: true,
+        fromList,
+      });
+      if (kept || fromList) await showStored();
+    }
+    const stopWatchingAddress = watchAddress(() => {
+      void takeIn(false);
+    });
+    // Every return is an opening (c019 design.md D8): the balance is no longer confirmed, and waits for the read the
+    // return repeats (`watchRefreshTriggers`), or, with a read under way, for the one that follows it (`readTheBalance`).
+    // Coming back online is no opening and leaves it as it is.
+    const stopWatchingReturns = watchReturns(() => {
+      openings.current += 1;
+      setReadConfirmed(false);
+      void takeIn(true);
+    });
 
     // The first question unanswered after 1.5 s: the server is waking (D2).
     const wakingMark = setTimeout(() => {
@@ -438,6 +572,8 @@ export function useAccountScreen(): AccountScreenModel {
     void start();
 
     return () => {
+      stopWatchingAddress();
+      stopWatchingReturns();
       clearTimeout(wakingMark);
       clearTimeout(slowMark.current);
       onPage.current = false;
@@ -557,9 +693,14 @@ export function useAccountScreen(): AccountScreenModel {
     );
   }, []);
 
+  const balanceShown = newer(balance, stored);
   const facts: Facts = {
     session,
-    balance: balance ?? stored,
+    balance: balanceShown,
+    keptLoading,
+    // Confirmed only while the shown balance is the read's itself: one an intake shows in its place is not (D8).
+    confirmed:
+      readConfirmed && balanceShown !== null && balanceShown === balance,
     reading,
     wait,
     wokeUp: wake !== null,

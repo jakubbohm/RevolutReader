@@ -4,6 +4,7 @@ import type {
   PushWorker,
   WindowLike,
 } from "../app/pushDisplay";
+import { PHONE_SECRET } from "./notificationBalance";
 
 /**
  * The service worker's side, as the app's tests see it (c012 design.md D9, D10): jsdom runs no service worker, so the
@@ -14,6 +15,10 @@ import type {
  * - `location.origin`: the service worker's own origin, by default `ORIGIN`.
  * - `registration.showNotification(title, options)`: shows a notification of the service worker's own, recorded in
  *   `shownNotifications()` with its title, body and data.
+ * - `registration.pushManager.getSubscription()` (c019 design.md D7): the push subscription the service worker gets its
+ *   pushes for, whose `getKey("auth")` gives its secret's bytes (by default `PHONE_SECRET`, so a notification's
+ *   balance made with `./notificationBalance.ts` for the phone is this one's), and `null` for any other key; with
+ *   `subscription: null`, none.
  * - `clients`: the windows open now (`openWindows`, by default none; and `uncontrolledWindows`, which `matchAll` answers
  *   only with `includeUncontrolled: true`). `matchAll` answers them, whatever their origin, so a test can check that
  *   the handler counts only its own origin's as the app;
@@ -36,12 +41,6 @@ import type {
  *   The event fires for a message without `"mutable": true` too (C8b's model: the draft and WebKit's post differ there).
  * - A tap (`tapNotification(index)`) on a notification the service worker showed: the event carries it, with its data
  *   and `close()`, recorded in `closedNotifications()`.
- * - `fetch(input, init)` (c016 design.md D7): the service worker's own requests, handed to the fake server
- *   (`globalThis.fetch`, which `setup.ts` installs from `./server.ts`), so each shows in its timeline and, with a body,
- *   in `bodiesSent()`, and gets the answer the test set there (offline too, `goOffline()`). The service worker and the
- *   page are one app on one origin, but this stand-in's origin and the fake server's page are made up apart: an address
- *   on the service worker's own origin (or a path, resolved against it) reaches the fake server as the same path on the
- *   page's origin; any other address goes as it is, which the fake server writes in full and answers 404.
  * Each event's handlers run, and the helper waits for the work they passed to `waitUntil`, so a failure there fails
  * the test. Every origin and address here is made up.
  */
@@ -67,6 +66,11 @@ export interface ServiceWorkerStandInOptions {
   uncontrolledWindows?: readonly string[];
   /** The service worker's own origin; by default `ORIGIN`. */
   origin?: string;
+  /**
+   * The push subscription `registration.pushManager.getSubscription()` answers: its secret (`auth`) in base64url; by
+   * default `PHONE_SECRET`. `null`: the service worker holds none.
+   */
+  subscription?: { auth: string } | null;
 }
 
 /** A notification the service worker showed. */
@@ -76,15 +80,10 @@ export interface ShownNotification {
   data: unknown;
 }
 
-/** The service worker's own `fetch`, as the stand-in gives it (c016 design.md D7; see the module's description). */
-export interface WorkerFetch {
-  fetch(input: string, init?: RequestInit): Promise<Response>;
-}
-
 /** The installed stand-in, and what was done with it. */
 export interface ServiceWorkerStandIn {
   /** The service worker's scope, to hand to `listenForPushes`. */
-  worker: PushWorker & WorkerFetch;
+  worker: PushWorker;
   /** A push with this JSON arrives; resolves once the handlers' `waitUntil` work is done. */
   deliverPush(json: unknown): Promise<void>;
   /** A push with no data at all arrives (`data` is `null`); resolves once the handlers' `waitUntil` work is done. */
@@ -126,10 +125,20 @@ export function installServiceWorkerStandIn(
   const uncontrolled: WindowLike[] = (options.uncontrolledWindows ?? []).map(
     windowAt,
   );
+  const held =
+    options.subscription === undefined
+      ? { auth: PHONE_SECRET }
+      : options.subscription;
+  const subscription =
+    held === null
+      ? null
+      : {
+          getKey: (name: string): ArrayBuffer | null =>
+            name === "auth" ? bytesOf(held.auth).buffer : null,
+        };
 
-  const worker: PushWorker & WorkerFetch = {
+  const worker: PushWorker = {
     location: { origin },
-    fetch: (input, init) => globalThis.fetch(onTheServer(input, origin), init),
     registration: {
       showNotification: (title, notificationOptions) => {
         shown.push({
@@ -140,6 +149,9 @@ export function installServiceWorkerStandIn(
           data: notificationOptions?.data,
         });
         return Promise.resolve();
+      },
+      pushManager: {
+        getSubscription: () => Promise.resolve(subscription),
       },
     },
     clients: {
@@ -237,19 +249,10 @@ export function installServiceWorkerStandIn(
   };
 }
 
-/**
- * The address the fake server gets for a request the service worker on `origin` sends to `input`: `input` resolved
- * against `origin`; on that origin, its path, query and fragment on the page's origin (the fake server's), since the
- * service worker and the page are one app; elsewhere, as it is.
- */
-function onTheServer(input: string, origin: string): string {
-  const own = new URL(origin);
-  const address = new URL(input, own);
-  if (address.origin !== own.origin) return address.href;
-  return new URL(
-    `${address.pathname}${address.search}${address.hash}`,
-    globalThis.location.href,
-  ).href;
+/** The bytes of base64url text, the stand-in's own reading, independent of the app's. */
+function bytesOf(text: string): Uint8Array<ArrayBuffer> {
+  const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
 }
 
 /**

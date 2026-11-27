@@ -18,6 +18,11 @@ namespace RevolutReader.AcceptanceTests.Drivers;
 /// whose sending it judges (tasks.md 9a.1); its self-test (<c>HarnessSelfTests/TestDeviceSelfTests</c>) reproduces RFC
 /// 8291 Appendix A.
 /// </para>
+/// <para>
+/// <see cref="Accepts"/> checks a notification's balance fragment as the phone does since c019 (design.md D3): its check
+/// code against the key the device's own secret gives, with the test kit's own HKDF and HMAC; its self-tests pin it to the
+/// known-answer vector of design.md D12, made with Node's crypto, outside both implementations.
+/// </para>
 /// </summary>
 public sealed class TestDevice {
   /// <summary>The secret's size a browser makes (RFC 8291 § 3.2).</summary>
@@ -47,6 +52,20 @@ public sealed class TestDevice {
 
   /// <summary>The last record's padding delimiter (RFC 8188 § 2; RFC 8291 § 4: a push has one record, so this is it).</summary>
   private const byte LAST_RECORD_DELIMITER = 0x02;
+
+  /// <summary>How a notification's balance fragment starts (c019 design.md D2): <c>balance=&lt;payload&gt;.&lt;code&gt;</c>.</summary>
+  internal const string BALANCE_FRAGMENT_START = "balance=";
+
+  /// <summary>Between the fragment's payload and its check code (D2).</summary>
+  private const char CODE_SEPARATOR = '.';
+
+  /// <summary>HKDF's salt and info for the check code's key (c019 design.md D3), ASCII.</summary>
+  private static readonly byte[] _checkCodeSalt = "tarjeta-papa"u8.ToArray();
+  private static readonly byte[] _checkCodeInfo = "notification balance check code v1"u8.ToArray();
+
+  /// <summary>The check code's key and tag: HKDF-SHA-256's 32 bytes, HMAC-SHA-256's 32 bytes (D3).</summary>
+  private const int CHECK_CODE_KEY_BYTES = 32;
+  private const int CHECK_CODE_BYTES = 32;
 
   /// <summary>The scenario's name for the device, for failure messages.</summary>
   public string Name { get; }
@@ -87,6 +106,62 @@ public sealed class TestDevice {
     ECParameters keys = new() { Curve = ECCurve.NamedCurves.nistP256, D = privateKey, Q = PointOf(publicKey) };
 
     return new TestDevice(name, pushAddress, keys, secret);
+  }
+
+  /// <summary>
+  /// A device with new keys but the given secret (16 bytes), at a made-up push address, for the self-tests of the check
+  /// code (c019 design.md D12's known-answer vector, made with the secret 0x00 to 0x0f).
+  /// </summary>
+  internal static TestDevice WithSecret(string name, byte[] secret) {
+    ArgumentNullException.ThrowIfNull(secret);
+
+    if (secret.Length != SECRET_BYTES)
+      throw new ArgumentException($"A device's secret has {SECRET_BYTES} bytes.", nameof(secret));
+
+    return new TestDevice(name, new Uri($"https://push.example.net/push/{Guid.NewGuid():N}"), NewKeys(), secret);
+  }
+
+  /// <summary>
+  /// Whether this device accepts the check code of a notification's balance fragment (c019 design.md D2, D3), as the
+  /// phone checks it with its own push subscription's secret: <paramref name="balanceFragment"/> is
+  /// <c>balance=&lt;payload&gt;.&lt;code&gt;</c> (without the <c>#</c>), and the code, base64url without padding, decodes to
+  /// exactly HMAC-SHA-256 of the payload's text (ASCII, as sent) under the key HKDF-SHA-256 derives from this device's
+  /// secret (<see cref="Auth"/> as the keying material, salt <c>"tarjeta-papa"</c>, info
+  /// <c>"notification balance check code v1"</c>, 32 bytes), compared in constant time. The test kit's own construction, on
+  /// .NET's <see cref="HKDF"/> and <see cref="HMACSHA256"/>, never the app's; its self-tests pin it to the known-answer
+  /// vector Node's crypto made (D12). Anything else, a fragment of another shape or a code that does not decode to 32
+  /// bytes, is not accepted.
+  /// </summary>
+  public bool Accepts(string balanceFragment) {
+    ArgumentNullException.ThrowIfNull(balanceFragment);
+
+    if (!balanceFragment.StartsWith(BALANCE_FRAGMENT_START, StringComparison.Ordinal))
+      return false;
+
+    string value = balanceFragment[BALANCE_FRAGMENT_START.Length..];
+    int separator = value.LastIndexOf(CODE_SEPARATOR, StringComparison.Ordinal);
+
+    if (separator <= 0)
+      return false;
+
+    string payload = value[..separator];
+    string code = value[(separator + 1)..];
+    byte[] sent;
+
+    try {
+      sent = Base64Url.DecodeFromChars(code);
+    }
+    catch (FormatException) {
+      return false;
+    }
+
+    if (sent.Length != CHECK_CODE_BYTES || !Ascii.IsValid(payload))
+      return false;
+
+    byte[] key = HKDF.DeriveKey(HashAlgorithmName.SHA256, Base64Url.DecodeFromChars(Auth), CHECK_CODE_KEY_BYTES, _checkCodeSalt, _checkCodeInfo);
+    byte[] expected = HMACSHA256.HashData(key, Encoding.ASCII.GetBytes(payload));
+
+    return CryptographicOperations.FixedTimeEquals(expected, sent);
   }
 
   /// <summary>

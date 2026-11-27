@@ -35,24 +35,34 @@ export async function storeBalance(balance: Balance): Promise<void> {
 }
 
 /**
- * Keeps a balance a push brought in place of the one the phone keeps (c015 design.md D3): only when the phone keeps a
- * balance of the right shape and the pushed one was not read earlier (`readAt` compared as moments); read, compared and
- * written in one IndexedDB transaction (idb-keyval's `update`), only the three fields. Never rejects: a failure is ignored.
+ * Keeps a notification's balance in place of the one the phone keeps, by c015 design.md D3's rule (c019 design.md D6:
+ * `keepPushedBalance` renamed): only when the phone keeps a balance of the right shape and the notification's was not
+ * read earlier (`readAt` compared as moments); read, compared and written in one IndexedDB transaction (idb-keyval's
+ * `update`), only the three fields. The very balance already kept, its three fields the same, is left as it is and
+ * replaces nothing, so taking in the same notification again changes nothing. Resolves whether it replaced; never
+ * rejects: a failure is ignored, and replaces nothing.
  */
-export async function keepPushedBalance(pushed: Balance): Promise<void> {
-  const { amount, readAt, czkPerEur } = pushed;
+export async function keepNotificationBalance(
+  balance: Balance,
+): Promise<boolean> {
+  const { amount, readAt, czkPerEur } = balance;
+  let replaced = false;
   try {
     // The get and the put share one readwrite transaction, so the page's own write after a read, or its delete when a
     // login ends, never falls between the compare and the write. Not replacing puts back what was there: for a phone
     // that keeps nothing that is `undefined`, which reads as nothing kept.
     await update<unknown>(
       LAST,
-      (record) =>
-        replacesKept(readAt, record) ? { amount, readAt, czkPerEur } : record,
+      (record) => {
+        replaced = replacesKept(readAt, record) && !keeps(record, balance);
+        return replaced ? { amount, readAt, czkPerEur } : record;
+      },
       phone,
     );
+    return replaced;
   } catch {
-    // Nothing kept from this push: the next read of the balance keeps a newer one.
+    // Nothing kept this time: the next read of the balance keeps a newer one.
+    return false;
   }
 }
 
@@ -65,6 +75,17 @@ function replacesKept(readAt: string, record: unknown): boolean {
   const kept = balanceOf(record);
   if (kept === null) return false;
   return Date.parse(readAt) >= Date.parse(kept.readAt);
+}
+
+/** Whether this kept record already holds `balance`: its three fields the same, `readAt` as written. */
+function keeps(record: unknown, balance: Balance): boolean {
+  const kept = balanceOf(record);
+  return (
+    kept !== null &&
+    kept.amount === balance.amount &&
+    kept.readAt === balance.readAt &&
+    kept.czkPerEur === balance.czkPerEur
+  );
 }
 
 /** Forgets the kept balance; a failure is ignored. */
