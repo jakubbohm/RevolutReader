@@ -2293,3 +2293,65 @@ test.each(failedReads)(
     ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
   },
 );
+
+// D8: every return to the screen is an opening (the owner, decision 3a): it clears `confirmed` before the read it
+// repeats, so the balance is waiting until that read answers. "Obnovit" and coming back online are no openings: a
+// confirmed balance stays in ink while they read.
+
+test("A return to the screen clears confirmed before the read it repeats, so the balance is waiting until it answers", async () => {
+  startTestClock();
+  answerWith({
+    whoIsSignedIn: LUCIE,
+    balance: [balance(286.4), after(READ_TIME, balance(301.9))],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "the launch's read, confirmed",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+  leavesAndReturns();
+  await timePasses(0);
+  expect(
+    headerShown(result.current.shown),
+    "while the return's read runs",
+  ).toMatchObject({ balance: { amount: 286.4 }, state: "waiting" });
+
+  await timePasses(READ_TIME);
+  expect(
+    headerShown(result.current.shown),
+    "once it has answered",
+  ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+});
+
+test.each(repeatsThatAreNoOpening)(
+  '"Obnovit" and coming back online are no openings and leave confirmed as it is: $label',
+  async ({ repeat }) => {
+    startTestClock();
+    answerWith({
+      whoIsSignedIn: LUCIE,
+      balance: [balance(286.4), after(READ_TIME, balance(301.9))],
+    });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(
+      headerShown(result.current.shown),
+      "the launch's read, confirmed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    repeat(result.current);
+    await timePasses(0);
+    expect(balanceReadsSent(), "the balance read again").toBe(2);
+    expect(
+      headerShown(result.current.shown),
+      "while it reads again",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    await timePasses(READ_TIME);
+    expect(
+      headerShown(result.current.shown),
+      "once it has answered",
+    ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+  },
+);
