@@ -359,7 +359,7 @@ Conventions for the run:
 
 ## 52. [close] Slice 19 — A refresh keeps a confirmed balance in ink
 
-- [ ] 52.1 The scenario's test passes, as expected after slice 14, and is proven by a mutation: with `readTheBalance` clearing `confirmed` when it starts, it fails. Verify: green, including account-balance / A refresh keeps a confirmed balance in ink; the mutation's red result in `.tdd-state.md`
+- [x] 52.1 The scenario's test passes, as expected after slice 14, and is proven by a mutation: with `readTheBalance` clearing `confirmed` when it starts, it fails. Verify: green, including account-balance / A refresh keeps a confirmed balance in ink; the mutation's red result in `.tdd-state.md`
 
 ## 53. [unit] Slice 20 — Every return is an opening
 
