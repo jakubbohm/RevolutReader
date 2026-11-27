@@ -206,7 +206,7 @@ Conventions for the run:
 
 ## 19. [close] Slice 5 — Opening the app from its icon takes the balance of a notification still shown
 
-- [ ] 19.1 The scenario's test passes. Verify: green, including push-display / Opening the app from its icon takes the balance of a notification still shown
+- [x] 19.1 The scenario's test passes. Verify: green, including push-display / Opening the app from its icon takes the balance of a notification still shown
 
 ## 20. [unit] Slice 6 — The intake at a return
 
