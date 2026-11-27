@@ -88,7 +88,10 @@ export interface NotificationClickLike {
  * the right shape is there, in the push's own JSON (`notification.data.balance`), which also covers a browser that hands
  * over both; kept only when `balanceOf` gives one. Null when there is none or it has the wrong shape. Never throws.
  */
-export function pushedBalance(event: PushLike): Balance | null {
+export function pushedBalance(
+  event: PushLike,
+  _secret: ArrayBuffer | null = null,
+): Balance | null {
   const proposed = event.notification;
   if (proposed !== undefined && proposed !== null) {
     const fromProposed = balanceOf(balanceIn(proposed));

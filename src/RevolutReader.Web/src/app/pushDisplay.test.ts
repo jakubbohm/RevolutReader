@@ -1,6 +1,12 @@
 import { expect, test, vi } from "vitest";
 import { realTurn } from "../test/clock";
 import {
+  balanceAddress,
+  PHONE_SECRET,
+  secretBytes,
+  wrongCode,
+} from "../test/notificationBalance";
+import {
   keptBalance,
   phoneKeeps,
   phoneStorageBusy,
@@ -376,7 +382,7 @@ test("A window on another origin does not count as the app", async () => {
   }
 });
 
-// ---- c015: the balance a push carries, kept (group 2; design.md D1, D2, D4) ----
+// ---- c015: the balance a push carries, kept (group 2; design.md D1, D2, D4); since c019 in navigate's fragment ----
 
 /** A balance as a push carries it, exactly as `GET /api/balance` answers it (c015 design.md D1). Made up. */
 const PUSHED: Balance = {
@@ -403,39 +409,44 @@ const KEPT_EARLIER: Balance = {
 const PAYMENT_TITLE = "Odešlo 3,80 €";
 const PAYMENT_TEXT = "Zůstatek 282,60 € (≈ 6 867 Kč)";
 
+/** This phone's secret as its push subscription's `getKey("auth")` answers it: the stand-in's by default. Made up. */
+const SECRET = secretBytes(PHONE_SECRET);
+
+/** Another device's secret (16 zero bytes, base64url), so the stand-in's subscription is not this phone's. Made up. */
+const ANOTHER_SECRET = "AAAAAAAAAAAAAAAAAAAAAA";
+
 /**
- * A push as the account check sends it (c015 design.md D1): Declarative Web Push with `"mutable": true`, opening the
- * start page, with `balance` in its notification's data.
+ * The page a push of the account check opens since c019 (design.md D2): the start page on the stand-in's origin with
+ * `balance` (any JSON value) in its fragment, its check code made for this phone (`PHONE_SECRET`).
  */
-function pushWithBalance(balance: unknown): unknown {
+function pageWith(balance: unknown): Promise<string> {
+  return balanceAddress(balance, PHONE_SECRET, { origin: ORIGIN });
+}
+
+/** A push of the account check opening `navigate` (c019 design.md D1): plain Declarative Web Push, no `mutable`, no `data`. */
+function paymentPush(navigate: string): unknown {
   return {
     web_push: 8030,
-    mutable: true,
-    notification: {
-      title: PAYMENT_TITLE,
-      body: PAYMENT_TEXT,
-      navigate: APP_PAGE,
-      data: { balance },
-    },
+    notification: { title: PAYMENT_TITLE, body: PAYMENT_TEXT, navigate },
   };
+}
+
+/** A push as the account check sends it since c019: `balance` in its page's fragment, made for this phone. */
+async function pushWithBalance(balance: unknown): Promise<unknown> {
+  return paymentPush(await pageWith(balance));
 }
 
 /**
- * The notification a browser that reads Declarative Web Push proposes for that push: the message's `notification.data`
- * becomes its `data` (W3C draft, c015 design.md D2).
+ * The notification a browser that reads Declarative Web Push proposes for a push of the account check opening
+ * `navigate` (W3C draft): the message's title, text and page, and no data (the push carries none since c019).
  */
-function proposedFor(balance: unknown): unknown {
-  return proposedWithData({ balance });
+function proposedOpening(navigate: unknown): unknown {
+  return { title: PAYMENT_TITLE, body: PAYMENT_TEXT, navigate, data: null };
 }
 
-/** The notification proposed for a push of the account check, with this as its `data`. */
-function proposedWithData(data: unknown): unknown {
-  return {
-    title: PAYMENT_TITLE,
-    body: PAYMENT_TEXT,
-    navigate: APP_PAGE,
-    data,
-  };
+/** The notification proposed for a push of the account check with `balance` in its page's fragment, made for this phone. */
+async function proposedFor(balance: unknown): Promise<unknown> {
+  return proposedOpening(await pageWith(balance));
 }
 
 /** A push event with this data and this proposed notification (left out: a browser without the member). */
@@ -448,94 +459,187 @@ function dataOf(json: unknown): PushLike["data"] {
   return { json: () => structuredClone(json) };
 }
 
-test("The balance comes from the data of the browser's proposed notification when the push event carries one", () => {
-  // As the W3C draft has it: the event carries no data of its own, only the proposed notification.
+// c019 (group 35; design.md D7): the balance is in `navigate`'s fragment, checked with the worker's subscription secret.
+
+test("pushedBalance reads the balance in navigate's fragment from the push's JSON, checked with the subscription's secret", async () => {
+  // 35.1. A browser that proposes no notification (as a computer's Chrome): the push's own JSON.
+  const cases: [string, PushLike][] = [
+    [
+      "a browser that does not read Declarative Web Push (no proposed notification)",
+      pushEvent({ data: dataOf(await pushWithBalance(PUSHED)) }),
+    ],
+    [
+      "a browser whose proposed notification is null",
+      pushEvent({
+        data: dataOf(await pushWithBalance(PUSHED)),
+        notification: null,
+      }),
+    ],
+  ];
+
+  for (const [name, event] of cases) {
+    expect(await pushedBalance(event, SECRET), name).toEqual(PUSHED);
+  }
+});
+
+test("With the browser's proposed notification, pushedBalance reads its navigate first", async () => {
+  // 35.2. As the W3C draft has it: the event carries no data of its own, only the proposed notification.
   expect(
-    pushedBalance(pushEvent({ data: null, notification: proposedFor(PUSHED) })),
+    await pushedBalance(
+      pushEvent({ data: null, notification: await proposedFor(PUSHED) }),
+      SECRET,
+    ),
     "no data of the event's own",
   ).toEqual(PUSHED);
-  // A browser that also hands over the push's own JSON (design.md D2): the proposed notification's balance comes first.
+  // A browser that also hands over the push's own JSON (c015 design.md D2's order): the proposed notification's first.
   expect(
-    pushedBalance(
+    await pushedBalance(
       pushEvent({
-        data: dataOf(pushWithBalance(OTHER)),
-        notification: proposedFor(PUSHED),
+        data: dataOf(await pushWithBalance(OTHER)),
+        notification: await proposedFor(PUSHED),
       }),
+      SECRET,
     ),
     "the push's own JSON too, with another balance",
   ).toEqual(PUSHED);
 });
 
-test("The balance comes from the push's own JSON where the browser proposes no notification", () => {
-  const cases: [string, PushLike][] = [
-    [
-      "a browser that does not read Declarative Web Push (no proposed notification)",
-      pushEvent({ data: dataOf(pushWithBalance(PUSHED)) }),
-    ],
-    [
-      "a browser whose proposed notification is null",
-      pushEvent({ data: dataOf(pushWithBalance(PUSHED)), notification: null }),
-    ],
-  ];
+/**
+ * The two places a push's balance is found (design.md D7), each with nothing in the other: the proposed notification,
+ * with no data of the event's own (the W3C draft); and the push's own JSON, with no proposed notification.
+ */
+const PLACES: [string, (navigate: string) => PushLike][] = [
+  [
+    "in the proposed notification",
+    (navigate) =>
+      pushEvent({ data: null, notification: proposedOpening(navigate) }),
+  ],
+  [
+    "in the push's JSON",
+    (navigate) => pushEvent({ data: dataOf(paymentPush(navigate)) }),
+  ],
+];
 
-  for (const [name, event] of cases) {
-    expect(pushedBalance(event), name).toEqual(PUSHED);
+test("No subscription gives no balance", async () => {
+  // 35.3. The same push with this phone's secret gives its balance, so the null below is the missing secret's.
+  for (const [place, eventWith] of PLACES) {
+    const event = eventWith(await pageWith(PUSHED));
+    expect(
+      await pushedBalance(event, SECRET),
+      `with this phone's secret, ${place}`,
+    ).toEqual(PUSHED);
+    expect(await pushedBalance(event, null), `no secret, ${place}`).toBeNull();
   }
 });
 
+test("A code that does not verify gives no balance", async () => {
+  // 35.3. A code made under another secret than this phone's, as a link's author or another device's notification
+  // would carry it; this phone's own code over the same balance gives it, so the null is the code's.
+  for (const [place, eventWith] of PLACES) {
+    expect(
+      await pushedBalance(eventWith(await pageWith(PUSHED)), SECRET),
+      `this phone's code, ${place}`,
+    ).toEqual(PUSHED);
+    expect(
+      await pushedBalance(
+        eventWith(await wrongCode(PUSHED, PHONE_SECRET, { origin: ORIGIN })),
+        SECRET,
+      ),
+      `another secret's code, ${place}`,
+    ).toBeNull();
+  }
+});
+
+test("The service worker checks a push's balance with its own subscription's secret", async () => {
+  // 35.1 and 35.3, through the listener: the secret is the one `registration.pushManager.getSubscription()` answers.
+  await phoneKeeps(KEPT_EARLIER);
+  const push = await pushWithBalance(PUSHED);
+  const workers: [string, ServiceWorkerStandIn][] = [
+    [
+      "a subscription with another device's secret",
+      installServiceWorkerStandIn({ subscription: { auth: ANOTHER_SECRET } }),
+    ],
+    ["no subscription", installServiceWorkerStandIn({ subscription: null })],
+  ];
+
+  for (const [name, serviceWorker] of workers) {
+    listenForPushes(serviceWorker.worker);
+    await serviceWorker.deliverPush(push);
+    expect(await keptBalance(), name).toEqual(KEPT_EARLIER);
+  }
+
+  // The stand-in's default subscription is this phone's (`PHONE_SECRET`), the one the push was made for.
+  const thisPhone = installServiceWorkerStandIn();
+  listenForPushes(thisPhone.worker);
+  await thisPhone.deliverPush(push);
+  expect(await keptBalance(), "this phone's subscription").toEqual(PUSHED);
+});
+
 test("A push with a balance is kept also where the service worker shows the notification itself, and the message still shows", async () => {
+  // 35.4.
   await phoneKeeps(KEPT_EARLIER);
   // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
   const serviceWorker = installServiceWorkerStandIn();
   listenForPushes(serviceWorker.worker);
+  const page = await pageWith(PUSHED);
 
   // Resolves once the event's waitUntil work is done.
-  await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+  await serviceWorker.deliverPush(paymentPush(page));
 
   expect(await keptBalance(), "the balance the phone keeps").toEqual(PUSHED);
   expect(serviceWorker.shownNotifications()).toEqual([
-    { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+    { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: page },
   ]);
 });
 
+test("The notification starts in the same turn as the push, never waiting for its balance", async () => {
+  // 35.4. The subscription's secret, the check and the write all come later; the notification is asked for at once.
+  const serviceWorker = installServiceWorkerStandIn();
+  listenForPushes(serviceWorker.worker);
+  const page = await pageWith(PUSHED);
+
+  // Not awaited: the stand-in resolves only once the event's work is done.
+  const delivery = serviceWorker.deliverPush(paymentPush(page));
+
+  expect(serviceWorker.shownNotifications()).toEqual([
+    { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: page },
+  ]);
+  await delivery;
+});
+
 // ---- c015: a balance of the wrong shape (group 9; design.md D2: `balanceOf` is the one shape check) ----
+// Since c019 each balance below is in the page's fragment with this phone's own check code, so only its shape is wrong.
 
 /**
- * The two places a push's balance is found (design.md D2), each with nothing valid in the other: the proposed
- * notification, with no data of the event's own (the W3C draft); and the push's own JSON, with no proposed notification.
+ * Each balance below, in each place (`PLACES`): no balance is found; the balance of the right shape, in the same place,
+ * is found, so each null is the shape's.
  */
-const PLACES: [string, (balance: unknown) => PushLike][] = [
-  [
-    "in the proposed notification",
-    (balance) => pushEvent({ data: null, notification: proposedFor(balance) }),
-  ],
-  [
-    "in the push's JSON",
-    (balance) => pushEvent({ data: dataOf(pushWithBalance(balance)) }),
-  ],
-];
-
-/** Each balance below, in each place: no balance is found. */
-function expectNoBalance(balances: [string, unknown][]): void {
+async function expectNoBalance(balances: [string, unknown][]): Promise<void> {
+  for (const [place, eventWith] of PLACES) {
+    expect(
+      await pushedBalance(eventWith(await pageWith(PUSHED)), SECRET),
+      `the right shape, ${place}`,
+    ).toEqual(PUSHED);
+  }
   for (const [shape, balance] of balances) {
     for (const [place, eventWith] of PLACES) {
       expect(
-        pushedBalance(eventWith(balance)),
+        await pushedBalance(eventWith(await pageWith(balance)), SECRET),
         `${shape}, ${place}`,
       ).toBeNull();
     }
   }
 }
 
-test("A balance without its read time is no balance, in the proposed notification and in the push's JSON", () => {
-  expectNoBalance([
+test("A balance without its read time is no balance, in the proposed notification and in the push's JSON", async () => {
+  await expectNoBalance([
     ["no read time", { amount: PUSHED.amount, czkPerEur: PUSHED.czkPerEur }],
     ["a null read time", { ...PUSHED, readAt: null }],
   ]);
 });
 
-test("A balance whose amount or rate is not a number, or whose read time is no date, is no balance", () => {
-  expectNoBalance([
+test("A balance whose amount or rate is not a number, or whose read time is no date, is no balance", async () => {
+  await expectNoBalance([
     ["the amount as text", { ...PUSHED, amount: "282.60" }],
     ["no amount", { readAt: PUSHED.readAt, czkPerEur: PUSHED.czkPerEur }],
     ["the rate as text", { ...PUSHED, czkPerEur: "24.3" }],
@@ -551,8 +655,8 @@ test("A balance whose amount or rate is not a number, or whose read time is no d
 // ---- c015: a push without a balance (group 11; design.md D2, § Error model: `pushedBalance` never throws) ----
 // A throw from `pushedBalance` fails each of these tests as surely as a balance found would.
 
-test("A declarative message with no data in its notification carries no balance, as the owner's messages", () => {
-  // The owner's message (c011 design.md D2): no "mutable", no data. Proposed, its notification's `data` is null.
+test("A declarative message whose page has no balance fragment carries no balance, as the owner's messages", async () => {
+  // The owner's message (c011 design.md D2): no "mutable", no data, the start page. Proposed, its `data` is null.
   const proposed = {
     ...DECLARATIVE_PUSH.notification,
     data: null,
@@ -573,39 +677,41 @@ test("A declarative message with no data in its notification carries no balance,
   ];
 
   for (const [name, event] of cases) {
-    expect(pushedBalance(event), name).toBeNull();
+    expect(await pushedBalance(event, SECRET), name).toBeNull();
   }
 });
 
-test("A proposed notification whose data is not an object, or has no balance, carries no balance", () => {
+test("A proposed notification whose page carries no balance carries none, and the push's own JSON is read then", async () => {
   const unusable: [string, unknown][] = [
-    // As a Safari would give it if the message's data never reached its notification (design.md § Risks).
-    ["no data (null)", null],
-    ["data that is text", "282,60 €"],
-    ["data that is a number", 282.6],
-    ["data that is a list", [{ balance: PUSHED }]],
-    ["data with no balance", {}],
-    ["the balance's fields in the data itself, not under balance", PUSHED],
+    ["no page", undefined],
+    ["a page of null", null],
+    ["a page that is a number", 282.6],
+    ["the start page, no fragment", APP_PAGE],
+    ["a fragment of another kind", `${ORIGIN}/#zustatek`],
   ];
 
-  for (const [name, data] of unusable) {
-    const notification = proposedWithData(data);
-    // With nothing usable in the event's own data (null, as the W3C draft has it): no balance at all.
+  for (const [name, navigate] of unusable) {
+    const notification = proposedOpening(navigate);
+    // With no data of the event's own (null, as the W3C draft has it): no balance at all.
     expect(
-      pushedBalance(pushEvent({ data: null, notification })),
+      await pushedBalance(pushEvent({ data: null, notification }), SECRET),
       `${name}, no data of the event's own`,
     ).toBeNull();
-    // With a balance in the push's own JSON, the balance is taken from there (design.md D2: first, then).
+    // With a balance in the push's own JSON, the balance is taken from there (c015 design.md D2's order: first, then).
     expect(
-      pushedBalance(
-        pushEvent({ data: dataOf(pushWithBalance(PUSHED)), notification }),
+      await pushedBalance(
+        pushEvent({
+          data: dataOf(await pushWithBalance(PUSHED)),
+          notification,
+        }),
+        SECRET,
       ),
       `${name}, a balance in the push's own JSON`,
     ).toEqual(PUSHED);
   }
 });
 
-test("A push with no data at all, or of text that is not JSON, carries no balance", () => {
+test("A push with no data at all, or of text that is not JSON, carries no balance", async () => {
   // As the browser's `PushMessageData.json()` does: it throws a SyntaxError for text that is not JSON.
   const notJson: PushLike["data"] = {
     json: () => JSON.parse("Ahoj") as unknown,
@@ -627,7 +733,7 @@ test("A push with no data at all, or of text that is not JSON, carries no balanc
   ];
 
   for (const [name, event] of cases) {
-    expect(pushedBalance(event), name).toBeNull();
+    expect(await pushedBalance(event, SECRET), name).toBeNull();
   }
 });
 
@@ -648,7 +754,7 @@ const FAILING_STORES: {
       // An earlier push, while the store works: its write opens the connection.
       const earlier = installServiceWorkerStandIn();
       listenForPushes(earlier.worker);
-      await earlier.deliverPush(pushWithBalance(PUSHED));
+      await earlier.deliverPush(await pushWithBalance(PUSHED));
       return listenForPushes;
     },
   },
@@ -669,17 +775,18 @@ test.each(FAILING_STORES)(
     // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
     const serviceWorker = installServiceWorkerStandIn();
     listenHere(serviceWorker.worker);
+    const page = await pageWith(PUSHED);
     const restoreStorage = phoneStorageFails();
 
     try {
       // Resolves once the event's waitUntil work is done; fails the test if that work fails.
-      await serviceWorker.deliverPush(pushWithBalance(PUSHED));
+      await serviceWorker.deliverPush(paymentPush(page));
     } finally {
       restoreStorage();
     }
 
     expect(serviceWorker.shownNotifications()).toEqual([
-      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: page },
     ]);
   },
 );
@@ -688,17 +795,16 @@ test.each(FAILING_STORES)(
   "A failing store never makes the push event's work reject where the browser shows its own notification: $label",
   async ({ listen }) => {
     const listenHere = await listen();
-    // A browser that reads Declarative Web Push (as Safari): the balance comes from its proposed notification, and it
-    // shows that notification once the event's work has settled (design.md D4).
+    // A browser that reads Declarative Web Push and still fires the push event: the balance comes from its proposed
+    // notification, and it shows that notification once the event's work has settled (c015 design.md D4).
     const serviceWorker = installServiceWorkerStandIn({ declarative: true });
     listenHere(serviceWorker.worker);
+    const push = await pushWithBalance(PUSHED);
     const restoreStorage = phoneStorageFails();
 
     try {
       // The stand-in waits for every promise given to waitUntil, and rejects as soon as one of them rejects.
-      await expect(
-        serviceWorker.deliverPush(pushWithBalance(PUSHED)),
-      ).resolves.toBeUndefined();
+      await expect(serviceWorker.deliverPush(push)).resolves.toBeUndefined();
     } finally {
       restoreStorage();
     }
@@ -710,13 +816,14 @@ test("The message is shown without waiting for the balance to be written", async
   // The stand-in's default browser does not read Declarative Web Push (as Chrome on a computer): the service worker shows it.
   const serviceWorker = installServiceWorkerStandIn();
   listenForPushes(serviceWorker.worker);
+  const page = await pageWith(PUSHED);
   const freeStorage = await phoneStorageBusy();
   let delivery: Promise<void> | undefined;
   let workDone = false;
 
   try {
     // Not awaited: the stand-in resolves only once the event's work, the write among it, is done.
-    delivery = serviceWorker.deliverPush(pushWithBalance(PUSHED));
+    delivery = serviceWorker.deliverPush(paymentPush(page));
     void delivery.then(
       () => {
         workDone = true;
@@ -729,7 +836,7 @@ test("The message is shown without waiting for the balance to be written", async
 
     expect(workDone, "the write is still waiting for the storage").toBe(false);
     expect(serviceWorker.shownNotifications()).toEqual([
-      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: APP_PAGE },
+      { title: PAYMENT_TITLE, body: PAYMENT_TEXT, data: page },
     ]);
   } finally {
     await freeStorage();

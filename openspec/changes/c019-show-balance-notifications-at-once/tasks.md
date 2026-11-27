@@ -277,7 +277,7 @@ Conventions for the run:
 - [ ] 35.1 `pushedBalance` reads `navigate`'s fragment from the push's JSON, checked with the worker's subscription secret. The c015 tests that read `data.balance` are rewritten by the test-writer for the address
 - [ ] 35.2 With the browser's proposed notification, `pushedBalance` reads its `navigate` first
 - [ ] 35.3 No subscription, or a code that does not verify, gives no balance
-- [ ] 35.4 The balance is kept with `keepNotificationBalance` under the event's `waitUntil`, and the notification starts in the same turn, never waiting for it
+- [x] 35.4 The balance is kept with `keepNotificationBalance` under the event's `waitUntil`, and the notification starts in the same turn, never waiting for it
 
 ## 36. [wiring] Slice 12 — The worker reads the address
 
