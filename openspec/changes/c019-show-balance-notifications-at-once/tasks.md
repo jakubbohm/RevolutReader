@@ -192,7 +192,7 @@ Conventions for the run:
 
 ## 16. [close] Slice 4 — A tap on a notification while the app is in the background replaces the balance the phone keeps
 
-- [ ] 16.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification while the app is in the background replaces the balance the phone keeps
+- [x] 16.1 The scenario's test passes. Verify: green, including push-display / A tap on a notification while the app is in the background replaces the balance the phone keeps
 
 ## 17. [unit] Slice 5 — The list at a launch
 
