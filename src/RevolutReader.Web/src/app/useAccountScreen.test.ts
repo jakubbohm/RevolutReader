@@ -2252,6 +2252,34 @@ test("A return's intake that keeps nothing leaves the shown balance as it was", 
   expect(amountShown(result.current.shown), "as it was").toBe(286.4);
 });
 
+test("A return offline shows a newer balance the service worker kept behind the open page", async () => {
+  // push-display "A push with a balance replaces the balance the phone keeps", at a return (an opening, account-balance):
+  // on a browser where the service worker shows its own notification, it keeps the push's balance, and the notification
+  // carries the address only in its data, so the return's intake keeps nothing (review finding 3 of PR 119).
+  startTestClock();
+  const phone = lucysPhoneForNotifications();
+  answerWith({
+    ...LUCIES_SERVER,
+    balance: [balance(286.4, { readAt: ago(HOUR) }), noAnswerYet],
+  });
+  const { result } = renderHook(() => useAccountScreen());
+  await timePasses(0);
+  expect(amountShown(result.current.shown), "the launch's read").toBe(286.4);
+
+  // In the background, a push arrives: the worker keeps its balance and shows its own notification, with no address.
+  leaveApp();
+  await timePasses(MINUTE);
+  await phoneKeeps(kept(301.9, ago(0)));
+  phone.notificationArrives({ title: "Přišlo 15,50 €" });
+  goOffline();
+  returnToApp();
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown), "the balance the worker kept").toBe(
+    301.9,
+  );
+});
+
 // ---- c019: whether the shown balance is confirmed (design.md D8) ----
 
 /** The header the screen shows: its balance and state; null when it shows none or only the placeholder. */
