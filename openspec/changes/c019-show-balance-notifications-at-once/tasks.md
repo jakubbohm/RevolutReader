@@ -380,7 +380,7 @@ Conventions for the run:
 
 ## 57. [close] Acceptance green
 
-- [ ] 57.1 All 24 scenario tests of this change pass and the full suite is green. The traceability check passes, `dotnet format whitespace --verify-no-changes` and the frontend checks are clean, and `openapi.json` and `schema.d.ts` match the regeneration. Verify: each command's output
+- [x] 57.1 All 24 scenario tests of this change pass and the full suite is green. The traceability check passes, `dotnet format whitespace --verify-no-changes` and the frontend checks are clean, and `openapi.json` and `schema.d.ts` match the regeneration. Verify: each command's output
 - [ ] 57.2 Local check with `aspire start --isolated` (from the worktree; the Mock ASPSP), the owner looking:
   - the stored balance is grey and shining at an opening, and turns ink when the balance arrives;
   - with the browser offline, it is grey and still with "Jsi offline";
@@ -388,7 +388,7 @@ Conventions for the run:
   - `/#balance=` with a made-up code shows nothing new, and the address loses it.
 
   Verify: the owner sees each
-- [ ] 57.3 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (issue-only work). Verify: `CLAUDE.md`'s commands run as written
+- [x] 57.3 `CLAUDE.md` checked against every command this change touched (none expected); no `pm/progress.md` row (issue-only work). Verify: `CLAUDE.md`'s commands run as written
 
 ## Workflow follow-up
 
