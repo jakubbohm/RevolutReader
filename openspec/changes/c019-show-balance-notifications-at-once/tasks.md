@@ -240,7 +240,7 @@ Conventions for the run:
 
 ## 27. [close] Slice 9 — A push with a balance stores none on a phone that keeps none
 
-- [ ] 27.1 The scenario's test passes, as expected after slice 3, and is proven by a mutation: with `replacesKept` answering true when nothing is kept, it fails. Verify: green, including push-display / A push with a balance stores none on a phone that keeps none; the mutation's red result in `.tdd-state.md`
+- [x] 27.1 The scenario's test passes, as expected after slice 3, and is proven by a mutation: with `replacesKept` answering true when nothing is kept, it fails. Verify: green, including push-display / A push with a balance stores none on a phone that keeps none; the mutation's red result in `.tdd-state.md`
 
 ## 28. [unit] Slice 10 — The address cleaned
 
