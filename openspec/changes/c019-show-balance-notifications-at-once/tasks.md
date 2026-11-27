@@ -296,14 +296,14 @@ Conventions for the run:
 
 ## 39. [wiring] Slice 13 — The state shown
 
-- [ ] 39.1 `theme.css`:
+- [x] 39.1 `theme.css`:
   - the token `--duration-wait: 1500ms`;
   - the keyframes `wait-bar`, `wait-shine` and `live-settle`;
   - the utilities `animate-wait-bar`, `amount-waiting`, `amount-stale` and `amount-live`, with their reduced-motion forms;
   - `animate-progress-indeterminate` gone (design.md D9).
 
   Verify: the frontend build passes; the classes exist in the built CSS
-- [ ] 39.2 `Facts.confirmed` (false for now), `BalanceState`, the header's `state`; `AccountScreen` passes it to `BalanceHeader`; `BalanceHeader` maps it. Verify: group 38 green
+- [x] 39.2 `Facts.confirmed` (false for now), `BalanceState`, the header's `state`; `AccountScreen` passes it to `BalanceHeader`; `BalanceHeader` maps it. Verify: group 38 green
 
 ## 40. [close] Slice 13 — A stored balance is grey and moving while an awake server answers
 

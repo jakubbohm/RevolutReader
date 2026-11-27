@@ -85,6 +85,7 @@ export function AccountScreen({
           now={now}
           refreshing={header.refreshing}
           onRefresh={onRefresh}
+          state={header.state}
         />
       ) : null}
       {banner !== null ? (

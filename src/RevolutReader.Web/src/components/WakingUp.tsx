@@ -42,7 +42,7 @@ export function WakingUp({ slow, onRetry }: WakingUpProps): JSX.Element {
         aria-label="Probouzení serveru"
         className="mt-3 h-1 w-full overflow-hidden rounded-full bg-accent-soft"
       >
-        <Progress.Indicator className="h-full w-2/5 animate-progress-indeterminate rounded-full bg-accent motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-50" />
+        <Progress.Indicator className="h-full w-2/5 animate-wait-bar rounded-full bg-accent motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-50" />
       </Progress.Root>
       {slow ? (
         <div className="mt-3 w-full">
