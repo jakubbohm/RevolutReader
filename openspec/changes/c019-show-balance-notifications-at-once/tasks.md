@@ -219,7 +219,7 @@ Conventions for the run:
 
 ## 22. [close] Slice 6 — Coming back to the app takes the balance of a notification still shown
 
-- [ ] 22.1 The scenario's test passes. Verify: green, including push-display / Coming back to the app takes the balance of a notification still shown
+- [x] 22.1 The scenario's test passes. Verify: green, including push-display / Coming back to the app takes the balance of a notification still shown
 
 ## 23. [unit] Slice 7 — The newest counts
 
