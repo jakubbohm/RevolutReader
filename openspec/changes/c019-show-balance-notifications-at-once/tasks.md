@@ -99,9 +99,9 @@ Conventions for the run:
 - [ ] 3.1 A message with a balance has no `mutable` and no `data`; its `navigate` is the start page with `#` and the fragment for the given secret. The c014 tests that pinned `mutable` and `data.balance` are rewritten by the test-writer to pin their absence
 - [ ] 3.2 The balance's fragment takes the place of a fragment the page has
 - [ ] 3.3 `Check` measures a message with a balance with its fragment: one just under 3993 bytes without it and over with it is refused as too long
-- [ ] 3.4 A message without a balance is written as before, and a secret given with it is not read
+- [x] 3.4 A message without a balance is written as before, and a secret given with it is not read
 - [ ] 3.5 The sender hands each device a content whose code is made with that device's own secret (`StubPushDelivery`'s record per device)
-- [ ] 3.6 The sender hands every device the same content for a message without a balance
+- [x] 3.6 The sender hands every device the same content for a message without a balance
 
 ## 4. [wiring] Slice 1 — Building the push per device
 

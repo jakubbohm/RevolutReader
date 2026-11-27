@@ -106,7 +106,7 @@ public static partial class PushMessages {
   /// <c>GET /api/balance</c> writes it (a JSON number for each amount, the ISO 8601 text of the read time); without one,
   /// neither. Never <c>app_badge</c>, and nothing else.
   /// </summary>
-  public static string DeclarativeJson(PushMessage message, Uri appAddress) {
+  public static string DeclarativeJson(PushMessage message, Uri appAddress, ReadOnlySpan<byte> deviceSecret = default) {
     ArgumentNullException.ThrowIfNull(message);
     ArgumentNullException.ThrowIfNull(appAddress);
 
