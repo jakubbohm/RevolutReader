@@ -2355,3 +2355,76 @@ test.each(repeatsThatAreNoOpening)(
     ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
   },
 );
+
+// D8 (chapter E's review, E-1, the owner's option a): only a read started in the current opening confirms the balance.
+// A return that finds a read under way leaves that read to land, which confirms nothing, then reads once more, so the
+// opening gets its own read and the balance turns live by itself.
+const returnsDuringARead: {
+  label: string;
+  answers: ServerAnswers;
+  /** Until a balance read is under way, started before the return. */
+  readUnderWay: (screen: AccountScreenModel) => Promise<void>;
+  /** When that read lands, from the return. */
+  lands: number;
+}[] = [
+  {
+    label: 'during an "Obnovit" read',
+    answers: {
+      whoIsSignedIn: LUCIE,
+      balance: [
+        balance(286.4),
+        after(READ_TIME, balance(290)),
+        after(READ_TIME, balance(301.9)),
+      ],
+    },
+    readUnderWay: async (screen) => {
+      await timePasses(0);
+      act(() => {
+        screen.refresh();
+      });
+      await timePasses(0);
+    },
+    lands: READ_TIME,
+  },
+  {
+    label: "during the first load's read after a wake",
+    answers: {
+      whoIsSignedIn: after(20 * SECOND, LUCIE),
+      balance: [
+        after(20 * SECOND, balance(290)),
+        after(READ_TIME, balance(301.9)),
+      ],
+    },
+    readUnderWay: async () => {
+      await timePasses(20 * SECOND);
+    },
+    lands: 20 * SECOND,
+  },
+];
+
+test.each(returnsDuringARead)(
+  "A read started before a return confirms nothing, and the return gets a read of its own once it lands: $label",
+  async ({ answers, readUnderWay, lands }) => {
+    startTestClock();
+    await phoneKeeps(kept(250, ago(2 * HOUR)));
+    answerWith(answers);
+    const { result } = renderHook(() => useAccountScreen());
+    await readUnderWay(result.current);
+    const readsBefore = balanceReadsSent();
+
+    leavesAndReturns();
+    await timePasses(lands);
+
+    expect(
+      headerShown(result.current.shown),
+      "the earlier read has landed: shown, not confirmed",
+    ).toMatchObject({ balance: { amount: 290 }, state: "waiting" });
+    expect(balanceReadsSent(), "the return's own read").toBe(readsBefore + 1);
+
+    await timePasses(READ_TIME);
+    expect(
+      headerShown(result.current.shown),
+      "once the return's own read has answered",
+    ).toMatchObject({ balance: { amount: 301.9 }, state: "live" });
+  },
+);
