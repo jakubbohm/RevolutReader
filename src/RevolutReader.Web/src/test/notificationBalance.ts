@@ -37,8 +37,24 @@ export async function balanceFragment(
   json: string,
   secret: string,
 ): Promise<string> {
-  const payload = toText(new TextEncoder().encode(json));
+  return signedFragment(toText(new TextEncoder().encode(json)), secret);
+}
+
+/**
+ * The fragment, without `#`, for a payload given as the text it is sent as, whatever that text is (base64url or not),
+ * with the check code made over that text for the device whose secret is `secret` (base64url):
+ * `balance=<payload>.<code>`. For a fragment whose code is right but whose payload is not the server's kind.
+ */
+export async function signedFragment(
+  payload: string,
+  secret: string,
+): Promise<string> {
   return `${NAME}=${payload}.${await checkCode(payload, fromText(secret))}`;
+}
+
+/** A device's secret given in base64url, as the bytes its push subscription's `getKey("auth")` answers. */
+export function secretBytes(secret: string): ArrayBuffer {
+  return fromText(secret).buffer;
 }
 
 /**

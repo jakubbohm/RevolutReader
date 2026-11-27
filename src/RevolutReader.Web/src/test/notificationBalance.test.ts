@@ -3,6 +3,8 @@ import {
   balanceAddress,
   balanceFragment,
   PHONE_SECRET,
+  secretBytes,
+  signedFragment,
   wrongCode,
 } from "./notificationBalance";
 
@@ -56,6 +58,18 @@ test("A wrong code keeps the payload and changes only the 43-character code", as
   expect(wrongCodeText).not.toBe(rightCode);
   expect(wrongCodeText).toHaveLength(43);
   expect(rightCode).toHaveLength(43);
+});
+
+test("A signed fragment over the payload's text is the balance fragment of the JSON that text encodes", async () => {
+  const payload = VECTOR_FRAGMENT.slice("balance=".length).split(".")[0]!;
+
+  expect(await signedFragment(payload, VECTOR_SECRET)).toBe(VECTOR_FRAGMENT);
+});
+
+test("A secret's bytes are the 16 bytes its base64url text names", () => {
+  expect([...new Uint8Array(secretBytes(VECTOR_SECRET))]).toEqual(
+    Array.from({ length: 16 }, (_, i) => i),
+  );
 });
 
 test("The phone's secret is 16 bytes, as a push subscription's", () => {
