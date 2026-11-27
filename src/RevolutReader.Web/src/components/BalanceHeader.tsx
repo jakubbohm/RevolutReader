@@ -48,7 +48,8 @@ const AMOUNT_CLASS: Record<BalanceState, string> = {
  * its class, `amount-live` (ink), `amount-waiting` (grey with the shine) or `amount-stale` (grey), and the section
  * carries it as `data-balance`. It is never text and never `aria-busy`; the koruna line and the freshness line are the
  * same in every state. While `waiting`, the shine runs on the one wait clock (`useWaitClock`), its phase set when
- * waiting begins, in step with the waking-up bar.
+ * waiting begins, in step with the waking-up bar. The amount's box is as wide as its digits (`self-start`, at the same
+ * start as the lines around it), so the shine's 40 % band and its path are the digits' own (D9), not the header's.
  */
 export function BalanceHeader({
   amount,
@@ -73,7 +74,7 @@ export function BalanceHeader({
       </h1>
       <p
         ref={amountRef}
-        className={`mt-1 text-amount-xl tabular-nums ${AMOUNT_CLASS[state]}`}
+        className={`mt-1 self-start text-amount-xl tabular-nums ${AMOUNT_CLASS[state]}`}
       >
         {formatEur(amount)}
       </p>
