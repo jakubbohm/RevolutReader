@@ -136,7 +136,7 @@ Conventions for the run:
 ## 8. [wiring] Removal — the contract and the frontend
 
 - [x] 8.1 Regenerate the TS client: `npm --prefix tools/api-client run regenerate`, then commit `openapi.json` and `schema.d.ts`. Verify: neither names `arrivals` or `ArrivalReportRequest`; CI's drift check would pass
-- [ ] 8.2 The frontend: `app/arrivalReport.ts` deleted; `pushDisplay.ts` sends no report and `PushWorker` has no `fetch`. The test-writer deletes `arrivalReport.test.ts`, `pushDisplay.test.ts`'s report tests, and the service worker stand-in's `fetch` hand-off and `src/test/server.ts`'s arrival answers, where nothing else uses them. Verify: the frontend suite, `lint`, `typecheck` and `format:check` green; `git grep -i arrival -- src/RevolutReader.Web/src` finds nothing
+- [x] 8.2 The frontend: `app/arrivalReport.ts` deleted; `pushDisplay.ts` sends no report and `PushWorker` has no `fetch`. The test-writer deletes `arrivalReport.test.ts`, `pushDisplay.test.ts`'s report tests, and the service worker stand-in's `fetch` hand-off and `src/test/server.ts`'s arrival answers, where nothing else uses them. Verify: the frontend suite, `lint`, `typecheck` and `format:check` green; `git grep -i arrival -- src/RevolutReader.Web/src` finds nothing
 
 ## 9. [close] Removal — the arrival reports gone
 

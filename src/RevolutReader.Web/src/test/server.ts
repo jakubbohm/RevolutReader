@@ -41,9 +41,6 @@ import { realTurn } from "./clock";
  * phone kept it, and `phoneRemembersNotNow()` sets it before a launch. A failing `PUT /api/push/subscription` needs
  * nothing new: a test sets it as `subscription: serverError` (or any other `Trouble`).
  *
- * The service worker's stand-in (`./serviceWorker.ts`) sends its own requests here (c016 design.md D7), so each shows
- * in the timeline and, with a body, in `bodiesSent()`.
- *
  * The page's address (c019 design.md D5, D6, D12, in blocks marked "c019"): the app opens at its start page unless the
  * test opens it at another address of its own origin (`openPageAt`, through `renderApp`'s `address`), such as a
  * notification's, its fragment included. The recording `location` reads that address; setting its `hash` goes to the
