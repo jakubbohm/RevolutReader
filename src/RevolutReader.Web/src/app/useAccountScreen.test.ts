@@ -2249,3 +2249,47 @@ test("A balance the intake shows in place of the confirmed one is not confirmed"
     "the notification's balance, in place of the confirmed one",
   ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
 });
+
+// D8: every outcome of a read but a read clears `confirmed`, a failed "Obnovit" included (the owner, decision 3b): the
+// balance stays shown, now stale, since nothing that can confirm it is out any more.
+const failedReads: {
+  label: string;
+  failure: BalanceAnswer;
+  /** How long the refresh takes to end. */
+  ends: number;
+}[] = [
+  { label: "offline", failure: noConnection, ends: 0 },
+  { label: "the bank does not answer", failure: bankUnavailable, ends: 0 },
+  { label: "the bank's limit is reached", failure: bankRateLimited, ends: 0 },
+  {
+    label: "the bank's access has expired",
+    failure: bankAccessExpired,
+    ends: 0,
+  },
+  { label: "an unexpected answer", failure: serverError, ends: 0 },
+  { label: "the 60 s limit", failure: noAnswerYet, ends: 60 * SECOND },
+];
+
+test.each(failedReads)(
+  "A read that ends offline, with a bank problem, with an unexpected answer or at the 60 s limit clears confirmed: $label",
+  async ({ failure, ends }) => {
+    startTestClock();
+    answerWith({ whoIsSignedIn: LUCIE, balance: [balance(286.4), failure] });
+    const { result } = renderHook(() => useAccountScreen());
+    await timePasses(0);
+    expect(
+      headerShown(result.current.shown),
+      "the read's balance, confirmed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "live" });
+
+    act(() => {
+      result.current.refresh();
+    });
+    await timePasses(ends);
+
+    expect(
+      headerShown(result.current.shown),
+      "once the refresh has failed",
+    ).toMatchObject({ balance: { amount: 286.4 }, state: "stale" });
+  },
+);
