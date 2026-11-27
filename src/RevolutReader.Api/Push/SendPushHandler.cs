@@ -52,7 +52,7 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
       ? new(PushMessages.DeclarativeJson(message, appAddress), LIFETIME, PushUrgency.High)
       : null;
     DeliveryOutcome[] outcomes = await Task.WhenAll(devices.Select(device =>
-      DeliverOrForget(device, sameForAll ?? ForDevice(message, appAddress, device), cancellationToken)));
+      DeliverOrForget(device, sameForAll, message, appAddress, cancellationToken)));
 
     PushSent sent = new(
       Delivered: outcomes.Count(static outcome => outcome.Value is Delivered),
@@ -77,10 +77,13 @@ public sealed class SendPushHandler(IPushDeviceStore store, IPushDelivery delive
   }
 
   /// <summary>
-  /// Hands <paramref name="push"/> over for <paramref name="device"/>; a device its push service reports gone is forgotten
-  /// at once and logged with the status only (D3, D4).
+  /// Hands over <paramref name="sameForAll"/>, or for a message with a balance the push made for <paramref name="device"/>
+  /// alone, for <paramref name="device"/>; a device its push service reports gone is forgotten at once and logged with the
+  /// status only (D3, D4). The device's push is built here, inside this device's own task, so a stored secret that does not
+  /// decode faults this task alone: every other device still gets its push before the send throws.
   /// </summary>
-  private async Task<DeliveryOutcome> DeliverOrForget(PushDevice device, OutgoingPush push, CancellationToken cancellationToken) {
+  private async Task<DeliveryOutcome> DeliverOrForget(PushDevice device, OutgoingPush? sameForAll, PushMessage message, Uri appAddress, CancellationToken cancellationToken) {
+    OutgoingPush push = sameForAll ?? ForDevice(message, appAddress, device);
     DeliveryOutcome outcome = await delivery.Deliver(device, push, cancellationToken);
 
     if (outcome.Value is DeviceGone gone) {
