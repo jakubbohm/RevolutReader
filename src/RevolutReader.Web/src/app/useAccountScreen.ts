@@ -138,7 +138,8 @@ interface Wake {
  * design.md D6); and who is signed in (`GET /api/me`), then, only for a signed-in user, the balance (`GET /api/balance`),
  * one after the other, so nothing is read at the bank for a visitor who gets the sign-in screen. The balance shown is
  * the newer, by `readAt`, of the latest read and the one the phone keeps, the read on a tie (`newer`, c019 D6): a read
- * does not replace a kept balance read later.
+ * does not replace a kept balance read later. The shown balance is confirmed (c019 D8) while it is what a successful
+ * read returned: a balance an intake shows in its place is not.
  * What it learns becomes `Facts`, and the screen is what `shown` makes of them. The first question's wait: from 1.5 s
  * without an answer it is long, and an answer that took that long woke the server; from 30 s it is slow, and "Zkusit
  * znovu" asks again and starts the 30 s over (D2). The first load has no other cap (D3).
@@ -180,6 +181,8 @@ export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
   const [stored, setStored] = useState<Balance | null>(null);
   const [balance, setBalance] = useState<Balance | null>(null);
+  /** `balance` is what this opening's latest balance read returned, and that read succeeded (c019 design.md D8). */
+  const [readConfirmed, setReadConfirmed] = useState(false);
   const [reading, setReading] = useState<Facts["reading"]>("no");
   const [problem, setProblem] = useState<Problem | null>(null);
   const [wait, setWait] = useState<Facts["wait"]>("short");
@@ -226,6 +229,7 @@ export function useAccountScreen(): AccountScreenModel {
 
     setSession(next);
     setBalance(null);
+    setReadConfirmed(false);
     setStored(null);
     setReading("no");
     setProblem(null);
@@ -317,6 +321,7 @@ export function useAccountScreen(): AccountScreenModel {
       setReading("no");
       if (read.kind === "read") {
         setBalance(read.balance);
+        setReadConfirmed(true);
         // Kept after every successful read, in place of the one before (D4); a failed write is ignored.
         void storeBalance(read.balance);
       }
@@ -637,10 +642,13 @@ export function useAccountScreen(): AccountScreenModel {
     );
   }, []);
 
+  const balanceShown = newer(balance, stored);
   const facts: Facts = {
     session,
-    balance: newer(balance, stored),
-    confirmed: false,
+    balance: balanceShown,
+    // Confirmed only while the shown balance is the read's itself: one an intake shows in its place is not (D8).
+    confirmed:
+      readConfirmed && balanceShown !== null && balanceShown === balance,
     reading,
     wait,
     wokeUp: wake !== null,

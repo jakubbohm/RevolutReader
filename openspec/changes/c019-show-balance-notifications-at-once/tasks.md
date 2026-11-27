@@ -311,12 +311,12 @@ Conventions for the run:
 
 ## 41. [unit] Slice 14 — Confirmed by a read
 
-- [ ] 41.1 A successful balance read makes the shown balance confirmed
-- [ ] 41.2 A balance the intake shows in place of the confirmed one is not confirmed
+- [x] 41.1 A successful balance read makes the shown balance confirmed
+- [x] 41.2 A balance the intake shows in place of the confirmed one is not confirmed
 
 ## 42. [wiring] Slice 14 — Confirming
 
-- [ ] 42.1 `useAccountScreen` keeps `confirmed` (D8). Verify: group 41 green
+- [x] 42.1 `useAccountScreen` keeps `confirmed` (D8). Verify: group 41 green
 
 ## 43. [close] Slice 14 — The balance turns ink when the server's balance arrives
 
