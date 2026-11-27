@@ -4,7 +4,12 @@ import {
   secretBytes,
   signedFragment,
 } from "../test/notificationBalance";
-import { balanceInAddress, carriesBalance } from "./notificationBalance";
+import type { Balance } from "./balanceRecord";
+import {
+  balanceInAddress,
+  carriesBalance,
+  newest,
+} from "./notificationBalance";
 
 // The balance in a notification's address (c019 design.md D2, D3): `#balance=<payload>.<code>`, the payload the
 // balance's JSON in base64url without padding, the code a 43-character base64url HMAC-SHA-256 under the key HKDF-SHA-256
@@ -201,4 +206,39 @@ test("No secret, or a crypto.subtle that throws, gives no balance and never reje
       "crypto.subtle rejecting",
     ).resolves.toBeNull();
   });
+});
+
+/** A balance of `amount` EUR read at `readAt`, as written, offset and all. Made up. */
+function readAt(amount: number, at: string): Balance {
+  return { amount, readAt: at, czkPerEur: 24.6 };
+}
+
+test("newest gives the balance read last, readAt compared as moments (two offsets of the same moment are equal)", () => {
+  expect(newest([]), "none").toBeNull();
+
+  const one = readAt(250, "2026-11-10T07:00:00+00:00");
+  expect(newest([one]), "one").toEqual(one);
+
+  // 08:59 UTC is read last, though its text sorts before 09:30+01:00 (08:30 UTC).
+  const last = readAt(286.4, "2026-11-10T08:59:00+00:00");
+  const earlier = readAt(301.9, "2026-11-10T09:30:00+01:00");
+  for (const order of [
+    [one, last, earlier],
+    [earlier, one, last],
+    [last, earlier, one],
+  ])
+    expect(newest(order), "whatever the order").toEqual(last);
+
+  // 08:59 UTC both: neither is read later, so the balance read last is that moment, and nothing earlier.
+  const sameMoment = readAt(301.9, "2026-11-10T09:59:00+01:00");
+  for (const order of [
+    [last, sameMoment, one],
+    [one, sameMoment, last],
+  ]) {
+    const found = newest(order);
+    expect(found, "one of the two read at that moment").not.toEqual(one);
+    expect(Date.parse(found!.readAt), "that moment").toBe(
+      Date.parse(last.readAt),
+    );
+  }
 });

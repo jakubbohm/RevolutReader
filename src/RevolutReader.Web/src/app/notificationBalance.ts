@@ -51,6 +51,12 @@ export async function balanceInAddress(
   }
 }
 
+/** The balance read last, `readAt` compared as moments; null for none. */
+export function newest(balances: readonly Balance[]): Balance | null {
+  void balances;
+  throw new Error("Not implemented: newest (c019 design.md D6)");
+}
+
 /** The text after the address's first `#`, or null when it has none. */
 function fragmentOf(address: string): string | null {
   const hash = address.indexOf("#");

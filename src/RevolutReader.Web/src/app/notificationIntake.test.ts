@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { balanceAddress, PHONE_SECRET } from "../test/notificationBalance";
+import {
+  balanceAddress,
+  PHONE_SECRET,
+  wrongCode,
+} from "../test/notificationBalance";
 import {
   installPushStandIns,
   removePushStandIns,
@@ -152,4 +156,54 @@ test("A listed notification without a string navigate is skipped; a getNotificat
     "the address's balance, the list refused",
   ).resolves.toEqual({ kept: true });
   expect(await keptBalance(), "the address's balance kept").toEqual(NOTIFIED);
+});
+
+// ---- c019: the newest counts (design.md D6) ----
+
+test("The intake keeps only the newest valid candidate, whatever the order of the list and the address", async () => {
+  /** Read after the kept one, before `NOTIFIED`. */
+  const older = kept(270, new Date("2026-11-10T08:00:00Z"));
+  /** Read after `NOTIFIED`, but its code is not this phone's. */
+  const later = kept(0, new Date("2026-11-10T09:30:00Z"));
+  const valid = (balance: typeof NOTIFIED) =>
+    balanceAddress(balance, PHONE_SECRET);
+  const start = `${location.origin}/`;
+
+  const cases: { label: string; address: string; listed: string[] }[] = [
+    {
+      label: "the older in the address, the newest listed",
+      address: await valid(older),
+      listed: [await valid(NOTIFIED)],
+    },
+    {
+      label: "the older listed first",
+      address: start,
+      listed: [await valid(older), await valid(NOTIFIED)],
+    },
+    {
+      label: "the newest listed first, the older after it and in the address",
+      address: await valid(older),
+      listed: [await valid(NOTIFIED), await valid(older)],
+    },
+    {
+      label: "a later balance without this phone's code listed first",
+      address: start,
+      listed: [await wrongCode(later, PHONE_SECRET), await valid(NOTIFIED)],
+    },
+  ];
+
+  for (const { label, address, listed } of cases) {
+    await phoneKeeps(KEPT);
+    installPushStandIns({
+      ...SUBSCRIBED,
+      notifications: listed.map((navigate) => ({ title: "Účet", navigate })),
+    });
+    openPageAt(address);
+
+    expect(
+      await takeInNotificationBalances({ fromAddress: true, fromList: true }),
+      label,
+    ).toEqual({ kept: true });
+    expect(await keptBalance(), label).toEqual(NOTIFIED);
+  }
 });
