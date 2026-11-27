@@ -120,7 +120,7 @@ Conventions for the run:
 
 ## 6. [close] Slice 2 — Each device's notification carries a check code of its own
 
-- [ ] 6.1 The scenario's test passes, as expected after slice 1, and is proven by a mutation: with `SendPushHandler` using the first device's secret for every device, it fails. Verify: green, including account-check / Each device's notification carries a check code of its own; the mutation's red result in `.tdd-state.md`
+- [x] 6.1 The scenario's test passes, as expected after slice 1, and is proven by a mutation: with `SendPushHandler` using the first device's secret for every device, it fails. Verify: green, including account-check / Each device's notification carries a check code of its own; the mutation's red result in `.tdd-state.md`
 
 ## 7. [wiring] Removal — the server's reports
 
