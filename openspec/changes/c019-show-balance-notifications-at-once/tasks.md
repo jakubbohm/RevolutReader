@@ -236,7 +236,7 @@ Conventions for the run:
 
 ## 26. [close] Slice 8 — A push with a balance read earlier than the kept one leaves it as it was
 
-- [ ] 26.1 The scenario's test passes, as expected after slice 3 (c015's rule), and is proven by a mutation: with the intake keeping by `storeBalance`, it fails. Verify: green, including push-display / A push with a balance read earlier than the kept one leaves it as it was; the mutation's red result in `.tdd-state.md`
+- [x] 26.1 The scenario's test passes, as expected after slice 3 (c015's rule), and is proven by a mutation: with the intake keeping by `storeBalance`, it fails. Verify: green, including push-display / A push with a balance read earlier than the kept one leaves it as it was; the mutation's red result in `.tdd-state.md`
 
 ## 27. [close] Slice 9 — A push with a balance stores none on a phone that keeps none
 
