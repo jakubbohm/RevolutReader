@@ -54,8 +54,11 @@ export interface SubscriptionInit {
   applicationServerKey?: BufferSource | string | null;
   /** The device's public key in base64url; by default a made-up 65 bytes starting `0x04`. */
   p256dh?: string;
-  /** The device's secret in base64url; by default a made-up 16 bytes. */
-  auth?: string;
+  /**
+   * The device's secret in base64url; by default a made-up 16 bytes. `null`: a browser that gives none (c019 design.md
+   * D5): `getKey("auth")` answers `null`, and `toJSON()`'s `keys` has no `auth`.
+   */
+  auth?: string | null;
   /** What `unsubscribe()` answers; by default true. */
   unsubscribeAnswers?: boolean;
   /** `unsubscribe()` fails with this error instead. */
@@ -393,7 +396,7 @@ class StandInPushSubscription {
   /** The key it was made with, as the browser knows it, whatever `options` says. */
   private readonly madeWithKey: Uint8Array | null;
   private readonly p256dh: string;
-  private readonly auth: string;
+  private readonly auth: string | null;
   private readonly init: SubscriptionInit;
   private readonly onUnsubscribed: () => void;
   /** Settles once the test lets a waiting `unsubscribe()` go (`unsubscribeWaits`). */
@@ -421,7 +424,7 @@ class StandInPushSubscription {
           this.madeWithKey === null ? null : this.madeWithKey.slice().buffer,
       };
     this.p256dh = init.p256dh ?? MADE_UP_DEVICE_KEY;
-    this.auth = init.auth ?? MADE_UP_SECRET;
+    this.auth = init.auth === undefined ? MADE_UP_SECRET : init.auth;
   }
 
   keyBytes(): Uint8Array | null {
@@ -429,14 +432,18 @@ class StandInPushSubscription {
   }
 
   getKey(name: PushEncryptionKeyName): ArrayBuffer | null {
-    return fromText(name === "p256dh" ? this.p256dh : this.auth).slice().buffer;
+    const key = name === "p256dh" ? this.p256dh : this.auth;
+    return key === null ? null : fromText(key).slice().buffer;
   }
 
   toJSON(): PushSubscriptionJSON {
     return {
       endpoint: this.endpoint,
       expirationTime: null,
-      keys: { p256dh: this.p256dh, auth: this.auth },
+      keys:
+        this.auth === null
+          ? { p256dh: this.p256dh }
+          : { p256dh: this.p256dh, auth: this.auth },
     };
   }
 

@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { installPushStandIns, type ListedNotification } from "./push";
+import {
+  installPushStandIns,
+  madeUpSubscription,
+  type ListedNotification,
+} from "./push";
 
 // The test kit's own checks: the phone's notification list (./push.ts, c019 design.md § Ports and contracts) as the
 // app's tests rely on it.
@@ -73,4 +77,16 @@ test("A listing left waiting lists what is shown once the test lets it go", asyn
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
   expect(answer).toEqual([{ ...PAYMENT, data: null }]);
+});
+
+test("A subscription's secret is the bytes its auth names, and a subscription without one answers none", () => {
+  const withSecret = madeUpSubscription({ auth: "AAECAwQFBgcICQoLDA0ODw" });
+  const without = madeUpSubscription({ auth: null });
+
+  expect([...new Uint8Array(withSecret.getKey("auth")!)]).toEqual(
+    Array.from({ length: 16 }, (_, i) => i),
+  );
+  expect(without.getKey("auth")).toBeNull();
+  expect(without.getKey("p256dh")).not.toBeNull();
+  expect(without.toJSON().keys).not.toHaveProperty("auth");
 });

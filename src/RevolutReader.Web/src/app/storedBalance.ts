@@ -57,6 +57,17 @@ export async function keepPushedBalance(pushed: Balance): Promise<void> {
 }
 
 /**
+ * Keeps a notification's balance in place of the one the phone keeps, by c015 design.md D3's rule (c019 design.md D6:
+ * `keepPushedBalance` renamed). Resolves whether it replaced; never rejects.
+ */
+export function keepNotificationBalance(balance: Balance): Promise<boolean> {
+  void balance;
+  throw new Error(
+    "Not implemented: keepNotificationBalance (c019 design.md D6)",
+  );
+}
+
+/**
  * Whether a push's balance read at `readAt` replaces this kept record (c015 design.md D3): only a balance of the right
  * shape is replaced, never none (a push only replaces), and only when the push's was not read earlier, the two times
  * compared as moments, so two offsets for the same moment are equal.

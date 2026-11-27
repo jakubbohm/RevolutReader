@@ -1,6 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { ago, HOUR, SECOND, startTestClock, timePasses } from "../test/clock";
+import {
+  ago,
+  HOUR,
+  MINUTE,
+  SECOND,
+  startTestClock,
+  timePasses,
+} from "../test/clock";
+import { balanceAddress, PHONE_SECRET } from "../test/notificationBalance";
 import {
   installPushStandIns,
   type PushStandInOptions,
@@ -27,6 +35,7 @@ import {
   noAnswerYet,
   noConnection,
   nobodySignedIn,
+  openPageAt,
   phoneKeeps,
   pushKey,
   refused,
@@ -1986,4 +1995,68 @@ test("A new turn-on clears its earlier failure, and only that", async () => {
   expect(result.current.shown, "its banner stays").toMatchObject({
     banner: { kind: "bank unavailable" },
   });
+});
+
+// ---- c019: the launch's intake of a notification's balance (design.md D6) ----
+
+/** The amount the header shows, or null when it shows none. */
+function amountShown(shown: AccountScreenModel["shown"]): number | null {
+  if (shown.screen !== "account") return null;
+  return typeof shown.header === "object" && shown.header !== null
+    ? shown.header.balance.amount
+    : null;
+}
+
+/**
+ * A launch at a notification's address carrying 286.40 € read a minute ago, made for this phone's subscription, while
+ * the phone keeps 250,00 € read two hours ago and the server does not answer yet: every amount the header showed, in
+ * order of its renders.
+ */
+async function launchFromANotification(push: PushStandInOptions = {}): Promise<{
+  result: { current: AccountScreenModel };
+  amounts: (number | null)[];
+  phone: PushStandIns;
+}> {
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  const phone = installPushStandIns({
+    ...push,
+    subscription: { auth: PHONE_SECRET },
+  });
+  openPageAt(await balanceAddress(kept(286.4, ago(MINUTE)), PHONE_SECRET));
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const amounts: (number | null)[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    amounts.push(amountShown(model.shown));
+    return model;
+  });
+  return { result, amounts, phone };
+}
+
+test("At a launch the kept balance is loaded after the intake has ended", async () => {
+  startTestClock();
+  const { result, amounts } = await launchFromANotification();
+
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown)).toBe(286.4);
+  expect(amounts, "the older kept balance never shows").not.toContain(250);
+});
+
+test("An intake still running after 300 ms lets the kept balance show, and the screen shows the newer one when the intake ends", async () => {
+  startTestClock();
+  // The browser leaves the subscription's question hanging, so the intake cannot end.
+  const { result, amounts, phone } = await launchFromANotification({
+    getSubscriptionWaits: true,
+  });
+
+  await timePasses(299);
+  expect(amounts, "before 300 ms, the kept balance waits").not.toContain(250);
+  await timePasses(1);
+  expect(amountShown(result.current.shown), "at 300 ms").toBe(250);
+
+  phone.letWaitingCallsSettle();
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown), "once the intake ends").toBe(286.4);
 });
