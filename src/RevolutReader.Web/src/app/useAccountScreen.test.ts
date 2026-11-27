@@ -2083,3 +2083,33 @@ test("A hashchange runs the intake with the page's address, and the screen shows
   expect(await keptBalance(), "kept by the intake").toEqual(notified);
   expect(amountShown(result.current.shown), "shown after it").toBe(286.4);
 });
+
+// ---- c019: the list at a launch (design.md D5) ----
+
+test("A launch's intake reads the list as well as the address", async () => {
+  startTestClock();
+  await phoneKeeps(kept(250, ago(2 * HOUR)));
+  // Opened from the app's icon: the start page, no fragment; the notification is still shown.
+  installPushStandIns({
+    subscription: { auth: PHONE_SECRET },
+    notifications: [
+      {
+        title: "Odešlo 3,80 €",
+        body: "Zůstatek 286,40 €",
+        navigate: await balanceAddress(kept(286.4, ago(MINUTE)), PHONE_SECRET),
+      },
+    ],
+  });
+  answerWith({ whoIsSignedIn: noAnswerYet });
+  const amounts: (number | null)[] = [];
+  const { result } = renderHook(() => {
+    const model = useAccountScreen();
+    amounts.push(amountShown(model.shown));
+    return model;
+  });
+
+  await timePasses(0);
+
+  expect(amountShown(result.current.shown)).toBe(286.4);
+  expect(amounts, "the older kept balance never shows").not.toContain(250);
+});

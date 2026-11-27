@@ -4,6 +4,7 @@ import {
   installPushStandIns,
   removePushStandIns,
   type PushStandInOptions,
+  type ShownNotification,
 } from "../test/push";
 import { kept, keptBalance, openPageAt, phoneKeeps } from "../test/server";
 import { takeInNotificationBalances, watchAddress } from "./notificationIntake";
@@ -85,4 +86,70 @@ test("watchAddress calls back on every hashchange and stops when asked", () => {
   stop();
   hashChanges();
   expect(calls, "none once stopped").toBe(2);
+});
+
+// ---- c019: the notifications the phone still shows (design.md D5, § Ports and contracts) ----
+
+/** A notification the phone shows, its address carrying `balance` for this phone. */
+async function notificationWith(
+  balance: typeof NOTIFIED,
+): Promise<ShownNotification> {
+  return {
+    title: "Odešlo 3,80 €",
+    body: "Zůstatek 286,40 €",
+    navigate: await balanceAddress(balance, PHONE_SECRET),
+  };
+}
+
+test("takeInNotificationBalances({ fromList: true }) reads each listed notification's navigate and keeps a valid balance", async () => {
+  await phoneKeeps(KEPT);
+  installPushStandIns({
+    ...SUBSCRIBED,
+    notifications: [
+      // A message whose address carries no balance, listed before the one that does.
+      { title: "Ahoj", navigate: `${location.origin}/` },
+      await notificationWith(NOTIFIED),
+    ],
+  });
+
+  const outcome = await takeInNotificationBalances({
+    fromAddress: false,
+    fromList: true,
+  });
+
+  expect(outcome).toEqual({ kept: true });
+  expect(await keptBalance()).toEqual(NOTIFIED);
+});
+
+test("A listed notification without a string navigate is skipped; a getNotifications that fails gives no candidate and never rejects", async () => {
+  await phoneKeeps(KEPT);
+  installPushStandIns({
+    ...SUBSCRIBED,
+    notifications: [{ title: "Ahoj" }, await notificationWith(NOTIFIED)],
+  });
+  expect(
+    await takeInNotificationBalances({ fromAddress: false, fromList: true }),
+    "one without navigate, then one with a balance",
+  ).toEqual({ kept: true });
+  expect(await keptBalance(), "the listed balance kept").toEqual(NOTIFIED);
+
+  await phoneKeeps(KEPT);
+  installPushStandIns({
+    ...SUBSCRIBED,
+    notifications: [await notificationWith(NOTIFIED)],
+    getNotificationsFails: new Error("refused"),
+  });
+  await expect(
+    takeInNotificationBalances({ fromAddress: false, fromList: true }),
+    "the list refused",
+  ).resolves.toEqual({ kept: false });
+  expect(await keptBalance(), "nothing kept from it").toEqual(KEPT);
+
+  // The page's own address still counts when the list fails.
+  openPageAt(await balanceAddress(NOTIFIED, PHONE_SECRET));
+  await expect(
+    takeInNotificationBalances({ fromAddress: true, fromList: true }),
+    "the address's balance, the list refused",
+  ).resolves.toEqual({ kept: true });
+  expect(await keptBalance(), "the address's balance kept").toEqual(NOTIFIED);
 });
