@@ -372,7 +372,7 @@ Conventions for the run:
 
 ## 55. [close] Slice 20 — Coming back to the app turns the balance grey until the answer
 
-- [ ] 55.1 The scenario's test passes. Verify: green, including account-balance / Coming back to the app turns the balance grey until the answer
+- [x] 55.1 The scenario's test passes. Verify: green, including account-balance / Coming back to the app turns the balance grey until the answer
 
 ## 56. [close] Slice 21 — A grey balance is spoken as a balance in ink
 
