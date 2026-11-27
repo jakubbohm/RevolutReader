@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { startTestClock, timePasses } from "../test/clock";
 import {
   balanceAddress,
   PHONE_SECRET,
@@ -305,4 +306,32 @@ test("An address with another fragment, or none, is left as it is", async () => 
 
     expect(pageAddress(), address).toBe(address);
   }
+});
+
+// Chapter C's review, finding C-1: the list may hang (design.md D5, § Ports and contracts), and the address's balance
+// does not come from it.
+test("A hanging notification list neither holds back the address's balance nor leaves its fragment in the address", async () => {
+  startTestClock();
+  await phoneKeeps(KEPT);
+  const phone = installPushStandIns({
+    ...SUBSCRIBED,
+    notifications: [{ title: "Ahoj" }],
+    getNotificationsWaits: true,
+  });
+  openPageAt(await balanceAddress(NOTIFIED, PHONE_SECRET));
+
+  const intake = takeInNotificationBalances({
+    fromAddress: true,
+    fromList: true,
+  });
+  await timePasses(0);
+
+  try {
+    expect(await keptBalance(), "the address's balance kept").toEqual(NOTIFIED);
+    expect(pageAddress(), "the address cleaned").toBe("/");
+  } finally {
+    phone.letWaitingCallsSettle();
+    await intake;
+  }
+  expect(await intake, "once the list answers").toEqual({ kept: true });
 });
