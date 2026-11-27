@@ -168,8 +168,8 @@ Conventions for the run:
 
 ## 12. [wiring] Slice 3 — The intake at a launch
 
-- [ ] 12.1 `app/notificationBalance.ts`, `app/notificationIntake.ts` (D5, D6; `pushRegistration`, `currentSubscription`); `storedBalance.keepNotificationBalance`, its callers renamed. Verify: groups 10 and 11 green; `typecheck` green under `tsconfig.sw.json` (the module loads no API client, c015 D5)
-- [ ] 12.2 `useAccountScreen`'s start runs the intake with the page's address, then loads the kept balance, within `LAUNCH_INTAKE_LIMIT_MS`. Verify: 11.4 and 11.5 green
+- [x] 12.1 `app/notificationBalance.ts`, `app/notificationIntake.ts` (D5, D6; `pushRegistration`, `currentSubscription`); `storedBalance.keepNotificationBalance`, its callers renamed. Verify: groups 10 and 11 green; `typecheck` green under `tsconfig.sw.json` (the module loads no API client, c015 D5)
+- [x] 12.2 `useAccountScreen`'s start runs the intake with the page's address, then loads the kept balance, within `LAUNCH_INTAKE_LIMIT_MS`. Verify: 11.4 and 11.5 green
 
 ## 13. [close] Slice 3 — A tap on a notification with a balance replaces the balance the phone keeps
 

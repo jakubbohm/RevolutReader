@@ -34,11 +34,6 @@ export async function storeBalance(balance: Balance): Promise<void> {
   }
 }
 
-/** Keeps a balance a push brought, as `keepNotificationBalance` does (c015 design.md D3). Never rejects. */
-export async function keepPushedBalance(pushed: Balance): Promise<void> {
-  await keepNotificationBalance(pushed);
-}
-
 /**
  * Keeps a notification's balance in place of the one the phone keeps, by c015 design.md D3's rule (c019 design.md D6:
  * `keepPushedBalance` renamed): only when the phone keeps a balance of the right shape and the notification's was not

@@ -6,7 +6,7 @@
  */
 
 import { balanceOf, type Balance } from "./balanceRecord";
-import { keepPushedBalance } from "./storedBalance";
+import { keepNotificationBalance } from "./storedBalance";
 
 /** A Declarative Web Push message as the service worker shows it. */
 export interface DeclarativeMessage {
@@ -116,7 +116,7 @@ export function listenForPushes(worker: PushWorker): void {
     // The balance first, under the event's waitUntil so the worker lives until it is written (c015 design.md D4); the
     // write never rejects, and the message below starts in the same turn, so it never waits for it.
     const balance = pushedBalance(event);
-    if (balance !== null) event.waitUntil(keepPushedBalance(balance));
+    if (balance !== null) event.waitUntil(keepNotificationBalance(balance));
     // The browser read the message and shows its own notification (Declarative Web Push): leave it, so it shows once.
     if (event.notification !== undefined && event.notification !== null) return;
     const message = declarativeMessage(pushJson(event));
