@@ -355,7 +355,7 @@ Conventions for the run:
 
 ## 51. [close] Slice 18 — A failed refresh turns the balance grey
 
-- [ ] 51.1 The scenario's test passes. Verify: green, including account-balance / A failed refresh turns the balance grey
+- [x] 51.1 The scenario's test passes. Verify: green, including account-balance / A failed refresh turns the balance grey
 
 ## 52. [close] Slice 19 — A refresh keeps a confirmed balance in ink
 
