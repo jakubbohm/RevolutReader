@@ -43,6 +43,12 @@ public static partial class PushMessages {
   private static readonly Uri _anyAppAddress = new("https://app.invalid/");
 
   /// <summary>
+  /// The secret <see cref="Check"/> measures a message with a balance with (c019 design.md D2): 16 zero bytes, since the
+  /// check code's length does not depend on the key, so the size is the one every device's push has.
+  /// </summary>
+  private static readonly byte[] _measuringSecret = new byte[BalanceInAddress.SECRET_BYTES];
+
+  /// <summary>
   /// Whether <paramref name="page"/> is a page of the app (D2): a path that starts with a single <c>/</c> and, put on the
   /// app's address as <c>navigate</c> is, opens an address of the app itself, outside <c>/api</c>.
   /// </summary>
@@ -73,7 +79,7 @@ public static partial class PushMessages {
 
     if (!IsAppPage(message.Page))
       refused.Add(new RefusedMember(PAGE, NOT_A_PAGE));
-    else if (Encoding.UTF8.GetByteCount(DeclarativeJson(message, appAddress)) > MOST_BYTES)
+    else if (Encoding.UTF8.GetByteCount(DeclarativeJson(message, appAddress, _measuringSecret)) > MOST_BYTES)
       refused.Add(new RefusedMember(MESSAGE, TOO_LONG));
 
     return refused;
@@ -100,46 +106,32 @@ public static partial class PushMessages {
   /// <summary>
   /// The Declarative Web Push JSON (D2): <c>web_push</c> 8030 and a <c>notification</c> with the title, the text as
   /// <c>body</c> only when there is text, and <c>navigate</c>, the page resolved against <paramref name="appAddress"/>
-  /// (<c>Push:Subject</c>). With a balance (a notification about the account, c014 design.md D14), also <c>"mutable": true</c>
-  /// at the top level, where the declarative push parser reads it, and the notification's <c>data</c>, exactly
-  /// <c>{ "balance": { "amount", "readAt", "czkPerEur" } }</c>, each value written by the same converters as
-  /// <c>GET /api/balance</c> writes it (a JSON number for each amount, the ISO 8601 text of the read time); without one,
-  /// neither. Never <c>app_badge</c>, and nothing else.
+  /// (<c>Push:Subject</c>). A plain push (c019 design.md D1): never <c>mutable</c>, never the notification's <c>data</c>,
+  /// never <c>app_badge</c>, and nothing else. With a balance (a notification about the account), <c>navigate</c> carries
+  /// <c>#</c> and <see cref="BalanceInAddress.Fragment"/> for <paramref name="deviceSecret"/> in place of the page's own
+  /// fragment (D2), and a secret not of 16 bytes throws <see cref="ArgumentException"/>; without one, the secret is not read.
   /// </summary>
   public static string DeclarativeJson(PushMessage message, Uri appAddress, ReadOnlySpan<byte> deviceSecret = default) {
     ArgumentNullException.ThrowIfNull(message);
     ArgumentNullException.ThrowIfNull(appAddress);
 
-    NotificationData? data = message.Balance is { } balance
-      ? new NotificationData(new BalanceData(balance.Amount, balance.ReadAt, balance.CzkPerEur))
-      : null;
-    DeclarativePush push = new(
-      DECLARATIVE_WEB_PUSH,
-      new Notification(message.Title, message.Text, new Uri(appAddress, message.Page).AbsoluteUri, data),
-      Mutable: data is null ? null : true);
+    Uri opened = new(appAddress, message.Page);
+    string navigate = message.Balance is { } balance
+      ? $"{opened.GetLeftPart(UriPartial.Query)}#{BalanceInAddress.Fragment(balance, deviceSecret)}"
+      : opened.AbsoluteUri;
+    DeclarativePush push = new(DECLARATIVE_WEB_PUSH, new Notification(message.Title, message.Text, navigate));
 
     return JsonSerializer.Serialize(push, _json);
   }
 
-  /// <summary>The push's JSON as Declarative Web Push names its members; <c>mutable</c> left out unless it carries a balance.</summary>
+  /// <summary>The push's JSON as Declarative Web Push names its members.</summary>
   private sealed record DeclarativePush(
     [property: JsonPropertyName("web_push")] int WebPush,
-    [property: JsonPropertyName("notification")] Notification Notification,
-    [property: JsonPropertyName("mutable"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Mutable);
+    [property: JsonPropertyName("notification")] Notification Notification);
 
-  /// <summary>The notification Safari shows by itself; <c>body</c> left out when there is no text, <c>data</c> when there is no balance.</summary>
+  /// <summary>The notification Safari shows by itself; <c>body</c> left out when there is no text.</summary>
   private sealed record Notification(
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("body"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Body,
-    [property: JsonPropertyName("navigate")] string Navigate,
-    [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NotificationData? Data);
-
-  /// <summary>The notification's data (c014 design.md D14): the balance alone.</summary>
-  private sealed record NotificationData([property: JsonPropertyName("balance")] BalanceData Balance);
-
-  /// <summary>The balance as <c>GET /api/balance</c> names its members (D14).</summary>
-  private sealed record BalanceData(
-    [property: JsonPropertyName("amount")] decimal Amount,
-    [property: JsonPropertyName("readAt")] DateTimeOffset ReadAt,
-    [property: JsonPropertyName("czkPerEur")] decimal CzkPerEur);
+    [property: JsonPropertyName("navigate")] string Navigate);
 }

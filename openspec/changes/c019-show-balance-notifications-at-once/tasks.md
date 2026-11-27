@@ -89,24 +89,24 @@ Conventions for the run:
 
 ## 2. [unit] Slice 1 — The balance in the address
 
-- [ ] 2.1 The fragment of the known-answer vector is exactly the pinned one. The test-writer makes the vector once with Node's `crypto.hkdfSync` and `createHmac` (secret 0x00–0x0f, the balance of design.md D12) and records it in `.tdd-state.md` for slice 3
-- [ ] 2.2 The payload is the base64url of the JSON `GET /api/balance` writes for the same balance
-- [ ] 2.3 The check code is 43 base64url characters, and another secret gives another code
-- [ ] 2.4 A secret not of 16 bytes is refused with an `ArgumentException` naming it, never its value
+- [x] 2.1 The fragment of the known-answer vector is exactly the pinned one. The test-writer makes the vector once with Node's `crypto.hkdfSync` and `createHmac` (secret 0x00–0x0f, the balance of design.md D12) and records it in `.tdd-state.md` for slice 3
+- [x] 2.2 The payload is the base64url of the JSON `GET /api/balance` writes for the same balance
+- [x] 2.3 The check code is 43 base64url characters, and another secret gives another code
+- [x] 2.4 A secret not of 16 bytes is refused with an `ArgumentException` naming it, never its value
 
 ## 3. [unit] Slice 1 — The push and the sender
 
-- [ ] 3.1 A message with a balance has no `mutable` and no `data`; its `navigate` is the start page with `#` and the fragment for the given secret. The c014 tests that pinned `mutable` and `data.balance` are rewritten by the test-writer to pin their absence
-- [ ] 3.2 The balance's fragment takes the place of a fragment the page has
-- [ ] 3.3 `Check` measures a message with a balance with its fragment: one just under 3993 bytes without it and over with it is refused as too long
+- [x] 3.1 A message with a balance has no `mutable` and no `data`; its `navigate` is the start page with `#` and the fragment for the given secret. The c014 tests that pinned `mutable` and `data.balance` are rewritten by the test-writer to pin their absence
+- [x] 3.2 The balance's fragment takes the place of a fragment the page has
+- [x] 3.3 `Check` measures a message with a balance with its fragment: one just under 3993 bytes without it and over with it is refused as too long
 - [x] 3.4 A message without a balance is written as before, and a secret given with it is not read
-- [ ] 3.5 The sender hands each device a content whose code is made with that device's own secret (`StubPushDelivery`'s record per device)
+- [x] 3.5 The sender hands each device a content whose code is made with that device's own secret (`StubPushDelivery`'s record per device)
 - [x] 3.6 The sender hands every device the same content for a message without a balance
 
 ## 4. [wiring] Slice 1 — Building the push per device
 
-- [ ] 4.1 `Push/BalanceInAddress.cs` (design.md D2, D3; .NET's `HKDF` and `HMACSHA256`); `PushMessages.DeclarativeJson` and `Check` (D1, D2). Verify: group 2 and 3.1–3.4 green
-- [ ] 4.2 `SendPushHandler.Send` builds one `OutgoingPush` per device when the message has a balance (D4), decoding `Auth` with `StrictBase64Url`. Verify: 3.5 and 3.6 green; every push-sending and account-check acceptance test green
+- [x] 4.1 `Push/BalanceInAddress.cs` (design.md D2, D3; .NET's `HKDF` and `HMACSHA256`); `PushMessages.DeclarativeJson` and `Check` (D1, D2). Verify: group 2 and 3.1–3.4 green
+- [x] 4.2 `SendPushHandler.Send` builds one `OutgoingPush` per device when the message has a balance (D4), decoding `Auth` with `StrictBase64Url`. Verify: 3.5 and 3.6 green; every push-sending and account-check acceptance test green
 
 ## 5. [close] Slice 1 — The notification carries the new balance for the phone to keep
 
