@@ -3,6 +3,7 @@ import { readBalance, type Balance, type BalanceRead } from "./balance";
 import {
   LAUNCH_INTAKE_LIMIT_MS,
   takeInNotificationBalances,
+  watchAddress,
 } from "./notificationIntake";
 import { watchRefreshTriggers, watchReturns } from "./refreshTriggers";
 import {
@@ -461,6 +462,19 @@ export function useAccountScreen(): AccountScreenModel {
       if ((await intake).kept) await showStored();
     }
 
+    // A tap on a notification while the app is in the background, on this page, changes its fragment (c019 design.md
+    // D5): every change is taken in, and the screen shows the balance kept from it.
+    async function takeInAddress(): Promise<void> {
+      const { kept } = await takeInNotificationBalances({
+        fromAddress: true,
+        fromList: false,
+      });
+      if (kept) await showStored();
+    }
+    const stopWatchingAddress = watchAddress(() => {
+      void takeInAddress();
+    });
+
     // The first question unanswered after 1.5 s: the server is waking (D2).
     const wakingMark = setTimeout(() => {
       if (firstAnswered.current) return;
@@ -478,6 +492,7 @@ export function useAccountScreen(): AccountScreenModel {
     void start();
 
     return () => {
+      stopWatchingAddress();
       clearTimeout(wakingMark);
       clearTimeout(slowMark.current);
       onPage.current = false;

@@ -183,12 +183,12 @@ Conventions for the run:
 
 ## 14. [unit] Slice 4 — A tap in the background
 
-- [ ] 14.1 `watchAddress` calls back on every `hashchange` and stops when asked
-- [ ] 14.2 A `hashchange` runs the intake with the page's address, and the screen shows the kept balance after it
+- [x] 14.1 `watchAddress` calls back on every `hashchange` and stops when asked
+- [x] 14.2 A `hashchange` runs the intake with the page's address, and the screen shows the kept balance after it
 
 ## 15. [wiring] Slice 4 — The address watched
 
-- [ ] 15.1 `useAccountScreen` watches the address while the screen is on the page. Verify: group 14 green
+- [x] 15.1 `useAccountScreen` watches the address while the screen is on the page. Verify: group 14 green
 
 ## 16. [close] Slice 4 — A tap on a notification while the app is in the background replaces the balance the phone keeps
 

@@ -40,11 +40,15 @@ export async function takeInNotificationBalances(options: {
 /** Runs `onChange` on every `hashchange` (D5); returns the stop function. */
 export function watchAddress(
   onChange: () => void,
-  browser?: Window,
+  browser: Window = window,
 ): () => void {
-  void onChange;
-  void browser;
-  throw new Error("Not implemented: watchAddress (c019 design.md D5)");
+  const listener = (): void => {
+    onChange();
+  };
+  browser.addEventListener("hashchange", listener);
+  return () => {
+    browser.removeEventListener("hashchange", listener);
+  };
 }
 
 /**
