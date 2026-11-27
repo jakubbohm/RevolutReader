@@ -335,3 +335,45 @@ test("A hanging notification list neither holds back the address's balance nor l
   }
   expect(await intake, "once the list answers").toEqual({ kept: true });
 });
+
+// Chapter C's review, finding C-2: intakes run side by side, one per return and per hashchange. A tap changes the
+// address at once, but a browser fires its hashchange as a task of its own, so an intake already under way can end in
+// between; the address is changed here without an event (`history.replaceState`), and the hashchange's intake started
+// after that one ended.
+test("An intake under way when the address takes a new balance fragment leaves that fragment for the hashchange's intake", async () => {
+  startTestClock();
+  await phoneKeeps(KEPT);
+  // Every question for the subscription waits until the test lets it go.
+  const phone = installPushStandIns({
+    ...SUBSCRIBED,
+    getSubscriptionWaits: true,
+  });
+  openPageAt("/");
+
+  // A return's intake, its question for the subscription held.
+  const returnsIntake = takeInNotificationBalances({
+    fromAddress: true,
+    fromList: true,
+  });
+  await timePasses(0);
+
+  // A tap on a notification brings the app back on the same page: its address has the fragment, its hashchange is to come.
+  history.replaceState(null, "", await balanceAddress(NOTIFIED, PHONE_SECRET));
+  phone.letWaitingCallsSettle();
+  await returnsIntake;
+
+  // The hashchange arrives.
+  const hashchangesIntake = takeInNotificationBalances({
+    fromAddress: true,
+    fromList: false,
+  });
+  await timePasses(0);
+  phone.letWaitingCallsSettle();
+
+  expect(await hashchangesIntake, "the hashchange's intake").toEqual({
+    kept: true,
+  });
+  expect(await keptBalance(), "the tapped notification's balance").toEqual(
+    NOTIFIED,
+  );
+});
