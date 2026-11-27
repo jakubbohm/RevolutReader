@@ -210,12 +210,12 @@ Conventions for the run:
 
 ## 20. [unit] Slice 6 — The intake at a return
 
-- [ ] 20.1 Every return to the screen runs the intake with both sources, and the screen then shows the newer of what it showed and what the phone keeps (design.md D6)
+- [x] 20.1 Every return to the screen runs the intake with both sources, and the screen then shows the newer of what it showed and what the phone keeps (design.md D6)
 - [x] 20.2 A return's intake that keeps nothing leaves the shown balance as it was
 
 ## 21. [wiring] Slice 6 — Returns take in notifications
 
-- [ ] 21.1 `useAccountScreen` runs the intake at every return (`watchReturns`), beside the read the return repeats. Verify: group 20 green
+- [x] 21.1 `useAccountScreen` runs the intake at every return (`watchReturns`), beside the read the return repeats. Verify: group 20 green
 
 ## 22. [close] Slice 6 — Coming back to the app takes the balance of a notification still shown
 

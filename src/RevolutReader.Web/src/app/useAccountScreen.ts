@@ -99,6 +99,16 @@ async function withinLimit<T>(
   }
 }
 
+/**
+ * The balance to show (c019 design.md D6): the newer, by `readAt` compared as moments, of the latest read and the one
+ * the phone keeps, which a notification's balance may have replaced; the read on a tie; either when the other is none.
+ */
+function newer(read: Balance | null, kept: Balance | null): Balance | null {
+  if (read === null) return kept;
+  if (kept === null) return read;
+  return Date.parse(kept.readAt) > Date.parse(read.readAt) ? kept : read;
+}
+
 /** What the app's screens need from the sequence: what to show, and what the user's actions do. */
 export interface AccountScreenModel {
   shown: Shown;
@@ -462,17 +472,22 @@ export function useAccountScreen(): AccountScreenModel {
       if ((await intake).kept) await showStored();
     }
 
-    // A tap on a notification while the app is in the background, on this page, changes its fragment (c019 design.md
-    // D5): every change is taken in, and the screen shows the balance kept from it.
-    async function takeInAddress(): Promise<void> {
+    // While the screen is on the page (c019 design.md D5, D6): a tap on a notification while the app is in the
+    // background, on this page, changes its fragment, and every change is taken in; every return to the screen takes in
+    // the notifications the phone still shows, and the page's address in case. The screen then shows the balance kept
+    // from them; an intake that keeps nothing changes nothing.
+    async function takeIn(fromList: boolean): Promise<void> {
       const { kept } = await takeInNotificationBalances({
         fromAddress: true,
-        fromList: false,
+        fromList,
       });
       if (kept) await showStored();
     }
     const stopWatchingAddress = watchAddress(() => {
-      void takeInAddress();
+      void takeIn(false);
+    });
+    const stopWatchingReturns = watchReturns(() => {
+      void takeIn(true);
     });
 
     // The first question unanswered after 1.5 s: the server is waking (D2).
@@ -493,6 +508,7 @@ export function useAccountScreen(): AccountScreenModel {
 
     return () => {
       stopWatchingAddress();
+      stopWatchingReturns();
       clearTimeout(wakingMark);
       clearTimeout(slowMark.current);
       onPage.current = false;
@@ -614,7 +630,7 @@ export function useAccountScreen(): AccountScreenModel {
 
   const facts: Facts = {
     session,
-    balance: balance ?? stored,
+    balance: newer(balance, stored),
     reading,
     wait,
     wokeUp: wake !== null,
