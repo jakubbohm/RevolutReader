@@ -110,8 +110,8 @@ Conventions for the run:
 
 ## 5. [close] Slice 1 — The notification carries the new balance for the phone to keep
 
-- [ ] 5.1 The scenario's test passes. Verify: green, including account-check / The notification carries the new balance for the phone to keep
-- [ ] 5.2 Docs:
+- [x] 5.1 The scenario's test passes. Verify: green, including account-check / The notification carries the new balance for the phone to keep
+- [x] 5.2 Docs:
   - **ADR-0010**, a dated note (design.md D13): plain pushes; the fragment and its per-device code; a push per device; item 2's `mutable` statement holds for every push again.
   - **`testing.md`** § the push kit: the fragment, the test device's own check and the known-answer vector, mirrored in `.claude/rules/testing.md` where it names the kit.
   - **lessons.md R-108** (D3, D13).
