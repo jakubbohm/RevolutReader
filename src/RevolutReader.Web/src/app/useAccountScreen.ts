@@ -181,6 +181,8 @@ interface Wake {
 export function useAccountScreen(): AccountScreenModel {
   const [session, setSession] = useState<Session | "waiting">("waiting");
   const [stored, setStored] = useState<Balance | null>(null);
+  /** The kept balance has not been loaded yet at the launch: it waits for the intake (c019 design.md D6). */
+  const [keptLoading, setKeptLoading] = useState(true);
   const [balance, setBalance] = useState<Balance | null>(null);
   /** `balance` is what this opening's latest balance read returned, and that read succeeded (c019 design.md D8). */
   const [readConfirmed, setReadConfirmed] = useState(false);
@@ -514,7 +516,8 @@ export function useAccountScreen(): AccountScreenModel {
 
     // A launch first takes in the balance of the notification that opened it and of those the phone still shows (c019
     // design.md D5, D6), so the older kept balance never flashes before it; a browser call left hanging holds the kept
-    // balance back for 300 ms at most, and an intake that ends later still shows what it kept.
+    // balance back for 300 ms at most, and an intake that ends later still shows what it kept. Until the kept balance
+    // has loaded, the screen shows neither the whole-screen offline state nor the balance's placeholder (`keptLoading`).
     async function loadStored(): Promise<void> {
       const intake = takeInNotificationBalances({
         fromAddress: true,
@@ -522,6 +525,7 @@ export function useAccountScreen(): AccountScreenModel {
       });
       const first = await withinLimit(intake, LAUNCH_INTAKE_LIMIT_MS);
       await showStored();
+      if (onPage.current) setKeptLoading(false);
       if (first !== LIMIT_REACHED) return;
       if ((await intake).kept) await showStored();
     }
@@ -691,6 +695,7 @@ export function useAccountScreen(): AccountScreenModel {
   const facts: Facts = {
     session,
     balance: balanceShown,
+    keptLoading,
     // Confirmed only while the shown balance is the read's itself: one an intake shows in its place is not (D8).
     confirmed:
       readConfirmed && balanceShown !== null && balanceShown === balance,
