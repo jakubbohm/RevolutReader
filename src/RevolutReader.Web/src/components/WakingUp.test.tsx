@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
+import { documentTimeIs } from "../test/documentTimeline";
 import { WakingUp } from "./WakingUp";
 
 // The waking-up screen (design system WakingUp, c009 design.md D10): "Server se probouzí" and its sentence, announced as
@@ -45,4 +46,22 @@ test('The slow waking-up screen offers "Zkusit znovu" as a secondary button', as
   ).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Zkusit znovu" }));
   expect(retries).toBe(1);
+});
+
+// c019 design.md D9: the bar runs on the one wait clock (./waitClock.ts), `animate-wait-bar` with the document
+// timeline's phase set as its delay when it mounts, kept while it runs; the time is the kit's stand-in.
+test("WakingUp's bar runs animate-wait-bar with the delay set at mount", () => {
+  documentTimeIs(4200);
+  const { rerender } = render(<WakingUp slow={false} onRetry={() => {}} />);
+  const bar = screen.getByRole("progressbar").firstElementChild;
+  expect(bar, "the bar's moving part").toBeInstanceOf(HTMLElement);
+  expect(bar).toHaveClass("animate-wait-bar");
+  expect((bar as HTMLElement).style.animationDelay, "at mount").toBe("-1200ms");
+
+  documentTimeIs(5000);
+  rerender(<WakingUp slow={true} onRetry={() => {}} />);
+  expect(
+    (bar as HTMLElement).style.animationDelay,
+    "kept through a render",
+  ).toBe("-1200ms");
 });

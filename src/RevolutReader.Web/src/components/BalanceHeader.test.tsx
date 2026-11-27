@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { JSX } from "react";
 import { expect, test } from "vitest";
 import type { BalanceState } from "../app/screenState";
+import { documentTimeIs } from "../test/documentTimeline";
 import { BalanceHeader } from "./BalanceHeader";
 
 // The balance header (design system BalanceHeader, c009 design.md D10): "Na účtu máš" as the page's heading, the amount
@@ -154,4 +155,20 @@ test("BalanceHeader marks the amount and data-balance with its state (default li
       lines[index],
       `${label}: the koruna line and the freshness line as with no state given`,
     ).toEqual(lines[0]);
+});
+
+// c019 design.md D9: the waiting amount's shine runs on the one wait clock (./waitClock.ts), the document timeline's
+// phase set as its delay when `waiting` begins and kept while it lasts; the time is the kit's stand-in.
+test("BalanceHeader's amount gets the delay when waiting begins", () => {
+  documentTimeIs(4200);
+  const { rerender } = render(headerIn("stale"));
+  const amount = screen.getByText("286,40 €");
+
+  documentTimeIs(5000);
+  rerender(headerIn("waiting"));
+  expect(amount.style.animationDelay, "waiting begins").toBe("-500ms");
+
+  documentTimeIs(5600);
+  rerender(headerIn("waiting"));
+  expect(amount.style.animationDelay, "kept while it lasts").toBe("-500ms");
 });
