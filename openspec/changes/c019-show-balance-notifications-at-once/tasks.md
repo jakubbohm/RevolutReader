@@ -245,7 +245,7 @@ Conventions for the run:
 ## 28. [unit] Slice 10 — The address cleaned
 
 - [ ] 28.1 After the intake, an address with a balance fragment, valid or not, keeps its path and query and loses the fragment, by `history.replaceState`
-- [ ] 28.2 An address with another fragment, or none, is left as it is
+- [x] 28.2 An address with another fragment, or none, is left as it is
 
 ## 29. [wiring] Slice 10 — Cleaning the address
 

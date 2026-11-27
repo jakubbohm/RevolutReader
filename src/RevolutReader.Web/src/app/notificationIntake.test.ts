@@ -10,7 +10,14 @@ import {
   type PushStandInOptions,
   type ShownNotification,
 } from "../test/push";
-import { kept, keptBalance, openPageAt, phoneKeeps } from "../test/server";
+import {
+  kept,
+  keptBalance,
+  navigations,
+  openPageAt,
+  pageAddress,
+  phoneKeeps,
+} from "../test/server";
 import { takeInNotificationBalances, watchAddress } from "./notificationIntake";
 
 // The page's intake of a notification's balance (c019 design.md D5, D6): the page's own address, checked with the
@@ -205,5 +212,97 @@ test("The intake keeps only the newest valid candidate, whatever the order of th
       label,
     ).toEqual({ kept: true });
     expect(await keptBalance(), label).toEqual(NOTIFIED);
+  }
+});
+
+// ---- c019: the address cleaned (design.md D6) ----
+
+/** Runs `body`, counting the hashchanges the window hears meanwhile. */
+async function countingHashChanges(body: () => Promise<void>): Promise<number> {
+  let heard = 0;
+  const listener = (): void => {
+    heard += 1;
+  };
+  window.addEventListener("hashchange", listener);
+  try {
+    await body();
+  } finally {
+    window.removeEventListener("hashchange", listener);
+  }
+  return heard;
+}
+
+/** The `#balance=…` of an address carrying `balance` for this phone, or with a code not made for it. */
+async function fragmentOf(address: Promise<string>): Promise<string> {
+  return new URL(await address).hash;
+}
+
+test("After the intake, an address with a balance fragment, valid or not, keeps its path and query and loses the fragment, by history.replaceState", async () => {
+  const cases: {
+    label: string;
+    address: string;
+    push: PushStandInOptions | "none";
+    cleaned: string;
+  }[] = [
+    {
+      label: "a valid balance, with a query",
+      address: `/?from=notification${await fragmentOf(balanceAddress(NOTIFIED, PHONE_SECRET))}`,
+      push: SUBSCRIBED,
+      cleaned: "/?from=notification",
+    },
+    {
+      label: "a code not made for this phone",
+      address: `/${await fragmentOf(wrongCode(NOTIFIED, PHONE_SECRET))}`,
+      push: SUBSCRIBED,
+      cleaned: "/",
+    },
+    {
+      label: "a fragment that is no balance's format",
+      address: "/start?a=1#balance=not.a.balance",
+      push: SUBSCRIBED,
+      cleaned: "/start?a=1",
+    },
+    {
+      label: "a valid balance on a browser without push",
+      address: `/${await fragmentOf(balanceAddress(NOTIFIED, PHONE_SECRET))}`,
+      push: "none",
+      cleaned: "/",
+    },
+  ];
+
+  for (const { label, address, push, cleaned } of cases) {
+    await phoneKeeps(KEPT);
+    if (push === "none") removePushStandIns();
+    else installPushStandIns(push);
+    openPageAt(address);
+
+    const hashChanges = await countingHashChanges(async () => {
+      await takeInNotificationBalances({ fromAddress: true, fromList: false });
+    });
+
+    expect(pageAddress(), label).toBe(cleaned);
+    expect(hashChanges, `${label}: no hashchange`).toBe(0);
+    expect(navigations(), `${label}: no navigation`).toEqual([]);
+  }
+});
+
+test("An address with another fragment, or none, is left as it is", async () => {
+  installPushStandIns({
+    ...SUBSCRIBED,
+    notifications: [await notificationWith(NOTIFIED)],
+  });
+
+  for (const address of [
+    "/#transactions",
+    "/?from=icon#balances=x",
+    "/?from=icon",
+    "/",
+  ]) {
+    await phoneKeeps(KEPT);
+    openPageAt(address);
+
+    await takeInNotificationBalances({ fromAddress: true, fromList: true });
+
+    expect(pageAddress(), address).toBe(address);
   }
 });
