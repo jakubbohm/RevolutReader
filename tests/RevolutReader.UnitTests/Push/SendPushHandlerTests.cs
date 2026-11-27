@@ -103,6 +103,28 @@ public sealed class SendPushHandlerTests {
   }
 
   /// <summary>
+  /// A stored <c>Auth</c> that does not decode (a bug or a broken store, c019 design.md D4) fails that device's push alone:
+  /// for a message with a balance, every other device of the account still gets its own push, those stored after the bad
+  /// one as well as those before it, and only then does the send throw, never counting the bad device (review finding 1 of
+  /// PR 119).
+  /// </summary>
+  [Test]
+  public async Task A_device_whose_stored_secret_does_not_decode_stops_no_other_devices_push() {
+    PushDevice phone = Device(LUCIE);
+    PushDevice unreadableSecret = Device(LUCIE) with { Auth = "not base64url!" };
+    PushDevice tablet = Device(LUCIE);
+    StubPushDelivery delivery = new();
+    SendPushHandler sender = Handler(await StoreWith(phone, unreadableSecret, tablet), delivery);
+
+    _ = await Should.ThrowAsync<InvalidOperationException>(() => sender.Send(LUCIE, _messageWithBalance, CancellationToken.None));
+
+    IReadOnlyList<(PushDevice Device, OutgoingPush Push)> handedOver = delivery.HandedOver;
+    handedOver.ShouldSatisfyAllConditions(
+      () => handedOver.Select(static push => push.Device).ShouldBe([phone, tablet], ignoreOrder: true, "the phone and the tablet, stored before and after the bad device, each get the message once"),
+      () => handedOver.ShouldAllBe(push => push.Push.Content == WithItsOwnSecret(_messageWithBalance, push.Device), "each device's push is the message made with that device's own secret"));
+  }
+
+  /// <summary>
   /// Every push waits up to 24 hours at the push service while the device is offline (D2: <c>TTL: 86400</c>). The value
   /// is written out here, not read from the sender, so a different lifetime (the library's default of four weeks, none,
   /// an hour) fails.
