@@ -1,11 +1,12 @@
 /**
  * What the service worker does with a push and a tap on its notification (c012 design.md D9), the balance a push
- * brings (c015 design.md D2-D4). Imported by `sw.ts` and by the tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
+ * brings (c015 design.md D2-D4; in its page's fragment since c019 design.md D7). Imported by `sw.ts` and by the tests; compiled under both `tsconfig.app.json` (`DOM`) and `tsconfig.sw.json` (`WebWorker`), so it names the few
  * members of the service worker's scope it uses as its own small interfaces, and imports nothing that needs `window`
  * (c015 design.md D5).
  */
 
-import { balanceOf, type Balance } from "./balanceRecord";
+import type { Balance } from "./balanceRecord";
+import { balanceInAddress } from "./notificationBalance";
 import { keepNotificationBalance } from "./storedBalance";
 
 /** A Declarative Web Push message as the service worker shows it. */
@@ -83,33 +84,77 @@ export interface NotificationClickLike {
 }
 
 /**
- * The balance a push carries (c015 design.md D2): `balance` in the data of the browser's proposed notification when the
- * event carries one (a mutable Declarative Web Push gives the event no data of its own, W3C draft), else, when none of
- * the right shape is there, in the push's own JSON (`notification.data.balance`), which also covers a browser that hands
- * over both; kept only when `balanceOf` gives one. Null when there is none or it has the wrong shape. Never throws.
+ * The balance in the fragment of a push's `navigate` (c019 design.md D7), checked with `secret` as the page checks it
+ * (`balanceInAddress`): first the browser's proposed notification's, when the event carries one (a Declarative Web Push
+ * may give the event no data of its own, W3C draft), else, when that gives none, the push's own JSON's, which also
+ * covers a browser that hands over both (c015 design.md D2's order). Null when neither gives one, or `secret` is null.
+ * Never rejects.
  */
-export function pushedBalance(
+export async function pushedBalance(
   event: PushLike,
-  _secret: ArrayBuffer | null = null,
-): Balance | null {
+  secret: ArrayBuffer | null,
+): Promise<Balance | null> {
   const proposed = event.notification;
   if (proposed !== undefined && proposed !== null) {
-    const fromProposed = balanceOf(balanceIn(proposed));
+    const fromProposed = await balanceIn(navigateOf(proposed), secret);
     if (fromProposed !== null) return fromProposed;
   }
   const json = pushJson(event);
-  return balanceOf(isRecord(json) ? balanceIn(json.notification) : undefined);
+  return balanceIn(
+    isRecord(json) ? navigateOf(json.notification) : undefined,
+    secret,
+  );
 }
 
-/** `balance` in the `data` of a notification, proposed or in the push's JSON; undefined when there is none. */
-function balanceIn(notification: unknown): unknown {
+/** A notification's `navigate`, proposed or in the push's JSON, when it is a string; else undefined. */
+function navigateOf(notification: unknown): string | undefined {
   if (!isRecord(notification)) return undefined;
-  const { data } = notification;
-  return isRecord(data) ? data.balance : undefined;
+  const { navigate } = notification;
+  return typeof navigate === "string" ? navigate : undefined;
+}
+
+/** The balance in `navigate`'s fragment under `secret`; null when there is no page. */
+function balanceIn(
+  navigate: string | undefined,
+  secret: ArrayBuffer | null,
+): Promise<Balance | null> {
+  return navigate === undefined
+    ? Promise.resolve(null)
+    : balanceInAddress(navigate, secret);
 }
 
 /**
- * Listens for pushes and taps (D9): a push's balance is kept (c015 design.md D4); a push with the browser's own
+ * The secret of the worker's push subscription (`getKey("auth")`, D7), or null: no subscription, no secret, or a
+ * browser call that fails.
+ */
+async function subscriptionSecret(
+  worker: PushWorker,
+): Promise<ArrayBuffer | null> {
+  try {
+    const subscription =
+      await worker.registration.pushManager.getSubscription();
+    return subscription?.getKey("auth") ?? null;
+  } catch {
+    // The browser refused: no balance from this push (Error model).
+    return null;
+  }
+}
+
+/**
+ * Keeps the balance a push carries by c015's rule (`keepNotificationBalance`), checked with the worker's own
+ * subscription's secret. Never rejects: neither the secret's read, the check nor the write does.
+ */
+async function keepPushedBalance(
+  worker: PushWorker,
+  event: PushLike,
+): Promise<void> {
+  const balance = await pushedBalance(event, await subscriptionSecret(worker));
+  if (balance !== null) await keepNotificationBalance(balance);
+}
+
+/**
+ * Listens for pushes and taps (D9): a push's balance is kept (c015 design.md D4), checked with the worker's own
+ * subscription's secret (c019 design.md D7); a push with the browser's own
  * notification is left alone; otherwise its declarative message is shown (title, body, navigate in data). A tap closes
  * the notification and focuses an open window of the app on the worker's origin, or opens navigate's path, query and
  * fragment on that origin.
@@ -117,9 +162,8 @@ function balanceIn(notification: unknown): unknown {
 export function listenForPushes(worker: PushWorker): void {
   worker.addEventListener("push", (event) => {
     // The balance first, under the event's waitUntil so the worker lives until it is written (c015 design.md D4); the
-    // write never rejects, and the message below starts in the same turn, so it never waits for it.
-    const balance = pushedBalance(event);
-    if (balance !== null) event.waitUntil(keepNotificationBalance(balance));
+    // work never rejects, and the message below starts in the same turn, so it never waits for it (c019 design.md D7).
+    event.waitUntil(keepPushedBalance(worker, event));
     // The browser read the message and shows its own notification (Declarative Web Push): leave it, so it shows once.
     if (event.notification !== undefined && event.notification !== null) return;
     const message = declarativeMessage(pushJson(event));
