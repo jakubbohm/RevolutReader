@@ -244,12 +244,12 @@ Conventions for the run:
 
 ## 28. [unit] Slice 10 — The address cleaned
 
-- [ ] 28.1 After the intake, an address with a balance fragment, valid or not, keeps its path and query and loses the fragment, by `history.replaceState`
+- [x] 28.1 After the intake, an address with a balance fragment, valid or not, keeps its path and query and loses the fragment, by `history.replaceState`
 - [x] 28.2 An address with another fragment, or none, is left as it is
 
 ## 29. [wiring] Slice 10 — Cleaning the address
 
-- [ ] 29.1 `notificationIntake` cleans the page's address when it read it. Verify: group 28 green
+- [x] 29.1 `notificationIntake` cleans the page's address when it read it. Verify: group 28 green
 
 ## 30. [close] Slice 10 — The app's address carries no balance once the app has read it
 

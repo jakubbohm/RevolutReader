@@ -1,6 +1,10 @@
 // The page's intake of notifications' balances (c019 design.md D5, D6): from its own address and from the notifications
 // the phone still shows, kept by c015's rule.
-import { balanceInAddress, newest } from "./notificationBalance";
+import {
+  balanceInAddress,
+  carriesBalance,
+  newest,
+} from "./notificationBalance";
 import { currentSubscription } from "./push";
 import { keepNotificationBalance } from "./storedBalance";
 import { pushRegistration } from "./subscriptionUpkeep";
@@ -27,6 +31,32 @@ export async function takeInNotificationBalances(options: {
   browser?: Window;
 }): Promise<IntakeOutcome> {
   const browser = options.browser ?? window;
+  try {
+    return await takeIn(options, browser);
+  } finally {
+    if (options.fromAddress) cleanAddress(browser);
+  }
+}
+
+/**
+ * The page's address without its balance fragment, valid or not (D6), whatever the intake came to and on a browser
+ * without push too: the same path and query, by `history.replaceState`, which fires no `hashchange` and leaves no entry,
+ * so a bookmark, a share or the back button never carries it. Another fragment, or none, is left as it is.
+ */
+function cleanAddress(browser: Window): void {
+  const { href, pathname, search } = browser.location;
+  if (!carriesBalance(href)) return;
+  try {
+    browser.history.replaceState(browser.history.state, "", pathname + search);
+  } catch {
+    // The browser refused: the address keeps the fragment, and the next intake reads it again (Error model).
+  }
+}
+
+async function takeIn(
+  options: { fromAddress: boolean; fromList: boolean },
+  browser: Window,
+): Promise<IntakeOutcome> {
   if (!options.fromAddress && !options.fromList) return NOT_KEPT;
 
   // Without a registration or a subscription's secret nothing can verify, and there are no notifications to read (D5).
