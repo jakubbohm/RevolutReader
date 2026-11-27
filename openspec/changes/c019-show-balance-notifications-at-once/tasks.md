@@ -334,7 +334,7 @@ Conventions for the run:
 
 ## 46. [close] Slice 15 — A stored balance is grey and moving while the server wakes
 
-- [ ] 46.1 The scenario's test passes. Verify: green, including account-balance / A stored balance is grey and moving while the server wakes
+- [x] 46.1 The scenario's test passes. Verify: green, including account-balance / A stored balance is grey and moving while the server wakes
 
 ## 47. [close] Slice 16 — Offline, the stored balance is grey and still
 
