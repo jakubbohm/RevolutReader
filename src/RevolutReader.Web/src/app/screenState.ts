@@ -33,7 +33,10 @@ export interface ListReport {
 export interface Facts {
   /** The answer to who is signed in, once it came; `"waiting"` while it is asked, at first or again. */
   session: Session | "waiting";
-  /** The latest read, else the one the phone keeps, as loaded at start. */
+  /**
+   * The shown balance: the newer, by `readAt`, of the latest read and the one the phone keeps (loaded at start, and
+   * again whenever an intake keeps a notification's balance), the read on a tie (c019 design.md D6).
+   */
   balance: Balance | null;
   /** The shown balance is what this opening's latest balance read returned, and it succeeded (c019 design.md D8). */
   confirmed: boolean;
@@ -238,7 +241,7 @@ function accountOf(session: Facts["session"]): ShownAccount["account"] {
 }
 
 /**
- * The header: the balance, the latest read or else the stored one, refreshing while it is read again (`readsOnAwake`);
+ * The header: the balance shown (the newer of the latest read and the kept one), refreshing while it is read again (`readsOnAwake`);
  * with whether it is live (`balanceStateOf`; c019 design.md D8). With no balance, the placeholder, which has no state,
  * while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen stays
  * instead, never a placeholder); otherwise none.
