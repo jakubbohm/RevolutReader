@@ -58,7 +58,7 @@ public sealed class BankOnWireMock : IDisposable {
   private static readonly Lazy<string> _privateKey = new(CreatePrivateKey);
 
   private readonly WireMockServer _server;
-  private readonly ConcurrentQueue<ReceivedRequest> _arrivals = new();
+  private readonly ConcurrentQueue<ReceivedRequest> _received = new();
   private readonly CapturedLogLines _log = new();
   private readonly ServiceProvider _services;
 
@@ -75,7 +75,7 @@ public sealed class BankOnWireMock : IDisposable {
   public IReadOnlyList<LogLine> LibraryLogLines => _log.LibraryLines;
 
   /// <summary>How many requests reached the server so far, answered or not.</summary>
-  public int RequestsReceived => _arrivals.Count;
+  public int RequestsReceived => _received.Count;
 
   /// <summary>The client's request timeout unless a test sets its own: long, so no other test runs into it.</summary>
   public static TimeSpan DefaultRequestTimeout { get; } = TimeSpan.FromSeconds(5);
@@ -91,7 +91,7 @@ public sealed class BankOnWireMock : IDisposable {
   /// <param name="retryDelay">The client's wait before a first retry; <see cref="DefaultRetryDelay"/> unless given.</param>
   public BankOnWireMock(Uri? apiBaseUrl = null, TimeSpan? requestTimeout = null, TimeSpan? retryDelay = null) {
     _server = LoopbackWireMock.Start(new WireMockServerSettings {
-      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(NoteArrival),
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(NoteRequest),
     });
 
     IConfiguration configuration = new ConfigurationBuilder()
@@ -168,7 +168,7 @@ public sealed class BankOnWireMock : IDisposable {
       .RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
 
   /// <summary>Every request the server received so far, answered or not, in the order received.</summary>
-  public IReadOnlyList<ReceivedRequest> Requests() => [.. _arrivals];
+  public IReadOnlyList<ReceivedRequest> Requests() => [.. _received];
 
   /// <summary>The made-up continuation key of the page with this number (2 and up), different for every page.</summary>
   public static string KeyOfPage(int number) => $"ck-page-{number}-5e1d";
@@ -199,8 +199,8 @@ public sealed class BankOnWireMock : IDisposable {
   }
 
   /// <summary>The middleware in front of WireMock.Net's own handling: notes the request as it arrives, then passes it on.</summary>
-  private Task NoteArrival(HttpContext context, RequestDelegate next) {
-    _arrivals.Enqueue(Received(context.Request));
+  private Task NoteRequest(HttpContext context, RequestDelegate next) {
+    _received.Enqueue(Received(context.Request));
 
     return next(context);
   }

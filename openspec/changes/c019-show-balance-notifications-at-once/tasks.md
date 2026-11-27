@@ -125,7 +125,7 @@ Conventions for the run:
 ## 7. [wiring] Removal — the server's reports
 
 - [ ] 7.1 Deleted (design.md D10): `ArrivalReportEndpoint`, `ArrivalReportRequest`, `RecordArrivalHandler`, `ArrivalDelay`, `PushLog.PushArrived` and their registration in `PushRegistration`; `SignInRegistration.NeverRenewForAnArrivalReport` and its call. Verify: the build passes
-- [ ] 7.2 Their tests deleted, by the test-writer:
+- [x] 7.2 Their tests deleted, by the test-writer:
   - `Conventions/PushArrivalLoginTests.cs` and `PushArrivalTelemetryTests.cs`;
   - `Drivers/ArrivalDriver.cs`, `Dsl/ArrivalDsl.cs` and `ReportAnswer.cs`, and the arrival members of `AcceptanceTest`, `CapturedTelemetry`, `FakeBank`, `FakeCnb` and `FakePushService`;
   - `IntegrationTests/Wiring/Push/UnreadableArrivalReportTests.cs` and the arrival members of `BankOnWireMock` and `SubscriptionEndpointApp`;

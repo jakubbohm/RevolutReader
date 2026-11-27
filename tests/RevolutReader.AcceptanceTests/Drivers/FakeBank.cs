@@ -100,7 +100,7 @@ public sealed class FakeBank : IDisposable {
   private static readonly TimeSpan _heldRequestWithin = TimeSpan.FromSeconds(10);
 
   private readonly WireMockServer _server;
-  private readonly ArrivalLog _arrivals;
+  private readonly RequestLog _requestLog;
   private readonly AnswerHolder _holder;
   private readonly AnswerBreaker _breaker;
 
@@ -143,9 +143,9 @@ public sealed class FakeBank : IDisposable {
   /// <summary>The path of this account's transactions, as the server receives it.</summary>
   private string TransactionsPath => $"/accounts/{AccountId}/transactions";
 
-  private FakeBank(WireMockServer server, ArrivalLog arrivals, AnswerHolder holder, AnswerBreaker breaker) {
+  private FakeBank(WireMockServer server, RequestLog requestLog, AnswerHolder holder, AnswerBreaker breaker) {
     _server = server;
-    _arrivals = arrivals;
+    _requestLog = requestLog;
     _holder = holder;
     _breaker = breaker;
     Address = new Uri(server.Url ?? throw new InvalidOperationException("The fake bank started without an address."));
@@ -154,19 +154,19 @@ public sealed class FakeBank : IDisposable {
   /// <summary>
   /// Starts a fake bank on a free port of the loopback address (<see cref="LoopbackWireMock"/>), its own server kept out
   /// of every trace (<see cref="SilenceHostingTelemetry"/>), with three middlewares in front of WireMock.Net's own
-  /// handling: <see cref="ArrivalLog"/>, then <see cref="AnswerHolder"/>, then <see cref="AnswerBreaker"/>. Call it before
+  /// handling: <see cref="RequestLog"/>, then <see cref="AnswerHolder"/>, then <see cref="AnswerBreaker"/>. Call it before
   /// the app copy starts, so its address is known.
   /// </summary>
   public static FakeBank Start() {
-    ArrivalLog arrivals = new();
+    RequestLog requestLog = new();
     AnswerHolder holder = new();
     AnswerBreaker breaker = new();
     WireMockServer server = LoopbackWireMock.Start(new WireMockServerSettings {
       AdditionalServiceRegistration = SilenceHostingTelemetry,
-      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(arrivals.Record).Use(holder.Answer).Use(breaker.Answer),
+      PreWireMockMiddlewareInit = app => ((IApplicationBuilder)app).Use(requestLog.Record).Use(holder.Answer).Use(breaker.Answer),
     });
 
-    return new(server, arrivals, holder, breaker);
+    return new(server, requestLog, holder, breaker);
   }
 
   /// <summary>
@@ -242,7 +242,7 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>
   /// The <c>date_from</c> of every request for this account's transactions the bank received, answered or not, in the order
-  /// received (<see cref="ArrivalLog"/>). A request without a <c>date_from</c> the API reference's way, <c>yyyy-MM-dd</c>,
+  /// received (<see cref="RequestLog"/>). A request without a <c>date_from</c> the API reference's way, <c>yyyy-MM-dd</c>,
   /// fails the step.
   /// </summary>
   public IReadOnlyList<DateOnly> TransactionDaysReceived() => [.. TransactionDaysAndHeadersReceived().Select(static request => request.Day)];
@@ -253,16 +253,16 @@ public sealed class FakeBank : IDisposable {
   /// <see cref="RequestHeadersReceived"/>'s (c018: a check's transactions read told apart from a signed-in user's by them).
   /// </summary>
   public IReadOnlyList<(DateOnly Day, IReadOnlyDictionary<string, string> Headers)> TransactionDaysAndHeadersReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => (DayFrom(request), request.Headers)),
+    .. _requestLog.Requests().Where(request => request.Path == TransactionsPath).Select(static request => (DayFrom(request), request.Headers)),
   ];
 
   /// <summary>
   /// The headers of every request for this account's transactions the bank received, each page and each attempt, answered
-  /// or not, in the order received (<see cref="ArrivalLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s;
+  /// or not, in the order received (<see cref="RequestLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s;
   /// requests for anything else are left out (c018 design.md D10).
   /// </summary>
   public IReadOnlyList<IReadOnlyDictionary<string, string>> TransactionRequestHeadersReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.Headers),
+    .. _requestLog.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.Headers),
   ];
 
   /// <summary>
@@ -308,10 +308,10 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>
   /// The headers of every request for this account's balances the bank received, answered or not, in the order received
-  /// (<see cref="ArrivalLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s; requests for anything else are left out.
+  /// (<see cref="RequestLog"/>), looked up as <see cref="RequestHeadersReceived"/>'s; requests for anything else are left out.
   /// </summary>
   public IReadOnlyList<IReadOnlyDictionary<string, string>> BalanceRequestHeadersReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == BalancesPath).Select(static request => request.Headers),
+    .. _requestLog.Requests().Where(request => request.Path == BalancesPath).Select(static request => request.Headers),
   ];
 
   /// <summary>
@@ -325,18 +325,18 @@ public sealed class FakeBank : IDisposable {
   public void AnswerAfter(TimeSpan delay) => _server.AddGlobalProcessingDelay(delay);
 
   /// <summary>
-  /// The headers of every request the bank received, answered or not, in the order received (<see cref="ArrivalLog"/>).
+  /// The headers of every request the bank received, answered or not, in the order received (<see cref="RequestLog"/>).
   /// Names are looked up ignoring case, as HTTP compares them; a header sent more than once has its values joined with
   /// <c>", "</c>.
   /// </summary>
-  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => [.. _arrivals.Requests().Select(static request => request.Headers)];
+  public IReadOnlyList<IReadOnlyDictionary<string, string>> RequestHeadersReceived() => [.. _requestLog.Requests().Select(static request => request.Headers)];
 
   /// <summary>
   /// The <c>continuation_key</c> of every request for this account's transactions the bank received, answered or not, in
-  /// the order received (<see cref="ArrivalLog"/>); <see langword="null"/> for a request without one (a first page).
+  /// the order received (<see cref="RequestLog"/>); <see langword="null"/> for a request without one (a first page).
   /// </summary>
   public IReadOnlyList<string?> ContinuationKeysReceived() => [
-    .. _arrivals.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.ContinuationKey),
+    .. _requestLog.Requests().Where(request => request.Path == TransactionsPath).Select(static request => request.ContinuationKey),
   ];
 
   private static string MadeUpId() => Guid.NewGuid().ToString();
@@ -401,7 +401,7 @@ public sealed class FakeBank : IDisposable {
   /// so a request still waiting for its answer counts. WireMock.Net logs a request only once it has answered it: a request
   /// the test delays (<see cref="AnswerAfter"/>) is missing from its log until the delay ends, after the app has given up.
   /// </summary>
-  private sealed class ArrivalLog {
+  private sealed class RequestLog {
     private readonly ConcurrentQueue<RequestArrived> _requests = new();
 
     /// <summary>Every request so far, in the order received.</summary>
@@ -437,7 +437,7 @@ public sealed class FakeBank : IDisposable {
 
   /// <summary>
   /// Holds one request's answer until the test releases it, once armed (<see cref="HoldTheNextBalanceAnswer"/>): a
-  /// middleware in front of WireMock.Net's own handling, in the fake bank's server, after <see cref="ArrivalLog"/>, so the
+  /// middleware in front of WireMock.Net's own handling, in the fake bank's server, after <see cref="RequestLog"/>, so the
   /// held request counts as received while it waits. The first request on the armed path waits for the release, then goes
   /// on to WireMock.Net as any other, so it gets the answer the test set up for it; requests on other paths, and later ones
   /// on that path, pass at once. A held request whose caller gives up stops waiting and is answered nothing. Disposing the
@@ -512,7 +512,7 @@ public sealed class FakeBank : IDisposable {
   /// of WireMock.Net's own handling, in the fake bank's server. Not captured: the Mock ASPSP cannot break a connection on
   /// demand, and WireMock.Net's faults cannot break it mid-answer (its "malformed chunk" still ends the answer properly).
   /// <para>
-  /// The armed request counts as received (<see cref="ArrivalLog"/> runs first) and goes through WireMock.Net as any
+  /// The armed request counts as received (<see cref="RequestLog"/> runs first) and goes through WireMock.Net as any
   /// other, so it gets the answer the test set up for it, kept in memory instead of sent. Then the status and the headers
   /// go out with a <c>Content-Length</c> of the whole body, then half of the body, and the answer ends there. Kestrel, the
   /// server under WireMock.Net, then closes the connection, because the client cannot know how much more is coming (its
