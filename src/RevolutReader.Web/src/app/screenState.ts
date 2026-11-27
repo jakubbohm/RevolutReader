@@ -61,7 +61,10 @@ export type Shown =
       screen: "account";
       /** The menu, once the server named the user. */
       account: { name: string; email: string } | null;
-      header: { balance: Balance; refreshing: boolean } | "placeholder" | null;
+      header:
+        | { balance: Balance; refreshing: boolean; state: BalanceState }
+        | "placeholder"
+        | null;
       banner: Problem | null;
       /** The list slot, or a whole-screen state. */
       body:
@@ -236,14 +239,30 @@ function accountOf(session: Facts["session"]): ShownAccount["account"] {
 
 /**
  * The header: the balance, the latest read or else the stored one, refreshing while it is read again (`readsOnAwake`);
- * with no balance, the placeholder while the first read runs on a server that answered within 1.5 s (D2: after a wake
- * the waking-up screen stays instead, never a placeholder); otherwise none.
+ * with whether it is live (`balanceStateOf`; c019 design.md D8). With no balance, the placeholder, which has no state,
+ * while the first read runs on a server that answered within 1.5 s (D2: after a wake the waking-up screen stays
+ * instead, never a placeholder); otherwise none.
  */
 function headerOf(facts: Facts): ShownAccount["header"] {
   if (facts.balance !== null)
-    return { balance: facts.balance, refreshing: readsOnAwake(facts) };
+    return {
+      balance: facts.balance,
+      refreshing: readsOnAwake(facts),
+      state: balanceStateOf(facts),
+    };
   if (facts.reading === "first" && !facts.wokeUp) return "placeholder";
   return null;
+}
+
+/**
+ * Whether the shown balance is live (c019 design.md D8, the design system's BalanceHeader § Live or not): `live` when
+ * it is this opening's successful read (`confirmed`); otherwise `waiting` while a request that can confirm it is out,
+ * who is signed in being asked or a balance read running; otherwise `stale`. The list's read cannot confirm it.
+ */
+function balanceStateOf(facts: Facts): BalanceState {
+  if (facts.confirmed) return "live";
+  if (facts.session === "waiting" || facts.reading !== "no") return "waiting";
+  return "stale";
 }
 
 /**

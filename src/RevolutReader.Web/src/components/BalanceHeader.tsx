@@ -26,6 +26,13 @@ export interface BalanceHeaderProps {
   state?: BalanceState;
 }
 
+/** The amount's class for each state (c019 design.md D9; the utilities in `theme.css`). */
+const AMOUNT_CLASS: Record<BalanceState, string> = {
+  live: "amount-live",
+  waiting: "amount-waiting",
+  stale: "amount-stale",
+};
+
 /**
  * The account screen's header (design system BalanceHeader, c009 design.md D10), the first thing under the top bar:
  * "Na účtu máš" as the page's `h1` (`text-subhead`, muted), the amount in `text-amount-xl` in ink, never coloured, then
@@ -35,6 +42,11 @@ export interface BalanceHeaderProps {
  *
  * While a read is under way, the line reads "Obnovuji…" in the same live region, and "Obnovit" keeps its label as the
  * busy button: a spinner in place of its icon, `aria-busy`, taps ignored. The amount stays shown, never blanked.
+ *
+ * Whether the balance is live (c019 design.md D8, D9) is `state`, `live` when not given: the amount's colour comes from
+ * its class, `amount-live` (ink), `amount-waiting` (grey with the shine) or `amount-stale` (grey), and the section
+ * carries it as `data-balance`. It is never text and never `aria-busy`; the koruna line and the freshness line are the
+ * same in every state.
  */
 export function BalanceHeader({
   amount,
@@ -43,15 +55,20 @@ export function BalanceHeader({
   now,
   refreshing,
   onRefresh,
+  state = "live",
 }: BalanceHeaderProps): JSX.Element {
   const labelId = useId();
 
   return (
-    <section aria-labelledby={labelId} className="flex flex-col px-gutter">
+    <section
+      aria-labelledby={labelId}
+      data-balance={state}
+      className="flex flex-col px-gutter"
+    >
       <h1 id={labelId} className="text-subhead text-ink-muted">
         Na účtu máš
       </h1>
-      <p className="mt-1 text-amount-xl text-ink tabular-nums">
+      <p className={`mt-1 text-amount-xl tabular-nums ${AMOUNT_CLASS[state]}`}>
         {formatEur(amount)}
       </p>
       {/* An image role, so the line may carry its spoken form: ARIA allows no name on plain text. */}
