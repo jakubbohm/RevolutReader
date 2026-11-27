@@ -27,14 +27,24 @@ export async function takeInNotificationBalances(options: {
   browser?: Window;
 }): Promise<IntakeOutcome> {
   const browser = options.browser ?? window;
-  if (!options.fromAddress) return NOT_KEPT;
+  if (!options.fromAddress && !options.fromList) return NOT_KEPT;
 
-  const address = browser.location.href;
-  const secret = await subscriptionSecret(browser);
-  const balance = await balanceInAddress(address, secret);
-  if (balance === null) return NOT_KEPT;
+  // Without a registration or a subscription's secret nothing can verify, and there are no notifications to read (D5).
+  const registration = await pushRegistration(browser);
+  if (registration === null) return NOT_KEPT;
+  const secret = await subscriptionSecret(registration);
+  if (secret === null) return NOT_KEPT;
 
-  return { kept: await keepNotificationBalance(balance) };
+  const addresses = [
+    ...(options.fromAddress ? [browser.location.href] : []),
+    ...(options.fromList ? await listedAddresses(registration) : []),
+  ];
+  for (const address of addresses) {
+    const balance = await balanceInAddress(address, secret);
+    if (balance !== null)
+      return { kept: await keepNotificationBalance(balance) };
+  }
+  return NOT_KEPT;
 }
 
 /** Runs `onChange` on every `hashchange` (D5); returns the stop function. */
@@ -52,15 +62,36 @@ export function watchAddress(
 }
 
 /**
- * The secret of the push subscription the phone holds (`getKey("auth")`, D5), or null: no registration, no subscription,
- * no secret, or a browser call that fails.
+ * The `navigate` of every notification the phone still shows (`getNotifications()`, D5), those that have one as a
+ * string; none when the browser's call fails. The service worker's own notifications have none (their address is in
+ * `data`), and the tapped one is never listed.
+ */
+async function listedAddresses(
+  registration: ServiceWorkerRegistration,
+): Promise<string[]> {
+  try {
+    const shown: readonly unknown[] = await registration.getNotifications();
+    return shown.flatMap((notification) => {
+      const navigate =
+        typeof notification === "object" && notification !== null
+          ? (notification as { navigate?: unknown }).navigate
+          : undefined;
+      return typeof navigate === "string" ? [navigate] : [];
+    });
+  } catch {
+    // The browser refused the list: no candidate from it this time (Error model).
+    return [];
+  }
+}
+
+/**
+ * The secret of the push subscription the registration holds (`getKey("auth")`, D5), or null: no subscription, no
+ * secret, or a browser call that fails.
  */
 async function subscriptionSecret(
-  browser: Window,
+  registration: ServiceWorkerRegistration,
 ): Promise<ArrayBuffer | null> {
   try {
-    const registration = await pushRegistration(browser);
-    if (registration === null) return null;
     const subscription = await currentSubscription(registration);
     return subscription?.getKey("auth") ?? null;
   } catch {

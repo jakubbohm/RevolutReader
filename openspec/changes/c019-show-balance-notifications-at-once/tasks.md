@@ -196,13 +196,13 @@ Conventions for the run:
 
 ## 17. [unit] Slice 5 — The list at a launch
 
-- [ ] 17.1 `takeInNotificationBalances({ fromList: true })` reads each listed notification's `navigate` and keeps a valid balance
-- [ ] 17.2 A listed notification without a string `navigate` is skipped; a `getNotifications` that fails gives no candidate and never rejects
-- [ ] 17.3 A launch's intake reads the list as well as the address
+- [x] 17.1 `takeInNotificationBalances({ fromList: true })` reads each listed notification's `navigate` and keeps a valid balance
+- [x] 17.2 A listed notification without a string `navigate` is skipped; a `getNotifications` that fails gives no candidate and never rejects
+- [x] 17.3 A launch's intake reads the list as well as the address
 
 ## 18. [wiring] Slice 5 — The list read
 
-- [ ] 18.1 `notificationIntake` reads `registration.getNotifications()`; `useAccountScreen`'s launch asks for both sources. Verify: group 17 green
+- [x] 18.1 `notificationIntake` reads `registration.getNotifications()`; `useAccountScreen`'s launch asks for both sources. Verify: group 17 green
 
 ## 19. [close] Slice 5 — Opening the app from its icon takes the balance of a notification still shown
 

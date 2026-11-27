@@ -448,13 +448,13 @@ export function useAccountScreen(): AccountScreenModel {
       if (onPage.current) setStored(kept);
     }
 
-    // A launch first takes in the balance of the notification that opened it (c019 design.md D6), so the older kept
-    // balance never flashes before it; a browser call left hanging holds the kept balance back for 300 ms at most, and
+    // A launch first takes in the balance of the notification that opened it and of those the phone still shows (c019
+    // design.md D5, D6), so the older kept balance never flashes before it; a browser call left hanging holds the kept balance back for 300 ms at most, and
     // an intake that ends later still shows what it kept.
     async function loadStored(): Promise<void> {
       const intake = takeInNotificationBalances({
         fromAddress: true,
-        fromList: false,
+        fromList: true,
       });
       const first = await withinLimit(intake, LAUNCH_INTAKE_LIMIT_MS);
       await showStored();
