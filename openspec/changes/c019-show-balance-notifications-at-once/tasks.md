@@ -257,7 +257,7 @@ Conventions for the run:
 
 ## 31. [unit] Slice 11 — A code not made for this phone
 
-- [ ] 31.1 A code made with another secret, a code one character off, and a fragment without a code each give no balance. These are expected green after slice 3, and 32.1's mutation proves them
+- [x] 31.1 A code made with another secret, a code one character off, and a fragment without a code each give no balance. These are expected green after slice 3, and 32.1's mutation proves them
 
 ## 32. [close] Slice 11 — A balance without this phone's check code leaves the kept balance as it was
 

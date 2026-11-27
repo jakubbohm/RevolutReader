@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   balanceFragment,
+  PHONE_SECRET,
   secretBytes,
   signedFragment,
 } from "../test/notificationBalance";
@@ -206,6 +207,27 @@ test("No secret, or a crypto.subtle that throws, gives no balance and never reje
       "crypto.subtle rejecting",
     ).resolves.toBeNull();
   });
+});
+
+// A fragment without a code (`balance=<payload>`, and `balance=<payload>.`) is 10.3's.
+test("A code made with another secret, a code one character off, and a fragment without a code each give no balance", async () => {
+  const oneOff = `${VECTOR_CODE[0] === "g" ? "h" : "g"}${VECTOR_CODE.slice(1)}`;
+  const notThisPhones: { label: string; fragment: string }[] = [
+    {
+      label: "a code made with another secret",
+      fragment: await signedFragment(VECTOR_PAYLOAD, PHONE_SECRET),
+    },
+    {
+      label: "a code one character off",
+      fragment: `balance=${VECTOR_PAYLOAD}.${oneOff}`,
+    },
+  ];
+
+  for (const { label, fragment } of notThisPhones)
+    expect(
+      await balanceInAddress(addressWith(fragment), vectorSecret()),
+      label,
+    ).toBeNull();
 });
 
 /** A balance of `amount` EUR read at `readAt`, as written, offset and all. Made up. */
